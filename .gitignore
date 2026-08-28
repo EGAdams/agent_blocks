@@ -1,0 +1,5 @@
+spa_documentation/
+catherine_agent_sdk/
+.venv/
+__pycache__/
+*.pyc
