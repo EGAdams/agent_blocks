@@ -4,18 +4,23 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-A scratch/experiment repo of independent "agent blocks" — small standalone Python
-scripts plus a set of agent system prompts. **Not a git repo.** No package, build
-system, dependency manifest, or test suite; every script is run directly with
-`python3` from within its own directory.
+A scratch/experiment workspace of independent "agent blocks" — small Python
+projects plus a set of agent system prompts. The workspace root is a Git
+repository on `master`; `catherine_agent_sdk/` and `spa_documentation/` are
+ignored nested Git repositories with their own histories. There is no root
+package, build system, or dependency manifest, so commands run from each
+project's directory.
 
-Three top-level areas, unrelated to each other except in theme:
+The top-level areas are:
 
 - `catherine_agent_sdk/` — Claude Agent SDK probe script
 - `lancedb_memory/` — two generations of the same idea: the original RAVEN-style
   script (`3o_mini_chat_w_lance.py`, OpenAI), and `agent_memory/`, its ported
   successor on the Claude Agent SDK with Protocol-based ports
 - `solid_agent_systems/` — one directory per SOLID-principle review agent
+- `spa_documentation/` — a generated plain-HTML documentation SPA in its own
+  nested repository; read its `CLAUDE.md` before working there
+- `mailbox/` — ignored local coordination material
 
 ## Running
 
@@ -23,6 +28,15 @@ Three top-level areas, unrelated to each other except in theme:
 cd catherine_agent_sdk && python3 basic_agent.py
 cd lancedb_memory    && python3 3o_mini_chat_w_lance.py   # legacy, OpenAI
 cd lancedb_memory    && .venv/bin/python main.py          # current, Claude SDK
+```
+
+The current agent has an offline test suite:
+
+```bash
+cd lancedb_memory
+.venv/bin/python tests/test_agent.py
+.venv/bin/python tests/test_lancedb_store.py
+.venv/bin/python tests/test_embedding_profiles.py
 ```
 
 Dependencies are not declared anywhere; install ad hoc:
@@ -92,12 +106,13 @@ The rules that matter when touching it:
   `NexusArchiveObserver`, kept so raw text outlives any particular vector store.
   This is the fix for the legacy script's dual-source-of-truth bug — deleting
   the nexus must not affect recall, and a test asserts it.
-- **Embeddings are lexical, not semantic** (`HashingEmbedder`, 256 dims), because
-  Anthropic serves no embeddings endpoint. Swapping in a semantic embedder
-  changes the vector width; `LanceDBMemoryStore` raises on a dimension mismatch
-  rather than writing unsearchable rows, so a new table name is required.
-- Tests run with no network and no API key:
-  `.venv/bin/python tests/test_agent.py` and `tests/test_lancedb_store.py`.
+- **Embedding profiles must stay paired with their tables.** The default
+  `hash` profile is lexical (`HashingEmbedder`, 256 dims); `sentence` uses a
+  local semantic model (384 dims), and `openai` uses OpenAI embeddings (1536
+  dims). `LanceDBMemoryStore` raises on a dimension mismatch rather than writing
+  unsearchable rows, so each vector width requires its configured table.
+- Tests run with no network and no API key. Run all three scripts listed in the
+  root **Running** section, including `tests/test_embedding_profiles.py`.
 - Paths all default inside the repo via `config.py` — do not reintroduce the
   legacy script's hardcoded `/home/adamsl/linuxBash/...` absolutes.
 
@@ -153,7 +168,14 @@ when closing brackets are adjacent, they stack with no space between them —
 When adding code to these files, write closing brackets this way from
 the start rather than relying on a cleanup pass afterward.
 
+The same rule mirrors on the opening side: every non-empty `(`, `[`, or `{`
+gets a space after it, next to the innermost non-bracket content, and
+adjacent opening brackets stack tight with no space between them —
+`self._store.add([ user_turn, agent_turn ])`, not
+`self._store.add( [user_turn, agent_turn ])`.
+
 ## Note
 
-`catherine_agent_sdk/CLAUDE.md` predates this file and describes only the two
-Python scripts. Keep this root file as the authoritative one.
+Nested repositories have their own `CLAUDE.md` files for local instructions.
+Keep this root file authoritative for the root repository and shared project
+architecture.

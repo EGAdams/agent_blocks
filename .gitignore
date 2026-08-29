@@ -1,5 +1,6 @@
 spa_documentation/
 catherine_agent_sdk/
+mailbox/
 .venv/
 __pycache__/
 *.pyc

@@ -67,7 +67,7 @@ class ConversationAgent:
             vector=await self._embedder.embed( reply.text ),
         )
 
-        self._store.add( [user_turn, agent_turn ])
+        self._store.add([ user_turn, agent_turn ])
         self._observer.on_turn_complete( user_turn, agent_turn, recalled, reply )
 
         return reply
