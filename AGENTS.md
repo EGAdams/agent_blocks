@@ -1,5 +1,13 @@
 # AGENTS.md
 
+## Response style
+
+- Give the user short, simple, direct answers.
+- Lead with the answer and include only the details needed to understand or
+  verify it.
+- Avoid long explanations, repeated conclusions, and unnecessary formatting.
+- Use plain language. Explain technical terms only when they are necessary.
+
 ## Repository overview
 
 This workspace collects small, mostly independent experiments around agent
@@ -17,6 +25,18 @@ The main areas are:
 - `spa_documentation/`: an ignored nested repository containing the generated
   documentation SPA. Read its `CLAUDE.md` before working there.
 - `mailbox/`: ignored local coordination material.
+
+## Toyota Input Options and Voice Communication
+
+New Toyota Input Options development belongs in `voice_communication/`, with
+its visual documentation mirrored in `spa_documentation/voice_communication/`.
+Before working there, read the durable implementation and migration map at:
+
+`/home/adamsl/letta-code/notes_plans_handoffs/toyota_input_options_agent_blocks_map.md`
+
+The existing `/home/adamsl/letta-code/dashboard` implementation is the
+behavioral reference and migration source, not the primary location for new
+Agent Block work.
 
 There is no root package or dependency manifest. Run Python entry points and
 tests from their owning directories.

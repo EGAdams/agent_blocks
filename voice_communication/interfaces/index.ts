@@ -18,6 +18,7 @@ export type {
   VoiceHealthStatus,
 } from "../typescript_contracts/contracts.js";
 export type { IVoiceDesignRule } from "../design_protocol/design_protocol.js";
+export type { IInputDraft } from "../input_draft/input_draft.js";
 export type { ILanguageProcessor } from "../language_processor/language_processor.js";
 export type { ILettaAgentAdapter } from "../letta_agent_adapter/letta_agent_adapter.js";
 export type { INoteCommandChannel } from "../note_command_channel/note_command_channel.js";

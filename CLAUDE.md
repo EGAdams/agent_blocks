@@ -13,6 +13,9 @@ project's directory.
 
 The top-level areas are:
 
+- `claude_agent_adapter/` — `ClaudeAgentAdapter`, a `ConversationAgent` port
+  implementation over `claude-agent-sdk`; the sibling adapter role to
+  `voice_communication`'s (still-unimplemented) `LettaAgentAdapter`
 - `catherine_agent_sdk/` — Claude Agent SDK probe script
 - `lancedb_memory/` — two generations of the same idea: the original RAVEN-style
   script (`3o_mini_chat_w_lance.py`, OpenAI), and `agent_memory/`, its ported
@@ -25,9 +28,10 @@ The top-level areas are:
 ## Running
 
 ```bash
-cd catherine_agent_sdk && python3 basic_agent.py
-cd lancedb_memory    && python3 3o_mini_chat_w_lance.py   # legacy, OpenAI
-cd lancedb_memory    && .venv/bin/python main.py          # current, Claude SDK
+cd claude_agent_adapter && ../lancedb_memory/.venv/bin/python tests/test_adapter.py
+cd catherine_agent_sdk  && python3 basic_agent.py
+cd lancedb_memory       && python3 3o_mini_chat_w_lance.py   # legacy, OpenAI
+cd lancedb_memory       && .venv/bin/python main.py          # current, Claude SDK
 ```
 
 The current agent has an offline test suite:
@@ -46,6 +50,31 @@ Dependencies are not declared anywhere; install ad hoc:
 - `3o_mini_chat_w_lance.py` → `openai` (legacy pre-1.0 API surface:
   `openai.Embedding.create`, `openai.ChatCompletion.create`), `lancedb`,
   `pyarrow`, `pandas`
+
+## `claude_agent_adapter/` — ClaudeAgentAdapter
+
+Implements `ConversationAgent.submit(text, generation) -> AsyncIterator[AgentEvent]`
+(`ports.py`) by wrapping `claude-agent-sdk`'s `query()`, the same pattern
+`lancedb_memory/agent_memory/adapters/claude_model.py` already uses for its
+`LanguageModel` port. `ConversationAgent` mirrors `IConversationAgent`
+(`voice_communication/conversation_agent/conversation_agent.ts`) on the
+Python side; `models.py`/`ports.py` are local copies of that shape rather
+than a cross-package import, since this workspace has no root package (see
+above). `adapter.py` is the only file here allowed to import
+`claude_agent_sdk` — that's the DIP boundary.
+
+`ResultMessage.is_error` is checked before yielding a terminal event, same
+as `basic_agent.py` below; a failed call raises `AgentCallFailed` instead of
+being forwarded as if it succeeded. Read `claude_agent_adapter/CLAUDE.md`
+before touching it, especially the note that this adapter is *reproducible*
+(any instance can construct one from `adapter.py`'s recipe) but not
+*addressable* — it never provides a channel back into whatever Claude Code
+conversation happened to write or run it.
+
+Offline tests (`tests/test_adapter.py`) fake `claude_agent_sdk.query()` with
+real `AssistantMessage`/`ResultMessage` objects, so they need an interpreter
+with `claude-agent-sdk` installed but make no network calls and need no API
+key — see **Running** above.
 
 ## `catherine_agent_sdk/basic_agent.py` — Agent SDK probe
 

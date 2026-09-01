@@ -15,6 +15,7 @@ voice_communication/
   interfaces/                 public TypeScript and Python interface catalogs
   typescript_contracts/       browser/application boundary shapes
   pydantic_models/            cross-process runtime validation shapes
+  input_draft/                synchronized Toyota input boundary
   voice_session/              one directory per individual Agent Block
   conversation_agent/
   ...
@@ -50,15 +51,22 @@ The existing design reference remains:
 - `/home/adamsl/letta-code/dashboard/voice_communication_plan.html`
 - `/home/adamsl/letta-code/dashboard/js/plans/voice-communication/`
 
+The durable working map for Toyota's Input Options migration is:
+
+- `/home/adamsl/letta-code/notes_plans_handoffs/toyota_input_options_agent_blocks_map.md`
+
+Use that map to locate the current dashboard implementation, its tests and
+backend routes, and the exact seams planned for Agent Block adoption.
+
 Pipecat runs as a separate local service. The dashboard remains Toyota's
 composition boundary and communicates with that service through an adapter.
 
 ## Planned construction order
 
 1. IConversationAgent and LettaAgentAdapter adoption
-2. VoiceSession lifecycle
-3. SpokenOutputPolicy and interruption
-4. ConversationCoordinator
+2. InputDraft reset semantics and VoiceSession generation fencing
+3. ConversationCoordinator ordering for clear, listen, submit, and late events
+4. SpokenOutputPolicy and interruption
 5. PipecatServiceClient, PipecatLocalService, and PipelineFactory
 6. ToyotaVoiceApplication
 7. VoiceHealthObserver and controlled rollout
