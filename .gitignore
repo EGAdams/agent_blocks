@@ -4,3 +4,4 @@ mailbox/
 .venv/
 __pycache__/
 *.pyc
+node_modules/

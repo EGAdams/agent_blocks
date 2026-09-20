@@ -13,7 +13,9 @@ and its one method throws `"not implemented yet"` on purpose.
 Read `docs/overview.md` first — it is the specification for the system as a
 whole, and its opening gotcha ("the objects are built, nothing calls them,
 both halves are true") is the single most important thing to understand before
-implementing. Then `README.md` for the layout, and the root
+implementing. Then `docs/build_plan.md` for the construction order — and note its opening
+section, because `overview.md`'s "Next work" backlog targets the live
+dashboard, not this tree. Then `README.md` for the layout, and the root
 `/home/adamsl/agent_blocks/CLAUDE.md` for workspace-wide context.
 
 Consequence for any task here: adding behavior means *activating a block*
@@ -167,16 +169,27 @@ These are the design decisions the skeleton exists to hold; preserve them.
 - **`IConversationAgent.submit()` returns `AsyncIterable<AgentEvent>`**, the
   same port shape `claude_agent_adapter/` already implements in Python.
   `LettaAgentAdapter` is the sibling role for Letta and is the next thing to
-  implement (step 1 of the README's construction order).
+  implement — see `docs/build_plan.md` for the construction order.
 - **Pipecat is a separate local process.** TS talks to it only through
   `IPipecatServiceClient`; the service exposes only `PipecatLocalService`.
 
 ## Style
 
-Unlike `lancedb_memory/agent_memory/` and `catherine_agent_sdk/`, files here use
-**ordinary formatting** — no space-inside-brackets convention. The root
-CLAUDE.md's bracket-spacing rule does not apply to this directory; match the
-surrounding files.
+Like `lancedb_memory/agent_memory/` and `catherine_agent_sdk/`, files here
+enforce the root CLAUDE.md's bracket-spacing rule: every non-empty `)`, `]`,
+or `}` gets a space before it — `str )`, `[ 0.0 ]`, `{ "a": 1 }` — while an
+empty pair stays tight (`()`, `[]`, `{}`). This applies to every bracket
+type, not just call parens. The space belongs only next to the innermost
+non-bracket content: when closing brackets are adjacent, they stack with no
+space between them — `] )` becomes `])`, and `] ) )` becomes `]))`, however
+deep the nesting.
+
+The same rule mirrors on the opening side: every non-empty `(`, `[`, or `{`
+gets a space after it, next to the innermost non-bracket content, and
+adjacent opening brackets stack tight with no space between them.
+
+Write closing and opening brackets this way from the start rather than
+relying on a cleanup pass afterward.
 
 Every module and port carries a one-line docstring/JSDoc explaining its *role in
 the boundary*, not its mechanics. Keep that when adding files.

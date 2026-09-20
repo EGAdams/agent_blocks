@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 probed by `catherine_agent_sdk/basic_agent.py` and already adapted once by
 `lancedb_memory/agent_memory/adapters/claude_model.py`. It is the sibling
 adapter role to `voice_communication/letta_agent_adapter/letta_agent_adapter.ts`
-(`ILettaAgentAdapter`), documented as the `Claude Adapter` tab in
+(`LettaAgentAdapter`), documented as the `Claude Adapter` tab in
 `spa_documentation/`.
 
 `ConversationAgent.submit(text, generation)` mirrors `IConversationAgent`

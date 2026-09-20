@@ -13,6 +13,7 @@ imports the other.
 ```text
 voice_communication/
   docs/overview.md            start here: what is built, what is wired
+  docs/build_plan.md          the construction order for these ports
   ts/                         Toyota / browser / dashboard side
     package.json tsconfig.json
     src/
@@ -100,6 +101,10 @@ describes, at `<block>/docs/<block>.md`. Start with `docs/overview.md`.
 Each doc carries YAML front-matter (`id`, `name`, `group`, `status`) and then
 the block's responsibility, contract, implementations, mermaid diagrams, test
 coverage, development status, dependencies, and next work.
+
+`docs/build_plan.md` is the construction order for this repository. It is
+separate from `overview.md`'s "Next work" list, which is an adoption backlog
+for the live dashboard and touches no file in this tree.
 
 These were converted from the 14 spec modules previously kept at
 `letta-code/dashboard/js/plans/voice-communication/specs/`. **This repository is

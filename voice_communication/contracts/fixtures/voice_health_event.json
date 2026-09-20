@@ -1,0 +1,6 @@
+{
+  "component": "pipecat_local_service",
+  "status": "healthy",
+  "detail": "1 session(s) live",
+  "latencyMs": 12.5
+}

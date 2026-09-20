@@ -1,0 +1,472 @@
+- main [ref=f6e2]:
+  - navigation "Breadcrumb" [ref=f6e3]:
+    - link "Construction Status" [ref=f6e4] [cursor=pointer]:
+      - /url: ../../index.html
+    - generic [aria-hidden] [ref=f6e5]: ›
+    - link "1. Declare the Plug-in Point" [ref=f6e6] [cursor=pointer]:
+      - /url: ../index.html
+    - generic [aria-hidden] [ref=f6e7]: ›
+    - generic [ref=f6e8]: Interface File
+  - article [ref=f6e9]:
+    - generic [ref=f6e10]:
+      - paragraph [ref=f6e11]: Voice Communication University • Construction Studio
+      - generic [ref=f6e12]: Done
+      - heading "Interface File Construction Status" [level=1] [ref=f6e13]
+      - button "Open Terminal in Project" [ref=f6e15] [cursor=pointer]
+      - paragraph [ref=f6e16]: IConversationAgent construction lesson
+      - paragraph [ref=f6e17]: Stage 1 of 5 — Declare the plug-in point › Step 1 of 3 — Write the interface file
+    - generic [ref=f6e18]:
+      - blockquote [ref=f6e19]:
+        - generic [ref=f6e20]: What this step is for
+        - strong [ref=f6e21]: One operation, submit( text, generation ), returning an async stream of AgentEvent.
+      - generic [ref=f6e22]:
+        - heading "1. Where this item stands" [level=2] [ref=f6e23]
+        - paragraph [ref=f6e24]:
+          - text: The interface file is
+          - strong [ref=f6e25]: finished
+          - text: . What is not finished is everything that has to happen around it before a user can talk to anything.
+        - table [ref=f6e27]:
+          - rowgroup [ref=f6e28]:
+            - row [ref=f6e29]:
+              - columnheader "The work" [ref=f6e30]
+              - columnheader "State" [ref=f6e31]
+              - columnheader "What you can go and check" [ref=f6e32]
+          - rowgroup [ref=f6e33]:
+            - row [ref=f6e34]:
+              - cell "The file exists and declares one method" [ref=f6e35]
+              - cell "Done" [ref=f6e36]
+              - cell [ref=f6e38]:
+                - code [ref=f6e39]: conversation_agent/conversation_agent.ts
+                - text: — nine lines, one
+                - code [ref=f6e40]: submit()
+                - text: .
+            - row [ref=f6e41]:
+              - cell "The types it needs are defined" [ref=f6e42]
+              - cell "Done" [ref=f6e43]
+              - cell [ref=f6e45]:
+                - code [ref=f6e46]: typescript_contracts/contracts.ts
+                - text: —
+                - code [ref=f6e47]: GenerationId
+                - text: plus five
+                - code [ref=f6e48]: AgentEventKind
+                - text: values.
+            - row [ref=f6e49]:
+              - cell "It compiles" [ref=f6e50]
+              - cell "Done" [ref=f6e51]
+              - cell [ref=f6e53]:
+                - code [ref=f6e54]: npm run typecheck
+                - text: passes.
+            - row [ref=f6e55]:
+              - cell "Something can implement it" [ref=f6e56]
+              - cell "Done" [ref=f6e57]
+              - cell [ref=f6e59]:
+                - code [ref=f6e60]: claude_agent_adapter/
+                - text: in Python — 4/4 tests pass offline, no API key.
+            - row [ref=f6e61]:
+              - cell "The event shape agrees across languages" [ref=f6e62]
+              - cell "In progress" [ref=f6e63]
+              - cell "Three copies have drifted. That is Stage 2, listed below." [ref=f6e65]
+            - row [ref=f6e66]:
+              - cell "A TypeScript adapter implements it" [ref=f6e67]
+              - cell "Not started" [ref=f6e68]
+              - cell [ref=f6e70]:
+                - code [ref=f6e71]: letta_agent_adapter.ts
+                - text: is still
+                - code [ref=f6e72]: "ILettaAgentAdapter extends IConversationAgent {}"
+                - text: — a name, no body.
+            - row [ref=f6e73]:
+              - cell "A real screen depends on it" [ref=f6e74]
+              - cell "Not started" [ref=f6e75]
+              - cell [ref=f6e77]:
+                - text: Nothing calls
+                - code [ref=f6e78]: submit()
+                - text: anywhere. No voice turn has run end to end.
+        - blockquote [ref=f6e79]:
+          - generic [ref=f6e80]: Read this row first
+          - strong [ref=f6e81]: Done here means the promise is written and provably implementable. It does not mean anything is talking yet.
+      - generic [ref=f6e82]:
+        - heading "2. What was written — the finished file" [level=2] [ref=f6e83]
+        - paragraph [ref=f6e84]: This is the whole item, exactly as it sits on disk today. Nine lines, one method.
+        - generic [ref=f6e85]:
+          - generic [ref=f6e86]:
+            - generic [ref=f6e87]:
+              - generic [ref=f6e88]: <>
+              - text: Visual Studio Code
+            - generic [aria-hidden] [ref=f6e89]: — □ ×
+          - generic [ref=f6e91]:
+            - generic [ref=f6e92]: TS
+            - generic [ref=f6e93]: voice_communication/conversation_agent/conversation_agent.ts
+          - code [ref=f6e95]:
+            - generic [ref=f6e96]:
+              - generic [aria-hidden] [ref=f6e97]: "1"
+              - generic [ref=f6e98]: "import type { AgentEvent, GenerationId } from \"../typescript_contracts/contracts.js\";"
+            - generic [aria-hidden] [ref=f6e100]: "2"
+            - generic [ref=f6e102]:
+              - generic [aria-hidden] [ref=f6e103]: "3"
+              - generic [ref=f6e104]: /** Dependency-inverted port through which voice policy talks to an agent. */
+            - generic [ref=f6e105]:
+              - generic [aria-hidden] [ref=f6e106]: "4"
+              - generic [ref=f6e107]: "export interface IConversationAgent {"
+            - generic [ref=f6e108]:
+              - generic [aria-hidden] [ref=f6e109]: "5"
+              - generic [ref=f6e110]: submit(
+            - generic [ref=f6e111]:
+              - generic [aria-hidden] [ref=f6e112]: "6"
+              - generic [ref=f6e113]: "text: string,"
+            - generic [ref=f6e114]:
+              - generic [aria-hidden] [ref=f6e115]: "7"
+              - generic [ref=f6e116]: "generation: GenerationId,"
+            - generic [ref=f6e117]:
+              - generic [aria-hidden] [ref=f6e118]: "8"
+              - generic [ref=f6e119]: "): AsyncIterable<AgentEvent>;"
+            - generic [ref=f6e120]:
+              - generic [aria-hidden] [ref=f6e121]: "9"
+              - generic [ref=f6e122]: "}"
+          - generic [ref=f6e123]:
+            - generic [ref=f6e124]: master ✓ 0 ⚠ 0
+            - generic [ref=f6e125]: "Ln 1, Col 1 Spaces: 2 UTF-8 LF TypeScript"
+        - paragraph [ref=f6e126]:
+          - text: Three decisions carry it.
+          - code [ref=f6e127]: import type
+          - text: vanishes at compile time, so this file can never drag a vendor SDK behind it.
+          - code [ref=f6e128]: generation
+          - text: tags the request on the way in, which is what lets a superseded answer be discarded when the user interrupts.
+          - code [ref=f6e129]: AsyncIterable
+          - text: makes the reply a stream, because an answer arrives in pieces over seconds.
+        - paragraph [ref=f6e130]:
+          - text: These pages call a file like this a
+          - strong [ref=f6e131]: plug-in point
+          - text: — an opening with a written-down shape, so different components can be plugged in later without the surrounding code noticing. Here it is literally a TypeScript
+          - code [ref=f6e132]: interface
+          - text: ; line 3 uses the textbook word for it,
+          - emphasis [ref=f6e133]: port
+          - text: .
+      - generic [ref=f6e134]:
+        - heading "3. Where it sits, and what is still empty" [level=2] [ref=f6e135]
+        - paragraph [ref=f6e136]: Drag to pan, wheel to zoom. Each box's stereotype carries its status.
+        - generic [ref=f6e137]:
+          - generic [ref=f6e138]:
+            - generic [ref=f6e139]: Figure 1 — Where IConversationAgent sits
+            - generic [ref=f6e140]: "Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset"
+            - generic [ref=f6e141]:
+              - button "−" [ref=f6e142] [cursor=pointer]
+              - button "Reset" [ref=f6e143] [cursor=pointer]
+              - button "+" [ref=f6e144] [cursor=pointer]
+          - generic "Class diagram showing consumers depending on IConversationAgent and adapters implementing it" [ref=f6e145]:
+            - document [ref=f6e147]:
+              - generic [ref=f6e149]:
+                - generic [ref=f6e155]:
+                  - generic [ref=f6e156]: depends on
+                  - generic [ref=f6e161]: depends on
+                  - generic [ref=f6e166]: streams
+                  - generic [ref=f6e171]: will implement
+                  - generic [ref=f6e176]: implements
+                - generic [ref=f6e181]:
+                  - generic [ref=f6e184]:
+                    - generic [ref=f6e185]: «the plug-in point»
+                    - generic [ref=f6e187]: IConversationAgent
+                    - generic [ref=f6e189]: "+submit(text, generation) : AsyncIterable<AgentEvent>"
+                  - generic [ref=f6e193]:
+                    - generic [ref=f6e194]: «shared contract»
+                    - generic [ref=f6e196]: AgentEvent
+                    - generic [ref=f6e198]: +sessionId
+                    - generic [ref=f6e200]: +generation
+                    - generic [ref=f6e202]: +kind
+                    - generic [ref=f6e204]: +text
+                  - generic [ref=f6e208]:
+                    - generic [ref=f6e209]: «screen»
+                    - generic [ref=f6e211]: ToyotaInputOptions
+                  - generic [ref=f6e215]:
+                    - generic [ref=f6e216]: «interface»
+                    - generic [ref=f6e218]: IConversationCoordinator
+                  - generic [ref=f6e222]:
+                    - generic [ref=f6e223]: «adapter, not written yet»
+                    - generic [ref=f6e225]: ILettaAgentAdapter
+                  - generic [ref=f6e229]:
+                    - generic [ref=f6e230]: «adapter, working today»
+                    - generic [ref=f6e232]: ClaudeAgentAdapter
+                    - generic [ref=f6e234]: +submit(text, generation)
+        - paragraph [ref=f6e236]:
+          - strong [ref=f6e237]: Figure 1.
+          - text: Every arrow points
+          - emphasis [ref=f6e238]: at
+          - text: the interface. Nothing points out of it toward a vendor.
+        - list [ref=f6e239]:
+          - listitem [ref=f6e240]:
+            - strong [ref=f6e241]: Above it
+            - text: — the screen and the coordinator hold only the interface type, so neither can name Letta, Claude, or Pipecat. Neither is wired up yet.
+          - listitem [ref=f6e242]:
+            - strong [ref=f6e243]: Below it
+            - text: —
+            - code [ref=f6e244]: ClaudeAgentAdapter
+            - text: already implements this shape in Python.
+            - code [ref=f6e245]: ILettaAgentAdapter
+            - text: is a reserved name waiting on Stage 3.
+          - listitem [ref=f6e246]:
+            - strong [ref=f6e247]: Beside it
+            - text: —
+            - code [ref=f6e248]: AgentEvent
+            - text: is the currency crossing the boundary, and it is the one piece still being reconciled.
+      - generic [ref=f6e249]:
+        - heading "4. One turn through it" [level=2] [ref=f6e250]
+        - paragraph [ref=f6e251]: Figure 1 is the arrangement; this is the motion. The Python adapter proves the adapter/backend half; the browser screen and turn lifecycle remain unwired.
+        - generic [ref=f6e252]:
+          - generic [ref=f6e253]:
+            - generic [ref=f6e254]: Figure 2 — One turn through the plug-in point
+            - generic [ref=f6e255]: "Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset"
+            - generic [ref=f6e256]:
+              - button "−" [ref=f6e257] [cursor=pointer]
+              - button "Reset" [ref=f6e258] [cursor=pointer]
+              - button "+" [ref=f6e259] [cursor=pointer]
+          - generic "Sequence diagram of one conversation turn passing through IConversationAgent" [ref=f6e260]:
+            - document [ref=f6e262]:
+              - generic [ref=f6e263]: Agent backend
+              - generic [ref=f6e266]: An adapter (Letta, Claude, Pipecat)
+              - generic [ref=f6e269]: IConversationAgent (the interface)
+              - generic [ref=f6e272]: Toyota Input Options
+              - generic [ref=f6e275]: Agent backend
+              - generic [ref=f6e279]: An adapter (Letta, Claude, Pipecat)
+              - generic [ref=f6e283]: IConversationAgent (the interface)
+              - generic [ref=f6e287]: Toyota Input Options
+              - generic [ref=f6e291]:
+                - generic [ref=f6e293]: Generation 2 means "the current turn".
+                - generic [ref=f6e294]: Events from the interrupted generation 1 are now stale.
+              - generic [ref=f6e295]:
+                - generic [ref=f6e297]: The screen holds the interface type only.
+                - generic [ref=f6e298]: It never learns which adapter it is holding.
+              - generic [ref=f6e299]: Translation happens here and nowhere else. Only the five agreed kinds cross this line.
+              - generic [ref=f6e302]: User
+              - generic [ref=f6e307]: asks "Summarize our adapter plan"
+              - 'generic "Step 1: The user starts a new request by asking the screen to summarize the adapter plan." [ref=f6e308]': "1"
+              - generic [ref=f6e309]: beginTurn() returns generation 2
+              - 'generic "Step 2: The screen starts a new turn and receives generation 2, a token identifying this as the current turn." [ref=f6e311]': "2"
+              - generic [ref=f6e312]: submit("Summarize our adapter plan", generation 2)
+              - 'generic "Step 3: The screen submits the request through IConversationAgent; it knows the interface, but not the concrete adapter behind it." [ref=f6e313]': "3"
+              - generic [ref=f6e314]: the call lands on whatever was injected
+              - 'generic "Step 4: The interface call is dispatched to whichever adapter was injected when the application was assembled." [ref=f6e315]': "4"
+              - generic [ref=f6e316]: vendor request (SDK, HTTP, websocket)
+              - 'generic "Step 5: The adapter translates the common submit call into the selected backend''s SDK, HTTP, or websocket request." [ref=f6e317]': "5"
+              - generic [ref=f6e318]: vendor messages, in the vendor's own shape
+              - 'generic "Step 6: The backend returns vendor-specific messages that the adapter must translate before the screen can use them." [ref=f6e319]': "6"
+              - generic [ref=f6e320]: "assistant_text: \"We agreed to use one interface\""
+              - 'generic "Step 7: The first assistant_text event carries the beginning of one streamed sentence: “We agreed to use one interface”." [ref=f6e321]': "7"
+              - generic [ref=f6e322]: "assistant_text: \"with swappable adapters.\""
+              - 'generic "Step 8: The second assistant_text event completes that same sentence with “with swappable adapters.” The screen appends it to step 7." [ref=f6e323]': "8"
+              - generic [ref=f6e324]: "terminal: generation 2 is complete"
+              - 'generic "Step 9: The terminal event tells the screen that generation 2 has no more response chunks." [ref=f6e325]': "9"
+              - generic [ref=f6e326]: renders the reply, then closes the turn
+              - 'generic "Step 10: The screen displays the joined sentence as one reply and closes the completed turn." [ref=f6e327]': "10"
+              - generic [ref=f6e328]: User
+        - paragraph [ref=f6e333]:
+          - strong [ref=f6e334]: Figure 2.
+          - text: Here
+          - code [ref=f6e335]: generation
+          - text: "is a current-turn token, not a model version: when turn 2 begins, late events from interrupted turn 1 can be ignored. Vendor message shapes stop at the adapter, and only"
+          - code [ref=f6e336]: AgentEvent
+          - text: values cross back to the screen.
+        - list [ref=f6e337]:
+          - listitem [ref=f6e338]:
+            - strong [ref=f6e339]: Step 3 is the point of the whole file.
+            - text: The screen writes one line and never learns which adapter it holds; that is chosen at the composition root.
+          - listitem [ref=f6e340]:
+            - strong [ref=f6e341]: Steps 6–9 are the translation seam.
+            - text: A vendor message arrives at the adapter; two distinct normalized text chunks and a terminal event come out.
+      - generic [ref=f6e342]:
+        - heading "5. What has to happen next" [level=2] [ref=f6e343]
+        - list [ref=f6e344]:
+          - listitem [ref=f6e345]:
+            - strong [ref=f6e346]:
+              - text: Settle
+              - code [ref=f6e347]: AgentEvent
+              - text: — Stage 2, in progress.
+            - text: TypeScript requires
+            - code [ref=f6e348]: sessionId
+            - text: ","
+            - code [ref=f6e349]: pydantic_models/models.py
+            - text: requires
+            - code [ref=f6e350]: "session_id: UUID"
+            - text: ", and the Python adapter's copy has no session field and only two of the five kinds. Until they agree, no adapter can emit a legal event without inventing data."
+          - listitem [ref=f6e351]:
+            - strong [ref=f6e352]: Decide who owns the session id.
+            - text: Either
+            - code [ref=f6e353]: submit()
+            - text: hands it down or the event stops carrying it. It cannot stay required by one side and unknown to the other.
+          - listitem [ref=f6e354]:
+            - strong [ref=f6e355]: Answer the interrupt question.
+            - text: "Cancelling a turn is not on this interface yet: either a second method every adapter must implement, or a separate lifecycle interface. Deferred deliberately, not forgotten."
+          - listitem [ref=f6e356]:
+            - strong [ref=f6e357]: Write a TypeScript adapter — Stage 3.
+            - text: Python proves the shape is implementable; nothing yet proves it in the browser.
+          - listitem [ref=f6e358]:
+            - strong [ref=f6e359]: Make one screen depend on it — Stage 4.
+            - text: Until a real consumer calls
+            - code [ref=f6e360]: submit()
+            - text: ", this is a well-supported hypothesis."
+      - generic [ref=f6e361]:
+        - heading "6. How to check this yourself" [level=2] [ref=f6e362]
+        - list [ref=f6e363]:
+          - listitem [ref=f6e364]:
+            - code [ref=f6e365]: cat voice_communication/conversation_agent/conversation_agent.ts
+            - text: — nine lines, one method.
+          - listitem [ref=f6e366]:
+            - code [ref=f6e367]: npm run typecheck
+            - text: in
+            - code [ref=f6e368]: voice_communication/
+            - text: — passes.
+          - listitem [ref=f6e369]:
+            - code [ref=f6e370]: grep -rn "IConversationAgent" voice_communication/
+            - text: "— three hits: the file, the interfaces barrel, the reserved Letta name. A fourth hit means Stage 4 has started and this page is out of date."
+          - listitem [ref=f6e371]:
+            - code [ref=f6e372]: cd claude_agent_adapter && ../lancedb_memory/.venv/bin/python tests/test_adapter.py
+            - text: — 4/4 pass.
+      - generic [ref=f6e373]:
+        - heading "7. How TDD continues this work" [level=2] [ref=f6e374]
+        - paragraph [ref=f6e375]:
+          - text: The next active work starts with one failing contract-parity test for
+          - code [ref=f6e376]: AgentEvent
+          - text: . The test belongs beside the source code, not inside this HTML page. This page's button should only launch and report the real source-side checks.
+        - list [ref=f6e377]:
+          - listitem [ref=f6e378]: Write the parity test and confirm that it fails because the TypeScript and Python contracts disagree.
+          - listitem [ref=f6e379]: Review the failure before changing production code.
+          - listitem [ref=f6e380]: Make the smallest contract change that turns the test green.
+        - paragraph [ref=f6e381]:
+          - text: The completed Interface File checks stay green. Later adapter, Toyota, cancellation, and live-turn tasks remain
+          - strong [ref=f6e382]: Not started
+          - text: until each becomes current; they do not become permanent failing tests in advance.
+      - generic [ref=f6e383]:
+        - heading "8. How to continue from here" [level=2] [ref=f6e384]
+        - button "Run Interface File Checks" [ref=f6e385] [cursor=pointer]
+      - generic [ref=f6e386]:
+        - heading "9. Next steps, in the order they unblock each other" [level=2] [ref=f6e387]
+        - paragraph [ref=f6e388]:
+          - text: Nothing on this list is work
+          - emphasis [ref=f6e389]: inside
+          - text: this file — the file is finished. Each row is a different object, and the ones above a row have to be settled before that row can be built without guessing.
+        - blockquote [ref=f6e390]:
+          - generic [ref=f6e391]: Work on this one first
+          - strong [ref=f6e392]:
+            - text: Reconcile the three
+            - code [ref=f6e393]: AgentEvent
+            - text: copies. Every remaining item on this page streams that type across the boundary, so until the three copies agree, anything built on top of them is built on a shape that is about to change.
+        - table [ref=f6e395]:
+          - rowgroup [ref=f6e396]:
+            - row [ref=f6e397]:
+              - columnheader "Order" [ref=f6e398]
+              - columnheader "Object to work on" [ref=f6e399]
+              - columnheader "State" [ref=f6e400]
+              - columnheader "Why it comes here, and what it unblocks" [ref=f6e401]
+          - rowgroup [ref=f6e402]:
+            - row [ref=f6e403]:
+              - cell "1" [ref=f6e404]
+              - cell [ref=f6e405]:
+                - link [ref=f6e406] [cursor=pointer]:
+                  - /url: ../../prove_with_one_adapter/reconcile_agent_event/index.html
+                  - text: Reconcile the three
+                  - code [ref=f6e407]: AgentEvent
+                  - text: copies
+                - emphasis [ref=f6e408]: Stage 2 · step 3
+              - cell "In progress" [ref=f6e409]
+              - cell [ref=f6e411]:
+                - text: TypeScript requires
+                - code [ref=f6e412]: sessionId
+                - text: ","
+                - code [ref=f6e413]: pydantic_models/models.py
+                - text: requires
+                - code [ref=f6e414]: "session_id: UUID"
+                - text: ", and the Python adapter's copy has neither plus only two of the five kinds. Settling it — including deciding whether"
+                - code [ref=f6e415]: submit()
+                - text: hands the session id down or the event stops carrying it — unblocks every row below.
+            - row [ref=f6e416]:
+              - cell "2" [ref=f6e417]
+              - cell [ref=f6e418]:
+                - link "Decide where cancellation lives" [ref=f6e419] [cursor=pointer]:
+                  - /url: ../../prove_with_one_adapter/cancellation_rule/index.html
+                - emphasis [ref=f6e420]: Stage 2 · step 4
+              - cell "Not started" [ref=f6e421]
+              - cell [ref=f6e423]:
+                - text: The only decision that can still change
+                - emphasis [ref=f6e424]: this
+                - text: file. Either interrupting a turn becomes a second method every adapter must implement, or it becomes a separate lifecycle interface. Answer it before an adapter is written, not after two of them exist.
+            - row [ref=f6e425]:
+              - cell "3" [ref=f6e426]
+              - cell [ref=f6e427]:
+                - link [ref=f6e428] [cursor=pointer]:
+                  - /url: ../../typescript_adapter/implement_adapter_class/index.html
+                  - text: Implement the
+                  - code [ref=f6e429]: LettaAgentAdapter
+                  - text: class
+                - emphasis [ref=f6e430]: Stage 3 · step 1
+              - cell "Not started" [ref=f6e431]
+              - cell [ref=f6e433]:
+                - code [ref=f6e434]: letta_agent_adapter.ts
+                - text: is still an empty
+                - code [ref=f6e435]: extends
+                - text: with no body. Python proves the shape is implementable; nothing yet proves it in the browser, where the screen actually lives.
+            - row [ref=f6e436]:
+              - cell "4" [ref=f6e437]
+              - cell [ref=f6e438]:
+                - link [ref=f6e439] [cursor=pointer]:
+                  - /url: ../../typescript_adapter/translate_the_stream/index.html
+                  - text: Translate the Letta stream into
+                  - code [ref=f6e440]: AgentEvent
+                - emphasis [ref=f6e441]: Stage 3 · step 2
+              - cell "Not started" [ref=f6e442]
+              - cell "The translation seam from Figure 2, steps 6–9. It can only be written once row 1 has fixed what a legal event looks like." [ref=f6e444]
+            - row [ref=f6e445]:
+              - cell "5" [ref=f6e446]
+              - cell [ref=f6e447]:
+                - link "Write contract tests in TypeScript" [ref=f6e448] [cursor=pointer]:
+                  - /url: ../../typescript_adapter/contract_tests/index.html
+                - emphasis [ref=f6e449]: Stage 3 · step 3
+              - cell "Not started" [ref=f6e450]
+              - cell [ref=f6e452]:
+                - text: Gives the TypeScript side the same offline proof
+                - code [ref=f6e453]: claude_agent_adapter/
+                - text: already gives the Python side, so a future adapter can be checked against the port rather than against a running backend.
+            - row [ref=f6e454]:
+              - cell "6" [ref=f6e455]
+              - cell [ref=f6e456]:
+                - link "Replace Toyota's direct request call" [ref=f6e457] [cursor=pointer]:
+                  - /url: ../../adopt_in_toyota/replace_direct_request/index.html
+                - emphasis [ref=f6e458]: Stage 4 · step 2
+              - cell "Not started" [ref=f6e459]
+              - cell [ref=f6e461]:
+                - text: The first real consumer. Until a screen calls
+                - code [ref=f6e462]: submit()
+                - text: ", the “A real screen depends on it” row in section 1 stays Not started and this interface remains a well-supported hypothesis."
+            - row [ref=f6e463]:
+              - cell "7" [ref=f6e464]
+              - cell [ref=f6e465]:
+                - link "Verify one live voice turn" [ref=f6e466] [cursor=pointer]:
+                  - /url: ../../verify_live_turn/index.html
+                - emphasis [ref=f6e467]: Stage 5
+              - cell "Not started" [ref=f6e468]
+              - cell "Runs Figure 2 for real, end to end. It is the only evidence that the arrangement on this page survives contact with a live backend." [ref=f6e470]
+        - paragraph [ref=f6e471]:
+          - strong [ref=f6e472]: What would bring work back to this page
+        - list [ref=f6e473]:
+          - listitem [ref=f6e474]:
+            - strong [ref=f6e475]: Row 1 removing the session id from the event.
+            - text: Then
+            - code [ref=f6e476]: submit()
+            - text: grows a parameter, and section 2's nine lines change.
+          - listitem [ref=f6e477]:
+            - strong [ref=f6e478]: Row 2 choosing a second method.
+            - text: Then cancellation lands on
+            - code [ref=f6e479]: IConversationAgent
+            - text: itself rather than beside it.
+          - listitem [ref=f6e480]:
+            - strong [ref=f6e481]: Row 6 landing.
+            - text: The
+            - code [ref=f6e482]: grep
+            - text: in section 6 gains a fourth hit, and section 1's last two rows finally move off Not started.
+        - paragraph [ref=f6e483]:
+          - text: Anything else on the list can be built without editing
+          - code [ref=f6e484]: conversation_agent.ts
+          - text: . If a row forces an edit here that is not one of the three above, the port was drawn in the wrong place and this page should be re-read before the change is made.
+    - generic [ref=f6e485]: Voice Communication University • IConversationAgent Construction Status
+  - navigation "Sibling page navigation" [ref=f6e486]:
+    - link "↑ 1. Declare the Plug-in Point" [ref=f6e487] [cursor=pointer]:
+      - /url: ../index.html
+    - link "Event Contracts →" [ref=f6e488] [cursor=pointer]:
+      - /url: ../event_contracts/index.html

@@ -57,7 +57,7 @@ Implements `ConversationAgent.submit(text, generation) -> AsyncIterator[AgentEve
 (`ports.py`) by wrapping `claude-agent-sdk`'s `query()`, the same pattern
 `lancedb_memory/agent_memory/adapters/claude_model.py` already uses for its
 `LanguageModel` port. `ConversationAgent` mirrors `IConversationAgent`
-(`voice_communication/conversation_agent/conversation_agent.ts`) on the
+(`voice_communication/ts/src/conversation_agent/conversation_agent.ts`) on the
 Python side; `models.py`/`ports.py` are local copies of that shape rather
 than a cross-package import, since this workspace has no root package (see
 above). `adapter.py` is the only file here allowed to import
