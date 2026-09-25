@@ -67,7 +67,8 @@ agents:
       - subagent_remove
 
   - name: builder
-    model: openai-codex/gpt-6-astra   # ChatGPT Plus/Pro (Codex) OAuth — provider is "openai-codex", confirmed via `pi --list-models`
+    model: openai-codex/gpt-6-sol   # ChatGPT Plus/Pro (Codex) OAuth — provider is "openai-codex", confirmed via `pi --list-models`
+    thinking: high
     color: "#22d3ee"
     purpose: Implement the plan exactly; report every changed file in the envelope.
     prompt_engineering:
