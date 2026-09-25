@@ -6,10 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A scratch/experiment workspace of independent "agent blocks" — small Python
 projects plus a set of agent system prompts. The workspace root is a Git
-repository on `master`; `catherine_agent_sdk/` and `spa_documentation/` are
-ignored nested Git repositories with their own histories. There is no root
-package, build system, or dependency manifest, so commands run from each
-project's directory.
+repository on `master`. `catherine_agent_sdk/` and `spa_documentation/` are
+ignored nested Git repositories with their own histories; `claude_agent/` and
+`prompt_templates/` are also standalone nested Git repositories but are
+currently untracked (not yet added to `.gitignore`) rather than ignored —
+don't assume either is part of the root history. There is no root package,
+build system, or dependency manifest, so commands run from each project's
+directory. `AGENTS.md` sets response-style rules (short, direct answers) that
+apply alongside this file.
 
 The top-level areas are:
 
@@ -17,12 +21,31 @@ The top-level areas are:
   implementation over `claude-agent-sdk`; the sibling adapter role to
   `voice_communication`'s (still-unimplemented) `LettaAgentAdapter`
 - `catherine_agent_sdk/` — Claude Agent SDK probe script
+- `claude_agent/` — an untracked nested repo, byte-identical to
+  `catherine_agent_sdk/` (same `basic_agent.py` and `CLAUDE.md`); treat it as
+  a duplicate checkout, not a second implementation
 - `lancedb_memory/` — two generations of the same idea: the original RAVEN-style
   script (`3o_mini_chat_w_lance.py`, OpenAI), and `agent_memory/`, its ported
-  successor on the Claude Agent SDK with Protocol-based ports
+  successor on the Claude Agent SDK with Protocol-based ports. Also home to
+  two further composition roots built on the same conventions: `finance_team/`
+  (a 6-agent vendor-pattern/receipt-audit team) and `receptionist_team/`
+  (Toyota, a conversational front end that delegates to `finance_team`)
+- `mazda/` — planning-stage package for the Mazda document-verification agent;
+  every subpackage is currently a stub naming the `typing.Protocol` it will
+  eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
+  `mazda/MIGRATION_PLAN.md` and `mazda/README.md` before adding real code.
+- `voice_communication/` — a **contracts-only skeleton** (Toyota Input Options)
+  spanning two package roots, `ts/` (dashboard/browser) and `py/` (Pipecat
+  service), linked only by the JSON wire format in `contracts/`. Read
+  `voice_communication/CLAUDE.md` before working there — it explains why
+  "activating a block" means adding an adapter beside its interface, never
+  editing the interface catalogs.
 - `solid_agent_systems/` — one directory per SOLID-principle review agent
 - `spa_documentation/` — a generated plain-HTML documentation SPA in its own
   nested repository; read its `CLAUDE.md` before working there
+- `prompt_templates/` — an untracked nested repo of ad hoc prompt scratch
+  files used to drive Mazda/rol_finances report-generation work; not part of
+  this workspace's architecture
 - `mailbox/` — ignored local coordination material
 
 ## Running
@@ -144,6 +167,39 @@ The rules that matter when touching it:
   root **Running** section, including `tests/test_embedding_profiles.py`.
 - Paths all default inside the repo via `config.py` — do not reintroduce the
   legacy script's hardcoded `/home/adamsl/linuxBash/...` absolutes.
+
+## `lancedb_memory/finance_team/` and `lancedb_memory/receptionist_team/`
+
+Two more composition roots in `lancedb_memory/`, reusing its adapter
+convention but not its `ConversationAgent` tool-free posture — see
+`lancedb_memory/README.md` for full detail before touching either.
+
+`finance_team/` does map-reduce vendor-payment-pattern analysis over the
+`rol_finances` MySQL DB, partitioned by `expenses.method` (`CASH`/`CARD`/
+`BANK`/`OTHER`), plus an independent receipt-image auditor. Its agents enable
+tools (`Bash`/`Read`/`Write`/`Glob`/`Grep`, `permission_mode="bypassPermissions"`)
+because the job requires querying a real DB and walking real receipt
+directories — see `finance_team/adapters/tool_agent.py` for why that adapter
+diverges from `agent_memory/adapters/claude_model.py`. Role briefs (system
+prompt, task prompt, DB credentials) live in `finance_team/roles.py` as pure
+data, no SDK import, matching `agent_memory/ports.py` staying Protocol-only.
+Run with `.venv/bin/python -m finance_team.orchestrate` from `lancedb_memory/`
+(`--skip-receipts`, `--only <agent>` also supported).
+
+`receptionist_team/` is Toyota, a persistent conversational agent backed by
+the unmodified `agent_memory.agent.ConversationAgent`, that delegates to
+`finance_team` roles when a request calls for one via a `LanguageModel`
+Decorator (`RoutingModel`, same shape as `decorators.py`'s `RetryingModel`) —
+the underlying `ConversationAgent` never knows a delegation happened. Voice
+mode reuses the dashboard's existing HTTP speech pipeline
+(`POST /api/voice` / `POST /api/tts` on `localhost:8765`) rather than
+reimplementing STT/TTS, and fails closed to typed I/O if the dashboard or mic
+is unavailable. Run with `.venv/bin/python -m receptionist_team.main` from
+`lancedb_memory/` (`--voice`, `--role-model <model>` also supported).
+
+Both keep the same auth convention as the rest of the repo:
+`ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` stay unset so everything runs on
+local Claude Code subscription (OAuth) auth.
 
 ## `solid_agent_systems/` — SOLID review agents
 

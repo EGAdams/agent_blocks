@@ -44,12 +44,24 @@ class ClaudeAgentModel:
         # setting_sources=[] keeps the SDK from loading the enclosing project's
         # CLAUDE.md and settings; allowed_tools=[] keeps it from reading files.
         # Conversational memory comes from OUR store, not from the repo it runs in.
+        #
+        # env={} below is not decoration: the module docstring's "must be
+        # UNSET" is an instruction to the operator's shell, and shells don't
+        # obey docstrings. A stray `export ANTHROPIC_API_KEY=...` in ~/.bashrc
+        # (found live on this machine) silently switches the SDK from local
+        # subscription auth to metered API billing -- it fails as "Credit
+        # balance is too low" only once that key's balance runs out, so the
+        # bug can sit unnoticed for a long time. options.env overrides the
+        # inherited value per-subprocess (see subprocess_cli.py's
+        # process_env merge), so this holds regardless of what the caller's
+        # shell has exported, without touching that shell's actual env.
         options = ClaudeAgentOptions(
             model=self._model,
             max_turns=1,
             system_prompt=self._system_prompt,
             setting_sources=[],
             allowed_tools=[],
+            env={ "ANTHROPIC_API_KEY": "", "ANTHROPIC_BASE_URL": "" },
         )
 
         chunks: list[ str ] = []

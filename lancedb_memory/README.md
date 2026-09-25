@@ -30,6 +30,82 @@ concrete implementation.
 .venv/bin/python tests/test_embedding_profiles.py  # profile factory; no network, no torch import
 ```
 
+## finance_team -- 6-agent vendor pattern + receipt audit team
+
+A separate composition root (`finance_team/`) that reuses this repo's adapter
+convention but, unlike `ConversationAgent`, actually enables tools
+(Bash/Read/Write/Glob/Grep, `permission_mode="bypassPermissions"`) because the
+job requires querying the rol_finances MySQL DB and walking its receipt
+directories -- see `finance_team/adapters/tool_agent.py` for why that adapter
+diverges from `agent_memory/adapters/claude_model.py`.
+
+5 agents do map-reduce vendor-payment-pattern analysis, partitioned along the
+`expenses.method` enum (a partition that already exists in the schema, so the
+4 mappers share no state and run fully concurrently):
+
+| Agent | Scope | Output |
+|---|---|---|
+| `mapper_cash` | `method='CASH'` rows | `reports/vendor_patterns/cash_monthly_totals.json` |
+| `mapper_card` | `method='CARD'` rows | `reports/vendor_patterns/card_monthly_totals.json` |
+| `mapper_bank` | `method='BANK'` rows | `reports/vendor_patterns/bank_monthly_totals.json` |
+| `mapper_other` | `method='OTHER'` rows | `reports/vendor_patterns/other_monthly_totals.json` |
+| `synthesizer` | reads all 4 above | `reports/vendor_patterns/synthesis_report.html` (missed bills, amount anomalies, new recurring candidates) |
+
+A 6th, independent agent audits receipt images on its own:
+
+| Agent | Scope | Output |
+|---|---|---|
+| `receipt_scanner` | `readable_documents/receipts/` + 3 other receipt dirs | `reports/orphaned_receipts_report.md` |
+
+Run it:
+
+```bash
+cd finance_team/..   # i.e. lancedb_memory/
+.venv/bin/python -m finance_team.orchestrate                     # full team
+.venv/bin/python -m finance_team.orchestrate --skip-receipts     # just the 5
+.venv/bin/python -m finance_team.orchestrate --only mapper_bank   # one agent
+```
+
+Role briefs (system prompt, task prompt, DB credentials briefing) live in
+`finance_team/roles.py` and are pure data -- no SDK import there, matching
+`agent_memory/ports.py` staying Protocol-only.
+
+## receptionist_team -- Toyota, the finance team's receptionist
+
+A 7th composition root (`receptionist_team/`) alongside `finance_team/`: a
+persistent, conversational agent named **Toyota** you chat with from the
+command line, backed by the same LanceDB-memory conversational engine as this
+repo's own `main.py` (`agent_memory.agent.ConversationAgent`, unmodified).
+Toyota knows about all 6 `finance_team` roles and, when a request clearly
+calls for one, delegates to it and relays the result -- otherwise she just
+talks. Routing is a `LanguageModel` Decorator (`RoutingModel`, same shape as
+`agent_memory/adapters/decorators.py`'s `RetryingModel`): the underlying
+`ConversationAgent` never knows a delegation happened.
+
+```bash
+cd lancedb_memory
+.venv/bin/python -m receptionist_team.main                  # typed chat
+.venv/bin/python -m receptionist_team.main --voice           # mic in / spoken out
+.venv/bin/python -m receptionist_team.main --role-model claude-haiku-4-5-20251001
+```
+
+**Voice reuses the dashboard's existing pipeline** instead of re-implementing
+speech I/O: `receptionist_team/adapters/voice_io.py` calls the running
+`dashboard-server.service` over HTTP -- `POST /api/voice` (whisper.cpp/Groq
+STT, same path the browser's push-to-talk uses) for input, `POST /api/tts`
+(server-side edge-tts) for output. It never imports from `dashboard/`, only
+talks HTTP to `localhost:8765`, and fails closed to typed input/output per
+turn if the dashboard or mic isn't available -- `--voice` needs `arecord` on
+`PATH` for capture (WSL/WSLg audio) and `ffplay`/`mpg123`/`paplay` for
+playback; text mode always works regardless.
+
+**Auth is unchanged from the rest of this repo:** `ANTHROPIC_API_KEY` and
+`ANTHROPIC_BASE_URL` stay unset so both Toyota's own replies and the
+finance_team roles she delegates to run on local Claude Code subscription
+(OAuth) auth -- no paid API key. The `GROQ_API_KEY` already configured
+elsewhere on this machine is untouched; it keeps doing exactly what it did
+before (the dashboard's own STT), reached only indirectly over HTTP.
+
 ## Layout
 
 ```

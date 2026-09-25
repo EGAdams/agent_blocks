@@ -5,3 +5,8 @@ mailbox/
 __pycache__/
 *.pyc
 node_modules/
+
+# sssf runtime
+adws/adw_data/sessions/
+adws/adw_data/sssf.db*
+.env
