@@ -24,6 +24,19 @@ column) rather than category.
 This is a READ-ONLY task. Do not INSERT/UPDATE/DELETE anything in the
 database. Only write your report file(s)."""
 
+RECEIPT_NAMING_BRIEFING = """\
+The naming convention used across this repo for receipt images is
+`{vendor_slug}_{MM}_{DD}_{YY}_{dollars}_{cents}.jpg` (e.g.
+"meijer_04_13_25_38_07.jpg" = Meijer, 04/13/25, $38.07), sometimes with an
+"_item_N_" infix for itemized sub-receipts."""
+
+RECEIPT_DIRS = [
+    "readable_documents/receipts/",
+    "readable_documents/generated_spreadsheets/receipts/",
+    "receipt_parsing_tools/generated_spreadsheets/",
+    "tools/receipt_scanning_tools/incoming_scans/",
+]
+
 
 @dataclass( frozen=True )
 class AgentRole:
@@ -171,4 +184,58 @@ task: do not move, rename, or delete any file. Just report.""",
    filename), Broken DB References (id_light, path referenced, table
    column). Sort each list by path.
 Reply with one sentence: total files scanned and counts in each category.""",
+)
+
+ROLES[ "expense_reconciler" ] = AgentRole(
+    name="expense_reconciler",
+    output_path=f"{REPO_ROOT}/reports/unaccounted_expenses_report.md",
+    max_turns=60,
+    system_prompt=f"""\
+You are working ALONE, independent of the vendor-pattern team and of the
+receipt_scanner agent, on the INVERSE of receipt_scanner's job: instead of
+finding receipt image files with no matching expense row, you find expense
+ROWS in the database with no matching receipt image file -- gaps in
+accounting coverage. Two other automated agents also write to this repo, so
+expect some churn; only report, never fix.
+
+{RECEIPT_NAMING_BRIEFING}
+
+This is a READ-ONLY reconnaissance task: do not INSERT/UPDATE/DELETE
+anything in the database, and do not create, move, rename, or delete any
+file under the repo except the single report you write in step 5 below.""",
+    task_prompt=f"""\
+1. Query EVERY row from `expenses` (all methods, not just one slice -- you
+   are not one of the four method-sliced mapper agents).
+2. Recursively find every image file (jpg/jpeg/png) under these directories
+   of {REPO_ROOT}: {", ".join( f"`{d}`" for d in RECEIPT_DIRS )}.
+3. Parse each filename against the vendor/date/amount convention above.
+   Skip files that don't parse cleanly (that's receipt_scanner's job to
+   flag as malformed, not yours) -- just build the pool of successfully
+   parsed (vendor_slug, date, amount) receipts you can match against.
+4. For each expense row, look for ANY parsed receipt file whose date
+   matches `expense_date`, whose amount is within $0.01 of `amount`, and
+   whose vendor_slug shares a token with the row's normalized `description`
+   (same loose-match rule receipt_scanner uses, applied in the opposite
+   direction). If no such file exists anywhere in the four directories,
+   the row is UNACCOUNTED.
+5. Write ONE markdown report to
+   `{REPO_ROOT}/reports/unaccounted_expenses_report.md` (create the
+   `reports/` directory if it doesn't exist -- do not create or touch any
+   other file) with:
+   - Summary: total expense rows scanned, total parsed receipt files found
+     across the four directories, count and % of rows UNACCOUNTED, and a
+     breakdown of the UNACCOUNTED count by `method`.
+   - Unaccounted Expenses: one table sorted by `expense_date` descending,
+     columns id_light, expense_date, amount, method, description
+     (truncated to a reasonable length), and a short note on why no match
+     was found (e.g. "no receipt file with matching date/amount/vendor in
+     any of the four directories").
+   - A short caveats paragraph noting this is a loose text/date/amount
+     match and may have false positives if a receipt filename is malformed
+     (see receipt_scanner's report for those) or a vendor token doesn't
+     overlap the description wording.
+""" + DB_CONNECTION_BRIEFING + """
+
+Reply with one sentence: total expenses scanned and how many were flagged
+as unaccounted.""",
 )
