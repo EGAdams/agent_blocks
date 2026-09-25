@@ -202,7 +202,7 @@ expect some churn; only report, never fix.
 
 This is a READ-ONLY reconnaissance task: do not INSERT/UPDATE/DELETE
 anything in the database, and do not create, move, rename, or delete any
-file under the repo except the single report you write in step 5 below.""",
+file under the repo except the single report you write in step 6 below.""",
     task_prompt=f"""\
 1. Query EVERY row from `expenses` (all methods, not just one slice -- you
    are not one of the four method-sliced mapper agents).
@@ -212,30 +212,67 @@ file under the repo except the single report you write in step 5 below.""",
    Skip files that don't parse cleanly (that's receipt_scanner's job to
    flag as malformed, not yours) -- just build the pool of successfully
    parsed (vendor_slug, date, amount) receipts you can match against.
-4. For each expense row, look for ANY parsed receipt file whose date
-   matches `expense_date`, whose amount is within $0.01 of `amount`, and
-   whose vendor_slug shares a token with the row's normalized `description`
-   (same loose-match rule receipt_scanner uses, applied in the opposite
-   direction). If no such file exists anywhere in the four directories,
-   the row is UNACCOUNTED.
-5. Write ONE markdown report to
+4. Classify each expense row as NO_RECEIPT_EXPECTED if its `description`
+   matches a known receiptless pattern -- these row types structurally never
+   get a photographed or scanned receipt, so treating them as accounting
+   gaps is noise, not signal. Match case-insensitively, allowing minor
+   punctuation/whitespace drift, against:
+   - Internal / online transfers: e.g. "ONLINE TRANSFER", "TRANSFER TO",
+     "TRANSFER FROM", "XFER".
+   - Loan or commercial-line payments: e.g. "COMMRCL LN", "COMMERCIAL LN",
+     "LOAN PMT", "LOAN PAYMENT", "PAID BY AUTO BILLPAYER".
+   - Check clearings: description is "Check" (or "CHK") followed by a
+     check number, e.g. "Check 5143".
+   - Interest / finance charges: e.g. "INTEREST CHARGE", "FINANCE CHARGE",
+     "PURCHASE INTEREST CHARGE".
+   - Recurring-subscription vendors -- maintain this as an explicit,
+     easily-extended list and match on description containing any of these
+     tokens: "OPENAI", "AMAZON", "AMAZON MARKETPLACE", "AMZN DIGITAL",
+     "PRIME VIDEO", "AUDIBLE", "APPLE.COM", "APPLE BILL", "AOL",
+     "MYLIFE.COM". (Note in your report if you extend this list with a
+     vendor you discover during the scan, and why.)
+   Every row gets exactly one classification: NO_RECEIPT_EXPECTED, or
+   eligible for the matching check in step 5. Record which pattern category
+   matched for each NO_RECEIPT_EXPECTED row -- you need it for step 6.
+5. For every expense row NOT classified as NO_RECEIPT_EXPECTED in step 4,
+   look for ANY parsed receipt file whose date matches `expense_date`, whose
+   amount is within $0.01 of `amount`, and whose vendor_slug shares a token
+   with the row's normalized `description` (same loose-match rule
+   receipt_scanner uses, applied in the opposite direction). If no such file
+   exists anywhere in the four directories, the row is UNACCOUNTED. Rows
+   classified NO_RECEIPT_EXPECTED in step 4 are never checked here and can
+   never be UNACCOUNTED.
+6. Write ONE markdown report to
    `{REPO_ROOT}/reports/unaccounted_expenses_report.md` (create the
    `reports/` directory if it doesn't exist -- do not create or touch any
-   other file) with:
+   other file) with THREE sections:
    - Summary: total expense rows scanned, total parsed receipt files found
-     across the four directories, count and % of rows UNACCOUNTED, and a
-     breakdown of the UNACCOUNTED count by `method`.
-   - Unaccounted Expenses: one table sorted by `expense_date` descending,
+     across the four directories, count and % of rows classified
+     NO_RECEIPT_EXPECTED (with a breakdown by pattern category from step 4),
+     and count and % of the REMAINING (non-excluded) rows that are
+     UNACCOUNTED, broken down by `method`.
+   - Unaccounted Expenses: one table, sorted by `expense_date` descending,
      columns id_light, expense_date, amount, method, description
      (truncated to a reasonable length), and a short note on why no match
      was found (e.g. "no receipt file with matching date/amount/vendor in
-     any of the four directories").
+     any of the four directories"). This table now contains ONLY rows that
+     could plausibly have a receipt -- rows excluded in step 4 never appear
+     here.
+   - No Receipt Expected: one table, sorted by pattern category then
+     `expense_date` descending, columns id_light, expense_date, amount,
+     method, description (truncated), and which pattern category matched
+     (transfer / loan-commercial-line / check / interest-finance-charge /
+     recurring-subscription). This section exists so a reader can audit the
+     exclusion logic instead of just trusting it.
    - A short caveats paragraph noting this is a loose text/date/amount
      match and may have false positives if a receipt filename is malformed
-     (see receipt_scanner's report for those) or a vendor token doesn't
-     overlap the description wording.
+     (see receipt_scanner's report for those), a vendor token doesn't
+     overlap the description wording, or a description matches a
+     NO_RECEIPT_EXPECTED pattern coincidentally (e.g. a real vendor name
+     containing "transfer").
 """ + DB_CONNECTION_BRIEFING + """
 
-Reply with one sentence: total expenses scanned and how many were flagged
-as unaccounted.""",
+Reply with one sentence: total expenses scanned, how many were classified
+no-receipt-expected, and how many of the remainder were flagged as
+unaccounted."""
 )
