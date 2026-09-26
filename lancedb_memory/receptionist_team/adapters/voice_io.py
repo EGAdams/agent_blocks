@@ -23,6 +23,8 @@ here for "I have to press enter").
 """
 import array
 import json
+import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -30,7 +32,12 @@ import time
 import urllib.error
 import urllib.request
 import wave
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from .metrics import Stopwatch, log_stage
+
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
 SAMPLE_RATE = 16000
 SAMPLE_WIDTH = 2  # bytes -- S16LE
@@ -68,8 +75,13 @@ class VoiceUnavailableError(RuntimeError):
 
 
 class DashboardVoiceIO:
-    def __init__(self, base_url: str = "http://localhost:8765") -> None:
+    def __init__(self, base_url: str = "http://localhost:8765", pipecat_agent_id: str | None = None) -> None:
         self._base_url = base_url.rstrip("/")
+        # Requesting the pipecat backend routes STT through Groq (~1s) instead of
+        # the default local whisper.cpp pass (~25s on this CPU) -- the dashboard
+        # server only allows it for this one pilot agent id, set as an env var
+        # here rather than duplicating it as a hardcoded id.
+        self._pipecat_agent_id = pipecat_agent_id or os.environ.get("PIPECAT_PILOT_AGENT_ID")
 
     def listen(self) -> str:
         """Record one silence-terminated utterance and return its cleaned transcript.
@@ -81,15 +93,21 @@ class DashboardVoiceIO:
         if audio is None:
             return ""
 
+        print("[transcribing...]")
+        headers = {"X-Filename": "audio.wav", "Content-Type": "audio/wav"}
+        if self._pipecat_agent_id:
+            headers["X-Voice-Media-Backend"] = "pipecat"
+            headers["X-Voice-Agent-Id"] = self._pipecat_agent_id
         request = urllib.request.Request(
             f"{self._base_url}/api/voice",
             data=audio,
-            headers={"X-Filename": "audio.wav", "Content-Type": "audio/wav"},
+            headers=headers,
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=60) as response:
-                result = json.loads(response.read().decode())
+            with Stopwatch("stt_request", detail=f"audio_bytes={len(audio)}"):
+                with urllib.request.urlopen(request, timeout=60) as response:
+                    result = json.loads(response.read().decode())
         except (urllib.error.URLError, OSError) as exc:
             raise VoiceUnavailableError(f"dashboard STT request failed: {exc}") from exc
 
@@ -116,7 +134,7 @@ class DashboardVoiceIO:
         proc = subprocess.Popen(
             ["parecord", "--raw", "--channels=1", f"--rate={SAMPLE_RATE}", "--format=s16le", str(raw_path)],
             stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
         floor = 0.0
         warmup_frames = max(1, WARMUP_MS // FRAME_MS)
@@ -130,6 +148,17 @@ class DashboardVoiceIO:
         try:
             with open(raw_path, "rb") as reader:
                 while True:
+                    if proc.poll() is not None:
+                        # parecord died on its own (e.g. PulseAudio unreachable) --
+                        # left silently as DEVNULL, this used to look exactly like
+                        # "nobody spoke" for the full MAX_WAIT_FOR_SPEECH_MS, every
+                        # single turn, with no indication the mic was never live.
+                        stderr = proc.stderr.read().decode(errors="replace").strip() if proc.stderr else ""
+                        raw_path.unlink(missing_ok=True)
+                        raise VoiceUnavailableError(
+                            f"parecord exited unexpectedly (mic/PulseAudio unavailable): "
+                            f"{stderr or 'no error output'}"
+                        )
                     time.sleep(poll_seconds)
                     elapsed_ms += FRAME_MS
                     chunk = reader.read()
@@ -195,9 +224,18 @@ class DashboardVoiceIO:
             wav_path.unlink(missing_ok=True)
 
     def speak(self, text: str) -> None:
-        """Synthesize `text` via the dashboard's edge-tts endpoint and play it.
-        Fails closed: a broken player/request only skips playback, never crashes
-        the conversation -- the reply is always already printed to the console.
+        """Synthesize `text` via the dashboard's edge-tts endpoint and play it,
+        one sentence at a time. /api/tts fully renders its whole input before
+        replying -- for a long reply that means a long silent wait before
+        anything is heard. Splitting into sentences and prefetching sentence
+        N+1's audio while sentence N plays turns that into "wait for one
+        sentence" instead, and hides the rest of the synthesis time behind
+        playback that's already happening.
+
+        Fails closed: a broken player/request only skips playback, never
+        crashes the conversation -- the reply is always already printed to
+        the console. A sentence that fails to synthesize is skipped, not
+        fatal to the rest of the utterance.
         """
         if not text.strip():
             return
@@ -206,25 +244,54 @@ class DashboardVoiceIO:
             print("[voice output unavailable: none of ffplay/mpg123/paplay on PATH]")
             return
 
+        sentences = [s for s in _SENTENCE_SPLIT_RE.split(text.strip()) if s]
+        if not sentences:
+            return
+
+        print("[synthesizing speech...]")
+        with (
+            Stopwatch("tts_total", detail=f"sentences={len(sentences)} chars={len(text)}"),
+            ThreadPoolExecutor(max_workers=1) as pool,
+        ):
+            pending = pool.submit(self._synthesize, 0, sentences[0])
+            for i, sentence in enumerate(sentences):
+                # If this blocks for longer than ~0, sentence i+1's synthesis
+                # wasn't ready by the time sentence i finished playing --
+                # tts_wait_stall > 0 pinpoints exactly which sentence fell behind.
+                with Stopwatch("tts_wait_stall", detail=f"sentence={i}"):
+                    audio = pending.result()
+                if i + 1 < len(sentences):
+                    pending = pool.submit(self._synthesize, i + 1, sentences[i + 1])
+                if audio is not None:
+                    self._play(i, audio, player)
+
+    def _synthesize(self, index: int, sentence: str) -> bytes | None:
+        """One /api/tts round trip for a single sentence. Runs on the
+        pipelining thread -- prints its own failures instead of raising, so
+        one bad sentence can't take down the executor or the rest of the
+        utterance."""
         request = urllib.request.Request(
             f"{self._base_url}/api/tts",
-            data=json.dumps({"text": text}).encode(),
+            data=json.dumps({"text": sentence}).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
-                content_type = response.headers.get("Content-Type", "")
-                payload = response.read()
+            with Stopwatch("tts_synthesize", detail=f"sentence={index} chars={len(sentence)}"):
+                with urllib.request.urlopen(request, timeout=30) as response:
+                    content_type = response.headers.get("Content-Type", "")
+                    payload = response.read()
         except (urllib.error.URLError, OSError) as exc:
             print(f"[voice output failed: {exc}]")
-            return
+            return None
 
         if "audio" not in content_type:
             error = json.loads(payload.decode()).get("error", "unknown TTS error")
             print(f"[voice output failed: {error}]")
-            return
+            return None
+        return payload
 
+    def _play(self, index: int, payload: bytes, player: str) -> None:
         with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
             f.write(payload)
             mp3_path = f.name
@@ -234,6 +301,18 @@ class DashboardVoiceIO:
                 if "ffplay" in player
                 else [player, mp3_path]
             )
-            subprocess.run(args, capture_output=True)
+            with Stopwatch("tts_play", detail=f"sentence={index} bytes={len(payload)} player={player}"):
+                try:
+                    # stdin=DEVNULL: ffplay polls stdin for keypress commands
+                    # ('q' to quit) even with -nodisp -- inheriting the
+                    # terminal's stdin here risks it stopping on SIGTTIN and
+                    # hanging indefinitely instead of exiting on -autoexit.
+                    # timeout is a fail-closed backstop against exactly that:
+                    # one stuck sentence must not block the rest of the reply.
+                    subprocess.run(
+                        args, stdin=subprocess.DEVNULL, capture_output=True, timeout=30
+                    )
+                except subprocess.TimeoutExpired:
+                    print(f"[voice output timed out: sentence {index}]")
         finally:
             Path(mp3_path).unlink(missing_ok=True)

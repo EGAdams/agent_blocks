@@ -21,19 +21,26 @@ speech I/O here -- dashboard-server.service must already be running on
 localhost:8765; if it isn't, --voice fails closed to typed input per turn
 rather than guessing.
 
-Same auth rule as every other adapter in agent_blocks: ANTHROPIC_API_KEY and
-ANTHROPIC_BASE_URL must stay UNSET so the SDK uses local Claude Code
-subscription (OAuth) auth for both Toyota's own replies and the finance_team
-roles she delegates to -- no separate paid API key. The Groq key that already
-exists on this machine is untouched; it keeps doing exactly what it did
-before (the dashboard's own STT), reached only over HTTP by voice_io.py.
+Toyota's own conversational/routing replies go straight to Groq's chat API
+(GroqLanguageModel, see agent_memory/adapters/groq_model.py) -- a plain HTTP
+call, no claude_agent_sdk.query() subprocess spawn, since that overhead isn't
+worth paying for simple conversation. Delegated finance_team work still runs
+on Claude (RoutingModel's `model=role_model`, via run_role/tool_agent.py),
+same auth rule as every other adapter in agent_blocks: ANTHROPIC_API_KEY and
+ANTHROPIC_BASE_URL must stay UNSET so that call uses local Claude Code
+subscription (OAuth) auth, no separate paid API key -- it needs real tool use
+(Bash/Read/Write) against the DB/receipts, which is what the SDK is for.
+GROQ_API_KEY must be set (see receptionist_team/.env) for both Toyota's own
+replies and voice_io.py's STT.
 """
 import argparse
 import asyncio
+import os
+from pathlib import Path
 
-from agent_memory.adapters.claude_model import ClaudeAgentModel
 from agent_memory.adapters.decorators import RetryingModel
 from agent_memory.adapters.embedding_profiles import build_embedder
+from agent_memory.adapters.groq_model import GroqLanguageModel
 from agent_memory.adapters.lancedb_store import LanceDBMemoryStore
 from agent_memory.agent import ConversationAgent
 from agent_memory.clock import SystemClock
@@ -47,9 +54,29 @@ from agent_memory.observers import (
 from agent_memory.prompts import TemplatePromptComposer
 from agent_memory.recall import SimilarityRecall, TokenBudgetedRecall
 
+from .adapters.metrics import Stopwatch
 from .adapters.routing_model import RoutingModel
 from .adapters.voice_io import DashboardVoiceIO, VoiceUnavailableError
 from .roles import TOYOTA_SYSTEM_PROMPT
+
+
+def _load_dotenv() -> None:
+    """Load receptionist_team/.env into os.environ if not already set.
+
+    No python-dotenv in this venv, and forgetting to `source` the file is a
+    recurring footgun (GroqLanguageModel/voice_io.py both read GROQ_API_KEY /
+    PIPECAT_PILOT_AGENT_ID straight from the environment) -- so just load it
+    ourselves rather than relying on the caller's shell.
+    """
+    env_path = Path(__file__).resolve().parent / ".env"
+    if not env_path.exists():
+        return
+    for line in env_path.read_text().splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        os.environ.setdefault(key.strip(), value.strip())
 
 
 def build_toyota(settings: Settings, role_model: str) -> tuple[ConversationAgent, CostObserver]:
@@ -65,10 +92,12 @@ def build_toyota(settings: Settings, role_model: str) -> tuple[ConversationAgent
     )
 
     cost = CostObserver()
-    # stream=False: RoutingModel must see the WHOLE reply before deciding
-    # whether it's a ROUTE directive, and a raw "ROUTE: mapper_bank" line
-    # should never be echoed to the user -- so nothing here streams to stdout.
-    inner_model = ClaudeAgentModel(model=settings.model, stream=False, system_prompt=TOYOTA_SYSTEM_PROMPT)
+    # Toyota's own conversational replies go straight to Groq -- one HTTP call,
+    # no per-turn claude_agent_sdk CLI subprocess spawn (see groq_model.py).
+    # RoutingModel still sees the whole reply before deciding on a ROUTE
+    # directive; a delegated finance_team role still runs on Claude (below),
+    # since that needs real tool use against the DB/receipts, not just chat.
+    inner_model = GroqLanguageModel(model=settings.model, system_prompt=TOYOTA_SYSTEM_PROMPT)
     model = RoutingModel(RetryingModel(inner_model), model=role_model)
 
     agent = ConversationAgent(
@@ -107,7 +136,9 @@ async def repl(settings: Settings, role_model: str, voice: bool) -> None:
         if not user_input.strip():
             continue
 
-        reply = await agent.handle_turn(user_input)
+        print("[thinking...]")
+        with Stopwatch("thinking", detail=f"chars={len(user_input)}"):
+            reply = await agent.handle_turn(user_input)
         print(f"\nTOYOTA: {reply.text}")
         if voice_io is not None:
             voice_io.speak(reply.text)
@@ -119,12 +150,16 @@ async def repl(settings: Settings, role_model: str, voice: bool) -> None:
 
 
 def main() -> None:
+    _load_dotenv()
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--session", default="toyota", help="session id for memory scoping")
     parser.add_argument(
         "--model",
-        default="claude-haiku-4-5-20251001",
-        help="Toyota's own conversational/routing model -- cheap, she's a receptionist, not the worker",
+        default="openai/gpt-oss-120b",
+        help=(
+            "Toyota's own conversational/routing model, served by Groq (not Claude) -- "
+            "swap to a faster Groq model here, e.g. openai/gpt-oss-20b, with no code change"
+        ),
     )
     parser.add_argument(
         "--role-model",
