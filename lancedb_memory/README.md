@@ -130,6 +130,35 @@ Ask "what's the finance team's progress so far?" to route to
 Close and reopen with the same `--session toyota` to recall earlier
 conversation and route results from the persistent LanceDB session.
 
+## mazda_team -- Mazda, spreadsheet and tax teams
+
+`mazda_team/` is a self-contained second receptionist, **Mazda**, using the
+same `ConversationAgent` memory engine, Groq for conversation, and Claude for
+delegated file-writing work. She routes to her own `specialist_roles.py`
+(`sheeta` and `tarita`), not the finance team's roles.
+
+| Agent | Starter output (under `mazda_team/workspace/`) |
+|---|---|
+| `sheeta` | Leads spreadsheet creation; writes `spreadsheets/sample_spreadsheet.csv` (sample rows) |
+| `tarita` | Extracts available intake into IRS Form 1040 fields, or writes `tax_forms/sample_form_1040.json` as a null-valued template when no intake exists |
+
+These are placeholder deliverables, not yet wired to a real spreadsheet or
+tax repository. `MAZDA_TEAM_REPO_ROOT` can override the workspace path.
+Mazda uses `MAZDA_EDGE_TTS_VOICE` (default `en-US-AriaNeural`) instead of
+Toyota's `en-GB-SoniaNeural`: her voice adapter sends the explicit `voice`
+id in each `/api/tts` request. Copy `mazda_team/.env.example` to
+`mazda_team/.env` and set the local credentials if they aren't already exported.
+
+```bash
+cd lancedb_memory
+.venv/bin/python -m mazda_team.main                  # typed chat
+.venv/bin/python -m mazda_team.main --voice           # mic in / spoken out
+.venv/bin/python -m mazda_team.orchestrate            # run sheeta + tarita directly
+```
+
+The pre-existing `/home/adamsl/agent_blocks/mazda/` is an unrelated system;
+this team lives only under `lancedb_memory/mazda_team/`.
+
 ## Layout
 
 ```
