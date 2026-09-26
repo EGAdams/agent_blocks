@@ -30,7 +30,7 @@ concrete implementation.
 .venv/bin/python tests/test_embedding_profiles.py  # profile factory; no network, no torch import
 ```
 
-## finance_team -- 6-agent vendor pattern + receipt audit team
+## finance_team -- vendor patterns, receipt audits, and progress checks
 
 A separate composition root (`finance_team/`) that reuses this repo's adapter
 convention but, unlike `ConversationAgent`, actually enables tools
@@ -56,6 +56,12 @@ A 6th, independent agent audits receipt images on its own:
 | Agent | Scope | Output |
 |---|---|---|
 | `receipt_scanner` | `readable_documents/receipts/` + 3 other receipt dirs | `reports/orphaned_receipts_report.md` |
+| `expense_reconciler` | finds expense rows without matching receipts | `reports/unaccounted_expenses_report.md` |
+| `progress_check` | reads existing report files only, no DB access | `reports/finance_team_progress_report.md` |
+
+Unlike the seven analysis agents, `progress_check` is excluded from a bare
+`orchestrate.py` run. It runs only via `--only progress_check` or Toyota's
+routing.
 
 Run it:
 
@@ -72,11 +78,11 @@ Role briefs (system prompt, task prompt, DB credentials briefing) live in
 
 ## receptionist_team -- Toyota, the finance team's receptionist
 
-A 7th composition root (`receptionist_team/`) alongside `finance_team/`: a
+Another composition root (`receptionist_team/`) alongside `finance_team/`: a
 persistent, conversational agent named **Toyota** you chat with from the
 command line, backed by the same LanceDB-memory conversational engine as this
 repo's own `main.py` (`agent_memory.agent.ConversationAgent`, unmodified).
-Toyota knows about all 6 `finance_team` roles and, when a request clearly
+Toyota knows about all `finance_team` roles and, when a request clearly
 calls for one, delegates to it and relays the result -- otherwise she just
 talks. Routing is a `LanguageModel` Decorator (`RoutingModel`, same shape as
 `agent_memory/adapters/decorators.py`'s `RetryingModel`): the underlying
@@ -95,7 +101,7 @@ speech I/O: `receptionist_team/adapters/voice_io.py` calls the running
 STT, same path the browser's push-to-talk uses) for input, `POST /api/tts`
 (server-side edge-tts) for output. It never imports from `dashboard/`, only
 talks HTTP to `localhost:8765`, and fails closed to typed input/output per
-turn if the dashboard or mic isn't available -- `--voice` needs `arecord` on
+turn if the dashboard or mic isn't available -- `--voice` needs `parecord` on
 `PATH` for capture (WSL/WSLg audio) and `ffplay`/`mpg123`/`paplay` for
 playback; text mode always works regardless.
 
@@ -105,6 +111,24 @@ finance_team roles she delegates to run on local Claude Code subscription
 (OAuth) auth -- no paid API key. The `GROQ_API_KEY` already configured
 elsewhere on this machine is untouched; it keeps doing exactly what it did
 before (the dashboard's own STT), reached only indirectly over HTTP.
+
+### Opening a voice channel to discuss finance_team progress
+
+Make sure `dashboard-server.service` is running on `localhost:8765`,
+`ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` are unset, `parecord` is on
+`PATH` for mic capture, and at least one of `ffplay`, `mpg123`, or `paplay`
+is available for playback. Then open the channel:
+
+```bash
+cd lancedb_memory
+.venv/bin/python -m receptionist_team.main --voice --session toyota
+```
+
+Ask "what's the finance team's progress so far?" to route to
+`progress_check`, which reads existing reports without querying the DB.
+"Run the card mapper" instead requests a new, slower DB-backed analysis.
+Close and reopen with the same `--session toyota` to recall earlier
+conversation and route results from the persistent LanceDB session.
 
 ## Layout
 

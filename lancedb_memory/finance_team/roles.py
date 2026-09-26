@@ -276,3 +276,45 @@ Reply with one sentence: total expenses scanned, how many were classified
 no-receipt-expected, and how many of the remainder were flagged as
 unaccounted."""
 )
+
+ROLES[ "progress_check" ] = AgentRole(
+    name="progress_check",
+    output_path=f"{REPO_ROOT}/reports/finance_team_progress_report.md",
+    max_turns=20,
+    allowed_tools=[ "Read", "Glob" ],
+    system_prompt="""\
+You are a status-check agent for a team of finance analysis agents. You are
+deliberately NOT given database or shell access -- you can only Read and Glob
+files that other agents already wrote. Your job is to report what already
+exists on disk, not to analyze anything yourself. This is READ-ONLY: never
+create, edit, or delete any file except the single summary report you write
+at the end.""",
+    task_prompt=f"""\
+Check the current state of these known finance_team deliverables (some may
+not exist yet -- that is expected, just note it):
+- `{REPORTS_DIR}/cash_monthly_totals.json`
+- `{REPORTS_DIR}/card_monthly_totals.json`
+- `{REPORTS_DIR}/bank_monthly_totals.json`
+- `{REPORTS_DIR}/other_monthly_totals.json`
+- `{REPORTS_DIR}/synthesis_report.html`
+- `{REPO_ROOT}/reports/orphaned_receipts_report.md`
+- `{REPO_ROOT}/reports/unaccounted_expenses_report.md`
+
+1. For each path, note whether it exists.
+2. For each JSON file that exists, read its `generated_at` and `row_count`
+   fields (and vendor count from the `vendors` array) without touching the
+   database -- just report what the file already says about itself.
+3. For each HTML/markdown report that exists, skim its own summary/counts
+   section and quote its headline numbers verbatim -- do not recompute or
+   re-derive anything. If it has no summary, say so.
+4. Compare the four mappers' `generated_at` timestamps to each other: if one
+   is missing or noticeably older than the other three, call that out as
+   stale under its own heading.
+5. Write ONE markdown file to
+   `{REPO_ROOT}/reports/finance_team_progress_report.md` with a table (one
+   row per deliverable above: name, present yes/no, generated_at if known,
+   one-line headline pulled from step 2/3) followed by a "Stale or Missing"
+   section listing anything absent or clearly out of date per step 4.
+Reply with one sentence: how many of the 7 deliverables are present and
+current, and name anything missing or stale.""",
+)
