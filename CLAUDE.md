@@ -27,9 +27,11 @@ The top-level areas are:
 - `lancedb_memory/` — two generations of the same idea: the original RAVEN-style
   script (`3o_mini_chat_w_lance.py`, OpenAI), and `agent_memory/`, its ported
   successor on the Claude Agent SDK with Protocol-based ports. Also home to
-  two further composition roots built on the same conventions: `finance_team/`
-  (a 6-agent vendor-pattern/receipt-audit team) and `receptionist_team/`
-  (Toyota, a conversational front end that delegates to `finance_team`)
+  three further composition roots built on the same conventions: `finance_team/`
+  (a 6-agent vendor-pattern/receipt-audit team), `receptionist_team/`
+  (Toyota, a conversational front end that delegates to `finance_team`), and
+  `mazda_team/` (Mazda, a second, unrelated receptionist that delegates to her
+  own `sheeta`/`tarita` specialist roles)
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
@@ -200,6 +202,40 @@ is unavailable. Run with `.venv/bin/python -m receptionist_team.main` from
 Both keep the same auth convention as the rest of the repo:
 `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` stay unset so everything runs on
 local Claude Code subscription (OAuth) auth.
+
+## `lancedb_memory/mazda_team/`
+
+A second, independent receptionist, **Mazda**, built on the same
+`agent_memory.agent.ConversationAgent` engine as Toyota but otherwise
+unrelated to `finance_team`/`receptionist_team` — she routes to her own
+`specialist_roles.py` briefs (`sheeta`: spreadsheet creation, `tarita`:
+tax-form extraction into IRS Form 1040 fields), both placeholder deliverables
+under `mazda_team/workspace/` (override with `MAZDA_TEAM_REPO_ROOT`). The
+pre-existing `/home/adamsl/agent_blocks/mazda/` package is an unrelated
+system; this team lives only under `lancedb_memory/mazda_team/`.
+
+Two divergences from the Toyota stack, both in `main.py`/`adapters/`:
+
+- Mazda's own conversation/routing model is served by **Groq**
+  (`agent_memory/adapters/groq_model.py`, default `openai/gpt-oss-120b`), not
+  Claude; only delegated specialist work (`adapters/tool_agent.py`, same
+  `ClaudeAgentOptions(permission_mode="bypassPermissions")` shape as
+  `finance_team/adapters/tool_agent.py`) goes through the Claude Agent SDK.
+  `adapters/routing_model.py`'s `RoutingModel` is the same
+  wrap-a-`LanguageModel`-Decorator shape as `receptionist_team`'s, matching
+  `agent_memory/adapters/decorators.py`'s `RetryingModel`.
+- Voice reuses the dashboard's HTTP pipeline exactly like
+  `receptionist_team`, but with Mazda's own `MAZDA_EDGE_TTS_VOICE` (default
+  `en-US-AriaNeural`, vs. Toyota's `en-GB-SoniaNeural`) and its own
+  `voice_metrics.log`/`Stopwatch` stage timing in `adapters/metrics.py`.
+
+`mazda_team/main.py` loads `mazda_team/.env` itself (no `python-dotenv` in
+the venv) — copy `.env.example` to `.env` and set `GROQ_API_KEY` (required)
+and `PIPECAT_PILOT_AGENT_ID` (optional, faster Groq-backed STT) rather than
+relying on the caller's shell to export them. Run with
+`.venv/bin/python -m mazda_team.main` (`--voice` also supported) or
+`.venv/bin/python -m mazda_team.orchestrate` (`--only sheeta`/`tarita`) from
+`lancedb_memory`.
 
 ## `solid_agent_systems/` — SOLID review agents
 

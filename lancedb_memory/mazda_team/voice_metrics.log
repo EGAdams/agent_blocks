@@ -1,0 +1,60 @@
+[metrics] ts=2026-09-28T18:43:42 stage=stt_request duration_ms=1514.5 audio_bytes=68504
+[metrics] ts=2026-09-28T18:43:44 stage=thinking duration_ms=2264.6 chars=5
+[metrics] ts=2026-09-28T18:43:45 stage=tts_synthesize duration_ms=985.5 sentence=0 chars=77
+[metrics] ts=2026-09-28T18:43:45 stage=tts_wait_stall duration_ms=985.3 sentence=0
+[metrics] ts=2026-09-28T18:43:45 stage=tts_total duration_ms=987.4 sentences=1 chars=77
+[metrics] ts=2026-09-28T18:43:47 stage=stt_request duration_ms=1229.2 audio_bytes=58584
+[metrics] ts=2026-09-28T18:43:48 stage=thinking duration_ms=1022.3 chars=26
+[metrics] ts=2026-09-28T18:43:49 stage=tts_synthesize duration_ms=708.6 sentence=0 chars=56
+[metrics] ts=2026-09-28T18:43:49 stage=tts_wait_stall duration_ms=708.6 sentence=0
+[metrics] ts=2026-09-28T18:43:49 stage=tts_synthesize duration_ms=729.3 sentence=1 chars=65
+[metrics] ts=2026-09-28T18:43:49 stage=tts_wait_stall duration_ms=730.0 sentence=1
+[metrics] ts=2026-09-28T18:43:49 stage=tts_total duration_ms=1440.7 sentences=2 chars=122
+[metrics] ts=2026-09-28T18:44:26 stage=stt_request duration_ms=1247.4 audio_bytes=100504
+[metrics] ts=2026-09-28T18:44:29 stage=thinking duration_ms=2996.1 chars=23
+[metrics] ts=2026-09-28T18:44:30 stage=tts_synthesize duration_ms=932.8 sentence=0 chars=127
+[metrics] ts=2026-09-28T18:44:30 stage=tts_wait_stall duration_ms=933.0 sentence=0
+[metrics] ts=2026-09-28T18:44:31 stage=tts_synthesize duration_ms=979.1 sentence=1 chars=91
+[metrics] ts=2026-09-28T18:44:31 stage=tts_wait_stall duration_ms=979.7 sentence=1
+[metrics] ts=2026-09-28T18:44:32 stage=tts_synthesize duration_ms=885.1 sentence=2 chars=47
+[metrics] ts=2026-09-28T18:44:32 stage=tts_wait_stall duration_ms=886.0 sentence=2
+[metrics] ts=2026-09-28T18:44:32 stage=tts_total duration_ms=2800.7 sentences=3 chars=267
+[metrics] ts=2026-09-28T18:49:11 stage=stt_request duration_ms=968.3 audio_bytes=75544
+[metrics] ts=2026-09-28T18:49:13 stage=thinking duration_ms=1825.0 chars=20
+[metrics] ts=2026-09-28T18:49:14 stage=tts_synthesize duration_ms=1169.3 sentence=0 chars=68
+[metrics] ts=2026-09-28T18:49:14 stage=tts_wait_stall duration_ms=1169.4 sentence=0
+[metrics] ts=2026-09-28T18:49:15 stage=tts_synthesize duration_ms=1194.0 sentence=1 chars=52
+[metrics] ts=2026-09-28T18:49:18 stage=tts_play duration_ms=4473.6 sentence=0 bytes=23616 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:49:18 stage=tts_wait_stall duration_ms=0.0 sentence=1
+[metrics] ts=2026-09-28T18:49:22 stage=tts_play duration_ms=3616.9 sentence=1 bytes=20736 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:49:22 stage=tts_total duration_ms=9263.3 sentences=2 chars=121
+[metrics] ts=2026-09-28T18:49:27 stage=stt_request duration_ms=1035.5 audio_bytes=115864
+[metrics] ts=2026-09-28T18:49:28 stage=thinking duration_ms=988.4 chars=33
+[metrics] ts=2026-09-28T18:49:30 stage=tts_synthesize duration_ms=1046.8 sentence=0 chars=60
+[metrics] ts=2026-09-28T18:49:30 stage=tts_wait_stall duration_ms=1046.9 sentence=0
+[metrics] ts=2026-09-28T18:49:31 stage=tts_synthesize duration_ms=1072.3 sentence=1 chars=144
+[metrics] ts=2026-09-28T18:49:34 stage=tts_play duration_ms=4467.0 sentence=0 bytes=25920 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:49:34 stage=tts_wait_stall duration_ms=0.0 sentence=1
+[metrics] ts=2026-09-28T18:49:42 stage=tts_play duration_ms=8351.9 sentence=1 bytes=49248 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:49:42 stage=tts_total duration_ms=13870.1 sentences=2 chars=205
+[metrics] ts=2026-09-28T18:49:51 stage=stt_request duration_ms=1094.0 audio_bytes=190424
+[metrics] ts=2026-09-28T18:49:52 stage=thinking duration_ms=1013.7 chars=12
+[metrics] ts=2026-09-28T18:49:53 stage=tts_synthesize duration_ms=1111.7 sentence=0 chars=48
+[metrics] ts=2026-09-28T18:49:53 stage=tts_wait_stall duration_ms=1111.9 sentence=0
+[metrics] ts=2026-09-28T18:49:54 stage=tts_synthesize duration_ms=1210.0 sentence=1 chars=135
+[metrics] ts=2026-09-28T18:49:57 stage=tts_play duration_ms=3908.8 sentence=0 bytes=22464 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:49:57 stage=tts_wait_stall duration_ms=0.0 sentence=1
+[metrics] ts=2026-09-28T18:49:58 stage=tts_synthesize duration_ms=1104.1 sentence=2 chars=69
+[metrics] ts=2026-09-28T18:50:05 stage=tts_play duration_ms=8118.4 sentence=1 bytes=47808 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:50:05 stage=tts_wait_stall duration_ms=0.0 sentence=2
+[metrics] ts=2026-09-28T18:50:09 stage=tts_play duration_ms=4218.3 sentence=2 bytes=24624 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:50:09 stage=tts_total duration_ms=17361.5 sentences=3 chars=254
+[metrics] ts=2026-09-28T18:50:13 stage=stt_request duration_ms=920.1 audio_bytes=72024
+[metrics] ts=2026-09-28T18:50:15 stage=thinking duration_ms=1482.8 chars=5
+[metrics] ts=2026-09-28T18:50:16 stage=tts_synthesize duration_ms=1134.3 sentence=0 chars=60
+[metrics] ts=2026-09-28T18:50:16 stage=tts_wait_stall duration_ms=1134.2 sentence=0
+[metrics] ts=2026-09-28T18:50:17 stage=tts_synthesize duration_ms=1024.0 sentence=1 chars=58
+[metrics] ts=2026-09-28T18:50:20 stage=tts_play duration_ms=4084.2 sentence=0 bytes=23472 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:50:20 stage=tts_wait_stall duration_ms=0.0 sentence=1
+[metrics] ts=2026-09-28T18:50:24 stage=tts_play duration_ms=3920.1 sentence=1 bytes=22464 player=/usr/bin/ffplay
+[metrics] ts=2026-09-28T18:50:24 stage=tts_total duration_ms=9141.5 sentences=2 chars=119
