@@ -141,6 +141,19 @@ delegated file-writing work. She routes to her own `specialist_roles.py`
 |---|---|
 | `sheeta` | Leads spreadsheet creation; writes `spreadsheets/sample_spreadsheet.csv` (sample rows) |
 | `tarita` | Extracts available intake into IRS Form 1040 fields, or writes `tax_forms/sample_form_1040.json` as a null-valued template when no intake exists |
+| `michi` | Tracks finance-report progress by year/month/account and plans next steps; reads existing reports and writes only `progress/michi_state.json` |
+
+Michi's status and completion checks are deterministic Python
+(`mazda_team/progress/tracker.py`); an LLM only explains findings and proposes
+priorities. She reads `workspace/finance_reports/<year>/<month>/<account>.json`
+(with fields `year`, `month`, `account`, `transactions` containing `id` and
+`resolved`, and optional `generated_at`, `generated_by`, `notes`). No agent
+writes this schema yet: Sheeta is its intended future writer, so an empty
+workspace shows not-started reports. Expected accounts and rolling months are
+configurable via `MAZDA_TEAM_EXPECTED_ACCOUNTS`, `MAZDA_TEAM_MONTHS_BACK`, and
+`MAZDA_TEAM_STALE_DAYS`. Ask Mazda "where are we with the finance reports?"
+or "what's blocking completion?" to route to Michi. Run
+`.venv/bin/python -m mazda_team.progress.cli` for an offline snapshot.
 
 These are placeholder deliverables, not yet wired to a real spreadsheet or
 tax repository. `MAZDA_TEAM_REPO_ROOT` can override the workspace path.

@@ -112,6 +112,42 @@ agents:
   # No tester agent: running the suite is a known command, so it is a kind="code"
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
+  - name: locator
+    model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — one short read, the
+    thinking: low                       # cheapest agent on the roster by design
+    color: "#34d399"
+    purpose: Read a destination off an illegible expense and return a map link for it.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/locator/system.md
+      user: adws/adw_data/prompt_engineering/locator/user.md
+    writes: []                     # it reads a receipt and answers; it changes nothing
+    # `read` alone, and that is the cost control. Given `ls`/`find` it walks the
+    # repo hunting for context that is not there — measured at 80k tokens for one
+    # miss, against 4k when the prompt is all it can see. The receipt path it is
+    # handed is the only file it needs, so reading is the only tool it gets.
+    tools:
+      - read
+
+  - name: judge
+    model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — one typed question,
+    thinking: low                       # one typed answer, thousands of times
+    color: "#60a5fa"
+    purpose: Decide whether one expense's own words support the category it is filed under, or abstain.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/judge/system.md
+      user: adws/adw_data/prompt_engineering/judge/user.md
+    writes: []                     # it reads a prompt and answers; it changes nothing
+    # `tools: []` — no tools at all, which is stronger than locator's `read` and
+    # for the same reason. Every field this agent needs is already in its prompt:
+    # the date, the amount, the description, the extracted purchase detail, the
+    # permitted categories. Measured on the roster's `scout` instead, which has
+    # ls/find/grep/write, one expense cost 158,517 tokens and $0.0658 — it went
+    # looking for a codebase to report on and wrote a findings file about the
+    # prompt rather than answering it. Across a 2,000-row pass that is roughly
+    # $130 of exploring for context that does not exist. With no tools there is
+    # nowhere to go, so the only thing left to do is answer the question.
+    tools: []
+
   - name: reviewer
     model: anthropic/claude-sonnet-5   # Claude Pro/Max OAuth — deliberately NOT the builder's provider
     thinking: high

@@ -225,7 +225,14 @@ def run(request: PiRequest, on_event: Optional[Callable[[dict], None]] = None,
         "--session-dir", request.session_dir,
         "--system-prompt", request.system_prompt,
     ]
-    if request.tools:
+    # `None` means "no allowlist, every tool usable"; an EMPTY list means "no
+    # tools at all" and is a deliberate, useful setting -- the `judge` agent
+    # answers a question that is entirely inside its own prompt, and anything it
+    # could reach for is context that does not exist. Tested against `is not
+    # None` rather than for truthiness so those two never collapse into each
+    # other: `if request.tools:` quietly granted the empty-list agent the full
+    # tool set, which is the exact opposite of what it asked for.
+    if request.tools is not None:
         cmd += ["--tools", ",".join(request.tools)]
     for extension in request.extensions:
         cmd += ["-e", extension]

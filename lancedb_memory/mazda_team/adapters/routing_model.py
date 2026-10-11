@@ -9,15 +9,19 @@ import re
 from dataclasses import replace
 from pathlib import Path
 
+from agent_memory.adapters.groq_model import GroqLanguageModel
 from agent_memory.models import AgentReply
 from agent_memory.ports import LanguageModel
 
+from ..progress.michi import AGENT_NAME as MICHI_AGENT_NAME, answer as michi_answer
+from ..progress.narrate import DEFAULT_PROGRESS_QUESTION, MICHI_SYSTEM_PROMPT
 from ..specialist_roles import REPO_ROOT, ROLES
 from .tool_agent import run_role
 
 # Must match the WHOLE reply (re.fullmatch), not just contain the word ROUTE --
 # ordinary conversation is allowed to mention routing without triggering it.
 _ROUTE_RE = re.compile(r"ROUTE:\s*([A-Za-z_]+)\s*(?:\|\s*(.*))?", re.DOTALL)
+_ALL_ROUTE_NAMES = sorted(set(ROLES) | {MICHI_AGENT_NAME})
 
 
 class RoutingModel:
@@ -27,9 +31,17 @@ class RoutingModel:
     never goes near a specialist.
     """
 
-    def __init__(self, inner: LanguageModel, model: str) -> None:
+    def __init__(
+        self,
+        inner: LanguageModel,
+        model: str,
+        explainer: LanguageModel | None = None,
+        repo_root: str | None = None,
+    ) -> None:
         self._inner = inner
         self._role_model = model
+        self._explainer = explainer
+        self._repo_root = repo_root
 
     async def complete(self, prompt: str) -> AgentReply:
         reply = await self._inner.complete(prompt)
@@ -38,12 +50,18 @@ class RoutingModel:
             return reply
 
         role_name, extra = match.group(1), (match.group(2) or "").strip()
+        if role_name == MICHI_AGENT_NAME:
+            print(f"\n[Mazda -> {role_name}] checking finance-report progress...")
+            explainer = self._explainer or GroqLanguageModel(system_prompt=MICHI_SYSTEM_PROMPT)
+            return await michi_answer(extra or DEFAULT_PROGRESS_QUESTION, explainer=explainer,
+                                      repo_root=self._repo_root)
+
         role = ROLES.get(role_name)
         if role is None:
             return AgentReply(
                 text=(
                     f'I tried to route that to "{role_name}", but I don\'t have '
-                    f"an agent by that name. I know: {', '.join(sorted(ROLES))}."
+                    f"an agent by that name. I know: {', '.join(_ALL_ROUTE_NAMES)}."
                 )
             )
 

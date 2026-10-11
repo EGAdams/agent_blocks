@@ -95,6 +95,104 @@ def verdict_consistent(envelope: EnvelopeBase, run) -> GateReport:
     return report
 
 
+def map_link_openable(envelope: EnvelopeBase, run) -> GateReport:
+    """A resolved map link must survive the same check the stored one failed.
+
+    The agent is asked for a link, so the link is the claim — verified with the
+    exact predicate the launch phase will apply, not a looser one. An agent that
+    returns an address but no usable link has not finished the job.
+
+    The exception is a declared miss: `locatable: false`, which says the source
+    names no place at all. Some receipts genuinely do not, and a gate that
+    rejected that answer would be demanding a link the source cannot support —
+    which is a gate that manufactures fabricated addresses. A miss is held to
+    saying what was seen instead, and the ADW decides what it means for the run.
+
+    It is a dedicated field and not an empty `map_link` on purpose: a miss has to
+    be something the agent states, so that forgetting the link still fails.
+    """
+    from .map_open import ALLOWED_SCHEMES, MapOpenRequest, validate
+
+    report = GateReport()
+    link = str(getattr(envelope, "map_link", "") or "")
+    if not getattr(envelope, "locatable", True):
+        report.check("declared miss", bool(envelope.summary.strip()),
+                     envelope.summary.strip()
+                     or "reported nothing locatable without saying what was seen")
+        return report.check("no link with the miss", not link.strip(),
+                            "none offered" if not link.strip()
+                            else "reported nothing locatable, then offered a link anyway")
+    report.check("map_link", bool(link.strip()),
+                 "present" if link.strip() else "agent returned no map link")
+    if link.strip():
+        check = validate(run, MapOpenRequest(url=link), source="agent")
+        report.check("map_link openable", check.openable,
+                     check.reason if check.openable
+                     else f"{check.reason} — must be {'/'.join(ALLOWED_SCHEMES)} with a host")
+    address = str(getattr(envelope, "address", "") or "")
+    report.check("address", bool(address.strip()),
+                 "read off the receipt" if address.strip()
+                 else "no address given, so the link cannot be checked by a human")
+    return report
+
+
+def destination_locatable(envelope: EnvelopeBase, run) -> GateReport:
+    """A resolved destination must name a place, or declare that it cannot.
+
+    Same shape as map_link_openable's "declared miss" rule: `locatable: false`
+    is accepted outright as long as the agent says what it saw, because some
+    receipts genuinely name no place. Otherwise an `address` is required —
+    there is no URL to validate here, since the destination is free text
+    Maps itself will geocode.
+    """
+    report = GateReport()
+    address = str(getattr(envelope, "address", "") or "")
+    if not getattr(envelope, "locatable", True):
+        return report.check("declared miss", bool(envelope.summary.strip()),
+                            envelope.summary.strip()
+                            or "reported nothing locatable without saying what was seen")
+    report.check("address", bool(address.strip()),
+                 "read off the receipt" if address.strip()
+                 else "no address given, and no miss was declared either")
+    return report
+
+
+def category_id_is_permitted(permitted):
+    """Gate factory: an opinion may only name a category the vendor's rule
+    already permits, and must cite what it read.
+
+    This is the mechanical half of "do not turn one purchase decision into a
+    universal vendor rule". The agent is weighing *this* expense against a set
+    the rules already allow; it cannot widen that set, and a category outside
+    it is rejected here rather than argued with downstream.
+
+    An abstention passes outright, the same "declared miss" rule
+    `destination_locatable` uses -- a description that supports no reading
+    should produce no reading, so abstaining must never be the costlier answer.
+    """
+    allowed = sorted({int(p) for p in permitted})
+
+    def gate(envelope: EnvelopeBase, run) -> GateReport:
+        report = GateReport()
+        if getattr(envelope, "abstained", True):
+            return report.check(
+                "declared abstention", bool(envelope.summary.strip()),
+                envelope.summary.strip()
+                or "abstained without saying what was unreadable")
+        chosen = getattr(envelope, "category_id", None)
+        report.check(
+            f"category_id in {allowed}", chosen in allowed,
+            f"chose {chosen}" if chosen in allowed
+            else f"chose {chosen}, which the vendor's rule does not permit")
+        reading = str(getattr(envelope, "reading", "") or "").strip()
+        report.check("reading", bool(reading),
+                     reading or "named a category without citing what it read")
+        return report
+
+    gate.__name__ = f"category_id_is_permitted({allowed})"
+    return gate
+
+
 def tests_pass(command: str):
     """Gate factory: the given shell command must exit 0."""
     def gate(envelope: EnvelopeBase, run) -> GateReport:

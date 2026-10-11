@@ -234,6 +234,141 @@ class ChangesOutput(EnvelopeBase):
     diff_path: str = ""             # read this for the full diff
 
 
+# ── Map opening (deterministic phases over expenses.map_link) ────────────────
+# One phase per question, in the order WslMapOpener asks them: is the link
+# openable, which launcher is present, did the spawn happen. Each answer is its
+# own type so the trace shows WHY a run ended the way it did, and so a future
+# agent phase can be inserted between any two of them.
+
+class LauncherSpec(BaseModel):
+    """One browser launcher and how to invoke it.
+
+    `argv` is a template list, never a shell string: `{url}` is substituted in
+    place, so a stray character in a map link can never become a second
+    argument. `name` is what `shutil.which` probes for.
+    """
+
+    name: str
+    argv: list[str]
+
+    def build(self, url: str) -> list[str]:
+        return [arg.replace("{url}", url) for arg in self.argv]
+
+
+class MapOpenRequest(BaseModel):
+    """Everything the map-open phases need. Passed as one object, never loose params."""
+
+    url: str = ""                   # the candidate map_link, exactly as stored
+    # What the expense says the destination IS, when the link does not say where
+    # it is — a vendor line like "wyoming walmart". A place is not a link, so it
+    # never bypasses validate(); it is turned into one by derive_from_place().
+    place: str = ""
+    dry_run: bool = False           # resolve a launcher, spawn nothing
+    # Empty means the module's own ladder. Override to pin or reorder launchers
+    # (a test run, a box where explorer.exe must not win).
+    launchers: list[LauncherSpec] = Field(default_factory=list)
+
+
+class MapOpenOptions(BaseModel):
+    """One ADW invocation of the map-open chain. Keeps main() at one parameter.
+
+    `resolver` is the extension point: left empty every phase in the chain is
+    code, and naming an agent inserts exactly one agent phase — the only step
+    that needs eyes. Nothing else in the chain changes shape when it appears.
+    """
+
+    prompt: str                     # why this map is being opened; the engineer record
+    map_link: str = ""              # expenses.map_link for the expense under review
+    place: str = ""                 # the expense's own words for the destination
+    receipt: str = ""               # path or text handed to the resolver agent, if any
+    resolver: str = ""              # agent name from the config; empty = code-only run
+    dry_run: bool = False
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    # Where to drop the operator's one line, for a caller that is a menu rather
+    # than a terminal. The review session reads this file instead of parsing the
+    # run's console output, which is formatting and not a contract.
+    message_out: str = ""
+
+
+class PlaceDerivation(BaseModel):
+    """What was made of the expense's own words when the stored link failed.
+
+    Kept as its own type rather than folded into LinkCheck so the trace shows
+    both halves: the query that was built, and whether it was legible enough to
+    be worth a browser at all.
+    """
+
+    query: str = ""                 # the search text, normalized
+    link: str = ""                  # the maps-search URL built from it; "" when unusable
+    usable: bool = False
+    reason: str = ""
+
+
+class LinkCheck(BaseModel):
+    """Phase 1's verdict: is this link one we are willing to hand to a browser."""
+
+    raw: str = ""                   # what arrived, untouched
+    target: str = ""                # the stripped form we would open; "" when unopenable
+    openable: bool = False
+    reason: str = ""                # why not, in the words the operator sees
+    # Which attempt produced this candidate: the stored column, a search built
+    # from the expense's own words, or an agent that read the receipt. The
+    # operator's message says so, because a searched location is a guess.
+    source: Literal["stored", "place-search", "agent"] = "stored"
+
+    @property
+    def shown(self) -> str:
+        """The link as it should appear in a message — never an empty gap."""
+        return self.raw.strip() or "(empty)"
+
+
+class LauncherChoice(BaseModel):
+    """Phase 2's result: which launcher is present on this box, and what was probed.
+
+    `probed` is kept even on success — the ladder's order is the whole design,
+    and a run that fell through to `xdg-open` reads very differently from one
+    that took `explorer.exe` first.
+    """
+
+    name: str = ""
+    argv: list[str] = Field(default_factory=list)
+    probed: list[str] = Field(default_factory=list)
+    found: bool = False
+
+
+class LaunchResult(BaseModel):
+    """Phase 3's result: did the spawn happen, and the one line the operator gets.
+
+    `message` is the contract the review session consumes — the same strings
+    `WslMapOpener.open()` returns, since nothing downstream should have to care
+    whether a phase or a method produced them.
+    """
+
+    launched: bool = False
+    launcher: str = ""
+    message: str = ""
+
+
+class MapLinkOutput(EnvelopeBase):
+    """An agent's answer when the stored link is unusable and a human would squint.
+
+    Reading an address off receipt chicken scratch is the one part of this
+    workflow a regex loses, so it is the one part that may cost an agent call.
+    Everything else here stays code.
+    """
+
+    address: str = ""               # what the agent read, in its own words
+    map_link: str = ""              # the link it built from that address
+    confidence: str = ""            # high | medium | low — the operator's cue to double-check
+    # False when the source names no place at all — only codes, only an amount,
+    # an unreadable scan. A declared miss, not a failed phase: the agent did the
+    # reading it was asked to do. It is the field that lets the gate stop
+    # demanding a link the receipt cannot support, which is what an agent under
+    # pressure answers by inventing an address.
+    locatable: bool = True
+
+
 class VerifyOutput(EnvelopeBase):
     """A deterministic result, shaped as an envelope so an agent can consume it.
 
@@ -245,6 +380,131 @@ class VerifyOutput(EnvelopeBase):
 
     passed: bool = False
     failures: list[str] = Field(default_factory=list)
+
+
+# ── Calculate distance ──────────────────────────────────────────────────────
+
+class DistanceOptions(BaseModel):
+    """One ADW invocation of the calculate-distance chain. Mirrors MapOpenOptions."""
+
+    prompt: str                     # why this distance is being calculated
+    map_link: str = ""              # expenses.map_link, read for a destination hint
+    place: str = ""                 # the expense's own words for the destination
+    receipt: str = ""               # path or text handed to the resolver agent, if any
+    resolver: str = ""              # agent name from the config; empty = code-only run
+    origin: str = ""                # defaults to the Gratiot home address when blank
+    dry_run: bool = False
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    message_out: str = ""
+    map_link_out: str = ""           # where to write a newly-derived map_link, if any
+
+
+class DistanceRequest(BaseModel):
+    """Everything the calculate-distance phases need. Passed as one object."""
+
+    origin: str = ""
+    destination: str = ""           # the candidate address/place text, as typed into Maps
+    place: str = ""                 # the expense's own words, before any derivation
+    dry_run: bool = False
+
+
+class DestinationCheck(BaseModel):
+    """Phase 1's verdict: is there already a destination worth driving Maps with."""
+
+    candidate: str = ""
+    usable: bool = False
+    reason: str = ""
+
+
+class DestinationOutput(EnvelopeBase):
+    """An agent's answer when neither the stored link nor a search found a
+    confident destination and a human would squint at the receipt instead."""
+
+    address: str = ""
+    confidence: str = ""            # high | medium | low
+    locatable: bool = True          # False: the source names no place at all
+
+
+class DistanceResult(BaseModel):
+    """What was read off the Maps directions page, and the operator's line."""
+
+    distance_text: str = ""
+    duration_text: str = ""
+    found: bool = False
+    message: str = ""
+
+
+class NearestLocationResult(BaseModel):
+    """What was read off a Maps *search* result, when a chain's name alone
+    ("MISTER CAR WASH #0465 GRAND RAPIDS MI") would not route as typed and
+    the nearest actual branch has to be looked up instead."""
+
+    found: bool = False
+    name: str = ""                  # the result card's own name
+    address: str = ""               # partial, no city/state -- display only
+    destination: str = ""           # "lat,lng" -- fed straight into the directions box
+    message: str = ""
+
+
+class SearchAddressResult(BaseModel):
+    """What SerpAPI's Google Search found for a destination neither the
+    directions box nor a Maps search near the origin could resolve --
+    typically a knowledge-graph or local-results address for the business's
+    own listing."""
+
+    found: bool = False
+    name: str = ""                  # the listing's own title, if present
+    address: str = ""               # a full street address, usable as a destination
+    message: str = ""
+
+
+# ── Verify expense (vendor key / category agreement) ────────────────────────
+
+class VerifyExpenseOptions(BaseModel):
+    """One ADW invocation of the per-expense verification chain."""
+
+    prompt: str                     # why this expense is being verified
+    expense_id: int = 0
+    judge: str = ""                 # agent that weighs a multi-category row; "" = code only
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    message_out: str = ""           # the operator's one line
+    verdict_out: str = ""           # the full verdict as JSON, for a menu caller
+
+
+class SurveyExpensesOptions(BaseModel):
+    """One ADW invocation of the whole-season survey.
+
+    No `judge` field, deliberately. The survey is code-only: a judgement is
+    worth paying for when a person is about to act on it, and nobody acts on a
+    survey. The interactive pass is where the judge earns its tokens.
+    """
+
+    prompt: str                     # why the season is being surveyed
+    year: int = 2025
+    kind: str = "all"               # all | unverified | backlog
+    limit: int = 0                  # stop after N expenses; 0 = the whole season
+    resume: bool = False            # continue after the journal's last settled position
+    run_id: str = ""                # journal file name; "" = the adw id
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    message_out: str = ""
+
+
+class CategoryOpinion(EnvelopeBase):
+    """A reader's answer when a vendor permits several categories and the row's
+    description has to be weighed to tell which one happened.
+
+    `abstained` is the expected answer, not the failure case. A card feed line
+    that says "MEIJER STORE 020" supports nothing, and an opinion invented on
+    top of it is worse than no opinion -- the gate lets an abstention through
+    precisely so there is no incentive to guess.
+    """
+
+    category_id: Optional[int] = None
+    abstained: bool = True
+    reading: str = ""               # the words in the evidence that decided it
 
 
 # ── Agent calls ──────────────────────────────────────────────────────────────

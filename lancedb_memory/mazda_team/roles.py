@@ -1,19 +1,25 @@
 """Mazda's persona and delegation acknowledgments for her local specialists."""
 
 from .specialist_roles import ROLES
+from .progress.michi import AGENT_NAME as MICHI_AGENT_NAME
+
+ALL_AGENT_NAMES = sorted(set(ROLES) | {MICHI_AGENT_NAME})
 
 ROLE_BLURBS: dict[str, str] = {
     "sheeta": "leads spreadsheet creation and writes sample CSVs",
     "tarita": "extracts tax data into IRS form fields or prepares a blank template",
+    "michi": "tracks finance-report progress and plans next steps; does not write reports or tax forms herself",
 }
 ROLE_SPOKEN_NAMES: dict[str, str] = {
     "sheeta": "our spreadsheet specialist",
     "tarita": "our tax form specialist",
+    "michi": "our progress tracker",
 }
 # Each phrase follows "tell them to start".
 ROLE_START_TASKS: dict[str, str] = {
     "sheeta": "creating a sample spreadsheet",
     "tarita": "checking tax intake and preparing form fields",
+    "michi": "checking finance-report progress and what's next",
 }
 
 for _mapping_name, _mapping in (
@@ -21,7 +27,7 @@ for _mapping_name, _mapping in (
     ("ROLE_SPOKEN_NAMES", ROLE_SPOKEN_NAMES),
     ("ROLE_START_TASKS", ROLE_START_TASKS),
 ):
-    _missing = set(ROLES) - set(_mapping)
+    _missing = set(ALL_AGENT_NAMES) - set(_mapping)
     if _missing:
         raise RuntimeError(
             f"mazda_team.roles.{_mapping_name} "
@@ -42,7 +48,7 @@ def delegation_acknowledgment(
     An optional task_description must be a short spoken phrase that fits
     after "start". Do not pass raw routing instructions or logs as this phrase.
     """
-    if agent_name not in ROLES:
+    if agent_name not in ALL_AGENT_NAMES:
         raise ValueError(f"Unknown Mazda agent: {agent_name!r}")
 
     task = (
@@ -60,7 +66,7 @@ def delegation_acknowledgment(
 
 _ROSTER = "\n".join(
     f"{name} ({ROLE_SPOKEN_NAMES[name]}): {ROLE_BLURBS[name]}"
-    for name in ROLES
+    for name in ALL_AGENT_NAMES
 )
 
 MAZDA_SYSTEM_PROMPT = f"""\
@@ -99,19 +105,32 @@ when discussing them with the user.
 
 ROUTING PROTOCOL
 
-When the user clearly requests a spreadsheet or tax-form extraction,
+When the user clearly requests a spreadsheet, tax-form extraction, or current progress check,
 reply with exactly one control line in one of these forms:
 
 ROUTE: <agent_name>
 ROUTE: <agent_name> | <extra instructions for this task>
 
-Allowed agent names: {', '.join(sorted(ROLES))}.
+Allowed agent names: {', '.join(ALL_AGENT_NAMES)}.
 
 This control line is consumed by the application and must not be spoken aloud.
 Do not add an acknowledgment, explanation, or other text to a ROUTE response.
 The application supplies the spoken acknowledgment separately.
 Preserve relevant details from the user's request in the extra instructions.
 Do not invent a year, account, filename, or other missing detail.
+
+PROGRESS AND PLANNING
+
+If the user asks about current progress or planning -- for example, "where
+are we", "what's blocking completion", "what should we do next", or "is
+anything missing or overdue" -- route to michi, not to sheeta or tarita:
+
+ROUTE: michi
+ROUTE: michi | focus on the checking account
+
+Michi only reads existing reports and tracks progress; she never writes a
+spreadsheet or tax form herself. A progress question about sheeta's or
+tarita's work still goes to her, even if the user names one of them.
 
 ORDINARY CONVERSATION
 

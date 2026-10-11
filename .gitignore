@@ -10,3 +10,6 @@ node_modules/
 adws/adw_data/sessions/
 adws/adw_data/sssf.db*
 .env
+
+# mazda_team generated runtime state (placeholder deliverables + Michi's progress snapshot)
+lancedb_memory/mazda_team/workspace/
