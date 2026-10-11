@@ -369,6 +369,45 @@ class MapLinkOutput(EnvelopeBase):
     locatable: bool = True
 
 
+class ReceiptLocateRequest(BaseModel):
+    """Everything the receipt-locate phases need. Passed as one object, never loose params."""
+
+    receipt_url: str = ""           # the stored (possibly stale) filename or link
+    receipts_dir: str = ""          # base dir to search; empty = the module default
+
+
+class ReceiptCandidate(BaseModel):
+    """One file the fuzzy search thinks might be the real receipt."""
+
+    path: str                       # absolute path on disk
+    relative: str                   # path relative to the receipts dir, as it is stored
+    score: float = 0.0              # token-overlap ratio against the stored filename
+
+
+class ReceiptSearch(BaseModel):
+    """Phase result: what the search found, when the direct lookup failed."""
+
+    resolved_direct: bool = False   # the stored value already pointed at a real file
+    direct_path: str = ""
+    candidates: list[ReceiptCandidate] = Field(default_factory=list)
+    reason: str = ""
+
+
+class ReceiptSelection(BaseModel):
+    """The engineer's answer to "which of these, if any, is the real receipt"."""
+
+    picked: bool = False
+    candidate: Optional[ReceiptCandidate] = None
+
+
+class ReceiptLocateResult(BaseModel):
+    """What `main()` hands the caller: the operator's line, and -- only when a
+    human confirmed a match -- the corrected `receipt_url` worth persisting."""
+
+    message: str = ""
+    receipt_url: str = ""
+
+
 class VerifyOutput(EnvelopeBase):
     """A deterministic result, shaped as an envelope so an agent can consume it.
 
@@ -456,6 +495,44 @@ class SearchAddressResult(BaseModel):
     found: bool = False
     name: str = ""                  # the listing's own title, if present
     address: str = ""               # a full street address, usable as a destination
+    message: str = ""
+
+
+# ── Receipt address (OCR, with an agent fallback) ───────────────────────────
+
+class ReceiptAddressOptions(BaseModel):
+    """One ADW invocation of the receipt-address chain. Mirrors DistanceOptions."""
+
+    prompt: str                     # why this address is being read
+    receipt_path: str = ""          # path to the receipt image to read
+    resolver: str = ""              # agent name from the config; empty = OCR only
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    message_out: str = ""
+    address_out: str = ""           # where to write the resolved address, if any
+
+
+class ReceiptAddressRequest(BaseModel):
+    """Everything the receipt-address phases need. Passed as one object."""
+
+    receipt_path: str = ""
+
+
+class AddressExtraction(BaseModel):
+    """The mechanical OCR pass's verdict: is there already one confident
+    street-address line in the text, or is the read too fuzzy to trust."""
+
+    candidate: str = ""
+    confident: bool = False
+    reason: str = ""
+
+
+class ReceiptAddressResult(BaseModel):
+    """What `main()` hands the caller: the resolved address (if any), where
+    it came from, and the operator's one line."""
+
+    address: str = ""
+    source: str = ""                # "ocr" | "agent" | "none"
     message: str = ""
 
 

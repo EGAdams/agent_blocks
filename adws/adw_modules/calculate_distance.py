@@ -92,6 +92,8 @@ MIN_DESTINATION_LETTERS = 4
 #: has a house number.
 _PROSE_ASIDE = re.compile(r"\s-\s+([^-]*[A-Za-z][^-]*)$")
 
+_WORD = re.compile(r"[A-Za-z]{3,}")
+
 
 def _drop_prose_note(query: str) -> str:
     match = _PROSE_ASIDE.search(query)
@@ -99,6 +101,18 @@ def _drop_prose_note(query: str) -> str:
         return query
     note = match.group(1)
     if re.search(r"\d", note) or len(note.split()) < 3:
+        return query
+    # A branch descriptor that just repeats the brand name -- "Mister -
+    # Mister Leonard car wash" -- is not a note at all, confirmed live on
+    # expense 468: stripping it left the bare word "Mister" as the Maps
+    # destination, which geocoded to an unrelated business 8.2 mi away
+    # instead of the real branch 0.8 mi away that the full description
+    # would have named. A genuine aside ("Walgreens - There was what looked
+    # like a cash back") shares no word with the brand before the dash; a
+    # branch descriptor does.
+    before = {word.lower() for word in _WORD.findall(query[:match.start()])}
+    after = {word.lower() for word in _WORD.findall(note)}
+    if before & after:
         return query
     return query[:match.start()].strip(" ,.-")
 
@@ -400,13 +414,64 @@ def _vendor_key_words(destination: str) -> set[str] | None:
     return words or None
 
 
+#: Road/direction words that show up in a *location* phrase, not a brand
+#: name -- the full-word form of the same street-suffix vocabulary
+#: `_STREET_ADDRESS` already matches abbreviated ("Dr", "Ave", ...). A real
+#: chain name is never made entirely of these.
+_ROAD_WORDS = frozenset({
+    "street", "avenue", "road", "drive", "boulevard", "court", "lane",
+    "way", "place", "circle", "terrace", "highway", "parkway", "north",
+    "south", "east", "west", "lake",
+})
+
+
 def _brand_words(destination: str) -> set[str]:
+    """Words a real result card for this destination ought to carry.
+
+    `_vendor_key_words` is trusted outright -- it comes from the
+    categorizer's own alias table, keyed to the raw bank text, not a guess.
+    The `_BRAND_NAME` regex is only a guess, and it fails one specific way:
+    confirmed live on expense 479, "Lake MI Drive BP" has no vendor_key
+    match (the categorizer's aliases are keyed to the raw bank text
+    "BP#9332735LAKE MICHI...", not this human-cleaned description), no
+    digit to stop `_BRAND_NAME` early, and its real brand token "BP" is too
+    short to survive the 3-letter word filter below -- so what is left is
+    {"lake", "drive"}, pure road vocabulary describing WHERE the place is,
+    not WHAT it is. Filtering candidate cards on that then rejects the real
+    station's own Maps card (signed and listed only as "bp", carrying
+    neither word) while `search_address`'s SerpAPI title could carry both
+    without being the right business at all. When every surviving word is
+    road vocabulary, there is no real brand signal here, so this returns no
+    words rather than a wrong, overconfident set -- same principle as
+    `locate_nearest`'s own "no filter beats a wrong one," applied one step
+    earlier, and narrow enough that a real single-word brand with no store
+    number ("Meijer", "Costco") still filters exactly as before.
+    """
     vendor_words = _vendor_key_words(destination)
     if vendor_words:
         return vendor_words
     match = _BRAND_NAME.match(destination.strip())
     brand = match.group(1) if match else destination
-    return {word.lower() for word in re.findall(r"[A-Za-z]{3,}", brand)}
+    words = {word.lower() for word in re.findall(r"[A-Za-z]{3,}", brand)}
+    return set() if words and words <= _ROAD_WORDS else words
+
+
+def _location_words(destination: str) -> set[str]:
+    """The road words `_brand_words` discards, repurposed as an address
+    filter instead of a name filter.
+
+    Confirmed necessary live on expense 479's "Lake MI Drive BP": with no
+    name filter at all, `locate_nearest` happily returned whichever "bp"
+    card sat nearest home -- 1639 Leonard St NW, the real, different
+    station already on record as `leo_gas` -- instead of the one the
+    description actually named, 2035 Lake Michigan Dr. Two distinct BP
+    stations near home means "nearest card with a plausible name" alone
+    cannot tell them apart; the street name in the description can, but
+    only against a candidate's own ADDRESS line, never its business name
+    (a station is never signed "Lake Michigan Drive").
+    """
+    return ({word.lower() for word in re.findall(r"[A-Za-z]{3,}", destination)}
+            & _ROAD_WORDS)
 
 
 #: Businesses whose own Maps listing carries none of their billing
@@ -496,6 +561,10 @@ def locate_nearest(run, request: DistanceRequest) -> NearestLocationResult:
             return NearestLocationResult(message=message)
 
         brand_words = _brand_words(request.destination)
+        #: Only consulted when there is no brand-name signal at all --
+        #: see `_location_words`'s docstring for why it filters addresses,
+        #: never names.
+        location_words = set() if brand_words else _location_words(request.destination)
         candidates = []  # (distance_or_None, name, address, lat, lng)
         for card in cards:
             try:
@@ -511,6 +580,10 @@ def locate_nearest(run, request: DistanceRequest) -> NearestLocationResult:
             if brand_words and not brand_words <= card_words:
                 continue  # a different business, or only a generic word in common
             address = next((line.split(" · ", 1)[-1] for line in lines if " · " in line), "")
+            if location_words:
+                address_words = {word.lower() for word in re.findall(r"[A-Za-z]{3,}", address)}
+                if not location_words <= address_words:
+                    continue  # right-ish name, wrong street -- not the branch named
             lat, lng = float(coordinates.group(1)), float(coordinates.group(2))
             distance = _haversine_miles(origin_point, (lat, lng)) if origin_point else None
             candidates.append((distance, name, address, lat, lng))
