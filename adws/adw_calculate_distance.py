@@ -146,6 +146,15 @@ def main(options: DistanceOptions) -> int:
             with run.phase(PhaseParams(name="calculate_nearest", kind="code", owner="distance",
                                        description="Retry the directions box with the nearest branch's own coordinates in place of its unroutable name")) as ph:
                 result = calculate_distance.calculate(run, request)
+                if result.found:
+                    # The directions box was fed "lat,lng"; the caller records the
+                    # destination text from this message as the branch's note, so
+                    # name the branch in words instead of by coordinates.
+                    street = nearest.address.split("\u00b7")[-1].strip()
+                    label = ", ".join(part for part in (nearest.name, street) if part)
+                    if label:
+                        result = result.model_copy(update={
+                            "message": result.message.replace(nearest.destination, label)})
                 ph.log(found=result.found, distance=result.distance_text or "(none)",
                        duration=result.duration_text or "(none)", message=result.message)
 
