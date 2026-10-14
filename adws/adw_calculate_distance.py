@@ -110,7 +110,8 @@ def main( options: DistanceOptions ) -> int:
     agents.validate(cfg, REQUIRED_AGENTS + ([options.resolver] if options.resolver else []))
     run = session.ensure(cfg, options.adw_id)
     origin = options.origin.strip() or calculate_distance.HOME_ADDRESS
-    request = DistanceRequest( origin=origin, destination=options.place, place=options.place, dry_run=options.dry_run )
+    request = DistanceRequest( origin=origin, destination=options.place, place=options.place,
+                               dry_run=options.dry_run, exclude_addresses=options.exclude_addresses )
     dtn = "Record which expense's distance is being calculated and under what options"
     with run.phase( PhaseParams( name="request", kind="engineer", owner=run.engineer, description=dtn )) as ph:
         ph.log( input=options.prompt, place=options.place or "(none)",
@@ -163,10 +164,23 @@ def main( options: DistanceOptions ) -> int:
     # address that produced the mileage" a human reads back later, so this
     # stays the readable address whenever `locate_nearest` found one.
     map_destination = request.destination
+    originally_found = result.found
+    # A bare brand name + store/reference number ("MARATHON 71613 GRAND
+    # RAPIDS MI") geocodes to *some* same-named branch within a plausible
+    # distance -- not necessarily the one nearest home -- so a `calculate()`
+    # hit for that shape still needs checking against `locate_nearest`'s
+    # brand-aware nearest-branch search. An address-shaped destination that
+    # already found a route is trusted as-is. Confirmed live on expense 818.
+    # `exclude_addresses` means the caller explicitly wants a branch other
+    # than the one(s) already on file -- forces the nearest-branch search to
+    # run (and filter those addresses out) even for a destination that
+    # otherwise would have been trusted as-is.
+    needs_nearest_check = (bool(request.exclude_addresses)
+                           or not calculate_distance.looks_like_address(request.destination))
 
-    if not result.found and not request.dry_run:
+    if (not result.found or needs_nearest_check) and not request.dry_run:
         dtn= "Search Maps for the nearest branch matching the destination's own words, "
-        dtn+="since no route means the destination may be a chain name rather than an address"
+        dtn+="since the destination may be a chain name rather than an address"
         with run.phase( PhaseParams( name="locate_nearest", kind="code", owner="distance", description=dtn )) as ph:
             nearest = calculate_distance.locate_nearest(run, request)
             ph.log(found=nearest.found, name=nearest.name or "(none)",
@@ -181,7 +195,7 @@ def main( options: DistanceOptions ) -> int:
                 ph.log( found=result.found, distance=result.distance_text or
                        "(none)", duration=result.duration_text            or
                        "(none)", message=result.message )
-        else:
+        elif not originally_found:
             with run.phase(PhaseParams(name="search_address", kind="code", owner="distance",
                                        description="Ask SerpAPI's Google Search for the destination's own address when Maps itself found no plausible match")) as ph:
                 searched = calculate_distance.search_address(run, request)
@@ -196,6 +210,10 @@ def main( options: DistanceOptions ) -> int:
                     result = calculate_distance.calculate(run, request)
                     ph.log(found=result.found, distance=result.distance_text or "(none)",
                            duration=result.duration_text or "(none)", message=result.message)
+        # else: `calculate()` already had a plausible-distance hit and
+        # `locate_nearest` found no better-matched branch to prefer over it
+        # -- keep that original `result` rather than discard a working
+        # answer for nothing.
 
     # The caller may be a menu rather than a terminal. It reads this file, so
     # the operator's line is a contract and the console rendering stays
@@ -235,6 +253,8 @@ if __name__ == "__main__":
                         help="write the operator's one line here, for a non-terminal caller")
     parser.add_argument("--map-link-out", default="",
                         help="write a newly-derived map_link here, when the row had none to start with")
+    parser.add_argument("--exclude-address", action="append", default=[], dest="exclude_addresses",
+                        help="an address already on file to search past (repeatable)")
     parser.add_argument("--config", default="adws/adw_sssf_config/sssf.config.yaml")
     parser.add_argument("--adw-id", default=None, help="join or pin an existing session")
     args = parser.parse_args()
@@ -242,4 +262,5 @@ if __name__ == "__main__":
                                   place=args.place, receipt=args.receipt, origin=args.origin,
                                   resolver=args.resolver, dry_run=args.dry_run,
                                   message_out=args.message_out, map_link_out=args.map_link_out,
+                                  exclude_addresses=args.exclude_addresses,
                                   config=args.config, adw_id=args.adw_id)))

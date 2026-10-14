@@ -217,6 +217,37 @@ def validate_destination(run, request: DistanceRequest) -> DestinationCheck:
     return check
 
 
+#: A house number followed by a street-suffix word -- the one shape a bare
+#: brand name + store/reference number never has. Deliberately looser than
+#: `_STREET_ADDRESS` below (no required city/state/zip): this only needs to
+#: tell "1234 Division Ave" apart from "MARATHON 71613 GRAND RAPIDS MI", not
+#: validate a full address.
+_ADDRESS_HINT = re.compile(
+    r"\d+\s+[\w.'-]+(?:\s+[\w.'-]+){0,4}\s+"
+    r"(?:St|Ave|Rd|Dr|Blvd|Ct|Ln|Pkwy|Hwy|Way|Pl|Cir|Ter)\b",
+    re.IGNORECASE)
+
+
+def looks_like_address(destination: str) -> bool:
+    """Whether `destination` already names a real street address, rather
+    than a brand name and a store/reference number ("MARATHON 71613 GRAND
+    RAPIDS MI").
+
+    Confirmed live on expense 818: Maps' directions box geocoded that exact
+    string to *some* nearby Marathon station and returned a plausible 8.5 mi
+    route, so `calculate()` reported `found=True` and the run never reached
+    `locate_nearest` -- the phase that exists specifically to pick the right
+    branch out of several same-named candidates near home (see its own
+    "Marathon Gas" collision note on expense 1500). A `calculate()` hit for
+    an address-shaped destination can be trusted on its own; a hit for a
+    bare brand+number cannot, because Maps' autocomplete has no reason to
+    prefer the branch nearest home over any other branch within a plausible
+    distance of it. Callers should route the latter through `locate_nearest`
+    even when `calculate()` already "found" something.
+    """
+    return bool(_ADDRESS_HINT.search(destination or ""))
+
+
 # ── Phase 2: drive Maps itself, and read the answer back ────────────────────
 
 #: The directions box's own two fields -- confirmed live against
@@ -492,6 +523,30 @@ _KNOWN_ADDRESSES: dict[str, str] = {
 }
 
 
+def _normalize_address(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+
+
+def _is_excluded(address: str, exclude_addresses: list[str]) -> bool:
+    """Whether `address` is close enough to one of `exclude_addresses` to be
+    the same location, so `locate_nearest` can pass over branches already on
+    file instead of reporting one of them back as "the next nearest."
+
+    Compared on normalized substring overlap rather than exact equality --
+    `exclude_addresses` entries come from vendor_distance.txt notes, which
+    are often partial ("925 Leon [handwritten]") rather than a full address
+    with city/state/zip the way a Maps result card's address line is.
+    """
+    normalized = _normalize_address(address)
+    if not normalized:
+        return False
+    for excluded in exclude_addresses:
+        other = _normalize_address(excluded)
+        if other and (other in normalized or normalized in other):
+            return True
+    return False
+
+
 def _haversine_miles(point_a: tuple[float, float], point_b: tuple[float, float]) -> float:
     lat1, lng1, lat2, lng2 = (radians(value) for value in (*point_a, *point_b))
     delta_lat, delta_lng = lat2 - lat1, lng2 - lng1
@@ -584,6 +639,8 @@ def locate_nearest(run, request: DistanceRequest) -> NearestLocationResult:
                 address_words = {word.lower() for word in re.findall(r"[A-Za-z]{3,}", address)}
                 if not location_words <= address_words:
                     continue  # right-ish name, wrong street -- not the branch named
+            if request.exclude_addresses and _is_excluded(address, request.exclude_addresses):
+                continue  # already on file -- the caller wants a different branch
             lat, lng = float(coordinates.group(1)), float(coordinates.group(2))
             distance = _haversine_miles(origin_point, (lat, lng)) if origin_point else None
             candidates.append((distance, name, address, lat, lng))

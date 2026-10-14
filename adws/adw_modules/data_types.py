@@ -437,6 +437,13 @@ class DistanceOptions(BaseModel):
     adw_id: Optional[str] = None
     message_out: str = ""
     map_link_out: str = ""           # where to write a newly-derived map_link, if any
+    # Addresses already on file for this vendor that the caller wants a
+    # DIFFERENT branch than -- the review menu's "Calculate the next nearest
+    # address" option, searching past every known location instead of
+    # reporting the same one back. Forces `locate_nearest` to run even when
+    # `calculate()` already found a plausible route, and filters its
+    # candidates against this list.
+    exclude_addresses: list[str] = Field(default_factory=list)
 
 
 class DistanceRequest(BaseModel):
@@ -446,6 +453,7 @@ class DistanceRequest(BaseModel):
     destination: str = ""           # the candidate address/place text, as typed into Maps
     place: str = ""                 # the expense's own words, before any derivation
     dry_run: bool = False
+    exclude_addresses: list[str] = Field(default_factory=list)
 
 
 class DestinationCheck(BaseModel):
