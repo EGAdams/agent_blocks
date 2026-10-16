@@ -11,7 +11,8 @@ set positional-arguments
 # Every recipe passes this through, so `SSSF_CONFIG=other.yaml just sdlc "..."`
 # swaps the whole roster for one run.
 config := env_var_or_default("SSSF_CONFIG", "adws/adw_sssf_config/sssf.config.yaml")
-db     := "adws/adw_data/sssf.db"
+# Set SSSF_DB to view a different checkout's sessions.
+db     := env_var_or_default("SSSF_DB", "adws/adw_data/sssf.db")
 
 # list every recipe
 default:
@@ -86,4 +87,4 @@ procs ADW_ID:
 
 # boot the trace UI, http://localhost:4601 (api on :4600)
 obs:
-    cd .claude/skills/sssf/apps/visualizer && bun install && (SSSF_DB={{justfile_directory()}}/{{db}} bun run server/index.ts &) && bunx vite
+    cd .claude/skills/sssf/apps/visualizer && bun install && (SSSF_DB="{{absolute_path(db)}}" bun run server/index.ts &) && bunx vite
