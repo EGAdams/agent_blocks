@@ -790,3 +790,83 @@ class PiResult(BaseModel):
     # visualizer's context bar measures against `context_window`.
     context_tokens: int = 0
     context_window: int = 0         # 0 when the registry declares no ceiling
+
+
+# ── Debug console (adw_debug_console.py) ─────────────────────────────────────
+
+ActionScope = Literal["adw", "phase", "inspect", "session"]
+ActionOutcome = Literal["success", "fail", "not_run"]
+
+
+class ActionSpec(BaseModel):
+    """One menu-selectable operation, described before it is run.
+
+    The console renders these; a web dashboard would serialize them. Neither
+    needs to know what the action DOES, which is why scope/phase_name/owner
+    are data here rather than strings baked into a menu label.
+    """
+
+    action_id: str
+    title: str
+    scope: ActionScope              # whole ADW | one phase | inspection | session lifecycle
+    description: str                # doubles as the PhaseParams description
+    phase_name: str = ""            # the SSSF phase this action opens, if any
+    phase_kind: Optional[PhaseKind] = None
+    owner: str = ""
+    needs_path: bool = False        # the console must collect an input first
+    requires: list[str] = Field(default_factory=list)   # prerequisite ids
+
+
+class ActionPreview(BaseModel):
+    """What the console shows BEFORE executing, so a selection is never blind."""
+
+    spec: ActionSpec
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    ready: bool = True
+    missing: list[str] = Field(default_factory=list)    # unmet prerequisites
+
+
+class ActionRequest(BaseModel):
+    """Four-param rule: invoke() takes one object, not loose args."""
+
+    action_id: str
+    path: str = ""                  # only read when spec.needs_path
+
+
+class ActionResult(BaseModel):
+    """What happened. `not_run` is a third outcome, distinct from `fail`.
+
+    A missing prerequisite must not look like a failed phase: nothing was
+    attempted, so no phase is opened and none is recorded. Keeping it separate
+    is what stops the trace from filling with phantom failures while the
+    engineer learns the order of the steps.
+    """
+
+    action_id: str
+    outcome: ActionOutcome
+    summary: str = ""
+    detail: list[str] = Field(default_factory=list)
+    state_changed: list[str] = Field(default_factory=list)
+    elapsed_ms: int = 0
+    adw_id: str = ""
+    phase_id: str = ""              # empty for inspect actions and not_run
+    log_path: str = ""              # where to read the trace for this action
+    error: str = ""
+
+
+class DemoStateView(BaseModel):
+    """Serializable snapshot of DemoSession — the part that crosses a boundary.
+
+    DemoSession itself stays a plain object because it holds a live file
+    handle; this is what the console prints and a web panel would render.
+    """
+
+    adw_id: str = ""
+    selected_path: str = ""
+    handle_open: bool = False
+    opened_at: str = ""
+    read_at: str = ""
+    byte_count: Optional[int] = None
+    line_count: Optional[int] = None
+    has_text: bool = False
+    phases_run: list[str] = Field(default_factory=list)
