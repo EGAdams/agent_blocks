@@ -1,0 +1,251 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Scope of this file
+
+`lancedb_memory/` is one directory of the `agent_blocks` workspace. Three
+documents overlap here; read them in this order and prefer the more specific
+one on conflict:
+
+1. `../CLAUDE.md` — workspace-wide architecture and the bracket-spacing style rule.
+2. `lancedb_memory/README.md` — the long-form narrative: patterns table, per-team
+   feature docs, design rationale.
+3. this file — the commands, the invariants that are easy to break, and the
+   places where the two documents above have drifted from the code.
+4. `mazda_team/CLAUDE.md` — authoritative for that subpackage.
+
+## Environment
+
+Everything runs through `lancedb_memory/.venv` (Python 3.14, `pydantic`,
+`lancedb`, `pyarrow`, `claude-agent-sdk`, `openai`, `sentence-transformers`).
+The system interpreter is PEP 668 externally-managed, so **always invoke
+`.venv/bin/python`, never bare `python3`**. There is no `requirements.txt`,
+`pyproject.toml`, or lockfile anywhere in the workspace — dependencies were
+installed ad hoc, so `pip list` in the venv is the only manifest.
+
+`ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` must be **unset** so the Agent SDK
+uses local Claude Code subscription auth instead of metered API billing. Both
+Claude adapters additionally pass `env={ "ANTHROPIC_API_KEY": "",
+"ANTHROPIC_BASE_URL": "" }` in `ClaudeAgentOptions` as a per-subprocess
+backstop — a live `export` in `~/.bashrc` on this machine silently flips
+billing, and only surfaces as "Credit balance is too low" once that key drains.
+**Do not remove those `env=` lines**; see the comment in
+`agent_memory/adapters/claude_model.py` for the full story.
+
+## Commands
+
+All commands run from `lancedb_memory/` (the import root for every package here).
+
+```bash
+# agent_memory — the base engine's own REPL
+.venv/bin/python main.py --session default
+.venv/bin/python main.py --no-persist                      # InMemoryMemoryStore
+.venv/bin/python main.py --embedding-profile sentence       # hash | sentence | openai
+
+# finance_team — headless map-reduce over the rol_finances MySQL DB
+.venv/bin/python -m finance_team.orchestrate
+.venv/bin/python -m finance_team.orchestrate --only mapper_bank
+.venv/bin/python -m finance_team.orchestrate --skip-receipts --skip-expense-check
+
+# receptionist_team — Toyota (conversational front end to finance_team)
+.venv/bin/python -m receptionist_team.main
+.venv/bin/python -m receptionist_team.main --voice --session toyota
+
+# mazda_team — Mazda (see mazda_team/CLAUDE.md)
+.venv/bin/python -m mazda_team.main
+.venv/bin/python -m mazda_team.progress.cli                 # Michi snapshot, no LLM
+```
+
+### Tests
+
+**There is no pytest in the venv and no pytest config.** Every test file is a
+standalone script; "running a single test" means running its file, or calling
+its `test_*` function from a REPL.
+
+```bash
+.venv/bin/python tests/test_agent.py                # turn loop; no network, no disk
+.venv/bin/python tests/test_lancedb_store.py        # real LanceDB in a tmpdir
+.venv/bin/python tests/test_embedding_profiles.py   # factory; asserts torch is NOT imported
+
+.venv/bin/python -m mazda_team.tests.test_michi_routing
+.venv/bin/python -m mazda_team.tests.test_progress_tracker
+.venv/bin/python -m mazda_team.tests.test_roles_registration
+```
+
+`tests/*.py` self-bootstrap via `sys.path.insert(...parent)`, so they also work
+when invoked by path. `mazda_team/tests/runner.py` is a ~30-line async harness
+that discovers module-level `test_*` coroutines — the mazda tests call it from
+their `__main__` block. Shared fakes (`ScriptedModel`, `RecordingObserver`,
+`TickingClock`) live in `lancedb_memory/tests/fakes.py` and are reused by
+`mazda_team/tests/` rather than duplicated. All tests are offline and need no
+API key.
+
+`finance_team` and `receptionist_team` have **no tests** — they talk to a real
+MySQL DB and a real dashboard process.
+
+## Architecture
+
+### One engine, four composition roots
+
+`agent_memory/` is a reusable engine; `main.py`, `finance_team/`,
+`receptionist_team/`, and `mazda_team/` are four independent composition roots
+over it. The dependency direction is strictly one-way: teams import
+`agent_memory`, never the reverse, and the teams don't import each other except
+for one deliberate edge — `receptionist_team/adapters/routing_model.py` imports
+`finance_team.adapters.tool_agent` and `finance_team.roles`, because Toyota's
+whole purpose is to delegate to finance roles.
+
+### The DIP boundary is a greppable import rule
+
+`agent_memory/agent.py` may import `.models` and `.ports` **and nothing else**.
+No `lancedb`, no `claude_agent_sdk`, no `pathlib`. Concrete third-party imports
+appear only under `agent_memory/adapters/`; each composition root's `main.py` /
+`orchestrate.py` is the only module there allowed to name a concrete class. If
+an import line grows in `agent.py`, the design has regressed — that single
+`grep` is the enforcement mechanism, since there's no linter.
+
+`agent_memory/ports.py` holds all seven Protocols (`Embedder`, `MemoryStore`,
+`RecallStrategy`, `PromptComposer`, `LanguageModel`, `TurnObserver`, `Clock`).
+Role definitions (`finance_team/roles.py`, `mazda_team/specialist_roles.py`)
+follow the same posture: pure data `AgentRole` dataclasses, no SDK import.
+
+> Naming note: the user prefers interface names like `ISomeUsefulInterface` over
+> a `*Port` suffix. The existing Protocols here are unsuffixed (`Embedder`, not
+> `EmbedderPort`) — match that, and don't introduce `*Port` names.
+
+### The turn cycle, and why the order matters
+
+`ConversationAgent.handle_turn()` is a Facade over: embed → **recall** →
+compose → complete → persist → notify observers. Recall happens *before*
+persistence so the current turn is never its own context. A test asserts this.
+
+### LanceDB is the sole read path; nexus is write-only
+
+The LanceDB row carries the message body, so recall never touches the
+filesystem. `nexus/` is a write-only archive behind `NexusArchiveObserver`,
+kept only so raw text outlives any particular vector store. This is the fix for
+`3o_mini_chat_w_lance.py`'s dual-source-of-truth bug, where a missing nexus
+file silently emptied the recalled conversation.
+`tests/test_lancedb_store.py` asserts deleting the nexus entirely does not
+affect recall — **do not reintroduce a filesystem read into the recall path.**
+
+Each receptionist namespaces its archive by `model_copy`-ing `Settings` at
+startup (`nexus/toyota/`, `nexus/mazda/`), so `nexus/` has both loose files
+from `main.py` and per-agent subdirectories.
+
+### Embedding profile ↔ table pairing is not a free choice
+
+A vector's width is baked into it, so `adapters/embedding_profiles.py` is the
+one place the `(embedder, table_name)` pair is decided:
+
+| profile | embedder | dims | table |
+|---|---|---|---|
+| `hash` | `HashingEmbedder` — lexical bag-of-words, offline, free | 256 | `conversation_memory_hash256` |
+| `sentence` | `SentenceTransformerEmbedder` — local semantic model | 384 | `conversation_memory_sentence384` |
+| `openai` | `OpenAIEmbedder` — needs `OPENAI_API_KEY`, costs money | 1536 | `conversation_memory_openai1536` |
+
+`PROFILE_BUILDERS` is a registry, not an `if/elif` — a fourth profile is one
+new dict entry. The `sentence` and `openai` builders import their heavy module
+*inside* the function (torch / network), and
+`tests/test_embedding_profiles.py` asserts that selecting `hash` never imports
+torch. `LanceDBMemoryStore._assert_dimensions_match` raises on a mismatch
+rather than writing unsearchable rows. `lance_data/` currently holds only the
+hash256 and sentence384 tables.
+
+Defaults differ per entrypoint, deliberately: `main.py` and
+`agent_memory/config.py` default to `hash` (fast, free, test-shaped); Toyota and
+Mazda default to `sentence` (real human chats need meaning-based recall).
+
+### Routing is a `LanguageModel` Decorator
+
+Both receptionists route via a `RoutingModel` that wraps the conversational
+model and satisfies the same `LanguageModel` Protocol — so `ConversationAgent`
+sees one `complete()` call and one `AgentReply` and never knows a delegation
+happened (same shape as `adapters/decorators.py`'s `RetryingModel`). The system
+prompt instructs the LLM to answer with a bare control line:
+
+```
+ROUTE: <agent_name>
+ROUTE: <agent_name> | <extra instructions>
+```
+
+matched with `re.fullmatch`, **not** `search`, so ordinary conversation that
+merely mentions routing can't trigger a delegation. An unknown agent name
+yields a friendly message listing known agents, not a crash.
+
+### Chat model vs. tool model
+
+Two Claude-facing adapters exist because the jobs differ:
+
+- `agent_memory/adapters/claude_model.py` — `allowed_tools=[]`,
+  `max_turns=1`, `setting_sources=[]`. Text-only chat, deliberately isolated:
+  the SDK must not load the enclosing repo's `CLAUDE.md` or read files, because
+  the agent's only context is what *our* store recalled.
+- `finance_team/adapters/tool_agent.py` and `mazda_team/adapters/tool_agent.py`
+  — tools enabled, `permission_mode="bypassPermissions"`, `max_turns=40`. These
+  roles must query MySQL and walk receipt directories headless, with no human
+  to approve each call. They also convert `ResultMessage.is_error` into a
+  `RoleResult(is_error=True)` rather than treating an error string as output.
+
+`finance_team/orchestrate.py` fans the four `mapper_*` roles (partitioned on the
+pre-existing `expenses.method` enum, so they share no state) plus the two
+receipt roles out via `asyncio.gather`, then runs `synthesizer` last because it
+reads the four mappers' JSON files.
+
+### The path-hardcoding exception
+
+`agent_memory/config.py` is the only place paths are decided for the engine, and
+every default lands inside this repo — do not reintroduce the legacy script's
+`/home/adamsl/linuxBash/...` absolutes. `finance_team/roles.py` is the
+deliberate exception: `REPO_ROOT = "/home/adamsl/rol_finances"` and a DB
+briefing pointing at `/home/adamsl/planner/.env`, because those roles operate on
+a real external repository. `mazda_team` keeps its own escape hatch
+(`MAZDA_TEAM_REPO_ROOT`, default `mazda_team/workspace/`).
+
+## Known drift between docs and code
+
+Correct these if you touch the surrounding area; don't trust the docs over the
+source.
+
+- **`README.md`'s Layout block is stale.** It lists `models.py` and
+  `observers.py`; both are actually packages (`agent_memory/models/`,
+  `agent_memory/observers/`) with one class per module, re-exported from
+  `__init__.py`. Import sites are unaffected (`from agent_memory.models import
+  Turn` still works) — the layout description is what's wrong.
+- **Toyota no longer runs on Claude.** `../CLAUDE.md` and `README.md` describe
+  the Groq-for-conversation / Claude-for-tools split as *Mazda's* divergence,
+  but `receptionist_team/main.py` now builds `GroqLanguageModel` too
+  (`--model`, default `openai/gpt-oss-120b`) and reserves Claude for delegated
+  roles (`--role-model`, default `claude-sonnet-5`). Both receptionists share
+  the split; only the TTS voice and nexus subdirectory still differ.
+- **`prompt_response.txt` does not exist.** `Settings.prompt_template_path`
+  points at it and `main.py` calls `TemplatePromptComposer.from_file(...)`, but
+  `from_file` silently returns the built-in `DEFAULT_TEMPLATE` when the path is
+  missing. So `main.py` works, and the on-disk template it advertises is not
+  actually in play. Creating that file would silently change the prompt.
+- **Both receptionists load their own `.env`.** There's no `python-dotenv` in
+  the venv, so `receptionist_team/main.py` and `mazda_team/main.py` each parse
+  `<package>/.env` with `os.environ.setdefault`. `GROQ_API_KEY` is required;
+  `PIPECAT_PILOT_AGENT_ID` is optional. Don't add a `source .env` step to docs —
+  the code already handles it, and `setdefault` means an already-exported value
+  wins.
+
+## Style
+
+The workspace bracket-spacing convention (`str )`, `[ 0.0 ]`, tight stacked
+`])`) is applied **per file, inconsistently**, and that's intentional:
+
+- follows it: `main.py`, `3o_mini_chat_w_lance.py`, all of `agent_memory/`,
+  `tests/`, `finance_team/orchestrate.py`, `finance_team/adapters/tool_agent.py`
+- does not: `receptionist_team/*`, and the newer `mazda_team` files
+  (`roles.py`, `adapters/routing_model.py`, `adapters/voice_io.py`,
+  `progress/*`, `tests/*`)
+
+Match the file you're editing. Never run a normalizing pass across both groups.
+
+Pydantic `BaseModel` is mandatory for data crossing a boundary
+(`agent_memory/models/`). Internal non-serialisable carriers stay plain —
+`EmbedderBundle` is a `NamedTuple` because it holds a live `Embedder` instance,
+and `AgentRole` is a frozen dataclass because it's role config, not a wire
+contract. Both carry a comment saying so.
