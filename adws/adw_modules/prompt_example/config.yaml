@@ -1,0 +1,18 @@
+# Learning configuration for the existing adw_prompt.py workflow.
+# Uses the same Pi / Claude subscription setup as this repo's scout.
+defaults:
+  data_dir: adws/adw_data
+observability:
+  db: adws/adw_data/sssf.db
+agents:
+  - name: learner
+    coding_agent: pi
+    model: anthropic/claude-haiku-4-5
+    thinking: low
+    purpose: Answer one learning question in plain language.
+    tools: []
+    writes: []
+    harness_engineering: []
+    prompt_engineering:
+      system: adws/adw_modules/prompt_example/system.md
+      user: adws/adw_modules/prompt_example/user.md

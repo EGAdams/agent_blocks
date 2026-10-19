@@ -344,6 +344,11 @@ class DebugConsole:
     def close(self) -> int:
         """Release the handle and settle the run. Exit's only job."""
         self.demo.release()
+        if not self.run.phases:
+            # A menu that only launched a separate ADW did no file-demo work.
+            # Closing that idle console is not a failed workflow attempt.
+            self.run.tracer.session_finish(self.adw_id, ok=True)
+            return 0
         return self.run.finish(accepted=not self.session_failed,
                                reason="a phase failed during this console session"
                                       if self.session_failed else "")

@@ -8,7 +8,9 @@ Usage:
     uv run adws/adw_debug_console.py [--config adws/adw_sssf_config/sssf.config.yaml]
                                      [--adw-id a1b2c3d4] [--smart-menu PATH]
 
-Phases: open_file -> read_file -> print_file, each opened only when selected.
+File-demo phases: open_file -> read_file -> print_file.
+Prompt ADW: request -> prompt, in a fresh run for each selection.
+Tax Status ADW: five code phases, in a fresh run against current finance data.
 
 Not an ordinary ADW: an ADW's `main()` decides the order of its phases, this one
 hands that decision to the engineer. Everything below the menu is the same
@@ -25,6 +27,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
+from typing import Callable
 
 # Black and white, as asked. rich reads NO_COLOR when it builds a Console, and
 # SSSF's own Console is built inside session.ensure() below — so this must be
@@ -33,8 +36,13 @@ os.environ.setdefault("NO_COLOR", "1")
 os.environ.setdefault("TERM", "dumb")
 
 from adw_modules import agents                                  # noqa: E402
-from adw_modules.data_types import ActionRequest, ActionResult  # noqa: E402
+from adw_modules.data_types import ActionPreview, ActionRequest, ActionResult  # noqa: E402
 from adw_modules.debug_console import DebugConsole              # noqa: E402
+from adw_modules.prompt_example import (DEFAULT_PROMPT, PHASES, SPEC,
+                                       PromptExample, PromptRequest)  # noqa: E402
+from adw_modules.tax_status_example import (PHASES as TAX_STATUS_PHASES,
+                                           SPEC as TAX_STATUS_SPEC,
+                                           TaxStatusExample)  # noqa: E402
 
 DEFAULT_SMART_MENU = "/home/adamsl/smart_menu"
 SCOPE_LABEL = {"adw": "whole ADW", "phase": "phase", "inspect": "inspect",
@@ -88,7 +96,7 @@ def show_preview(preview) -> None:
     if spec.phase_name:
         print(f"PHASE  : {spec.phase_name}  (kind={spec.phase_kind}, owner={spec.owner})")
     if spec.scope == "adw":
-        print("PHASES : open_file -> read_file -> print_file  (3 phases, one selection)")
+        print(f"PHASES : {preview.inputs.get('phases', 'open_file -> read_file -> print_file (3 phases)')}")
     print(f"INTENT : {spec.description}")
     for key, value in preview.inputs.items():
         print(f"INPUT  : {key} = {value}")
@@ -135,11 +143,41 @@ def make_handler(console: DebugConsole, action_id: str):
     return handler
 
 
+def make_prompt_handler(example: PromptExample) -> Callable[[], None]:
+    def handler() -> None:
+        print(f"\nADW: adw_prompt.py | phases: {PHASES}")
+        print("Each selection creates a fresh run with its own adw_id.")
+        print(f"Press Enter to ask: {DEFAULT_PROMPT}")
+        prompt = input("Your question: ").strip() or DEFAULT_PROMPT
+        show_preview(ActionPreview(spec=SPEC, inputs={"phases": PHASES, "prompt": prompt}))
+        show_result(example.invoke(PromptRequest(prompt=prompt)))
+
+    return handler
+
+
+def make_tax_status_handler(example: TaxStatusExample) -> Callable[[], None]:
+    def handler() -> None:
+        show_preview(ActionPreview(spec=TAX_STATUS_SPEC, inputs={
+            "phases": TAX_STATUS_PHASES, "finance records": str(example.finance_root),
+            "AI calls": 0, "category changes": 0,
+        }))
+        show_result(example.invoke())
+
+    return handler
+
+
 def main(config: str, adw_id: str | None, smart_menu: str) -> int:
+    # Config contents use repo-relative paths. Support launching from adws/ too.
+    root = Path(__file__).resolve().parent.parent
+    config_path = Path(config).expanduser()
+    if not config_path.is_absolute():
+        config_path = (config_path if config_path.is_file() else root / config_path).resolve()
+    smart_menu = str(Path(smart_menu).expanduser().resolve())
+    os.chdir(root)
     Menu, MenuItem = load_smart_menu(smart_menu)
     CallableMenuItem = build_callable_item(MenuItem)
 
-    cfg = agents.load_config(config)
+    cfg = agents.load_config(str(config_path))
     console = DebugConsole(cfg, adw_id)
 
     print(f"\n{RULE}")
@@ -155,12 +193,21 @@ def main(config: str, adw_id: str | None, smart_menu: str) -> int:
         label += f": {spec.phase_name}]" if spec.phase_name else "]"
         menu.add_item(CallableMenuItem(label, make_handler(console, spec.action_id)))
 
+    example = PromptExample()
+    menu.add_item(CallableMenuItem(f"{SPEC.title:<42} [whole ADW]", make_prompt_handler(example)))
+    tax_status = TaxStatusExample()
+    menu.add_item(CallableMenuItem(f"{TAX_STATUS_SPEC.title:<42} [whole ADW]",
+                                   make_tax_status_handler(tax_status)))
+
     try:
         menu.display_and_select()           # smart_menu's own loop and input handling
     except (KeyboardInterrupt, EOFError):
         print("\ninterrupted")
     finally:
         code = console.close()              # releases the handle, settles the run
+    if any(item.last_result and item.last_result.outcome == "fail"
+           for item in (example, tax_status)):
+        return 1
     return code
 
 
