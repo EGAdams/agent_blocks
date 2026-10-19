@@ -64,6 +64,17 @@ class LanceDBMemoryStore:
         hits = builder.limit( query.limit ).to_list()
         return [ self._to_recalled( hit ) for hit in hits ]
 
+    def recent( self, session_id: str, limit: int ) -> list[ Turn ]:
+        """A plain filtered scan, no vector -- `.search()` with no query is a full scan."""
+        rows = (
+            self._table.search()
+            .where( f"session_id = '{ _escape( session_id )}'" )
+            .limit( max( limit, 1 ) * 50 )   # generous cap; sorted and trimmed below
+            .to_list()
+        )
+        rows.sort( key=lambda row: row[ "time" ], reverse=True )
+        return [ self._to_recalled( row ).turn for row in rows[ :limit ]]
+
     def _to_row( self, embedded: EmbeddedTurn ) -> dict[ str, Any ]:
         turn = embedded.turn
         return {

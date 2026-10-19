@@ -25,7 +25,7 @@ from agent_memory.observers import (
 )
 from agent_memory.prompts import TemplatePromptComposer
 from agent_memory.ports import MemoryStore
-from agent_memory.recall import SimilarityRecall, TokenBudgetedRecall
+from agent_memory.recall import RecencyFloorRecall, SimilarityRecall, TokenBudgetedRecall
 
 
 def build_agent( settings: Settings, persist: bool = True ) -> tuple[ ConversationAgent, CostObserver ]:
@@ -43,10 +43,14 @@ def build_agent( settings: Settings, persist: bool = True ) -> tuple[ Conversati
         store = InMemoryMemoryStore()
 
     recall = TokenBudgetedRecall(
-        SimilarityRecall(
+        RecencyFloorRecall(
+            SimilarityRecall(
+                store,
+                limit=settings.recall_limit,
+                session_scoped=settings.session_scoped_recall,
+            ),
             store,
-            limit=settings.recall_limit,
-            session_scoped=settings.session_scoped_recall,
+            floor=settings.recall_recency_floor,
         ),
         max_chars=settings.recall_max_chars,
     )

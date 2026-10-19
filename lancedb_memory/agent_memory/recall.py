@@ -22,6 +22,30 @@ class SimilarityRecall:
         return sorted( turns, key=lambda t: t.created_at )
 
 
+class RecencyFloorRecall:
+    """Decorator over another strategy: guarantees the most recent N turns.
+
+    SimilarityRecall alone is pure nearest-neighbour -- in a long-lived
+    session, old turns that happen to share wording with the current message
+    can fill every slot and crowd out the turns that are actually recent and
+    relevant. This unions the inner strategy's hits with a hard recency
+    floor from the store, so "what did we just say" always has an answer.
+    """
+
+    def __init__( self, inner: RecallStrategy, store: MemoryStore, floor: int = 10 ) -> None:
+        self._inner = inner
+        self._store = store
+        self._floor = floor
+
+    def recall( self, session_id: str, query_vector: list[ float ]) -> list[ Turn ]:
+        similar = self._inner.recall( session_id, query_vector )
+        recent = self._store.recent( session_id, self._floor )
+        merged = { turn.id: turn for turn in similar }
+        for turn in recent:
+            merged[ turn.id ] = turn
+        return sorted( merged.values(), key=lambda t: t.created_at )
+
+
 class TokenBudgetedRecall:
     """Decorator over another strategy: drops the OLDEST turns until it fits the budget.
 

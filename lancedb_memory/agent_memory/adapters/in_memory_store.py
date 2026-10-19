@@ -1,7 +1,7 @@
 """MemoryStore backed by a list. Used by tests, and as a --no-persist mode."""
 import math
 
-from ..models import EmbeddedTurn, MemoryQuery, RecalledTurn
+from ..models import EmbeddedTurn, MemoryQuery, RecalledTurn, Turn
 
 
 def _cosine_distance( a: list[ float ], b: list[ float ]) -> float:
@@ -31,3 +31,8 @@ class InMemoryMemoryStore:
         ]
         scored.sort( key=lambda hit: hit.distance )
         return scored[ :query.limit ]
+
+    def recent( self, session_id: str, limit: int ) -> list[ Turn ]:
+        candidates = [ row.turn for row in self._rows if row.turn.session_id == session_id ]
+        candidates.sort( key=lambda turn: turn.created_at, reverse=True )
+        return candidates[ :limit ]

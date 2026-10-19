@@ -28,3 +28,7 @@ class Settings( BaseModel ):
     recall_limit: int = 30
     recall_max_chars: int = 12000
     session_scoped_recall: bool = True
+    # In a long-lived session, old turns that happen to share wording with the
+    # current message can fill every similarity slot and crowd out what was
+    # actually just said. This guarantees the last N turns always make it in.
+    recall_recency_floor: int = 10

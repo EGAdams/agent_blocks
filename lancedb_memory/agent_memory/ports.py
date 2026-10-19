@@ -19,6 +19,10 @@ class MemoryStore( Protocol ):
 
     def search( self, query: MemoryQuery ) -> list[ RecalledTurn ]: ...
 
+    def recent( self, session_id: str, limit: int ) -> list[ Turn ]:
+        """The last `limit` turns by time, no vector involved. Newest first."""
+        ...
+
 
 class RecallStrategy( Protocol ):
     """Decides WHICH turns become context. Swappable policy."""

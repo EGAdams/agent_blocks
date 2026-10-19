@@ -27,7 +27,7 @@ from agent_memory.observers import (
     NexusArchiveObserver,
 )
 from agent_memory.prompts import TemplatePromptComposer
-from agent_memory.recall import SimilarityRecall, TokenBudgetedRecall
+from agent_memory.recall import RecencyFloorRecall, SimilarityRecall, TokenBudgetedRecall
 
 from .adapters.metrics import Stopwatch
 from .adapters.routing_model import RoutingModel
@@ -62,7 +62,11 @@ def build_mazda(settings: Settings, role_model: str) -> tuple[ConversationAgent,
         dimensions=embedder.dimensions,
     )
     recall = TokenBudgetedRecall(
-        SimilarityRecall(store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall),
+        RecencyFloorRecall(
+            SimilarityRecall(store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall),
+            store,
+            floor=settings.recall_recency_floor,
+        ),
         max_chars=settings.recall_max_chars,
     )
 
