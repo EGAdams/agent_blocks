@@ -1,0 +1,18 @@
+:host { display: block; min-width: 0; font: 16px/1.5 var(--mono, monospace); }
+* { box-sizing: border-box; }
+.terminal { border: 1px solid #394454; border-radius: 8px; overflow: hidden; background: black; }
+.terminal-toolbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+  gap: 10px; padding: 10px 14px; background: #131820; border-bottom: 1px solid #394454; }
+.terminal-title { color: #dce5f0; }
+.log-count { color: #9ba8bb; }
+.follow { color: #9be6af; background: #1c2c22; border: 1px solid #466c51; border-radius: 5px;
+  padding: 5px 10px; font: inherit; cursor: pointer; }
+.follow[aria-pressed="false"] { background: #29241a; color: #f0d08a; border-color: #74623a; }
+.screen-area { background: black; color: white; height: clamp(300px, 60vh, 760px);
+  overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; text-align: left; padding: 4px 16px;
+  overflow-anchor: none; }
+.screen-area:focus-visible { outline: 2px solid #7edbe5; outline-offset: -3px; }
+.list-of-log-objects { list-style: none; margin: 0; padding: 0; }
+.list-of-log-objects > li { list-style: none; }
+.empty { color: #9ba8bb; }
+[hidden] { display: none !important; }

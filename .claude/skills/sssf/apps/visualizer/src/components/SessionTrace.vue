@@ -20,6 +20,7 @@ import { navigate, phaseCrumb } from '../lib/router'
 import StatusChip from './StatusChip.vue'
 import StatChip from './StatChip.vue'
 import PhaseDetail from './PhaseDetail.vue'
+import EventTerminal from './EventTerminal.vue'
 
 const props = defineProps<{ adwId: string; phaseId: string | null }>()
 
@@ -554,10 +555,15 @@ function selectPhase(p: Phase) {
       :gates="gates"
       @close="navigate(props.adwId)"
     />
+    <div v-else class="session-events">
+      <EventTerminal :events="events" />
+    </div>
   </div>
 </template>
 
 <style scoped>
+.session-events { margin: 0 28px 28px; }
+
 .trace {
   padding: 0 0 40px;
 }

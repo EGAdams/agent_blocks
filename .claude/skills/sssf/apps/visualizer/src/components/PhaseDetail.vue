@@ -7,10 +7,8 @@ import type {
   GateCheck,
   GateResult,
   Phase,
-  ToolCallPayload,
 } from '../lib/types'
 import {
-  Activity,
   AlignLeft,
   Brain,
   Fingerprint,
@@ -22,15 +20,16 @@ import {
   SlidersHorizontal,
   SquareTerminal,
 } from 'lucide-vue-next'
-import { fmtClock, payloadOk, ts } from '../lib/format'
-import { highlightJson, highlightJsonText } from '../lib/highlight'
-import { eventLabel, parseAgentStart, parseToolCall } from '../lib/events'
+import { fmtClock, ts } from '../lib/format'
+import { highlightJson } from '../lib/highlight'
+import { parseAgentStart } from '../lib/events'
 import { modelIcon, modelName } from '../lib/models'
 import { fetchPrompts, type PromptsResponse } from '../lib/api'
 import { renderMarkdown } from '../lib/markdown'
 import StatusChip from './StatusChip.vue'
 import StatChip from './StatChip.vue'
 import DetailSection from './DetailSection.vue'
+import EventTerminal from './EventTerminal.vue'
 
 const props = defineProps<{
   phase: Phase
@@ -201,36 +200,6 @@ function toggleGate(id: number) {
   else openGates.add(id)
 }
 
-function eventDurationMs(e: EventRow): number {
-  const a = ts(e.started_at)
-  const b = ts(e.ended_at)
-  if (Number.isFinite(a) && Number.isFinite(b)) return b - a
-  // tool_call rows on older tracers have no ended_at — the payload's
-  // duration_ms (when the coding agent reported one) is the source of truth.
-  if (e.type === 'tool_call') {
-    const call = parseToolCall(e)
-    if (call?.duration_ms != null) return call.duration_ms
-  }
-  return NaN
-}
-
-const expanded = reactive(new Set<string>())
-
-function toggle(e: EventRow) {
-  if (expanded.has(e.event_id)) expanded.delete(e.event_id)
-  else expanded.add(e.event_id)
-}
-
-/** Rich tool_call payload for the expanded panel, when the event has one. */
-function richCall(e: EventRow): ToolCallPayload | null {
-  return e.type === 'tool_call' ? parseToolCall(e) : null
-}
-
-// Safe for v-html: highlightJsonText/highlightJson escape all input.
-function argsHtml(call: ToolCallPayload | null): string {
-  return highlightJsonText(JSON.stringify(call?.args ?? {}, null, 2))
-}
-
 // ── Collapsible sections ─────────────────────────────────────────────────────
 // Every left-column section can be shown/hidden. The watch keys off phase_id
 // (a stable string), so the 500ms poll replacing the phase object never resets
@@ -252,16 +221,6 @@ watch(
 function toggleSection(id: string) {
   if (openSections.has(id)) openSections.delete(id)
   else openSections.add(id)
-}
-
-const typeClass: Record<string, string> = {
-  gate_fail: 't-red',
-  error: 't-red',
-  gate_pass: 't-green',
-  tool_call: 't-cyan',
-  handoff: 't-violet',
-  agent_start: 't-purple',
-  agent_end: 't-green',
 }
 
 // ── Compiled prompts ─────────────────────────────────────────────────────────
@@ -614,59 +573,7 @@ function togglePanel(id: string) {
       </div>
 
       <div class="d-col">
-        <h3><Activity class="h3-icon" :size="19" :stroke-width="2" /> events ({{ phaseEvents.length }})</h3>
-        <div v-if="!phaseEvents.length" class="faint">no events</div>
-        <div v-for="e in phaseEvents" :key="e.event_id" class="event">
-          <button class="event-row" :class="{ open: expanded.has(e.event_id) }" @click="toggle(e)">
-            <span class="e-time dim">{{ fmtClock(e.started_at) }}</span>
-            <span class="e-type" :class="typeClass[e.type ?? '']">{{ e.type }}</span>
-            <span
-              class="e-name"
-              :class="{ 't-red': e.type === 'tool_call' && !payloadOk(e.payload_json) }"
-              :title="eventLabel(e)"
-              >{{ eventLabel(e) }}</span
-            >
-            <span class="e-extra">
-              <StatChip
-                v-if="Number.isFinite(eventDurationMs(e))"
-                kind="runtime"
-                compact
-                :value="eventDurationMs(e)"
-              />
-              <StatChip v-if="e.tokens" kind="tokens" compact :value="e.tokens" />
-            </span>
-          </button>
-
-          <div v-if="expanded.has(e.event_id)" class="payload-panel">
-            <template v-if="richCall(e)">
-              <div class="p-meta">
-                <span class="p-tool">{{ richCall(e)?.tool }}</span>
-                <span v-if="richCall(e)?.ok === false" class="t-red">failed</span>
-                <StatChip
-                  v-if="richCall(e)?.duration_ms != null"
-                  kind="runtime"
-                  compact
-                  :value="richCall(e)?.duration_ms"
-                />
-              </div>
-              <h4>args</h4>
-              <pre class="p-pre" v-html="argsHtml(richCall(e))" />
-              <template v-if="richCall(e)?.result_snippet">
-                <h4>result</h4>
-                <pre class="p-pre">{{ richCall(e)?.result_snippet }}</pre>
-              </template>
-            </template>
-            <template v-else-if="e.type === 'tool_call' && e.payload_json">
-              <div class="faint">no detail available — legacy event payload</div>
-              <pre class="p-pre" v-html="highlightJson(e.payload_json)" />
-            </template>
-            <template v-else-if="e.payload_json">
-              <h4>payload</h4>
-              <pre class="p-pre" v-html="highlightJson(e.payload_json)" />
-            </template>
-            <div v-else class="faint">no payload</div>
-          </div>
-        </div>
+        <EventTerminal :events="events" />
       </div>
     </div>
   </section>
@@ -831,29 +738,6 @@ function togglePanel(id: string) {
   .d-grid {
     grid-template-columns: 1fr;
   }
-}
-
-h3 {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  margin: 18px 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border-soft);
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--dim);
-  text-transform: lowercase;
-  letter-spacing: 0.05em;
-}
-
-.h3-icon {
-  flex: none;
-  color: var(--faint);
-}
-
-h3:first-child {
-  margin-top: 0;
 }
 
 /* ── compiled prompts ── */
@@ -1148,118 +1032,4 @@ h3:first-child {
   overflow: auto;
 }
 
-/* ── events ── */
-
-.event {
-  border-bottom: 1px solid var(--border-soft);
-}
-
-.event-row {
-  display: flex;
-  gap: 14px;
-  align-items: baseline;
-  width: 100%;
-  padding: 7px 6px;
-  background: none;
-  border: none;
-  border-radius: 6px;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 16px;
-  cursor: pointer;
-  text-align: left;
-}
-
-.event-row:hover,
-.event-row.open {
-  background: var(--panel-2);
-}
-
-.e-time {
-  flex: none;
-  font-variant-numeric: tabular-nums;
-}
-
-.e-type {
-  flex: none;
-  width: 130px;
-}
-
-.e-name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.e-extra {
-  margin-left: auto;
-  flex: none;
-  display: inline-flex;
-  gap: 14px;
-}
-
-.payload-panel {
-  margin: 6px 0 14px;
-  padding: 14px 16px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--panel-3);
-}
-
-.p-meta {
-  display: flex;
-  gap: 16px;
-  align-items: baseline;
-  margin-bottom: 10px;
-}
-
-.p-tool {
-  color: var(--cyan);
-  font-weight: 700;
-  font-size: 17px;
-}
-
-.payload-panel h4 {
-  margin: 14px 0 6px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--dim);
-  text-transform: lowercase;
-  letter-spacing: 0.06em;
-}
-
-.payload-panel h4:first-of-type {
-  margin-top: 0;
-}
-
-/* args and result each get their own delineated block that scrolls in place —
-   the full payload is always reachable, never visually cut off. */
-.p-pre {
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  padding: 10px 12px;
-  background: rgba(6, 8, 15, 0.55);
-  max-height: 42vh;
-  overflow: auto;
-}
-
-.t-red {
-  color: var(--red);
-}
-
-.t-green {
-  color: var(--green);
-}
-
-.t-cyan {
-  color: var(--cyan);
-}
-
-.t-purple {
-  color: var(--purple);
-}
-
-.t-violet {
-  color: var(--violet);
-}
 </style>
