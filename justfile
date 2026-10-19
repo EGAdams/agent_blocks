@@ -13,6 +13,7 @@ set positional-arguments
 config := env_var_or_default("SSSF_CONFIG", "adws/adw_sssf_config/sssf.config.yaml")
 # Set SSSF_DB to view a different checkout's sessions.
 db     := env_var_or_default("SSSF_DB", "adws/adw_data/sssf.db")
+viewer_port := env_var_or_default("PLAYGROUND_VIEWER_PORT", "4613")
 
 # list every recipe
 default:
@@ -85,6 +86,6 @@ procs ADW_ID:
 # Needs bun. The db path is passed explicitly because the server runs from the
 # app dir and would otherwise look for a trace db sitting next to itself.
 
-# boot the trace UI, http://localhost:4601 (api on :4600)
+# Serve the training viewer and report links together at http://localhost:4613
 obs:
-    cd .claude/skills/sssf/apps/visualizer && bun install && (SSSF_DB="{{absolute_path(db)}}" bun run server/index.ts &) && bunx vite
+    cd adws/visualizer && bun install --frozen-lockfile && bun run build && SSSF_DB="{{absolute_path(db)}}" PORT="{{viewer_port}}" bun run server/index.ts

@@ -1,0 +1,39 @@
+:root { color-scheme: light; font-family: system-ui, sans-serif; color: #172c3d; background: #eef2f5; }
+* { box-sizing: border-box; }
+body { margin: 0; font-size: 18px; line-height: 1.6; }
+nav { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 16px 5%; background: #142e40; color: white; }
+nav a { color: #d4ecff; }
+main { max-width: 980px; padding: 32px 24px 60px; margin: auto; }
+header { padding: 12px 0 24px; }
+h1 { font-size: clamp(27px, 4vw, 40px); line-height: 1.25; margin: 12px 0 20px; letter-spacing: -.025em; }
+.eyebrow { font-size: 16px; font-weight: 700; color: #436376; margin: 0; }
+.status { display: inline-block; padding: 6px 14px; border-radius: 8px; background: #fff1cc; color: #624b07; font-weight: 600; }
+section, aside { padding: 22px 26px; margin: 0 0 20px; background: white; border: 1px solid #d6e0e7; border-radius: 12px; overflow-wrap: anywhere; }
+h2 { font-size: 20px; margin: 0 0 16px; color: #345468; }
+h3 { font-size: 17px; margin: 0; }
+p { margin: 8px 0 14px; }
+p:last-child { margin-bottom: 0; }
+.record { white-space: pre-line; }
+.attention { border: 2px solid #a87500; background: #fff8dd; }
+.payment-table { width: 100%; border-collapse: collapse; text-align: left; }
+.payment-table th, .payment-table td { padding: 10px; border-bottom: 1px solid #d6e0e7; }
+.payment-table .description { font-size: 23px; font-weight: 750; background: #fff1bd; color: #523b00; }
+dl { display: grid; grid-template-columns: auto 1fr; gap: 8px 18px; }
+dt { font-weight: 700; } dd { margin: 0; }
+.receipt-button { display: inline-block; padding: 12px 20px; border-radius: 8px;
+  background: #142e40; color: white; font-weight: 700; text-decoration: none; }
+.receipt-button:hover { background: #24536d; }
+.document-links { display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 24px; }
+.answer { border: 2px solid #328663; background: #f3fcf6; }
+.figure { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 24px; align-items: baseline; padding: 12px 0; border-bottom: 1px solid #dbe5ea; }
+.figure strong { font-size: 25px; color: #124d3c; font-variant-numeric: tabular-nums; white-space: nowrap; }
+small { font-size: 15px; font-weight: 400; color: #496276; }
+aside { background: #e5f1fb; border-color: #9ebfd8; }
+ul { padding-left: 24px; margin: 10px 0 0; }
+li { margin: 6px 0; }
+.path, .notes, footer { font-size: 15px; color: #536878; }
+.path { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+article + article { margin-top: 24px; border-top: 1px solid #dbe5ea; padding-top: 18px; }
+footer { text-align: center; margin-top: 32px; }
+@media (max-width: 550px) { main { padding: 20px 12px; } section, aside { padding: 18px; } .figure { grid-template-columns: 1fr; gap: 2px; } nav { font-size: 16px; } }
+@media print { nav { display: none; } main { max-width: none; padding: 0; } section, aside { break-inside: avoid; } }
