@@ -112,6 +112,50 @@ agents:
   # No tester agent: running the suite is a known command, so it is a kind="code"
   # phase over adw_modules/quality.py. See SKILL.md hard rule 8.
 
+  - name: intake
+    model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — one folder's existing
+    thinking: low                       # extraction text in, one typed report out
+    color: "#f97316"
+    purpose: Read one tax-document folder's existing extraction and report exactly what is still needed to complete that form.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/intake/system.md
+      user: adws/adw_data/prompt_engineering/intake/user.md
+    writes: []                     # it reads the prompt and answers; it changes nothing
+    # The survey's text is embedded directly in the prompt (see
+    # adw_modules/tax_intake.build_intake_prompt), so there is no folder to go
+    # exploring for -- `read` alone keeps it from wandering off looking for a
+    # repo that is not the point, the same reasoning as `locator`/`judge` above.
+    tools:
+      - read
+
+  - name: elaborator
+    model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — one open question in,
+    thinking: low                       # one ELI5 explanation out
+    color: "#fcd34d"
+    purpose: Explain one open intake question in plain language, on request during review.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/elaborator/system.md
+      user: adws/adw_data/prompt_engineering/elaborator/user.md
+    writes: []                     # it reads the prompt and answers; it changes nothing
+    # Same reasoning as intake/judge: the survey text and the question are
+    # already embedded in the prompt, so there is nothing to go looking for.
+    tools: []
+
+  - name: localizer
+    model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — vision fallback when
+    thinking: low                       # the deterministic OCR match comes up empty
+    color: "#fb923c"
+    purpose: Look at one scanned page and say where on it an open question's answer likely is.
+    prompt_engineering:
+      system: adws/adw_data/prompt_engineering/localizer/system.md
+      user: adws/adw_data/prompt_engineering/localizer/user.md
+    writes: []                     # it reads an image and answers; it changes nothing
+    # `read` is the only tool, same as locator just below: the image path named
+    # in the prompt is the one file it needs, and it reads it directly (the
+    # same "receipt path" pattern locator already uses for vision-by-read-tool).
+    tools:
+      - read
+
   - name: locator
     model: anthropic/claude-haiku-4-5   # Claude Pro/Max OAuth — one short read, the
     thinking: low                       # cheapest agent on the roster by design

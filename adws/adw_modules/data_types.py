@@ -592,6 +592,98 @@ class CategoryOpinion(EnvelopeBase):
     reading: str = ""               # the words in the evidence that decided it
 
 
+# ── Tax document intake ──────────────────────────────────────────────────────
+
+class TaxIntakeOptions(BaseModel):
+    """One ADW invocation of the tax-document intake chain."""
+
+    prompt: str                     # why this intake pass is running
+    base_dir: str = ""              # tax_documents root; "" = the module default
+    folder: str = ""                # survey this one folder by name; "" = next pending
+    limit: int = 1                  # how many pending folders to survey this run
+    # Skips the interactive review when set ("approve"); the scripted-run escape
+    # hatch every human-in-the-loop ADW in this repo offers (adw_receipt_locate's
+    # --auto-pick is the same idea). Empty means the human is asked.
+    auto_decision: str = ""
+    config: str = "adws/adw_sssf_config/sssf.config.yaml"
+    adw_id: Optional[str] = None
+    message_out: str = ""
+
+
+class FormFolderSurvey(BaseModel):
+    """What is already on disk for one form folder, before any agent reads it."""
+
+    name: str                       # folder name, e.g. "mortgage_interest_statement_1098"
+    path: str                       # absolute path
+    image_files: list[str] = Field(default_factory=list)
+    data_files: list[str] = Field(default_factory=list)    # json/md extraction files
+    has_concerns: bool = False
+    concerns_text: str = ""
+    # Concatenated contents of the data files, for the agent prompt -- the agent
+    # reads this instead of the folder, since it has no vision tool here.
+    extracted_text: str = ""
+    already_intaken: bool = False   # an intake_notes.txt already exists here
+
+
+class FormIntakeOutput(EnvelopeBase):
+    """The intake agent's read of one form folder: what it still needs."""
+
+    form_name: str = ""
+    complete: bool = False          # True: nothing further is needed from a human
+    needed_items: list[str] = Field(default_factory=list)      # missing/unclear, in plain language
+    open_questions: list[str] = Field(default_factory=list)    # one concrete question per item
+    # The evidence suggests the ORIGINAL extraction is wrong, not merely
+    # incomplete -- re-reading the source image is a separate tool's job
+    # (gemini_photo_reader.py / /tax-doc-scan); this agent only flags it.
+    reread_recommended: bool = False
+    reread_reason: str = ""
+
+
+class HumanAnswer(BaseModel):
+    item: str
+    answer: str
+
+
+class FormDecision(BaseModel):
+    """The engineer's response to one folder's needed_items/open_questions."""
+
+    approved: bool = False          # the human reviewed this folder and is done with it for now
+    answers: list[HumanAnswer] = Field(default_factory=list)
+    human_notes: str = ""
+
+
+class FolderIntakeResult(BaseModel):
+    """What one folder's pass produced, for the status file and the caller."""
+
+    folder: str
+    status: str = ""                # "complete" | "needs_info" | "skipped"
+    notes_path: str = ""
+    message: str = ""
+
+
+class ElaborationOutput(EnvelopeBase):
+    """An ELI5 explanation of one open question, on request during review."""
+
+    explanation: str = ""           # plain-language: what's wrong/missing, and why
+    suggested_step: str = ""        # one concrete thing the human could do next
+
+
+class LocalizationOutput(EnvelopeBase):
+    """Vision fallback: where on the page one open question's answer likely is.
+
+    Coordinates are fractions of the image's width/height (0.0-1.0), top-left
+    origin, since the agent reads the image through its own `read` tool and
+    never learns the pixel dimensions `document_localize.py` resizes/boxes at.
+    """
+
+    found: bool = False
+    x0: float = 0.0
+    y0: float = 0.0
+    x1: float = 0.0
+    y1: float = 0.0
+    reasoning: str = ""
+
+
 # ── Agent calls ──────────────────────────────────────────────────────────────
 
 class GateCheck(BaseModel):
