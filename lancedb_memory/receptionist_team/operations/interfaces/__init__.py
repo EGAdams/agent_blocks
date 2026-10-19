@@ -1,0 +1,39 @@
+"""Narrow ports for conversation, request context, policy, workflows and observation."""
+from contextlib import AbstractContextManager
+from typing import Protocol
+
+from agent_memory.models import AgentReply
+from ..models import ConversationRequest, WorkIntent, WorkReply, WorkView
+
+
+class ConversationTurns(Protocol):
+    async def handle_turn(self, user_message: str) -> AgentReply: ...
+
+
+class AssignmentPolicy(Protocol):
+    def validate(self, intent: WorkIntent, request: ConversationRequest, state: WorkView) -> WorkIntent: ...
+
+
+class AssignmentPolicies(Protocol):
+    """The installed assignments: both what to advertise and what to validate with."""
+
+    def installed(self) -> tuple[str, ...]: ...
+    def for_assignment(self, name: str) -> AssignmentPolicy: ...
+
+
+class TurnContext(Protocol):
+    def bind(self, request: ConversationRequest) -> AbstractContextManager[None]: ...
+    def current(self) -> ConversationRequest: ...
+
+
+class Workflows(Protocol):
+    async def state(self) -> WorkView: ...
+    async def execute(self, intent: WorkIntent, request_id: str | None = None) -> WorkReply: ...
+
+
+class RequestConversation(Protocol):
+    async def handle_turn(self, user_message: str, request_id: str | None = None) -> AgentReply: ...
+
+
+class WorkObserver(Protocol):
+    def publish(self, work: WorkReply) -> None: ...

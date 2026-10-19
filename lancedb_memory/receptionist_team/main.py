@@ -36,6 +36,7 @@ replies and voice_io.py's STT.
 import argparse
 import asyncio
 import os
+from collections.abc import Callable
 from pathlib import Path
 
 from agent_memory.adapters.decorators import RetryingModel
@@ -58,6 +59,14 @@ from .adapters.metrics import Stopwatch
 from .adapters.routing_model import RoutingModel
 from .adapters.voice_io import DashboardVoiceIO, VoiceUnavailableError
 from .roles import TOYOTA_SYSTEM_PROMPT
+from .operations.conversation import OperationalConversationAgent
+from .operations.http_client import CallbackWorkObserver, DashboardWorkflows
+from .operations.interfaces import RequestConversation
+from .operations.assignment_policies import InstalledPolicies
+from .operations.tax_intent import TaxIssuesPolicy
+from .operations.reports_intent import ReportsPolicy
+from .operations.request_context import ScopedTurnContext
+from .operations.workflow_model import WorkflowModel
 
 
 def _load_dotenv() -> None:
@@ -79,7 +88,12 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def build_toyota(settings: Settings, role_model: str) -> tuple[ConversationAgent, CostObserver]:
+def build_toyota(
+    settings: Settings,
+    role_model: str,
+    on_delegation: Callable[[str], None] | None = None,
+    on_work: Callable[[dict], None] | None = None,
+) -> tuple[RequestConversation, CostObserver]:
     embedder, profile_table_name = build_embedder(settings.embedding_profile)
     store = LanceDBMemoryStore(
         uri=settings.lancedb_uri,
@@ -102,7 +116,14 @@ def build_toyota(settings: Settings, role_model: str) -> tuple[ConversationAgent
     # directive; a delegated finance_team role still runs on Claude (below),
     # since that needs real tool use against the DB/receipts, not just chat.
     inner_model = GroqLanguageModel(model=settings.model, system_prompt=TOYOTA_SYSTEM_PROMPT)
-    model = RoutingModel(RetryingModel(inner_model), model=role_model)
+    # on_delegation stays None for the REPL (RoutingModel just prints); the
+    # sidecar passes a sink so the acknowledgment reaches the browser's
+    # speaker while the delegated role is still running. See service.py.
+    model = RoutingModel(RetryingModel(inner_model), model=role_model, on_delegation=on_delegation)
+    context = ScopedTurnContext()
+    model = WorkflowModel(model, DashboardWorkflows(os.getenv('TOYOTA_DASHBOARD_URL', 'http://127.0.0.1:8765')),
+                          context, InstalledPolicies({'tax_issues': TaxIssuesPolicy(), 'reports': ReportsPolicy()}),
+                          CallbackWorkObserver(on_work))
 
     agent = ConversationAgent(
         session_id=settings.session_id,
@@ -114,7 +135,7 @@ def build_toyota(settings: Settings, role_model: str) -> tuple[ConversationAgent
         clock=SystemClock(),
         observer=CompositeObserver([ConsoleObserver(), cost, NexusArchiveObserver(settings.nexus_dir)]),
     )
-    return agent, cost
+    return OperationalConversationAgent(agent, context), cost
 
 
 async def repl(settings: Settings, role_model: str, voice: bool) -> None:

@@ -6,6 +6,7 @@ LanguageModel, returns a LanguageModel. agent.py and ConversationAgent never
 know a delegation happened -- they see one complete() call, one AgentReply.
 """
 import re
+from collections.abc import Callable
 from dataclasses import replace
 
 from agent_memory.models import AgentReply
@@ -13,6 +14,8 @@ from agent_memory.ports import LanguageModel
 
 from finance_team.adapters.tool_agent import run_role
 from finance_team.roles import REPO_ROOT, ROLES
+
+from ..roles import delegation_acknowledgment
 
 # Must match the WHOLE reply (re.fullmatch), not just contain the word ROUTE --
 # ordinary conversation is allowed to mention routing without triggering it.
@@ -26,9 +29,22 @@ class RoutingModel:
     never goes near finance_team or the live database.
     """
 
-    def __init__(self, inner: LanguageModel, model: str) -> None:
+    def __init__(
+        self,
+        inner: LanguageModel,
+        model: str,
+        on_delegation: Callable[[str], None] | None = None,
+    ) -> None:
         self._inner = inner
         self._role_model = model
+        # Called with the spoken acknowledgment the moment a ROUTE line is
+        # matched, BEFORE the slow run_role call -- which is what
+        # TOYOTA_SYSTEM_PROMPT has always promised ("the application supplies
+        # the spoken acknowledgment separately so that it can begin playback
+        # immediately while the delegated agent starts working"). The CLI
+        # leaves this None and just prints; service.py passes a sink that
+        # streams the sentence so the browser can start speaking it.
+        self._on_delegation = on_delegation
 
     async def complete(self, prompt: str) -> AgentReply:
         reply = await self._inner.complete(prompt)
@@ -55,7 +71,11 @@ class RoutingModel:
                 ),
             )
 
-        print(f"\n[Toyota -> {role_name}] delegating -- this can take a while...")
+        acknowledgment = delegation_acknowledgment(role_name)
+        print(f"\n[Toyota -> {role_name}] {acknowledgment}")
+        if self._on_delegation is not None:
+            self._on_delegation(acknowledgment)
+
         result = await run_role(role, cwd=REPO_ROOT, model=self._role_model)
 
         if result.is_error:
