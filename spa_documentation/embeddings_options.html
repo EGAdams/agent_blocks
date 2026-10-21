@@ -1,0 +1,501 @@
+<title>Choosing an Embedder</title>
+
+<style>
+:root {
+  --bg: #f6f4ee;
+  --surface: #ffffff;
+  --surface-sunken: #eef0ea;
+  --ink: #1f2a2e;
+  --ink-soft: #57646a;
+  --ink-faint: #8b969b;
+  --border: #dde2de;
+  --accent: #0f6e63;
+  --accent-ink: #0a4a42;
+  --accent-soft: #dcf0ec;
+  --amber: #a8631a;
+  --amber-soft: #f4e6d3;
+  --code-bg: #eef1ec;
+  --shadow: 0 1px 2px rgba(31,42,46,0.06), 0 8px 24px rgba(31,42,46,0.05);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12191a;
+    --surface: #1a2224;
+    --surface-sunken: #0f1516;
+    --ink: #e6ede9;
+    --ink-soft: #a9b8b4;
+    --ink-faint: #71827e;
+    --border: #2a3436;
+    --accent: #5fd6c4;
+    --accent-ink: #bdf2e8;
+    --accent-soft: #1c3835;
+    --amber: #e0a862;
+    --amber-soft: #3a2e1c;
+    --code-bg: #0f1516;
+    --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.25);
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #12191a;
+  --surface: #1a2224;
+  --surface-sunken: #0f1516;
+  --ink: #e6ede9;
+  --ink-soft: #a9b8b4;
+  --ink-faint: #71827e;
+  --border: #2a3436;
+  --accent: #5fd6c4;
+  --accent-ink: #bdf2e8;
+  --accent-soft: #1c3835;
+  --amber: #e0a862;
+  --amber-soft: #3a2e1c;
+  --code-bg: #0f1516;
+  --shadow: 0 1px 2px rgba(0,0,0,0.3), 0 8px 24px rgba(0,0,0,0.25);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: -apple-system, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  font-size: 17px;
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+.wrap {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 4rem 1.5rem 6rem;
+}
+
+.eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.72rem;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 0.35rem 0.8rem;
+  margin-bottom: 1.5rem;
+}
+.eyebrow::before { content: "●"; font-size: 0.5rem; color: var(--accent); }
+
+h1 {
+  font-family: ui-serif, Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  font-size: 2.5rem;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0 0 0.6rem;
+  text-wrap: balance;
+  color: var(--ink);
+}
+
+.subtitle {
+  font-size: 1.1rem;
+  color: var(--ink-soft);
+  max-width: 60ch;
+  margin: 0 0 3rem;
+}
+
+h2 {
+  font-family: ui-serif, Georgia, serif;
+  font-weight: 600;
+  font-size: 1.5rem;
+  margin: 3.5rem 0 1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  text-wrap: balance;
+}
+h2:first-of-type { border-top: none; padding-top: 0; margin-top: 2.5rem; }
+
+h3 {
+  font-family: ui-serif, Georgia, serif;
+  font-size: 1.15rem;
+  font-weight: 600;
+  margin: 0 0 0.5rem;
+}
+
+p { margin: 0 0 1.1rem; color: var(--ink); }
+p.lede { color: var(--ink-soft); }
+
+strong { color: var(--ink); font-weight: 650; }
+
+code {
+  font-family: ui-monospace, "SF Mono", Consolas, monospace;
+  font-size: 0.88em;
+  background: var(--code-bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.05em 0.35em;
+}
+
+a { color: var(--accent-ink); text-decoration-color: var(--accent); text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, .card:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* --- analogy box --- */
+.callout {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: 8px;
+  padding: 1.1rem 1.3rem;
+  margin: 1.5rem 0;
+  box-shadow: var(--shadow);
+}
+.callout .label {
+  font-family: ui-monospace, monospace;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+  margin-bottom: 0.4rem;
+  display: block;
+}
+.callout p:last-child { margin-bottom: 0; }
+
+/* --- vector space diagram --- */
+.diagram {
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.5rem;
+  margin: 1.5rem 0 2rem;
+  overflow-x: auto;
+}
+.diagram canvas { display: block; margin: 0 auto; max-width: 100%; }
+.diagram figcaption {
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  margin-top: 0.6rem;
+}
+
+/* --- option cards --- */
+.options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1rem;
+  margin: 1.5rem 0 2rem;
+}
+@media (min-width: 640px) {
+  .options { grid-template-columns: 1fr 1fr; }
+}
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.4rem 1.4rem 1.5rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.card.current { border-color: var(--accent); }
+.card .tag {
+  align-self: flex-start;
+  font-family: ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.card.tradeoff .tag { background: var(--amber-soft); color: var(--amber); }
+.card h3 { margin-top: 0.2rem; }
+.card .meta {
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+  font-family: ui-monospace, monospace;
+}
+.card p { font-size: 0.95rem; margin-bottom: 0; color: var(--ink-soft); }
+.card p strong { color: var(--ink); }
+
+/* --- comparison table --- */
+.table-wrap { overflow-x: auto; margin: 1.5rem 0 2rem; border: 1px solid var(--border); border-radius: 10px; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; background: var(--surface); }
+th, td { text-align: left; padding: 0.7rem 1rem; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+th { font-family: ui-monospace, monospace; font-size: 0.72rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-faint); background: var(--surface-sunken); }
+tr:last-child td { border-bottom: none; }
+td.yes { color: var(--accent-ink); }
+td.no { color: var(--ink-faint); }
+
+/* --- decision path --- */
+.path {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 1.5rem 0 2rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface);
+}
+.path-step {
+  display: grid;
+  grid-template-columns: 2.2rem 1fr;
+  gap: 0.9rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+}
+.path-step:last-child { border-bottom: none; }
+.path-step .num {
+  width: 2.2rem; height: 2.2rem;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  display: flex; align-items: center; justify-content: center;
+  font-family: ui-monospace, monospace;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.path-step h3 { margin-bottom: 0.15rem; font-size: 1.02rem; }
+.path-step p { margin-bottom: 0; font-size: 0.93rem; color: var(--ink-soft); }
+
+footer {
+  margin-top: 4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.85rem;
+  color: var(--ink-faint);
+}
+footer code { font-size: 0.85em; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<div class="wrap">
+
+  <span class="eyebrow">lancedb_memory · reference</span>
+  <h1>Choosing an Embedder</h1>
+  <p class="subtitle lede">
+    A plain-language walkthrough of the one open decision left in the memory system:
+    what turns a sentence into the list of numbers LanceDB actually searches over.
+  </p>
+
+  <h2>What an embedding even is</h2>
+  <p>
+    LanceDB doesn't search text. It searches <strong>vectors</strong> &mdash; fixed-length lists
+    of numbers, like <code>[0.12, -0.87, 0.34, ...]</code>. An <strong>embedder</strong> is the
+    piece of code that converts a sentence into one of these lists. Two sentences that
+    "mean similar things" should produce two vectors that sit close together in that
+    numeric space. Recall then just means: embed the new message, and ask LanceDB for
+    the closest existing vectors.
+  </p>
+
+  <div class="callout">
+    <span class="label">Analogy</span>
+    <p>
+      Think of every message as a dot placed on a map, and the embedder as the rule
+      for choosing where to place it. A good rule puts "I love hiking" and "I enjoy
+      trail running" near each other, and puts "how do taxes work" somewhere far away.
+      A cruder rule might just place dots based on which words are literally shared
+      &mdash; still useful, just less clever about meaning.
+    </p>
+  </div>
+
+  <figure class="diagram">
+    <canvas id="vectorCanvas" width="640" height="260" role="img" aria-label="Scatter plot showing lexical points clustered by shared words, versus semantic points clustered by meaning"></canvas>
+    <figcaption>Same three sentences, placed by two different embedders. Lexical groups by shared words; semantic groups by meaning.</figcaption>
+  </figure>
+
+  <h2>What's running today: <code>HashingEmbedder</code></h2>
+  <p>
+    Right now, <code>agent_memory/adapters/hashing_embedder.py</code> does the placing.
+    It's deliberately simple: it looks at the words in a message, hashes each one into
+    a bucket (one of 256 numbers), and adds or subtracts a small amount from that
+    bucket. The result is normalized into a 256-number vector. No network call, no API
+    key, no external model &mdash; it's pure arithmetic on the words that are already there.
+  </p>
+  <p>
+    That makes it <strong>lexical</strong>: it groups messages that share words, not
+    messages that share meaning. "My car won't start" and "the engine is dead" would
+    <em>not</em> be recognized as related, because they share almost no words. This
+    exists mainly because Anthropic's Claude doesn't offer an embeddings API to pair
+    with the chat model this agent already uses &mdash; so <code>HashingEmbedder</code>
+    is the free, always-available placeholder that let the rest of the memory system
+    (LanceDB storage, recall, tests) get built and proven correct first.
+  </p>
+
+  <h2>The decision: keep it, or swap it</h2>
+  <p>
+    This is the fork in the road. Nothing is broken today &mdash; recall works,
+    tests pass. The question is only whether "groups by shared words" is good enough
+    for how you plan to use this agent, or whether you want "groups by meaning."
+  </p>
+
+  <div class="options">
+    <div class="card current">
+      <span class="tag">Running now</span>
+      <h3>Keep HashingEmbedder</h3>
+      <div class="meta">cost: $0 · network: none · setup: none</div>
+      <p><strong>Good fit if</strong> you're still testing the plumbing, want zero
+      dependencies, or your conversations tend to reuse the same vocabulary (so shared
+      words are already a decent proxy for shared topic).</p>
+    </div>
+    <div class="card tradeoff">
+      <span class="tag">Local upgrade</span>
+      <h3>A local semantic model</h3>
+      <div class="meta">cost: $0 · network: none · setup: one package install</div>
+      <p>A small open-weights model (e.g. via the <code>sentence-transformers</code>
+      Python package) runs on your own machine and produces vectors based on meaning,
+      not just word overlap. No API key, but it's a heavier dependency and slower per
+      message than hashing.</p>
+    </div>
+    <div class="card tradeoff">
+      <span class="tag">Hosted upgrade</span>
+      <h3>A hosted embeddings API</h3>
+      <div class="meta">cost: per-call, small · network: required · setup: API key</div>
+      <p>Services like OpenAI, Voyage, or Cohere offer an embeddings endpoint over the
+      network. Highest quality, but it reintroduces the network dependency and API key
+      management that switching to the Claude SDK was partly meant to reduce.</p>
+    </div>
+    <div class="card">
+      <span class="tag">Not recommended here</span>
+      <h3>Anthropic embeddings</h3>
+      <div class="meta">doesn't exist</div>
+      <p>Worth naming just so it's not a mystery: Claude has no embeddings endpoint
+      today. It's why the agent uses two different providers for two different jobs
+      &mdash; Claude for conversation, something else for vectors.</p>
+    </div>
+  </div>
+
+  <h2>Side by side</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>Question</th><th>HashingEmbedder</th><th>Local semantic</th><th>Hosted API</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Understands meaning, not just words</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+        <tr><td>Needs an API key</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+        <tr><td>Needs network access</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes</td></tr>
+        <tr><td>Costs money per message</td><td class="no">No</td><td class="no">No</td><td class="yes">Yes (small)</td></tr>
+        <tr><td>Extra install required</td><td class="no">No</td><td class="yes">Yes</td><td class="yes">Yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2>Why this touches <code>LanceDBMemoryStore</code> too</h2>
+  <p>
+    You can't just swap the embedder in isolation. <code>LanceDBMemoryStore</code>
+    (in <code>agent_memory/adapters/lancedb_store.py</code>) creates its table with a
+    fixed vector width &mdash; currently 256, matching <code>HashingEmbedder</code>.
+    Every embedder produces a different width: a local semantic model is commonly 384
+    numbers, a hosted API is often 1536. If the widths don't match, the store raises an
+    error immediately rather than silently writing vectors that can never be searched
+    correctly &mdash; that's intentional, not a bug to work around.
+  </p>
+  <p>
+    Practically, this means a swap is a two-part change: pick the new embedder, and
+    point <code>Settings.table_name</code> in <code>config.py</code> at a new table
+    name so the old 256-wide table is never mixed with new, differently-sized vectors.
+  </p>
+
+  <div class="path">
+    <div class="path-step">
+      <span class="num">1</span>
+      <div><h3>Decide what you're optimizing for</h3><p>Zero dependencies and instant setup (stay with hashing), or better recall quality on conversations that rephrase the same idea in different words (move to semantic).</p></div>
+    </div>
+    <div class="path-step">
+      <span class="num">2</span>
+      <div><h3>Pick the embedder</h3><p>Stay with <code>HashingEmbedder</code>, or write a new class implementing the same <code>Embedder</code> protocol (one async <code>embed(text)</code> method) backed by a local model or hosted API.</p></div>
+    </div>
+    <div class="path-step">
+      <span class="num">3</span>
+      <div><h3>Give it a fresh table</h3><p>Change <code>table_name</code> in <code>config.py</code> so the new vector width gets its own LanceDB table instead of colliding with the old one.</p></div>
+    </div>
+    <div class="path-step">
+      <span class="num">4</span>
+      <div><h3>Wire it in one place</h3><p>The swap happens only in <code>main.py</code>'s composition root, where the embedder is constructed &mdash; nothing else in the codebase should need to change, since <code>agent.py</code> only knows about the <code>Embedder</code> protocol, never the concrete class.</p></div>
+    </div>
+  </div>
+
+  <div class="callout">
+    <span class="label">No decision needed yet</span>
+    <p>
+      There's no wrong choice here right now. <code>HashingEmbedder</code> is a
+      legitimate, working default, not a placeholder that must be replaced. Swap it
+      only once you notice recall missing conversations that clearly should have
+      matched &mdash; that's the concrete signal that "shared words" has stopped being
+      good enough, and "shared meaning" is worth the extra dependency.
+    </p>
+  </div>
+
+  <footer>
+    Referenced files: <code>agent_memory/adapters/hashing_embedder.py</code>,
+    <code>agent_memory/adapters/lancedb_store.py</code>, <code>agent_memory/ports.py</code>
+    (the <code>Embedder</code> protocol), <code>config.py</code>.
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  var canvas = document.getElementById('vectorCanvas');
+  var ctx = canvas.getContext('2d');
+  var dpr = window.devicePixelRatio || 1;
+  var w = canvas.width, h = canvas.height;
+  canvas.width = w * dpr; canvas.height = h * dpr;
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+
+  var styles = getComputedStyle(document.documentElement);
+  var ink = styles.getPropertyValue('--ink-soft').trim() || '#57646a';
+  var faint = styles.getPropertyValue('--ink-faint').trim() || '#8b969b';
+  var accent = styles.getPropertyValue('--accent').trim() || '#0f6e63';
+  var amber = styles.getPropertyValue('--amber').trim() || '#a8631a';
+  var border = styles.getPropertyValue('--border').trim() || '#dde2de';
+
+  function panel(x, y, pw, ph, label) {
+    ctx.strokeStyle = border;
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x, y, pw, ph);
+    ctx.fillStyle = faint;
+    ctx.font = '11px ui-monospace, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(label, x + pw / 2, y + ph + 18);
+  }
+
+  function point(x, y, color, label) {
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.fill();
+    ctx.fillStyle = ink;
+    ctx.font = '11px -apple-system, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(label, x + 9, y + 4);
+  }
+
+  var pw = 270, ph = 170, gap = 40;
+  var leftX = 30, rightX = leftX + pw + gap, topY = 20;
+
+  panel(leftX, topY, pw, ph, 'lexical (HashingEmbedder)');
+  panel(rightX, topY, pw, ph, 'semantic (meaning-based)');
+
+  // Lexical: "car won't start" and "engine is dead" land far apart (no shared words),
+  // "car won't start" and "car is loud" land close (share "car").
+  point(leftX + 60, topY + 40, accent, '"car won\'t start"');
+  point(leftX + 90, topY + 70, accent, '"car is loud"');
+  point(leftX + 210, topY + 130, amber, '"engine is dead"');
+
+  // Semantic: the two car-trouble sentences cluster; the unrelated one is far.
+  point(rightX + 60, topY + 50, accent, '"car won\'t start"');
+  point(rightX + 85, topY + 75, accent, '"engine is dead"');
+  point(rightX + 220, topY + 30, amber, '"car is loud"');
+})();
+</script>

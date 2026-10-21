@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Keep input clearing out of the plug-in point · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">4. Adopt In Toyota</a> <span aria-hidden="true">›</span> <span aria-current="page">Keep UI State Out</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Keep input clearing out of the plug-in point</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 4 of 5 — Adopt the plug-in point in Toyota Input Options  ›  Step 3 of 3 — Keep input clearing out of the plug-in point</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Submit an immutable text snapshot; clearing the box stays with Input Draft and the coordinator.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>There is a pull, during every adoption like this, to let the agent call clear the text box — both happen on send, so it feels like one action. It is two responsibilities: talking to an agent, and mutating UI state. Joining them means every future adapter, including a headless voice one with no text box at all, inherits a UI concern.</p>
+<p>The plug-in point receives an immutable snapshot of the text. What the input field does next belongs to <code>IInputDraft</code> and the conversation coordinator, which are separate blocks in this package for exactly this reason.</p>
+</section>
+<section>
+<h2>2. How we will know it is done</h2>
+<p>No adapter and no call into <code>submit()</code> touches input state, and a headless caller can submit a turn without any input component existing.</p>
+</section>
+<section>
+<h2>3. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../replace_direct_request/index.html">← Replace Direct Request</a>
+<a class="pager-up" href="../index.html">↑ 4. Adopt In Toyota</a>
+</nav>
+  </main>
+</body>
+</html>
+

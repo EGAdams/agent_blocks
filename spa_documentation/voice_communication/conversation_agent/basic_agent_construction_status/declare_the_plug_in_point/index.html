@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage 1 — Declare the plug-in point · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../assets/page.css?v=1">
+  <script defer src="../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../index.html">Construction Status</a> <span aria-hidden="true">›</span> <span aria-current="page">1. Declare the Plug-in Point</span>
+  </nav>
+  <nav class="section-link-grid" aria-label="Child sections">
+    <a href="interface_file/index.html"><strong>Interface File</strong><span>Done</span></a>
+    <a href="event_contracts/index.html"><strong>Event Contracts</strong><span>Done</span></a>
+    <a href="publish_barrel/index.html"><strong>Publish Barrel</strong><span>Done</span></a>
+  </nav>
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Stage 1 — Declare the plug-in point</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 1 of 5 — Declare the plug-in point</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Give the boundary between voice policy and any agent backend a name, a file, and a typed shape.</strong>
+</blockquote>
+<section>
+<h2>1. What this stage actually means</h2>
+<p>A plug-in point is a promise written in the type system: <em>whatever answers our questions must look like this</em>. Declaring it is cheap and it is not the same as building anything. Its whole value is that the code above the boundary — voice policy, the Toyota screen — can now be written against a name instead of against a particular vendor's SDK.</p>
+<p>This stage is finished. That is a real milestone and also a modest one: a declared plug-in point proves the design is expressible, not that it works.</p>
+</section>
+<section>
+<h2>2. What was built</h2>
+<p>Three artifacts, all type-only: the interface itself, the shared event vocabulary it streams, and the barrel file that publishes both to consumers.</p>
+</section>
+<section>
+<h2>3. How to check this yourself</h2>
+<p>From <code>voice_communication/</code>, run <code>npm run typecheck</code>. It runs <code>tsc -p tsconfig.json</code> and currently exits clean. If a later edit makes the contract inconsistent with its consumers, this is the check that catches it first.</p>
+</section>
+<section>
+<h2>4. What this unlocked</h2>
+<p>Stage 2 — someone can now try to implement the plug-in point and find out whether the shape survives contact with a real agent SDK.</p>
+</section>
+<section>
+<h2>5. The work inside this stage</h2>
+<p>All 3 are finished, so this stage is only waiting on its own sign-off.</p>
+<div class="construction-status-table-wrap">
+<table class="construction-status-table">
+<thead><tr><th>Step</th><th>Work item</th><th>Status</th><th>What it must deliver</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><a href="interface_file/index.html">Write the interface file</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>One operation, submit( text, generation ), returning an async stream of AgentEvent.</td></tr>
+<tr><td>2</td><td><a href="event_contracts/index.html">Define the shared event contracts</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>AgentEvent, its five kinds, and the SessionId / GenerationId aliases the whole boundary shares.</td></tr>
+<tr><td>3</td><td><a href="publish_barrel/index.html">Publish through the interfaces barrel</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>Make consumers import from one stable entry point instead of reaching into block folders.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section>
+<h2>6. Progress count for this stage</h2>
+<div class="construction-lesson-metrics">
+<div><strong>4</strong><span>Items in scope</span></div>
+<div><strong>0</strong><span>In progress</span></div>
+<div><strong>0</strong><span>Not started</span></div>
+<div><strong>4</strong><span>Done</span></div>
+</div>
+<p class="construction-progress-caption">Counted from this stage and everything nested underneath it.</p>
+</section>
+<section>
+<h2>7. How to continue from here</h2>
+<p>This is a stage, not a single job: it opens into 3 smaller items. Open the linked child pages one at a time; each page keeps the rest of the hierarchy out of the way.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a class="pager-up" href="../index.html">↑ Construction Status</a>
+<a rel="next" href="../prove_with_one_adapter/index.html">2. Prove With One Adapter →</a>
+</nav>
+  </main>
+</body>
+</html>
+

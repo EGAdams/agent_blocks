@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage 4 — Adopt the plug-in point in Toyota Input Options · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../assets/page.css?v=1">
+  <script defer src="../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../index.html">Construction Status</a> <span aria-hidden="true">›</span> <span aria-current="page">4. Adopt In Toyota</span>
+  </nav>
+  <nav class="section-link-grid" aria-label="Child sections">
+    <a href="inject_at_composition_root/index.html"><strong>Inject At Composition Root</strong><span>Not started</span></a>
+    <a href="replace_direct_request/index.html"><strong>Replace Direct Request</strong><span>Not started</span></a>
+    <a href="keep_ui_state_out/index.html"><strong>Keep UI State Out</strong><span>Not started</span></a>
+  </nav>
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Stage 4 — Adopt the plug-in point in Toyota Input Options</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 4 of 5 — Adopt the plug-in point in Toyota Input Options</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Make the real screen depend on the interface instead of issuing its own request.</strong>
+</blockquote>
+<section>
+<h2>1. What this stage actually means</h2>
+<p>Until a real consumer depends on it, a plug-in point is a hypothesis. This stage is the first one where an existing, working screen changes — which makes it the first stage that can break something a user would notice.</p>
+<p>The discipline for the whole stage is therefore: behavior identical, dependencies inverted. If the screen behaves differently afterwards, the refactor failed even if the architecture looks better.</p>
+</section>
+<section>
+<h2>2. What exists today</h2>
+<p>Toyota Input Options lives outside this workspace, in the dashboard application; nothing in <code>agent_blocks</code> imports it, and no adoption work has begun on either side. <code>IToyotaVoiceApplication</code> here is a two-method facade (<code>start</code>, <code>stop</code>) and nothing more.</p>
+</section>
+<section>
+<h2>3. What is still missing</h2>
+<p>Everything — and one piece of homework first: read how Input Options sends today, including its resume and timeout behavior, and write that down as the behavior the refactor must preserve. Before that reading exists, this stage cannot be estimated honestly.</p>
+</section>
+<section>
+<h2>4. Why it is not started</h2>
+<p>It requires a shippable TypeScript adapter from Stage 3. There is nothing to inject yet.</p>
+</section>
+<section>
+<h2>5. The work inside this stage</h2>
+<p>0 of 3 finished. The next one to work on is “Construct the adapter at Toyota's composition root”.</p>
+<div class="construction-status-table-wrap">
+<table class="construction-status-table">
+<thead><tr><th>Step</th><th>Work item</th><th>Status</th><th>What it must deliver</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><a href="inject_at_composition_root/index.html">Construct the adapter at Toyota's composition root</a></td><td><span class="construction-status-chip status-planned">Not started</span></td><td>Name the concrete class in exactly one outer place, and pass the plug-in point inward.</td></tr>
+<tr><td>2</td><td><a href="replace_direct_request/index.html">Replace the direct request call</a></td><td><span class="construction-status-chip status-planned">Not started</span></td><td>Route the send through submit() without losing resume or timeout behavior.</td></tr>
+<tr><td>3</td><td><a href="keep_ui_state_out/index.html">Keep input clearing out of the plug-in point</a></td><td><span class="construction-status-chip status-planned">Not started</span></td><td>Submit an immutable text snapshot; clearing the box stays with Input Draft and the coordinator.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section>
+<h2>6. Progress count for this stage</h2>
+<div class="construction-lesson-metrics">
+<div><strong>4</strong><span>Items in scope</span></div>
+<div><strong>0</strong><span>In progress</span></div>
+<div><strong>4</strong><span>Not started</span></div>
+<div><strong>0</strong><span>Done</span></div>
+</div>
+<p class="construction-progress-caption">Counted from this stage and everything nested underneath it.</p>
+</section>
+<section>
+<h2>7. How to continue from here</h2>
+<p>This is a stage, not a single job: it opens into 3 smaller items. Open the linked child pages one at a time; each page keeps the rest of the hierarchy out of the way.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../typescript_adapter/index.html">← 3. TypeScript Adapter</a>
+<a class="pager-up" href="../index.html">↑ Construction Status</a>
+<a rel="next" href="../verify_live_turn/index.html">5. Verify Live Turn →</a>
+</nav>
+  </main>
+</body>
+</html>
+

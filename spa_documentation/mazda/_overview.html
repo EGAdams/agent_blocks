@@ -1,0 +1,66 @@
+<p class="placeholder">Initial architecture inventory · 17 blocks · stubbed August 29, 2026</p>
+
+<h2>What Mazda is</h2>
+<p>Mazda is the live Letta document-verification agent for ROL Finances. Scanned
+receipts, invoices, statements, and other finance documents are dispatched to
+her to classify, check for repeats, categorize, store, verify, and report.</p>
+
+<p>The live agent is <code>agent-6b536cf4-ec88-4290-b595-fed21d14bd8e</code>.
+Her durable operating knowledge is authored in memfs <code>system/*.md</code>
+files and projected into read-only Letta memory blocks. The attached knowledge
+currently covers intake procedures, database structure, report contracts,
+scanner recovery, environment details, and statement-specific rules.</p>
+
+<h2>The three systems represented here</h2>
+<table>
+  <thead>
+    <tr><th>Track</th><th>Blocks</th><th>Current role</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Live intake</td>
+      <td>Mazda Agent, Finance Orchestrator, Intake Dispatch, Intake Evidence</td>
+      <td>Moves a document from scanner/PDF input to verified finance storage and a dashboard callback.</td>
+    </tr>
+    <tr>
+      <td>Failure supervision</td>
+      <td>Trainer Escalation</td>
+      <td>Starts only for an incomplete, failed, stalled, or missing callback; grades successful tool returns and coaches Mazda without doing her work.</td>
+    </tr>
+    <tr>
+      <td>Self-improvement control plane</td>
+      <td>Runtime Family, Runtime Kernel, and ten factory boundaries</td>
+      <td>Versions the wrapper around the model, records evidence, judges runs, tests proposals, gates activation, reports results, and supports rollback.</td>
+    </tr>
+  </tbody>
+</table>
+
+<h2>Factory-family status</h2>
+<table>
+  <thead>
+    <tr><th>Factory</th><th>What it manufactures</th><th>Known state</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>IPersistenceFactory</code></td><td>Schema, unit of work, and repositories</td><td>Real SQLite implementation</td></tr>
+    <tr><td><code>ILlmFactory</code></td><td>Client, request/response handling, token and budget services</td><td>Stub family</td></tr>
+    <tr><td><code>IPromptFactory</code></td><td>System messages, templates, composition, validation, and differences</td><td>Stub family</td></tr>
+    <tr><td><code>IToolFactory</code></td><td>Tool registry, adapter, permissions, and execution logging</td><td>Stub family</td></tr>
+    <tr><td><code>IContextFactory</code></td><td>Context selection, budgets, memory/notes, and staleness detection</td><td>Stub family</td></tr>
+    <tr><td><code>IWorkflowFactory</code></td><td>Workflow runner</td><td>Stub family</td></tr>
+    <tr><td><code>IEvaluationFactory</code></td><td>Evaluation, verdicts, failure classification, gates, and finance verifiers</td><td>Real finance implementation</td></tr>
+    <tr><td><code>IImprovementFactory</code></td><td>Proposals, experiments, approval, snapshots, activation, and rollback</td><td>Real default implementation</td></tr>
+    <tr><td><code>IReportingFactory</code></td><td>Events and trace/dashboard/regression reports</td><td>Real default implementation</td></tr>
+    <tr><td><code>IAgentPackageFactory</code></td><td>Mazda and other named agent packages</td><td>Real default implementation</td></tr>
+  </tbody>
+</table>
+
+<h2>Document-intake contract</h2>
+<p>The current happy path is: load the active wrapper revision; classify unknown
+images; check vendor identity and repeats; categorize; store; record structured
+intake evidence; judge the trace; propose an improvement after failure; and
+always send the dashboard callback, including when the document was already
+stored.</p>
+
+<p class="placeholder">These pages are an architecture skeleton. Each block has
+the standard Source, Class Diagram, Sequence Diagram, Construction Status, and
+Update Documentation tabs ready to be filled from its owning source files.</p>

@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test event ordering · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../../assets/page.css?v=1">
+  <script defer src="../../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../../index.html">5. Verify Live Turn</a> <span aria-hidden="true">›</span> <a href="../index.html">Focused Behavior Tests</a> <span aria-hidden="true">›</span> <span aria-current="page">Event Ordering</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Test event ordering</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 5 of 5 — Verify one live voice turn  ›  Step 1 of 2 — Run the focused behavior tests  ›  Step 2 of 3 — Test event ordering</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Text arrives before the terminal event, and nothing follows a terminal.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>Consumers rely on ordering whether or not it is written down. A voice policy that speaks on <code>assistant_text</code> and closes the turn on <code>terminal</code> is broken by an adapter that emits them out of order — it will cut itself off mid-sentence.</p>
+<p>The Python adapter already behaves correctly here: it holds the <code>ResultMessage</code> aside and yields <code>terminal</code> only after the stream is exhausted. This test generalizes that from one implementation's habit into the plug-in point's rule.</p>
+</section>
+<section>
+<h2>2. How we will know it is done</h2>
+<p>A terminal or error event is always last, and no event of any kind follows it.</p>
+</section>
+<section>
+<h2>3. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../event_vocabulary/index.html">← Event Vocabulary</a>
+<a class="pager-up" href="../index.html">↑ Focused Behavior Tests</a>
+<a rel="next" href="../cancellation/index.html">Cancellation →</a>
+</nav>
+  </main>
+</body>
+</html>
+

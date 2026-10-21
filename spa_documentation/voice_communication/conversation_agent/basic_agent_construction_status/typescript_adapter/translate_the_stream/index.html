@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Translate the Letta stream into AgentEvent · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">3. TypeScript Adapter</a> <span aria-hidden="true">›</span> <span aria-current="page">Translate The Stream</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Translate the Letta stream into AgentEvent</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 3 of 5 — Write the TypeScript adapter  ›  Step 2 of 3 — Translate the Letta stream into AgentEvent</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Map vendor messages onto the five kinds, and fail closed on anything unrecognized.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>This is where a boundary is usually lost. It is tempting to pass an unmapped vendor message through “just in case” someone downstream finds it useful — and the moment that happens, the voice policy is coupled to Letta's message taxonomy and the plug-in point has become decoration.</p>
+<p>So the rule is: everything is mapped onto one of the five kinds, or it is dropped or raised deliberately. Unknown kinds fail closed. The Python adapter's <code>is_error</code> handling is the pattern to copy — a failed turn must never arrive downstream wearing the shape of a successful one.</p>
+</section>
+<section>
+<h2>2. What is still missing</h2>
+<p>The mapping table itself, and the decision for each vendor message type: which of the five kinds it becomes, or why it is dropped.</p>
+</section>
+<section>
+<h2>3. How we will know it is done</h2>
+<p>Every emitted event is one of the five kinds; an unmapped vendor message produces a deliberate outcome rather than a silent pass-through; and a backend failure ends the stream as <code>error</code> or a raised failure, never as <code>terminal</code>.</p>
+</section>
+<section>
+<h2>4. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../implement_adapter_class/index.html">← Implement Adapter Class</a>
+<a class="pager-up" href="../index.html">↑ 3. TypeScript Adapter</a>
+<a rel="next" href="../contract_tests/index.html">Contract Tests →</a>
+</nav>
+  </main>
+</body>
+</html>
+

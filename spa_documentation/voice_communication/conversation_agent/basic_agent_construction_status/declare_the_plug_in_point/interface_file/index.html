@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Interface File Construction Status · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260902leafsource">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=8"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">1. Declare the Plug-in Point</a> <span aria-hidden="true">›</span> <span aria-current="page">Interface File</span>
+  </nav>
+
+  <article class="construction-lesson" data-canonical-source="interface-file">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Interface File Construction Status</h1>
+      <div class="project-terminal-control">
+        <button class="run-tests-button open-project-terminal-button" type="button" data-open-project-terminal data-api-path="../../../../../api/open-interface-file-project-terminal">Open Terminal in Project</button>
+        <p class="project-terminal-status" role="status" aria-live="polite" hidden></p>
+      </div>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 1 of 5 — Declare the plug-in point  ›  Step 1 of 3 — Write the interface file</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>One operation, submit( text, generation ), returning an async stream of AgentEvent.</strong>
+</blockquote>
+<section>
+<h2>1. Where this item stands</h2>
+<p>The interface file is <strong>finished</strong>. What is not finished is everything that has to happen around it before a user can talk to anything.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>The work</th><th>State</th><th>What you can go and check</th></tr></thead>
+<tbody>
+<tr><td>The file exists and declares one method</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>conversation_agent/conversation_agent.ts</code> — nine lines, one <code>submit()</code>.</td></tr>
+<tr><td>The types it needs are defined</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>typescript_contracts/contracts.ts</code> — <code>GenerationId</code> plus five <code>AgentEventKind</code> values.</td></tr>
+<tr><td>It compiles</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>npm run typecheck</code> passes.</td></tr>
+<tr><td>Something can implement it</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>claude_agent_adapter/</code> in Python — 4/4 tests pass offline, no API key.</td></tr>
+<tr><td>The event shape agrees across languages</td><td><span class="construction-status-chip status-current">In progress</span></td><td>Three copies have drifted. That is Stage 2, listed below.</td></tr>
+<tr><td>A TypeScript adapter implements it</td><td><span class="construction-status-chip">Not started</span></td><td><code>letta_agent_adapter.ts</code> declares <code>class LettaAgentAdapter implements IConversationAgent</code> — <code>submit()</code> exists only as a stub that throws.</td></tr>
+<tr><td>A real screen depends on it</td><td><span class="construction-status-chip">Not started</span></td><td>Nothing calls <code>submit()</code> anywhere. No voice turn has run end to end.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Read this row first</span>
+<strong>Done here means the promise is written and provably implementable. It does not mean anything is talking yet.</strong>
+</blockquote>
+</section>
+<section>
+<h2>2. What was written — the finished file</h2>
+<p>This is the whole item, exactly as it sits on disk today. Nine lines, one method.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>voice_communication/conversation_agent/conversation_agent.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">AgentEvent</span><span class="p">,</span><span class="w"> </span><span class="nx">GenerationId</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../typescript_contracts/contracts.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="cm">/** Dependency-inverted port through which voice policy talks to an agent. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nx">IConversationAgent</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">submit</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">text</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">generation</span><span class="o">:</span><span class="w"> </span><span class="kt">GenerationId</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"><span class="w">  </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">AsyncIterable</span><span class="o">&lt;</span><span class="nx">AgentEvent</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="p">}</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>Three decisions carry it. <code>import type</code> vanishes at compile time, so this file can never drag a vendor SDK behind it. <code>generation</code> tags the request on the way in, which is what lets a superseded answer be discarded when the user interrupts. <code>AsyncIterable</code> makes the reply a stream, because an answer arrives in pieces over seconds.</p>
+<p>These pages call a file like this a <strong>plug-in point</strong> — an opening with a written-down shape, so different components can be plugged in later without the surrounding code noticing. Here it is literally a TypeScript <code>interface</code>; line 3 uses the textbook word for it, <em>port</em>.</p>
+</section>
+<section>
+<h2>3. Where it sits, and what is still empty</h2>
+<p>Drag to pan, wheel to zoom. Each box's stereotype carries its status.</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 — Where IConversationAgent sits</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Class diagram showing consumers depending on IConversationAgent and adapters implementing it" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">classDiagram
+    direction LR
+
+    class IConversationAgent {
+        &lt;&lt;the plug-in point&gt;&gt;
+        +submit(text, generation) AsyncIterable~AgentEvent~
+    }
+
+    class AgentEvent {
+        &lt;&lt;shared contract&gt;&gt;
+        +sessionId
+        +generation
+        +kind
+        +text
+    }
+
+    class ToyotaInputOptions {
+        &lt;&lt;screen&gt;&gt;
+    }
+
+    class IConversationCoordinator {
+        &lt;&lt;interface&gt;&gt;
+    }
+
+    class LettaAgentAdapter {
+        &lt;&lt;adapter, not written yet&gt;&gt;
+    }
+
+    class ClaudeAgentAdapter {
+        &lt;&lt;adapter, working today&gt;&gt;
+        +submit(text, generation)
+    }
+
+    ToyotaInputOptions ..&gt; IConversationAgent : depends on
+    IConversationCoordinator ..&gt; IConversationAgent : depends on
+    IConversationAgent ..&gt; AgentEvent : streams
+    LettaAgentAdapter ..|&gt; IConversationAgent : will implement
+    ClaudeAgentAdapter ..|&gt; IConversationAgent : implements</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> Every arrow points <em>at</em> the interface. Nothing points out of it toward a vendor.</p>
+<ul>
+<li><strong>Above it</strong> — the screen and the coordinator hold only the interface type, so neither can name Letta, Claude, or Pipecat. Neither is wired up yet.</li>
+<li><strong>Below it</strong> — <code>ClaudeAgentAdapter</code> already implements this shape in Python. <code>LettaAgentAdapter</code> is a reserved name waiting on Stage 3, with a stub <code>submit()</code> that throws.</li>
+<li><strong>Beside it</strong> — <code>AgentEvent</code> is the currency crossing the boundary, and it is the one piece still being reconciled.</li>
+</ul>
+</section>
+<section>
+<h2>4. One turn through it</h2>
+<p>Figure 1 is the arrangement; this is the motion. The Python adapter proves the adapter/backend half; the browser screen and turn lifecycle remain unwired.</p>
+<div class="mermaid-figure" data-diagram="figure-2" id="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 — One turn through the plug-in point</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Sequence diagram of one conversation turn passing through IConversationAgent" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    actor User
+    participant Screen as Toyota Input Options
+    participant Iface as IConversationAgent (the interface)
+    participant Adapter as An adapter (Letta, Claude, Pipecat)
+    participant Backend as Agent backend
+
+    User-&gt;&gt;Screen: asks "Summarize our adapter plan"
+    Screen-&gt;&gt;Screen: beginTurn() returns generation 2
+    Note over Screen: Generation 2 means "the current turn".&lt;br/&gt;Events from the interrupted generation 1 are now stale.
+    Screen-&gt;&gt;Iface: submit("Summarize our adapter plan", generation 2)
+    Note over Screen,Iface: The screen holds the interface type only.&lt;br/&gt;It never learns which adapter it is holding.
+    Iface-&gt;&gt;Adapter: the call lands on whatever was injected
+    Adapter-&gt;&gt;Backend: vendor request (SDK, HTTP, websocket)
+    Backend--&gt;&gt;Adapter: vendor messages, in the vendor's own shape
+    Adapter--&gt;&gt;Screen: assistant_text: "We agreed to use one interface"
+    Adapter--&gt;&gt;Screen: assistant_text: "with swappable adapters."
+    Note over Adapter,Screen: Translation happens here and nowhere else. Only the five agreed kinds cross this line.
+    Adapter--&gt;&gt;Screen: terminal: generation 2 is complete
+    Screen-&gt;&gt;User: renders the reply, then closes the turn</pre>
+</div>
+</div>
+<ol class="diagram-step-tooltips" hidden>
+<li>The user starts a new request by asking the screen to summarize the adapter plan.</li>
+<li>The screen starts a new turn and receives generation 2, a token identifying this as the current turn.</li>
+<li>The screen submits the request through IConversationAgent; it knows the interface, but not the concrete adapter behind it.</li>
+<li>The interface call is dispatched to whichever adapter was injected when the application was assembled.</li>
+<li>The adapter translates the common submit call into the selected backend's SDK, HTTP, or websocket request.</li>
+<li>The backend returns vendor-specific messages that the adapter must translate before the screen can use them.</li>
+<li>The first assistant_text event carries the beginning of one streamed sentence: “We agreed to use one interface”.</li>
+<li>The second assistant_text event completes that same sentence with “with swappable adapters.” The screen appends it to step 7.</li>
+<li>The terminal event tells the screen that generation 2 has no more response chunks.</li>
+<li>The screen displays the joined sentence as one reply and closes the completed turn.</li>
+</ol>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> Here <code>generation</code> is a current-turn token, not a model version: when turn 2 begins, late events from interrupted turn 1 can be ignored. Vendor message shapes stop at the adapter, and only <code>AgentEvent</code> values cross back to the screen.</p>
+<ul>
+<li><strong>Step 3 is the point of the whole file.</strong> The screen writes one line and never learns which adapter it holds; that is chosen at the composition root.</li>
+<li><strong>Steps 6–9 are the translation seam.</strong> A vendor message arrives at the adapter; two distinct normalized text chunks and a terminal event come out.</li>
+</ul>
+</section>
+<section>
+<h2>5. What has to happen next</h2>
+<ol>
+<li><strong>Settle <code>AgentEvent</code> — Stage 2, in progress.</strong> TypeScript requires <code>sessionId</code>, <code>pydantic_models/models.py</code> requires <code>session_id: UUID</code>, and the Python adapter's copy has no session field and only two of the five kinds. Until they agree, no adapter can emit a legal event without inventing data.</li>
+<li><strong>Decide who owns the session id.</strong> Either <code>submit()</code> hands it down or the event stops carrying it. It cannot stay required by one side and unknown to the other.</li>
+<li><strong>Answer the interrupt question.</strong> Cancelling a turn is not on this interface yet: either a second method every adapter must implement, or a separate lifecycle interface. Deferred deliberately, not forgotten.</li>
+<li><strong>Write a TypeScript adapter — Stage 3.</strong> Python proves the shape is implementable; nothing yet proves it in the browser.</li>
+<li><strong>Make one screen depend on it — Stage 4.</strong> Until a real consumer calls <code>submit()</code>, this is a well-supported hypothesis.</li>
+</ol>
+</section>
+<section>
+<h2>6. How to check this yourself</h2>
+<ol>
+<li><code>cat voice_communication/conversation_agent/conversation_agent.ts</code> — nine lines, one method.</li>
+<li><code>npm run typecheck</code> in <code>voice_communication/</code> — passes.</li>
+<li><code>grep -rn "IConversationAgent" voice_communication/</code> — three hits: the file, the interfaces barrel, the reserved Letta name. A fourth hit means Stage 4 has started and this page is out of date.</li>
+<li><code>cd claude_agent_adapter &amp;&amp; ../lancedb_memory/.venv/bin/python tests/test_adapter.py</code> — 4/4 pass.</li>
+</ol>
+<button class="run-tests-button" type="button" data-run-test-suite="interface-file" data-api-path="../../../../../api/run-interface-file-tests">Run Interface File Checks</button>
+<p class="run-tests-status" role="status" aria-live="polite" hidden></p>
+<br>
+</section>
+<br>
+<section id="run-tests">
+<h2>7. How TDD continues this work</h2>
+<p>The next active work starts with one failing contract-parity test for <code>AgentEvent</code>. The test belongs beside the source code, not inside this HTML page. This page's button should only launch and report the real source-side checks.</p>
+<ol>
+<li>Write the parity test and confirm that it fails because the TypeScript and Python contracts disagree.</li>
+<li>Review the failure before changing production code.</li>
+<li>Make the smallest contract change that turns the test green.</li>
+</ol>
+<p>The completed Interface File checks stay green. Later adapter, Toyota, cancellation, and live-turn tasks remain <strong>Not started</strong> until each becomes current; they do not become permanent failing tests in advance.</p>
+</section>
+
+<section>
+<h2>9. Where the next-steps queue now lives</h2>
+<p>Nothing left to do is work <em>inside</em> this file — the file is finished. The full ordered queue across every remaining stage, plus what would bring work back to this page, lives one level up on the plan itself, where it stays in sync with the stage board: <a href="../../../../../index.html#item=voice_communication/conversation_agent&amp;tab=status&amp;anchor=next-steps">Conversation Agent Construction Status, section 6</a>.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Work on this one first</span>
+<strong>Reconcile the three <code>AgentEvent</code> copies. Every remaining item streams that type across the boundary, so until the three copies agree, anything built on top of them is built on a shape that is about to change.</strong>
+</blockquote>
+<p>Two things bring work back to <em>this</em> file specifically: the reconciliation deciding the session id is not carried by <code>AgentEvent</code> (then <code>submit()</code> grows a parameter), or the cancellation decision landing on <code>IConversationAgent</code> itself rather than beside it. Anything else downstream can be built without editing <code>conversation_agent.ts</code>.</p>
+</section>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a class="pager-up" href="../index.html">↑ 1. Declare the Plug-in Point</a>
+<a rel="next" href="../event_contracts/index.html">Event Contracts →</a>
+</nav>
+  </main>
+</body>
+</html>

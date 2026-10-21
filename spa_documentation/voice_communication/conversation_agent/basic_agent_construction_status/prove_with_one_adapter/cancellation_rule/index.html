@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Decide where cancellation lives · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">2. Prove With One Adapter</a> <span aria-hidden="true">›</span> <span aria-current="page">Cancellation Rule</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Decide where cancellation lives</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 2 of 5 — Prove the plug-in point with one working adapter  ›  Step 4 of 4 — Decide where cancellation lives</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Say what happens to a turn the user talks over, and which interface owns that verb.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>In a typed chat box, an abandoned response is a cosmetic problem. In voice it is the whole product: the assistant must stop talking the moment the user starts. So “what does cancellation mean” is not a refinement to add later — it is a load-bearing part of the contract.</p>
+<p>There are three candidate homes, and the choice is a design commitment, not a preference. Cancellation can be implicit in the generation number, with the consumer discarding events from superseded turns. It can be a method on <code>IConversationAgent</code>, making every adapter implement it. Or it can be a separate lifecycle interface, keeping the plug-in point at one method for adapters that genuinely cannot interrupt their backend.</p>
+</section>
+<section>
+<h2>2. What exists today</h2>
+<p>Nothing, and the silence is the risk. <code>generation</code> exists and hints at the first option, but no file says whether a cancelled turn is expected to stop producing events or merely to be ignored downstream. Two adapters could each be “correct” and behave incompatibly.</p>
+</section>
+<section>
+<h2>3. What is still missing</h2>
+<p>The written rule, in the plug-in point's own doc comment: after a generation is superseded, what may an adapter still emit, and what must a consumer do with it? Then whichever shape the decision implies — a parameter, a method, or a second interface.</p>
+</section>
+<section>
+<h2>4. How we will know it is done</h2>
+<p>Stage 5's cancellation test can be written from the doc comment alone, without asking anyone what was intended.</p>
+</section>
+<section>
+<h2>5. Why it is not started</h2>
+<p>It sits behind the <code>AgentEvent</code> reconciliation, because the same question — how much lifecycle the plug-in point owns — is easier to answer once for both.</p>
+</section>
+<section>
+<h2>6. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../reconcile_agent_event/index.html">← Reconcile AgentEvent</a>
+<a class="pager-up" href="../index.html">↑ 2. Prove With One Adapter</a>
+</nav>
+  </main>
+</body>
+</html>
+

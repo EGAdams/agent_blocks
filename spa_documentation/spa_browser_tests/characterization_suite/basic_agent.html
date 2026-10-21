@@ -1,0 +1,50 @@
+<h1>Characterization Suite</h1>
+<p class="placeholder">spa_documentation/browser_tests/ &mdash; 21 modules, 1 test file, 1,203 lines</p>
+
+<p>The only executable test suite in this repository. Six Playwright tests drive a
+real Chrome against a real <code>server.py</code> and pin down what the legacy
+<code>app.js</code> does today, so the strict-TypeScript rewrite under
+<code>app/</code> can be checked against behavior instead of against memory.</p>
+
+<h2>Why this block exists</h2>
+<p><code>app.js</code> is 1,301 lines and drives every piece of navigation in this
+SPA. Nothing under <code>app/</code> is loaded by the browser yet. Before the first
+line of that rewrite reaches <code>index.html</code>, there has to be something that
+fails loudly when behavior changes &mdash; otherwise "the rewrite works" means
+"nobody has noticed yet".</p>
+
+<h2>What it is made of</h2>
+<ul>
+  <li><strong>One test file.</strong> <code>legacy-navigation.test.ts</code>, 141 lines,
+      six tests: home nav, all five detail tabs, deep links with anchors,
+      invalid-route fallback, embedded mode, and both canonical lessons.</li>
+  <li><strong>Twenty-one modules</strong>, one directory each, wired through a single
+      composition root &mdash; the only module allowed to name a concrete
+      implementation.</li>
+  <li><strong>A page object.</strong> Tests speak <code>SpaPage</code>; no test names a
+      raw Playwright selector.</li>
+  <li><strong>An abstract factory.</strong> <code>PlatformProfile</code> absorbs every
+      Windows/WSL versus Linux difference, so no <code>isWindows</code> branch survives
+      in a consumer.</li>
+  <li><strong>Null Objects.</strong> The step dialog, the window focus call and the
+      hold-open banner are objects that do nothing in a headless run, not flags
+      checked inside a test.</li>
+</ul>
+
+<h2>Where it stands</h2>
+<p><code>npm test</code> reports <strong>6 passed, 0 failed</strong> in about eight
+seconds, and <code>npm run typecheck</code> passes across <code>app/</code>,
+<code>app_tests/</code> and <code>browser_tests/</code>. Two things are open: the
+Chrome path is a hard-coded constant with no environment override, so a fresh
+checkout fails at browser launch; and the Update Documentation lifecycle &mdash; the
+largest single behavior in <code>app.js</code> &mdash; is still unpinned.</p>
+
+<p>Open <strong>Construction Status</strong> for the five-stage plan, or
+<strong>Source</strong> for the test file itself.</p>
+
+<h2>A note on this folder's name</h2>
+<p>Every other documentation tree here mirrors a project one level up in
+<code>agent_blocks</code>. This one documents source that lives <em>inside</em> this
+repository, at <code>spa_documentation/browser_tests/</code>. The docs folder is
+called <code>spa_browser_tests/</code> because <code>browser_tests/</code> is already
+taken on disk by the source it describes.</p>

@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform Profile Construction Status · Characterization Suite Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260908browsertests">
+  <!-- The lesson presentation assets are shared with the IConversationAgent
+       plan rather than copied here. There is one copy of page.js in this
+       repo; a second would drift the moment either was edited. -->
+  <link rel="stylesheet" href="../../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.css?v=1">
+  <script defer src="../../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.js?v=8"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">1. Declare the Test Seams</a> <span aria-hidden="true">›</span> <span aria-current="page">Platform Profile</span>
+  </nav>
+
+  <article class="construction-lesson" data-canonical-source="platform-profile">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Platform Profile Construction Status</h1>
+      <div class="project-terminal-control">
+        <button class="run-tests-button open-project-terminal-button" type="button" data-open-project-terminal data-api-path="../../../../../api/open-platform-profile-project-terminal">Open Terminal in Project</button>
+        <p class="project-terminal-status" role="status" aria-live="polite" hidden></p>
+      </div>
+      <p class="construction-lesson-edition">Characterization Suite construction lesson</p>
+      <p class="construction-lesson-trail">Stage 1 of 5 — Declare the test seams  ›  Step 1 of 3 — Write the platform profile</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>One abstract factory, PlatformProfile, supplying every host-specific product a test run needs.</strong>
+</blockquote>
+<section>
+<h2>1. Where this item stands</h2>
+<p>The interface and both of its implementations are <strong>finished</strong>. What is not finished is one hard-coded path inside the Linux implementation, which is why the suite cannot run on a fresh checkout without editing a source file.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>The work</th><th>State</th><th>What you can go and check</th></tr></thead>
+<tbody>
+<tr><td>The abstract factory is declared</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>browser_tests/platform-profile/platform-profile.ts</code> — 21 lines, four products.</td></tr>
+<tr><td>A Windows/WSL profile implements it</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>windows-platform-profile.ts</code> — spawns <code>server.py</code> through <code>wsl.exe</code>, drives desktop Chrome.</td></tr>
+<tr><td>A Linux profile implements it</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>linux-platform-profile.ts</code> — spawns <code>python3 server.py</code> in place.</td></tr>
+<tr><td>It compiles under strict TypeScript</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>npm run typecheck</code> passes across <code>app/</code>, <code>app_tests/</code> and <code>browser_tests/</code>.</td></tr>
+<tr><td>Only the composition root picks a profile</td><td><span class="construction-status-chip status-done">Done</span></td><td>No <code>IS_WINDOWS</code> branch survives anywhere else. Section 6, check 2.</td></tr>
+<tr><td>The browser path is discoverable</td><td><span class="construction-status-chip status-current">In progress</span></td><td><code>CHROME_PATH</code> is a <code>const</code> in each profile. There is no environment override, so a host without Chrome at that exact path cannot run the suite.</td></tr>
+<tr><td>A third host has been added</td><td><span class="construction-status-chip">Not started</span></td><td>Nothing has ever exercised the &ldquo;adding a host is adding a profile&rdquo; claim. It is a well-supported hypothesis, not a demonstrated one.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Read this row first</span>
+<strong>Done here means the seam is drawn and two hosts really use it. It does not mean the suite starts on a machine you have not already configured by hand.</strong>
+</blockquote>
+</section>
+<section>
+<h2>2. What was written — the finished file</h2>
+<p>This is the whole item, exactly as it sits on disk today. Twenty-one lines, four products, no implementation.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>browser_tests/platform-profile/platform-profile.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">WindowFocuser</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;../window-focuser/window-focuser.js&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nx">ServerSpawnPlan</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="w">    </span><span class="k">readonly</span><span class="w"> </span><span class="nx">command</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="w">    </span><span class="k">readonly</span><span class="w"> </span><span class="nx">args</span><span class="o">:</span><span class="w"> </span><span class="kt">ReadonlyArray</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="w">    </span><span class="k">readonly</span><span class="w"> </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="o">|</span><span class="w"> </span><span class="kc">null</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="p">}</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="cm">/**</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="cm"> * Abstract Factory. One profile supplies the whole family of host-specific</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text"><span class="cm"> * products a run needs: how to launch `server.py`, which Chrome binary to</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text"><span class="cm"> * drive, and how to raise its window. Adding a host means adding a profile,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text"><span class="cm"> * not another `IS_WINDOWS` branch.</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text"><span class="cm"> */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nx">PlatformProfile</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">16</span><span class="vscode-line-text"><span class="w">    </span><span class="k">readonly</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">serverSpawnPlan</span><span class="p">(</span><span class="w"> </span><span class="nx">port</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">ServerSpawnPlan</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">browserExecutablePath</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">browserLaunchArgs</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nx">ReadonlyArray</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">createWindowFocuser</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nx">WindowFocuser</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="p">}</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>Three decisions carry it. <code>ServerSpawnPlan</code> is <em>data describing a launch</em> rather than a launch, so the module that spawns the child process never learns which host it is on. Every member is <code>readonly</code> and every array is <code>ReadonlyArray</code>, so a profile cannot be mutated by the code it is handed to. And <code>createWindowFocuser()</code> returns a product rather than a boolean, which is what keeps &ldquo;this host cannot raise a window&rdquo; expressible as a Null Object instead of an <code>if</code>.</p>
+<p>These pages call a file like this a <strong>plug-in point</strong> — an opening with a written-down shape, so different components can be plugged in later without the surrounding code noticing. Here it is the Gang of Four <em>Abstract Factory</em>: one interface handing out a whole family of related products that have to agree with each other.</p>
+</section>
+<section>
+<h2>3. The two implementations, side by side</h2>
+<p>The interface earns its place only if the implementations really differ. They do — on all four products.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>browser_tests/windows-platform-profile/windows-platform-profile.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">PlatformProfile</span><span class="p">,</span><span class="w"> </span><span class="nx">ServerSpawnPlan</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;../platform-profile/platform-profile.js&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">TestConfig</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;../test-config/test-config.js&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">WindowFocuser</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;../window-focuser/window-focuser.js&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="k">import</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">createPowerShellWindowFocuser</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">&quot;../powershell-window-focuser/powershell-window-focuser.js&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="kd">const</span><span class="w"> </span><span class="nx">WSL_DISTRIBUTION</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;Ubuntu-26.04&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="kd">const</span><span class="w"> </span><span class="nx">CHROME_PATH</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="cm">/**</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="cm"> * Windows host: Node runs natively, `server.py` runs inside WSL, and Chrome is</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text"><span class="cm"> * the desktop install so the headed run appears on the user&#39;s screen.</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text"><span class="cm"> */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createWindowsPlatformProfile</span><span class="p">(</span><span class="w"> </span><span class="nx">config</span><span class="o">:</span><span class="w"> </span><span class="kt">TestConfig</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">PlatformProfile</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">16</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">        </span><span class="nx">serverSpawnPlan</span><span class="p">(</span><span class="w"> </span><span class="nx">port</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">ServerSpawnPlan</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">command</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;wsl.exe&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">args</span><span class="o">:</span><span class="w"> </span><span class="p">[</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;-d&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">22</span><span class="vscode-line-text"><span class="w">                    </span><span class="nx">WSL_DISTRIBUTION</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">23</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;--cd&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">24</span><span class="vscode-line-text"><span class="w">                    </span><span class="nx">config</span><span class="p">.</span><span class="nx">linuxProjectRoot</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">25</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">26</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;server.py&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">27</span><span class="vscode-line-text"><span class="w">                    </span><span class="nb">String</span><span class="p">(</span><span class="w"> </span><span class="nx">port</span><span class="w"> </span><span class="p">),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">28</span><span class="vscode-line-text"><span class="w">                </span><span class="p">],</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">29</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="kt">null</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">30</span><span class="vscode-line-text"><span class="w">            </span><span class="p">};</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">31</span><span class="vscode-line-text"><span class="w">        </span><span class="p">},</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 16, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>On Windows, Node runs natively while <code>server.py</code> has to cross into WSL, so the spawn plan is <code>wsl.exe -d Ubuntu-26.04 --cd &lt;linux root&gt; python3 server.py &lt;port&gt;</code> and <code>cwd</code> is <code>null</code> — the working directory is carried inside the command instead.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>browser_tests/linux-platform-profile/linux-platform-profile.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="kd">const</span><span class="w"> </span><span class="nx">CHROME_PATH</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/usr/bin/google-chrome&quot;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"><span class="cm">/** Linux host: `server.py` and Chrome both run in-place. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">createLinuxPlatformProfile</span><span class="p">(</span><span class="w"> </span><span class="nx">config</span><span class="o">:</span><span class="w"> </span><span class="kt">TestConfig</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">PlatformProfile</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text"><span class="w">        </span><span class="nx">serverSpawnPlan</span><span class="p">(</span><span class="w"> </span><span class="nx">port</span><span class="o">:</span><span class="w"> </span><span class="kt">number</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">ServerSpawnPlan</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text"><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">command</span><span class="o">:</span><span class="w"> </span><span class="s2">&quot;python3&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">16</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">args</span><span class="o">:</span><span class="w"> </span><span class="p">[</span><span class="w"> </span><span class="s2">&quot;server.py&quot;</span><span class="p">,</span><span class="w"> </span><span class="nb">String</span><span class="p">(</span><span class="w"> </span><span class="nx">port</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">],</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">cwd</span><span class="o">:</span><span class="w"> </span><span class="kt">config.projectRoot</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">            </span><span class="p">};</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="w">        </span><span class="p">},</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="w">        </span><span class="nx">browserExecutablePath</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">22</span><span class="vscode-line-text"><span class="w">            </span><span class="k">return</span><span class="w"> </span><span class="nx">CHROME_PATH</span><span class="p">;</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 13, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>On Linux both processes are already on the same side of the boundary, so the plan collapses to <code>python3 server.py &lt;port&gt;</code> with a real <code>cwd</code>, and the window focuser becomes the Null Object. The difference between the two files is exactly the difference between the two hosts, and nothing else in the suite has to know about it.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Why this is not two if-statements</span>
+<strong>Every host difference is one profile. A run either has the Windows family or the Linux family — it can never end up with the WSL spawn plan and the Linux Chrome path, which is precisely the mismatch a scattered <code>isWindows</code> check produces.</strong>
+</blockquote>
+</section>
+<section>
+<h2>4. Where it sits, and what still hard-codes a path</h2>
+<p>Drag to pan, wheel to zoom. Each box's stereotype carries its status.</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 — Where PlatformProfile sits</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Class diagram showing consumers depending on PlatformProfile and two profiles implementing it" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">classDiagram
+    direction LR
+
+    class PlatformProfile {
+        &lt;&lt;the plug-in point&gt;&gt;
+        +name
+        +serverSpawnPlan(port) ServerSpawnPlan
+        +browserExecutablePath() string
+        +browserLaunchArgs() ReadonlyArray~string~
+        +createWindowFocuser() WindowFocuser
+    }
+
+    class ServerSpawnPlan {
+        &lt;&lt;shared contract&gt;&gt;
+        +command
+        +args
+        +cwd
+    }
+
+    class CompositionRoot {
+        &lt;&lt;the only chooser&gt;&gt;
+        +createLegacyNavigationEnvironment()
+    }
+
+    class SpaServer {
+        &lt;&lt;consumer&gt;&gt;
+    }
+
+    class BrowserSession {
+        &lt;&lt;consumer&gt;&gt;
+    }
+
+    class WindowsPlatformProfile {
+        &lt;&lt;profile, working today&gt;&gt;
+        +serverSpawnPlan(port)
+    }
+
+    class LinuxPlatformProfile {
+        &lt;&lt;profile, path hard-coded&gt;&gt;
+        +serverSpawnPlan(port)
+    }
+
+    CompositionRoot ..&gt; PlatformProfile : selects one
+    SpaServer ..&gt; PlatformProfile : depends on
+    BrowserSession ..&gt; PlatformProfile : depends on
+    PlatformProfile ..&gt; ServerSpawnPlan : returns
+    WindowsPlatformProfile ..|&gt; PlatformProfile : implements
+    LinuxPlatformProfile ..|&gt; PlatformProfile : implements</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> Every arrow points <em>at</em> the interface. Only the composition root points at a concrete profile.</p>
+<ul>
+<li><strong>Above it</strong> — <code>SpaServer</code> and <code>BrowserSession</code> hold only the interface type, so neither can name WSL, PowerShell, or a Chrome path.</li>
+<li><strong>Below it</strong> — both profiles are real and both are used: Windows on the headed run, Linux on the headless one.</li>
+<li><strong>Beside it</strong> — <code>ServerSpawnPlan</code> is the currency crossing the boundary, and it is the piece that lets <code>SpaServer</code> spawn a process it knows nothing about.</li>
+</ul>
+</section>
+<section>
+<h2>5. One run through it</h2>
+<p>Figure 1 is the arrangement; this is the motion. Every host-specific decision in a whole test run is made in the first three messages and never revisited.</p>
+<div class="mermaid-figure" data-diagram="figure-2" id="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 — One run through the abstract factory</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Sequence diagram of one test run resolving host differences through PlatformProfile" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    actor Runner as npm test
+    participant Root as Composition root
+    participant Config as TestConfig
+    participant Profile as PlatformProfile (the interface)
+    participant Server as SpaServer
+    participant Browser as BrowserSession
+
+    Runner-&gt;&gt;Root: createLegacyNavigationEnvironment()
+    Root-&gt;&gt;Config: readTestConfig( platform, env, moduleUrl )
+    Note over Config: process.env and process.platform are read&lt;br/&gt;here and nowhere else in the suite.
+    Config--&gt;&gt;Root: immutable TestConfig
+    Root-&gt;&gt;Profile: createWindowsPlatformProfile or createLinuxPlatformProfile
+    Note over Root,Profile: This is the last line that names a host.&lt;br/&gt;Everything after it holds the interface only.
+    Root-&gt;&gt;Server: createSpaServer( ports, profile, readiness )
+    Root-&gt;&gt;Browser: createBrowserSession( profile, config )
+    Server-&gt;&gt;Profile: serverSpawnPlan( 41337 )
+    Profile--&gt;&gt;Server: { command, args, cwd }
+    Server-&gt;&gt;Server: spawn the plan, poll until index.html answers
+    Browser-&gt;&gt;Profile: browserExecutablePath() and browserLaunchArgs()
+    Profile--&gt;&gt;Browser: the host's Chrome and its flags
+    Browser--&gt;&gt;Runner: a launched browser, ready for the six tests</pre>
+</div>
+</div>
+<ol class="diagram-step-tooltips" hidden>
+<li>The test runner asks the composition root to assemble one whole environment; this is the only entry point a test file imports.</li>
+<li>The composition root asks TestConfig to read the run's configuration from process.platform and process.env.</li>
+<li>TestConfig returns an immutable configuration object, so every module below this point is testable with a hand-built config.</li>
+<li>The composition root selects one concrete profile. This is the single line in the suite that names a host.</li>
+<li>SpaServer is constructed against the interface; it never learns whether it holds the Windows or the Linux family.</li>
+<li>BrowserSession is constructed the same way, and it is the only module that imports Playwright's launcher.</li>
+<li>SpaServer asks the profile how to launch server.py on the reserved port, instead of deciding for itself.</li>
+<li>The profile answers with a plain ServerSpawnPlan: a command, its arguments, and a working directory or null.</li>
+<li>SpaServer spawns that plan and polls index.html until the child process answers, then hands back a base URL.</li>
+<li>BrowserSession asks the same profile for the host's Chrome binary and the flags it needs.</li>
+<li>The profile answers with the executable path and launch arguments belonging to this host's family.</li>
+<li>The browser is launched and the six characterization tests can begin, with no host check left anywhere in the run.</li>
+</ol>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> Steps 7&ndash;11 are the whole point: two different consumers ask the same object two different questions, and each gets an answer from the same host's family.</p>
+<ul>
+<li><strong>Step 4 is the point of the whole file.</strong> One line chooses a host. Delete it and the suite still compiles — it just has nothing to run against.</li>
+<li><strong>Steps 8 and 11 are the seam.</strong> Data comes back, not behavior. Neither consumer executes anything the profile chose; they act on a value.</li>
+</ul>
+</section>
+<section>
+<h2>6. How to check this yourself</h2>
+<ol>
+<li><code>cat browser_tests/platform-profile/platform-profile.ts</code> — 21 lines, one interface, four products.</li>
+<li><code>grep -rn "isWindows" browser_tests/</code> — two hits, both inside <code>composition-root.ts</code> and <code>test-config.ts</code>. A third hit means a host check has leaked back out into a consumer.</li>
+<li><code>grep -n "page.locator\|getByRole" browser_tests/*.test.ts</code> — no hits. The tests speak <code>SpaPage</code>, never a raw selector.</li>
+<li><code>npm run typecheck</code> — passes across all three projects.</li>
+<li><code>npm test</code> — 6/6 pass on a host whose Chrome is where the profile says it is.</li>
+</ol>
+<button class="run-tests-button" type="button" data-run-test-suite="platform-profile" data-api-path="../../../../../api/run-platform-profile-tests">Run Browser Test Checks</button>
+<p class="run-tests-status" role="status" aria-live="polite" hidden></p>
+</section>
+<section>
+<h2>7. What has to happen next</h2>
+<ol>
+<li><strong>Make the Chrome path discoverable — the item in progress.</strong> <code>CHROME_PATH</code> is a module-level <code>const</code> in both profiles with no environment override. On a machine whose Chrome is anywhere else — a Playwright-managed download, a distro package, a different Windows install — <code>npm test</code> fails at launch with <code>executable doesn't exist</code> and the only fix is editing a source file. A <code>SPA_TEST_CHROME</code> variable read in <code>readTestConfig()</code> would fit the existing shape exactly, since every other environment input already arrives that way.</li>
+<li><strong>Decide whether a missing browser is a skip or a failure.</strong> Today it is six failures that look like broken tests rather than a missing prerequisite. That is a reporting decision, not a typing one.</li>
+<li><strong>Add a third profile.</strong> The &ldquo;adding a host means adding a profile&rdquo; claim in the file's own doc comment has never been exercised. A macOS profile would either confirm it or reveal a product the interface is missing.</li>
+<li><strong>Cover the profiles with unit tests.</strong> <code>serverSpawnPlan()</code> is a pure function from a port to a plan — the cheapest thing in the suite to test, and currently untested in either implementation.</li>
+</ol>
+</section>
+<section>
+<h2>8. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<section>
+<h2>9. Where the next-steps queue now lives</h2>
+<p>Section 7 lists what has to happen to <em>this factory</em>. The full ordered queue across every remaining stage — including where the Chrome-path fix sits relative to everything waiting on it — lives one level up on the plan itself, where it stays in sync with the stage board: <a href="../../../../../index.html#item=spa_browser_tests/characterization_suite&amp;tab=status&amp;anchor=next-steps">Characterization Suite Construction Status, section 6</a>.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Work on this one first</span>
+<strong>Make the Chrome path discoverable. Every other item on the queue is proved by running the suite, so on any host where the suite cannot start, none of them can be checked at all.</strong>
+</blockquote>
+<p>Two things specifically would bring work back to <em>this</em> file. A <code>SPA_TEST_CHROME</code> override changes <code>browserExecutablePath()</code> in both profiles and section 2's line 18. Adding a product to the family — a downloads directory, a trace output path — changes the interface itself, and every profile has to answer for it in the same change.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; Characterization Suite Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a class="pager-up" href="../index.html">↑ 1. Declare the Test Seams</a>
+<a rel="next" href="../../characterize_the_legacy_spa/characterization_suite/index.html">Characterization Suite →</a>
+</nav>
+  </main>
+</body>
+</html>

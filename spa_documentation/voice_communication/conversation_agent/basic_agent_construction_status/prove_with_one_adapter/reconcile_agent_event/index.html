@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reconcile the three AgentEvent copies · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">2. Prove With One Adapter</a> <span aria-hidden="true">›</span> <span aria-current="page">Reconcile AgentEvent</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-current">In progress</span>
+      <h1>Reconcile the three AgentEvent copies</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 2 of 5 — Prove the plug-in point with one working adapter  ›  Step 3 of 4 — Reconcile the three AgentEvent copies</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Decide whether an event carries a session id, then make all three definitions agree.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p><strong>This is the item currently being worked on, and it is the reason nothing downstream has started.</strong> Three definitions of the same event have drifted apart, and each one is defensible on its own:</p>
+<ul class="construction-lesson-evidence">
+<li>TypeScript — <code>contracts.ts</code>: <code>sessionId</code> required, <code>generation: number</code>, five kinds.</li>
+<li>Python service side — <code>voice_communication/pydantic_models/models.py</code>: <code>session_id: UUID</code> required, five kinds.</li>
+<li>Python adapter side — <code>claude_agent_adapter/models.py</code>: <em>no</em> session field, two kinds (<code>assistant_text</code>, <code>terminal</code>).</li>
+</ul>
+<p>The adapter's omission is not sloppiness; it is an argument. <code>submit( text, generation )</code> never receives a session id, so an adapter that emitted one would be inventing data. Either the plug-in point hands the session down, or the event stops carrying it and whoever owns the session attaches it above the boundary. Both are coherent designs. Choosing is the work.</p>
+</section>
+<section>
+<h2>2. What exists today</h2>
+<p>All three files, all valid, all disagreeing. The disagreement is invisible to every current check: <code>tsc</code> and the Python tests each see only their own side, so nothing fails today. That is exactly why it needs a decision rather than a bug report.</p>
+</section>
+<section>
+<h2>3. What is still missing</h2>
+<p>A decision, written down in one place. Then: whichever of the three definitions loses gets edited, the two-kind Python copy grows to whatever set of kinds is agreed, and a note in the shared contracts file records why — so the next person does not silently re-add the field.</p>
+</section>
+<section>
+<h2>4. How we will know it is done</h2>
+<p>The three definitions describe the same event; <code>npm run typecheck</code> and the adapter tests both still pass; and the reason for the choice is written next to the type, not just in this plan.</p>
+</section>
+<section>
+<h2>5. The next concrete action</h2>
+<p>Answer one question: <em>does an adapter know its session?</em> If yes, add the session parameter to <code>submit()</code> and keep the field. If no, drop <code>sessionId</code> from <code>AgentEvent</code> and let the coordinator stamp it. Everything else in this item follows mechanically from that answer.</p>
+</section>
+<section>
+<h2>6. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../adapter_tests/index.html">← Adapter Tests</a>
+<a class="pager-up" href="../index.html">↑ 2. Prove With One Adapter</a>
+<a rel="next" href="../cancellation_rule/index.html">Cancellation Rule →</a>
+</nav>
+  </main>
+</body>
+</html>
+

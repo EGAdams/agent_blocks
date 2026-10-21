@@ -1,0 +1,60 @@
+<div class="construction-plan-intro construction-textbook-intro">
+  <article class="construction-textbook-page">
+    <header class="construction-status-masthead">
+      <p class="construction-status-kicker">Voice Communication University • Construction Studio</p>
+      <span class="construction-status-badge">Active Boundary</span>
+      <h1>Constructing the Input Draft</h1>
+      <p class="construction-status-edition">One authoritative reset for Toyota's visible text and transcript state</p>
+    </header>
+    <div class="construction-status-body">
+      <h2>1. Why this block exists</h2>
+      <p>Toyota's current textbox is not the whole draft. Continuous recognition also keeps a committed transcript in memory. Clearing only the HTML control leaves that hidden prefix alive, so the next spoken phrase can restore and extend old text.</p>
+      <blockquote class="construction-status-callout">
+        <span class="construction-status-callout-label">Ownership Rule</span>
+        <strong>The Input Draft owns synchronized text mutation. It does not decide when listening starts, where a message is sent, or whether an asynchronous result is still current.</strong>
+      </blockquote>
+      <div class="construction-status-metrics" aria-label="Live construction status summary">
+        <div><strong data-construction-count="total">0</strong><span>Total tasks</span></div>
+        <div><strong data-construction-count="current">0</strong><span>Current</span></div>
+        <div><strong data-construction-count="planned">0</strong><span>Planned</span></div>
+        <div><strong data-construction-count="done">0</strong><span>Done</span></div>
+        <div><strong data-construction-completion>0%</strong><span>Complete</span></div>
+      </div>
+      <div class="construction-progress-track" aria-hidden="true"><div class="construction-progress-bar" data-construction-progress></div></div>
+      <p class="construction-progress-caption">Counts are calculated from the hidden branches and leaves below.</p>
+      <h2>2. Evidence already present</h2>
+      <p>The dashboard already has a NoteDocument boundary, an EditableDarkNoteSurface, a TranscriptBuffer, and a TranscriptSyncedNote decorator. The new block captures the smallest reusable contract those objects are already pointing toward.</p>
+      <h2>3. Completion standard</h2>
+      <p>A single <code>clear()</code> call must empty the visible value and the transcript's committed and interim state. Tests must prove that the next accepted speech fragment begins at an empty draft.</p>
+      <blockquote class="construction-status-callout principle"><span class="construction-status-callout-label">SOLID Check</span><strong>One reason to change: how draft text is stored and mutated. Capture policy and network submission stay outside this block.</strong></blockquote>
+    </div>
+    <footer class="construction-status-footer">Voice Communication University • Input Draft • Dynamic Construction Status</footer>
+  </article>
+</div>
+
+<section class="construction-task-focus construction-textbook-focus" data-construction-object="Input Draft" aria-live="polite" hidden></section>
+
+<ol class="construction-task-tree" data-construction-object="Input Draft" aria-label="Input Draft construction tasks" hidden>
+  <li class="construction-task" data-task-id="draft-contract" data-task-label="Define Draft Contract" data-task-status="current">
+    <div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Define the Input Draft contract</strong><small>Expose only the text mutations required by Toyota's application policy.</small></span><span class="construction-task-status">Current</span></div>
+    <ol class="construction-task-children">
+      <li class="construction-task" data-task-id="draft-contract-reads" data-task-label="Name Text Operations" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Name the text operations</strong><small>Keep get, replace, append, and clear semantics explicit and framework-neutral.</small></span><span class="construction-task-status">Planned</span></div></li>
+      <li class="construction-task" data-task-id="draft-contract-dom" data-task-label="Exclude DOM Details" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Exclude DOM details</strong><small>Keep textarea elements, CSS, focus, and browser events out of the application port.</small></span><span class="construction-task-status">Planned</span></div></li>
+    </ol>
+  </li>
+  <li class="construction-task" data-task-id="draft-adapter" data-task-label="Build Synchronized Adapter" data-task-status="planned">
+    <div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Build the synchronized browser adapter</strong><small>Adapt the existing text surface and transcript buffer to IInputDraft.</small></span><span class="construction-task-status">Planned</span></div>
+    <ol class="construction-task-children">
+      <li class="construction-task" data-task-id="draft-adapter-surface" data-task-label="Clear Visible Surface" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Clear the visible surface</strong><small>Replace the rendered textbox value with an empty string through the injected surface.</small></span><span class="construction-task-status">Planned</span></div></li>
+      <li class="construction-task" data-task-id="draft-adapter-buffer" data-task-label="Reset Transcript State" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Reset transcript state</strong><small>Empty both committed and interim speech state in the same adapter operation.</small></span><span class="construction-task-status">Planned</span></div></li>
+      <li class="construction-task" data-task-id="draft-adapter-parity" data-task-label="Preserve Existing Surfaces" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Preserve existing surface behavior</strong><small>Keep ordinary agent textareas and Toyota's dark editable surface interchangeable.</small></span><span class="construction-task-status">Planned</span></div></li>
+    </ol>
+  </li>
+  <li class="construction-task" data-task-id="draft-tests" data-task-label="Prove Atomic Reset" data-task-status="planned">
+    <div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Prove the reset is atomic at the application boundary</strong><small>Record focused evidence before the coordinator adopts the block.</small></span><span class="construction-task-status">Planned</span></div>
+    <ol class="construction-task-children">
+      <li class="construction-task" data-task-id="draft-tests-both" data-task-label="Test Both Stores Empty" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Test both stores become empty</strong><small>Assert the surface and backing transcript snapshot are empty after one clear call.</small></span><span class="construction-task-status">Planned</span></div></li>
+      <li class="construction-task" data-task-id="draft-tests-next" data-task-label="Test Next Phrase Starts Fresh" data-task-status="planned"><div class="construction-task-row"><span class="construction-task-box"></span><span class="construction-task-copy"><strong>Test the next phrase starts fresh</strong><small>Accept a new transcript after clear and prove no old prefix returns.</small></span><span class="construction-task-status">Planned</span></div></li>
+    </ol>
+  </li>
+</ol>

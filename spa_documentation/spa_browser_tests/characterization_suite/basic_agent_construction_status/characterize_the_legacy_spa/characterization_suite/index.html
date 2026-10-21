@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Characterization Suite Construction Status · Characterization Suite Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260908browsertests">
+  <!-- The lesson presentation assets are shared with the IConversationAgent
+       plan rather than copied here. There is one copy of page.js in this
+       repo; a second would drift the moment either was edited. -->
+  <link rel="stylesheet" href="../../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.css?v=1">
+  <script defer src="../../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.js?v=8"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">4. Characterize the Legacy SPA</a> <span aria-hidden="true">›</span> <span aria-current="page">Characterization Suite</span>
+  </nav>
+
+  <article class="construction-lesson" data-canonical-source="characterization-suite">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Characterization Suite Construction Status</h1>
+      <div class="project-terminal-control">
+        <button class="run-tests-button open-project-terminal-button" type="button" data-open-project-terminal data-api-path="../../../../../api/open-characterization-suite-project-terminal">Open Terminal in Project</button>
+        <p class="project-terminal-status" role="status" aria-live="polite" hidden></p>
+      </div>
+      <p class="construction-lesson-edition">Characterization Suite construction lesson</p>
+      <p class="construction-lesson-trail">Stage 4 of 5 — Characterize the legacy SPA  ›  Step 1 of 2 — Write the characterization tests</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Six tests that pin down what app.js does today, so the TypeScript rewrite can be checked against behavior instead of against memory.</strong>
+</blockquote>
+<section>
+<h2>1. Where this item stands</h2>
+<p>The suite is <strong>finished and green</strong>: six tests, 6/6 passing, roughly eight seconds end to end. What is not finished is its coverage — it pins navigation and leaves the Update Documentation lifecycle, the single largest piece of <code>app.js</code>, entirely unpinned.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>The work</th><th>State</th><th>What you can go and check</th></tr></thead>
+<tbody>
+<tr><td>The tests exist and run</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>browser_tests/legacy-navigation.test.ts</code> — 141 lines, six <code>test()</code> calls.</td></tr>
+<tr><td>They pass against the real SPA</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>npm test</code> — <code>tests 6 / pass 6 / fail 0</code>, about 8.0 s.</td></tr>
+<tr><td>They drive a real browser</td><td><span class="construction-status-chip status-done">Done</span></td><td>Playwright launches Chrome against a real <code>server.py</code> on an ephemeral port. Nothing is stubbed.</td></tr>
+<tr><td>No test names a raw selector</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>grep -n "page.locator" browser_tests/*.test.ts</code> — no hits. Section 6, check 3.</td></tr>
+<tr><td>They caught a real regression</td><td><span class="construction-status-chip status-done">Done</span></td><td>Adding this very section to the SPA nav failed tests 1 and 4 until <code>nav-fixtures.ts</code> was updated. See section 5.</td></tr>
+<tr><td>They cover Update Documentation</td><td><span class="construction-status-chip">Not started</span></td><td>Nothing exercises <code>/api/git-status</code>, the Update button, or its polling loop. The tab is opened and its HTTP status checked; its behavior is not.</td></tr>
+<tr><td>They run on an unconfigured host</td><td><span class="construction-status-chip status-current">In progress</span></td><td>A hard-coded <code>CHROME_PATH</code> means a fresh checkout fails at browser launch. That is Stage 1, listed below.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Read this row first</span>
+<strong>A characterization test asserts what the code <em>does</em>, not what it should do. Green here means the rewrite has a baseline to match — not that the behavior it pins is correct.</strong>
+</blockquote>
+</section>
+<section>
+<h2>2. What was written — the suite</h2>
+<p>Three excerpts from the one test file: how a page is borrowed and returned, the simplest test, and the most demanding one.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>browser_tests/legacy-navigation.test.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="kd">const</span><span class="w"> </span><span class="nx">environment</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="nx">createLegacyNavigationEnvironment</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="cm">/** Every test ends the same way: acknowledge the step, then release the page. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">22</span><span class="vscode-line-text"><span class="k">async</span><span class="w"> </span><span class="kd">function</span><span class="w"> </span><span class="nx">withSpaPage</span><span class="p">(</span><span class="w"> </span><span class="nx">body</span><span class="o">:</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="nx">spa</span><span class="o">:</span><span class="w"> </span><span class="kt">SpaPage</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">23</span><span class="vscode-line-text"><span class="w">    </span><span class="kd">const</span><span class="w"> </span><span class="nx">spa</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="k">await</span><span class="w"> </span><span class="nx">environment</span><span class="p">.</span><span class="nx">newPage</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">24</span><span class="vscode-line-text"><span class="w">    </span><span class="k">try</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">25</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">body</span><span class="p">(</span><span class="w"> </span><span class="nx">spa</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">26</span><span class="vscode-line-text"><span class="w">    </span><span class="p">}</span><span class="w"> </span><span class="k">finally</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">27</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">finishStep</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">28</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">dispose</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">29</span><span class="vscode-line-text"><span class="w">    </span><span class="p">}</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">30</span><span class="vscode-line-text"><span class="p">}</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">39</span><span class="vscode-line-text"><span class="nx">describe</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;legacy SPA navigation characterization&quot;</span><span class="p">,</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">concurrency</span><span class="o">:</span><span class="w"> </span><span class="kt">false</span><span class="w"> </span><span class="p">},</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">40</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">before</span><span class="p">(</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">41</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">environment</span><span class="p">.</span><span class="nx">start</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">42</span><span class="vscode-line-text"><span class="w">    </span><span class="p">});</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">43</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">44</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">after</span><span class="p">(</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">45</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">environment</span><span class="p">.</span><span class="nx">stop</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">46</span><span class="vscode-line-text"><span class="w">    </span><span class="p">});</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">47</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">48</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">test</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;renders the established home navigation in order&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">49</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">withSpaPage</span><span class="p">(</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="nx">spa</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">50</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">openHome</span><span class="p">();</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">51</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">expectNav</span><span class="p">(</span><span class="w"> </span><span class="nx">HOME_NAV_LABELS</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">52</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">expectActiveNav</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;Home&quot;</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">53</span><span class="vscode-line-text"><span class="w">        </span><span class="p">});</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">54</span><span class="vscode-line-text"><span class="w">    </span><span class="p">});</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">109</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">test</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;drills into both embedded lessons and backs out one level at a time&quot;</span><span class="p">,</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">110</span><span class="vscode-line-text"><span class="w">        </span><span class="k">await</span><span class="w"> </span><span class="nx">withSpaPage</span><span class="p">(</span><span class="w"> </span><span class="k">async</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="nx">spa</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">111</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">openHash</span><span class="p">(</span><span class="w"> </span><span class="nx">CONVERSATION_STATUS_HASH</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">112</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">waitForLink</span><span class="p">(</span><span class="w"> </span><span class="nx">FIRST_TASK_LINK</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">113</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">clickLink</span><span class="p">(</span><span class="w"> </span><span class="nx">FIRST_TASK_LINK</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">114</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">115</span><span class="vscode-line-text"><span class="w">            </span><span class="k">for</span><span class="w"> </span><span class="p">(</span><span class="w"> </span><span class="kd">const</span><span class="w"> </span><span class="nx">lesson</span><span class="w"> </span><span class="k">of</span><span class="w"> </span><span class="nx">EMBEDDED_LESSONS</span><span class="w"> </span><span class="p">)</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">116</span><span class="vscode-line-text"><span class="w">                </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">clickLink</span><span class="p">(</span><span class="w"> </span><span class="nx">lesson</span><span class="p">.</span><span class="nx">navLabel</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">117</span><span class="vscode-line-text"><span class="w">                </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">waitForHeading</span><span class="p">(</span><span class="w"> </span><span class="nx">lesson</span><span class="p">.</span><span class="nx">heading</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">118</span><span class="vscode-line-text"><span class="w">                </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">waitForCondition</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">119</span><span class="vscode-line-text"><span class="w">                    </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">120</span><span class="vscode-line-text"><span class="w">                        </span><span class="nb">document</span><span class="p">.</span><span class="nx">querySelectorAll</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;#content .construction-task-focus svg&quot;</span><span class="w"> </span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">121</span><span class="vscode-line-text"><span class="w">                            </span><span class="p">.</span><span class="nx">length</span><span class="w"> </span><span class="o">===</span><span class="w"> </span><span class="mf">2</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">122</span><span class="vscode-line-text"><span class="w">                </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">123</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">124</span><span class="vscode-line-text"><span class="w">                    </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">content</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;[data-open-project-terminal]&quot;</span><span class="w"> </span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">125</span><span class="vscode-line-text"><span class="w">                        </span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;data-project-terminal-wired&quot;</span><span class="w"> </span><span class="p">),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">126</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;true&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">127</span><span class="vscode-line-text"><span class="w">                </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">128</span><span class="vscode-line-text"><span class="w">                </span><span class="nx">assert</span><span class="p">.</span><span class="nx">equal</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">129</span><span class="vscode-line-text"><span class="w">                    </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">content</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;[data-run-test-suite]&quot;</span><span class="w"> </span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">130</span><span class="vscode-line-text"><span class="w">                        </span><span class="p">.</span><span class="nx">getAttribute</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;data-run-tests-wired&quot;</span><span class="w"> </span><span class="p">),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">131</span><span class="vscode-line-text"><span class="w">                    </span><span class="s2">&quot;true&quot;</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">132</span><span class="vscode-line-text"><span class="w">                </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">133</span><span class="vscode-line-text"><span class="w">            </span><span class="p">}</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">134</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">135</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">clickLink</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;Back&quot;</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">136</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">waitForLink</span><span class="p">(</span><span class="w"> </span><span class="nx">SECOND_TASK_LINK</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">137</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">clickLink</span><span class="p">(</span><span class="w"> </span><span class="s2">&quot;Back&quot;</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">138</span><span class="vscode-line-text"><span class="w">            </span><span class="k">await</span><span class="w"> </span><span class="nx">spa</span><span class="p">.</span><span class="nx">expectNav</span><span class="p">(</span><span class="w"> </span><span class="nx">DETAIL_NAV_LABELS</span><span class="w"> </span><span class="p">);</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">139</span><span class="vscode-line-text"><span class="w">        </span><span class="p">});</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">140</span><span class="vscode-line-text"><span class="w">    </span><span class="p">});</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 19, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>Three decisions carry it. <code>withSpaPage()</code> makes every test end the same way — acknowledge the step, release the page — so a failing assertion can never leak a browser page into the next test. The environment is created once at module scope and started in <code>before()</code>, so six tests share one server and one browser rather than paying that cost six times. And <code>concurrency: false</code> is deliberate: these tests share one SPA instance, and the run is a demonstration a human can watch in headed mode.</p>
+<p>Every line in the test file speaks the vocabulary of the SPA — <code>openHome</code>, <code>clickLink</code>, <code>expectNav</code>, <code>loadDetailTab</code>. That is the <strong>Page Object</strong> pattern, and it is what makes these tests readable as a description of the product rather than as browser automation.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>browser_tests/spa-page/spa-page.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="cm">/**</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"><span class="cm"> * Page Object. Tests speak in SPA vocabulary — open a hash, click a nav link,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="cm"> * load a detail tab — and never touch a raw Playwright selector.</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="cm"> */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kd">interface</span><span class="w"> </span><span class="nx">SpaPage</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">openHome</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">openHash</span><span class="p">(</span><span class="w"> </span><span class="nx">hash</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">openEmbedded</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">clickLink</span><span class="p">(</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">16</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">waitForLink</span><span class="p">(</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">waitForHeading</span><span class="p">(</span><span class="w"> </span><span class="nx">name</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">expectNav</span><span class="p">(</span><span class="w"> </span><span class="nx">labels</span><span class="o">:</span><span class="w"> </span><span class="kt">ReadonlyArray</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">expectActiveNav</span><span class="p">(</span><span class="w"> </span><span class="nx">label</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="w">    </span><span class="cm">/** Clicks a detail tab and returns the HTTP status of the fetched document. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">loadDetailTab</span><span class="p">(</span><span class="w"> </span><span class="nx">tab</span><span class="o">:</span><span class="w"> </span><span class="kt">DetailTabFixture</span><span class="p">,</span><span class="w"> </span><span class="nx">directory</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="kt">number</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">22</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">navLabels</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="nx">ReadonlyArray</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">23</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">contentHtml</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="kt">string</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">24</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">content</span><span class="p">(</span><span class="w"> </span><span class="nx">selector</span><span class="o">:</span><span class="w"> </span><span class="kt">string</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nx">Locator</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">25</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">body</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nx">Locator</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">26</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">header</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nx">Locator</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">27</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">waitForCondition</span><span class="p">(</span><span class="w"> </span><span class="nx">predicate</span><span class="o">:</span><span class="w"> </span><span class="p">()</span><span class="w"> </span><span class="p">=&gt;</span><span class="w"> </span><span class="kt">boolean</span><span class="w"> </span><span class="p">)</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">28</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">finishStep</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">29</span><span class="vscode-line-text"><span class="w">    </span><span class="nx">dispose</span><span class="p">()</span><span class="o">:</span><span class="w"> </span><span class="nb">Promise</span><span class="o">&lt;</span><span class="ow">void</span><span class="o">&gt;</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">30</span><span class="vscode-line-text"><span class="p">}</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 7, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>When a selector changes, exactly one file changes. <code>#nav a</code> appears in <code>nav-probe.ts</code> and nowhere else; <code>#content</code> appears in <code>spa-page.ts</code> and nowhere else.</p>
+</section>
+<section>
+<h2>3. What the six tests actually pin</h2>
+<p>Each row is one <code>test()</code>. Together they are the definition of &ldquo;the rewrite did not change anything&rdquo;.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>#</th><th>The test</th><th>What would break it</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Renders the established home navigation in order</td><td>Adding, removing, renaming or reordering a top-level section.</td></tr>
+<tr><td>2</td><td>Drills to a leaf and preserves all five detail tabs</td><td>A detail tab that 404s, renders empty, or loses its active state — plus the Update Documentation bar failing to appear.</td></tr>
+<tr><td>3</td><td>Applies a deep-linked tab and scrolls to its anchor</td><td>The <code>#item=…&amp;tab=…&amp;anchor=…</code> route format changing, or the anchor scroll being dropped.</td></tr>
+<tr><td>4</td><td>Falls back to Home for an unknown deep link</td><td>An invalid route throwing, or rendering a blank page instead of Home.</td></tr>
+<tr><td>5</td><td>Hides the in-page header in embedded mode</td><td><code>?embedded=1</code> no longer setting <code>body.embedded</code>, or the dashboard iframe regaining a duplicate nav.</td></tr>
+<tr><td>6</td><td>Drills into both embedded lessons and backs out one level at a time</td><td>A canonical lesson failing to load, its two Mermaid figures failing to render, either terminal button failing to wire, or Back skipping a level.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Test 6 is the load-bearing one</span>
+<strong>It asserts <code>svg</code> count is exactly 2 and that both buttons carry their wired flag. That single test covers the canonical-lesson fetch, URL rebasing, Mermaid rendering, and button wiring — the four things that silently produce a blank panel rather than an error.</strong>
+</blockquote>
+</section>
+<section>
+<h2>4. Where it sits</h2>
+<p>Drag to pan, wheel to zoom. Each box's stereotype carries its role.</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 — What the suite is built out of</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Class diagram of the characterization suite's modules and the patterns each one uses" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">classDiagram
+    direction LR
+
+    class LegacyNavigationTests {
+        &lt;&lt;six tests&gt;&gt;
+    }
+
+    class TestEnvironment {
+        &lt;&lt;facade&gt;&gt;
+        +start()
+        +stop()
+        +newPage() SpaPage
+        +newInstrumentedPage(script) SpaPage
+    }
+
+    class SpaPage {
+        &lt;&lt;page object&gt;&gt;
+        +openHome()
+        +clickLink(name)
+        +expectNav(labels)
+        +loadDetailTab(tab, dir)
+    }
+
+    class NavigationProbe {
+        &lt;&lt;the only module naming #nav&gt;&gt;
+    }
+
+    class NavFixtures {
+        &lt;&lt;expected values, no framework&gt;&gt;
+    }
+
+    class SpaServer {
+        &lt;&lt;facade&gt;&gt;
+    }
+
+    class BrowserSession {
+        &lt;&lt;facade over Playwright&gt;&gt;
+    }
+
+    class PlatformProfile {
+        &lt;&lt;abstract factory&gt;&gt;
+    }
+
+    class StepGate {
+        &lt;&lt;port, Null Object when headless&gt;&gt;
+    }
+
+    LegacyNavigationTests ..&gt; TestEnvironment : starts and stops
+    LegacyNavigationTests ..&gt; SpaPage : speaks only this
+    LegacyNavigationTests ..&gt; NavFixtures : asserts against
+    TestEnvironment ..&gt; SpaServer : owns
+    TestEnvironment ..&gt; BrowserSession : owns
+    TestEnvironment ..&gt; SpaPage : hands out
+    SpaPage ..&gt; NavigationProbe : delegates nav assertions
+    SpaPage ..&gt; StepGate : pauses through
+    SpaServer ..&gt; PlatformProfile : asks how to spawn
+    BrowserSession ..&gt; PlatformProfile : asks which Chrome</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> The test file touches three things. Everything else it needs arrives already assembled.</p>
+<ul>
+<li><strong>Above</strong> — the tests know <code>TestEnvironment</code>, <code>SpaPage</code> and the fixtures. They import no Playwright type and no Node child-process API.</li>
+<li><strong>Below</strong> — <code>PlatformProfile</code> absorbs every host difference, and <code>StepGate</code> absorbs every headed/headless difference, as Null Objects rather than flags.</li>
+<li><strong>Beside</strong> — <code>NavFixtures</code> is plain data with no imports at all, which is what lets the expected navigation be read and edited without running anything.</li>
+</ul>
+</section>
+<section>
+<h2>5. One run through it — including the failure this page caused</h2>
+<p>Figure 1 is the arrangement; this is the motion. The run below is real: it is what happened when the &ldquo;Browser Tests&rdquo; section documenting this very page was added to the SPA.</p>
+<div class="mermaid-figure" data-diagram="figure-2" id="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 — A red run, a fixture edit, and a green run</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Sequence diagram showing the suite failing after a nav change, then passing after the fixture is updated" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    actor Author
+    participant Tests as legacy-navigation.test.ts
+    participant Env as TestEnvironment
+    participant Server as server.py
+    participant Page as SpaPage
+    participant Fixtures as nav-fixtures.ts
+
+    Author-&gt;&gt;Tests: adds "Browser Tests" to app.js, runs npm test
+    Tests-&gt;&gt;Env: start()
+    Env-&gt;&gt;Server: spawn on a free port, poll index.html
+    Server--&gt;&gt;Env: 200 OK, base URL
+    Tests-&gt;&gt;Page: openHome()
+    Page-&gt;&gt;Fixtures: expectNav( HOME_NAV_LABELS )
+    Note over Page,Fixtures: The fixture still lists six sections.&lt;br/&gt;The page now renders seven.
+    Fixtures--&gt;&gt;Tests: FAIL — tests 1 and 4, the two that assert home nav
+    Author-&gt;&gt;Fixtures: adds "Browser Tests" between Voice Communication and Mazda
+    Author-&gt;&gt;Tests: npm test again
+    Tests-&gt;&gt;Page: openHome()
+    Page-&gt;&gt;Fixtures: expectNav( HOME_NAV_LABELS )
+    Fixtures--&gt;&gt;Tests: PASS — 6 of 6, about 8.0 s
+    Tests-&gt;&gt;Env: stop(), tearing down browser and server</pre>
+</div>
+</div>
+<ol class="diagram-step-tooltips" hidden>
+<li>The author adds a new top-level section to app.js's sections object and runs the suite.</li>
+<li>The test file asks the environment to start; this happens once in before(), not per test.</li>
+<li>The environment reserves an ephemeral port and spawns server.py, then polls until it answers.</li>
+<li>server.py answers 200 on index.html, and the environment hands back the base URL for this run.</li>
+<li>The first test opens the SPA home page through the page object.</li>
+<li>The page object asks the navigation probe to compare the rendered nav against the fixture.</li>
+<li>The comparison fails: the fixture lists six sections and the page renders seven, so the two tests that assert the home navigation fail while the other four stay green.</li>
+<li>The author updates the fixture, placing the new label where the nav actually renders it.</li>
+<li>The author runs the suite again with no other change.</li>
+<li>The first test opens home again, against the same unchanged app.js.</li>
+<li>The probe compares the rendered nav against the corrected fixture.</li>
+<li>All six tests pass in about eight seconds; the change is now recorded as intended, not accidental.</li>
+<li>The environment stops, closing the browser and terminating the server child process.</li>
+</ol>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> This is what a characterization suite is <em>for</em>: the nav change was intended, and the suite still made it impossible to make silently.</p>
+<ul>
+<li><strong>Steps 7&ndash;8 are the alarm.</strong> Four tests stayed green, so the failure named the change precisely instead of collapsing the whole run.</li>
+<li><strong>Step 9 is the decision.</strong> Updating a fixture is how an intentional change is recorded. If nobody can say why the fixture changed, the change was not intentional.</li>
+</ul>
+</section>
+<section>
+<h2>6. How to check this yourself</h2>
+<ol>
+<li><code>cat browser_tests/legacy-navigation.test.ts</code> — 141 lines, six <code>test()</code> calls.</li>
+<li><code>grep -rn "createWindowsPlatformProfile\|createDialogStepGate" browser_tests/</code> — hits only in <code>composition-root.ts</code> and each module's own file. Anything else means an implementation choice leaked out of the composition root.</li>
+<li><code>grep -n "page.locator\|getByRole" browser_tests/*.test.ts</code> — no hits. A hit means a raw selector escaped the page object.</li>
+<li><code>npm run typecheck</code> — passes across <code>app/</code>, <code>app_tests/</code> and <code>browser_tests/</code>.</li>
+<li><code>npm test</code> — <code>tests 6 / pass 6 / fail 0</code>. Needs Chrome where the platform profile expects it.</li>
+</ol>
+<button class="run-tests-button" type="button" data-run-test-suite="characterization-suite" data-api-path="../../../../../api/run-characterization-suite-tests">Run Browser Test Checks</button>
+<p class="run-tests-status" role="status" aria-live="polite" hidden></p>
+<p>The button opens a Windows Terminal tab on the Ubuntu-26.04 profile, runs all five checks in order, and then leaves the shell open so the output can be read and the workspace kept. <code>npm test</code> takes about eight seconds; the whole run is under a minute.</p>
+</section>
+<section>
+<h2>7. How TDD continues this work</h2>
+<p>The next active work starts with one failing test for the Update Documentation lifecycle. The test belongs beside the source code, not inside this HTML page. This page's button only launches and reports the real source-side checks.</p>
+<ol>
+<li>Write a test that opens the Update Documentation tab and asserts the git-status badge resolves to a real state rather than staying blank.</li>
+<li>Watch it fail, and read the failure before changing anything.</li>
+<li>Pin the smallest true statement about today's behavior — this is characterization, so the goal is to describe <code>app.js</code>, not to improve it.</li>
+</ol>
+<p>The six existing checks stay green throughout. Later items — the unit-test slice, the <code>window.__spa</code> seam, the browser cutover — remain <strong>Not started</strong> until each becomes current; they do not become permanent failing tests in advance.</p>
+</section>
+<section>
+<h2>8. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<section>
+<h2>9. Where the next-steps queue now lives</h2>
+<p>Section 7 lists what has to happen to <em>these tests</em>. The full ordered queue across every remaining stage lives one level up on the plan itself, where it stays in sync with the stage board: <a href="../../../../../index.html#item=spa_browser_tests/characterization_suite&amp;tab=status&amp;anchor=next-steps">Characterization Suite Construction Status, section 6</a>.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Work on this one first</span>
+<strong>Make the Chrome path discoverable. Every item below is proved by running this suite, so on any host where it cannot start, none of them can be checked at all.</strong>
+</blockquote>
+<p>Two things specifically would bring work back to <em>this</em> file. Covering the Update Documentation lifecycle adds a seventh test here and probably a fixture for the API's shapes. And the browser cutover — <code>index.html</code> loading <code>dist/app/</code> instead of <code>app.js</code> — is the moment these six tests stop being a description of the old code and become the acceptance criteria for the new code, without a single line of them changing. That is the entire reason they were written first.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; Characterization Suite Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../../declare_the_test_seams/platform_profile/index.html">← Platform Profile</a>
+<a class="pager-up" href="../index.html">↑ 4. Characterize the Legacy SPA</a>
+</nav>
+  </main>
+</body>
+</html>
