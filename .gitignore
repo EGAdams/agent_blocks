@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.pyc
+
+# Local secrets and config
+.env
+
+# Generated data
+adws/adw_data/
+.a_smartmenu/
+
+# Dependencies (regenerate with npm install)
+node_modules/
+
+# Audio, excluded for now
+*.m4a

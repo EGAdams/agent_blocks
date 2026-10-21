@@ -1,0 +1,3 @@
+[submodule "catherine_agent_sdk"]
+	path = catherine_agent_sdk
+	url = https://github.com/EGAdams/catherine-sdk.git
