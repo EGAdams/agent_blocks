@@ -166,6 +166,20 @@ async def repl(settings: Settings, role_model: str, voice: bool) -> None:
         if not user_input.strip():
             continue
 
+        if user_input.strip().lower() == "/compact":
+            # Same free operation as the dashboard's "compact conversation"
+            # button (service.py's POST /compact): rotate the warm agent
+            # onto a fresh recall scope so the context window stops growing,
+            # without a Groq call or a persisted turn. See
+            # agent_memory/agent.py's clear_context() docstring for why
+            # nothing is deleted.
+            new_session = agent.clear_context()
+            confirmation = f"Conversation compacted -- new session: {new_session}"
+            print(f"\nTOYOTA: {confirmation}")
+            if voice_io is not None:
+                voice_io.speak(confirmation)
+            continue
+
         print("[thinking...]")
         with Stopwatch("thinking", detail=f"chars={len(user_input)}"):
             reply = await agent.handle_turn(user_input)
