@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Build the reference adapter · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">2. Prove With One Adapter</a> <span aria-hidden="true">›</span> <span aria-current="page">Reference Adapter</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Build the reference adapter</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 2 of 5 — Prove the plug-in point with one working adapter  ›  Step 1 of 4 — Build the reference adapter</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>ClaudeAgentAdapter implements the same plug-in point in Python over claude-agent-sdk.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>The adapter's job is translation, and nothing else: SDK messages in, <code>AgentEvent</code> out. Everything vendor-shaped stops at this file. That is why it is the only module allowed to import <code>claude_agent_sdk</code> — that single greppable rule <em>is</em> the dependency-inversion boundary, enforceable by search rather than by good intentions.</p>
+<p>It also taught the plan something about failure. The Agent SDK does not raise on auth or model errors; it returns a <code>ResultMessage</code> with <code>is_error</code> set. An adapter that forwards blindly would report a failed turn as a successful one, and the voice policy above would happily speak an error string aloud.</p>
+</section>
+<section>
+<h2>2. What was built</h2>
+<p><code>claude_agent_adapter/adapter.py</code>, 91 lines. <code>submit()</code> yields an <code>assistant_text</code> event per text block, keeps the final <code>ResultMessage</code>, and only then yields <code>terminal</code> — after checking <code>is_error</code> and raising <code>AgentCallFailed</code> if it is set. It opens a fresh SDK session per call, with <code>setting_sources=[]</code> and <code>allowed_tools=[]</code> so it answers with text and cannot read files.</p>
+</section>
+<section>
+<h2>3. How to check this yourself</h2>
+<p>Read the file and confirm the <code>is_error</code> check still sits before the terminal yield. Confirm too that no module outside <code>adapter.py</code> imports <code>claude_agent_sdk</code>; the moment a second one does, the boundary has leaked and this item is no longer done.</p>
+</section>
+<section>
+<h2>4. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a class="pager-up" href="../index.html">↑ 2. Prove With One Adapter</a>
+<a rel="next" href="../adapter_tests/index.html">Adapter Tests →</a>
+</nav>
+  </main>
+</body>
+</html>
+

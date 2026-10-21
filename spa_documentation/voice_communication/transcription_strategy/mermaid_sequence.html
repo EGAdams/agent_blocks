@@ -1,0 +1,169 @@
+<h1>Sequence Diagram</h1>
+<p>Imported from the existing dashboard Voice Communication documentation for <strong>TranscriptionStrategy</strong>. Treat it as reference architecture until this Agent Block becomes active and is reconciled with its typed source.</p>
+<div class="abd-page">
+
+<section class="abd-panel" data-abd-diagram>
+  <header>
+    <h2>The push-to-talk leg</h2>
+    <p>Two subprocesses behind one port method. Cleanup is a separate strategy so a cleanup failure cannot lose the transcript.</p>
+  </header>
+  <div class="abd-toolbar">
+    <button type="button" data-action="zoom-in" title="Zoom in">+</button>
+    <button type="button" data-action="zoom-out" title="Zoom out">&minus;</button>
+    <button type="button" data-action="reset" title="Reset view">Reset</button>
+    <span>Scroll to zoom &middot; drag to pan</span>
+  </div>
+  <div class="abd-viewport">
+    <div class="abd-stage"><pre class="abd-source">sequenceDiagram
+  participant VR as MediaRecorderVoiceRecorder
+  participant API as POST /api/voice
+  participant VP as VoicePipeline
+  participant WT as WhisperCppTranscriber
+  participant CU as CleanupStrategy
+
+  VR-&gt;&gt;API: audio blob
+  API-&gt;&gt;VP: process(bytes)
+  VP-&gt;&gt;WT: transcribe(bytes)
+  WT-&gt;&gt;WT: ffmpeg → 16k mono wav
+  WT-&gt;&gt;WT: whisper-cli → text
+  WT--&gt;&gt;VP: raw transcript
+  VP-&gt;&gt;CU: clean(raw)
+  alt cleanup succeeds
+    CU--&gt;&gt;VP: cleaned text
+  else cleanup fails
+    VP--&gt;&gt;VP: fall back to raw
+  end
+  VP--&gt;&gt;VR: {raw_transcript, cleaned_text}</pre></div>
+  </div>
+</section>
+</div>
+
+<style>
+.abd-page { --paper:#fbfaf6; --deep:#f0ece2; --ink:#182026; --muted:#5c6670; --line:#d5d0c4; --blue:#235f85; color:var(--ink); }
+.abd-panel { background:var(--paper); border:1px solid var(--line); border-radius:8px; margin:22px 0 34px; overflow:hidden; }
+.abd-panel > header { background:var(--deep); border-bottom:1px solid var(--line); padding:14px 17px 12px; }
+.abd-panel > header h2 { color:#173b57; font-family:Georgia,"Times New Roman",serif; font-size:20px; margin:0 0 5px; }
+.abd-panel > header p { color:var(--muted); font-size:13px; font-style:italic; margin:0; max-width:80ch; }
+.abd-toolbar { align-items:center; background:#f7f5ef; border-bottom:1px solid var(--line); display:flex; gap:6px; padding:7px 11px; }
+.abd-toolbar button { background:#fff; border:1px solid #c8c2b6; border-radius:4px; color:var(--ink); cursor:pointer; font-size:14px; height:29px; min-width:30px; }
+.abd-toolbar button:hover { border-color:var(--blue); color:var(--blue); }
+.abd-toolbar span { color:var(--muted); font-size:11px; margin-left:auto; }
+.abd-viewport { background:linear-gradient(90deg,rgba(0,0,0,.035) 1px,transparent 1px) 0 0 / 20px 20px,linear-gradient(rgba(0,0,0,.035) 1px,transparent 1px) 0 0 / 20px 20px,#faf9f5; cursor:grab; height:440px; overflow:hidden; position:relative; touch-action:none; user-select:none; }
+.abd-viewport.dragging { cursor:grabbing; }
+.abd-stage { left:0; position:absolute; top:0; transform-origin:0 0; }
+.abd-stage svg { display:block; height:auto; max-width:none; }
+.abd-source { background:transparent; border:0; color:transparent; margin:0; padding:0; white-space:pre; }
+.abd-error { background:#3a2723; color:#f3d7d2; margin:16px; padding:12px; white-space:pre-wrap; }
+</style>
+
+<script>
+( function () {
+  const root = document.querySelector( ".abd-page" );
+  if ( !root ) return;
+
+  function ensureMermaidLoaded() {
+    if ( window.mermaid ) return Promise.resolve( window.mermaid );
+    return new Promise( ( resolve, reject ) => {
+      const script = document.createElement( "script" );
+      script.src = "vendor/mermaid.min.js";
+      script.onload = () => resolve( window.mermaid );
+      script.onerror = reject;
+      document.head.appendChild( script );
+    } );
+  }
+
+  function wirePanZoom( panel, viewport, stage, svg ) {
+    let scale = 1;
+    let x = 20;
+    let y = 20;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    const viewBox = svg.viewBox && svg.viewBox.baseVal;
+    const width = viewBox && viewBox.width ? viewBox.width : 900;
+    const height = viewBox && viewBox.height ? viewBox.height : 500;
+    svg.style.width = width + "px";
+    svg.style.height = height + "px";
+    stage.style.width = width + "px";
+    stage.style.height = height + "px";
+
+    function apply() {
+      stage.style.transform = "translate(" + x + "px, " + y + "px) scale(" + scale + ")";
+    }
+    function fit() {
+      scale = Math.min( 1.2, ( viewport.clientWidth - 40 ) / width, ( viewport.clientHeight - 40 ) / height );
+      x = ( viewport.clientWidth - width * scale ) / 2;
+      y = ( viewport.clientHeight - height * scale ) / 2;
+      apply();
+    }
+    function zoomAt( clientX, clientY, factor ) {
+      const rect = viewport.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      const next = Math.min( 4, Math.max( .2, scale * factor ) );
+      x = px - ( px - x ) * ( next / scale );
+      y = py - ( py - y ) * ( next / scale );
+      scale = next;
+      apply();
+    }
+    viewport.addEventListener( "wheel", ( event ) => {
+      event.preventDefault();
+      zoomAt( event.clientX, event.clientY, event.deltaY < 0 ? 1.1 : 1 / 1.1 );
+    }, { passive:false } );
+    viewport.addEventListener( "pointerdown", ( event ) => {
+      dragging = true;
+      startX = event.clientX - x;
+      startY = event.clientY - y;
+      viewport.classList.add( "dragging" );
+      viewport.setPointerCapture( event.pointerId );
+    } );
+    viewport.addEventListener( "pointermove", ( event ) => {
+      if ( !dragging ) return;
+      x = event.clientX - startX;
+      y = event.clientY - startY;
+      apply();
+    } );
+    function stop( event ) {
+      dragging = false;
+      viewport.classList.remove( "dragging" );
+      if ( event && viewport.hasPointerCapture( event.pointerId ) ) viewport.releasePointerCapture( event.pointerId );
+    }
+    viewport.addEventListener( "pointerup", stop );
+    viewport.addEventListener( "pointercancel", stop );
+    panel.querySelector( '[data-action="zoom-in"]' ).addEventListener( "click", () => {
+      const rect = viewport.getBoundingClientRect();
+      zoomAt( rect.left + rect.width / 2, rect.top + rect.height / 2, 1.2 );
+    } );
+    panel.querySelector( '[data-action="zoom-out"]' ).addEventListener( "click", () => {
+      const rect = viewport.getBoundingClientRect();
+      zoomAt( rect.left + rect.width / 2, rect.top + rect.height / 2, 1 / 1.2 );
+    } );
+    panel.querySelector( '[data-action="reset"]' ).addEventListener( "click", fit );
+    fit();
+  }
+
+  ensureMermaidLoaded().then( ( mermaid ) => {
+    mermaid.initialize( { startOnLoad:false, theme:"default" } );
+    root.querySelectorAll( "[data-abd-diagram]" ).forEach( ( panel, index ) => {
+      const source = panel.querySelector( ".abd-source" );
+      const stage = panel.querySelector( ".abd-stage" );
+      const viewport = panel.querySelector( ".abd-viewport" );
+      if ( !source || !stage || !viewport ) return;
+      mermaid.render( "agent-block-diagram-" + Date.now() + "-" + index, source.textContent )
+        .then( ( result ) => {
+          stage.innerHTML = result.svg;
+          const svg = stage.querySelector( "svg" );
+          if ( svg ) wirePanZoom( panel, viewport, stage, svg );
+        } )
+        .catch( ( error ) => {
+          stage.innerHTML = "";
+          const message = document.createElement( "pre" );
+          message.className = "abd-error";
+          message.textContent = "Diagram failed to render: " + error.message;
+          stage.appendChild( message );
+        } );
+    } );
+  } );
+} )();
+</script>
+

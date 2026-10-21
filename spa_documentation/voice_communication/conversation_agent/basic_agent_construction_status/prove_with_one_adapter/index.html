@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage 2 — Prove the plug-in point with one working adapter · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../assets/page.css?v=1">
+  <script defer src="../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../index.html">Construction Status</a> <span aria-hidden="true">›</span> <span aria-current="page">2. Prove With One Adapter</span>
+  </nav>
+  <nav class="section-link-grid" aria-label="Child sections">
+    <a href="reference_adapter/index.html"><strong>Reference Adapter</strong><span>Done</span></a>
+    <a href="adapter_tests/index.html"><strong>Adapter Tests</strong><span>Done</span></a>
+    <a href="reconcile_agent_event/index.html"><strong>Reconcile AgentEvent</strong><span>In progress</span></a>
+    <a href="cancellation_rule/index.html"><strong>Cancellation Rule</strong><span>Not started</span></a>
+  </nav>
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-current">In progress</span>
+      <h1>Stage 2 — Prove the plug-in point with one working adapter</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 2 of 5 — Prove the plug-in point with one working adapter</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Find out whether anything can really implement submit() before betting four more blocks on the shape.</strong>
+</blockquote>
+<section>
+<h2>1. What this stage actually means</h2>
+<p>A plug-in point that has never been implemented is a guess. This stage cashes the guess by building one adapter against a real agent SDK and letting the friction show up while it is still cheap to change the interface.</p>
+<p>It half worked, in the most useful way. The adapter exists, streams, and is tested — and building it exposed a disagreement about the event shape that a diagram would never have revealed. That disagreement is now the item in progress.</p>
+</section>
+<section>
+<h2>2. What exists today</h2>
+<p>The reference implementation is <code>claude_agent_adapter/</code> in the parent workspace: a Python <code>Protocol</code> mirroring <code>IConversationAgent</code>, an adapter wrapping <code>claude-agent-sdk</code>'s <code>query()</code>, and an offline test suite that runs with no network and no API key. It answers the stage's question with a yes: the plug-in point is implementable, and the async-stream shape is natural on the implementing side.</p>
+</section>
+<section>
+<h2>3. What is still missing</h2>
+<p>Two things, both decisions rather than typing. First, three copies of <code>AgentEvent</code> now disagree about whether an event carries a session id. Second, nothing says what cancelling a turn does — and voice, where the user interrupts constantly, is the one domain that cannot leave that unspecified.</p>
+</section>
+<section>
+<h2>4. How we will know this stage is done</h2>
+<p>One event shape that all three copies agree on, and a written cancellation rule with a test that holds an adapter to it. Then a TypeScript adapter can be written once instead of twice.</p>
+</section>
+<section>
+<h2>5. The work inside this stage</h2>
+<p>2 of 4 finished. The next one to work on is “Reconcile the three AgentEvent copies”.</p>
+<div class="construction-status-table-wrap">
+<table class="construction-status-table">
+<thead><tr><th>Step</th><th>Work item</th><th>Status</th><th>What it must deliver</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><a href="reference_adapter/index.html">Build the reference adapter</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>ClaudeAgentAdapter implements the same plug-in point in Python over claude-agent-sdk.</td></tr>
+<tr><td>2</td><td><a href="adapter_tests/index.html">Cover the adapter with offline tests</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>Prove the streaming and failure behavior without a network call or an API key.</td></tr>
+<tr><td>3</td><td><a href="reconcile_agent_event/index.html">Reconcile the three AgentEvent copies</a></td><td><span class="construction-status-chip status-current">In progress</span></td><td>Decide whether an event carries a session id, then make all three definitions agree.</td></tr>
+<tr><td>4</td><td><a href="cancellation_rule/index.html">Decide where cancellation lives</a></td><td><span class="construction-status-chip status-planned">Not started</span></td><td>Say what happens to a turn the user talks over, and which interface owns that verb.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section>
+<h2>6. Progress count for this stage</h2>
+<div class="construction-lesson-metrics">
+<div><strong>5</strong><span>Items in scope</span></div>
+<div><strong>2</strong><span>In progress</span></div>
+<div><strong>1</strong><span>Not started</span></div>
+<div><strong>2</strong><span>Done</span></div>
+</div>
+<p class="construction-progress-caption">Counted from this stage and everything nested underneath it.</p>
+</section>
+<section>
+<h2>7. How to continue from here</h2>
+<p>This is a stage, not a single job: it opens into 4 smaller items. Open the linked child pages one at a time; each page keeps the rest of the hierarchy out of the way.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../declare_the_plug_in_point/index.html">← 1. Declare the Plug-in Point</a>
+<a class="pager-up" href="../index.html">↑ Construction Status</a>
+<a rel="next" href="../typescript_adapter/index.html">3. TypeScript Adapter →</a>
+</nav>
+  </main>
+</body>
+</html>
+

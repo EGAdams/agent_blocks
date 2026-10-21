@@ -1,0 +1,54 @@
+<p>
+  An <strong>observer</strong> here is a Gang-of-Four Observer: a small object
+  with one method, <code>on_turn_complete(user_turn, agent_turn, recalled, reply)</code>,
+  that the agent calls after every turn finishes. Observers are how side
+  effects — logging, archiving, cost tracking — get out of
+  <code>agent.py</code> without the agent needing to know they exist. Every
+  observer implements the <code>TurnObserver</code> protocol defined in
+  <code>ports.py</code>.
+</p>
+
+<h2>Why observers instead of inline code</h2>
+<p>
+  The agent's orchestration loop (embed → recall → call the model → store) is
+  the same regardless of whether you're printing a recall summary to the
+  console, writing turns to disk, or tallying token cost. Rather than
+  hard-coding those concerns into the loop, the agent takes a single
+  <code>TurnObserver</code> and calls it once per turn. What that observer
+  actually does — nothing, print a line, archive to JSON, accumulate a
+  running total, or all of the above — is decided at composition time, not
+  inside the agent.
+</p>
+
+<h2>The five observers</h2>
+<ul>
+  <li>
+    <strong>Null Observer</strong> — the Null Object. Does nothing. Lets the
+    agent run with no side effects and no <code>None</code>-checks anywhere
+    the agent would otherwise ask "do I have an observer or not?"
+  </li>
+  <li>
+    <strong>Console Observer</strong> — prints one recall summary line per
+    turn (<code>[memory] recalled N turn(s) as context</code>). Replaces the
+    ad-hoc prints scattered through the legacy script.
+  </li>
+  <li>
+    <strong>Cost Observer</strong> — accumulates <code>cost_usd</code>,
+    <code>input_tokens</code>, and <code>output_tokens</code> across the
+    session from each <code>AgentReply</code>. Pure bookkeeping, no I/O.
+  </li>
+  <li>
+    <strong>Nexus Archive Observer</strong> — writes one JSON file per turn
+    into the nexus directory. This is a <em>write-only</em> archive: nothing
+    in the read path depends on it, so an emptied or missing nexus directory
+    can no longer silently degrade recall (the bug the legacy script had).
+    Its purpose is portability — raw turn text survives independently of
+    whatever vector store is in use.
+  </li>
+  <li>
+    <strong>Composite Observer</strong> — fans one turn out to a list of other
+    observers. This is how the agent runs with more than one observer at
+    once (e.g. console + cost + nexus archive together) while still only
+    ever holding a single <code>TurnObserver</code> reference itself.
+  </li>
+</ul>

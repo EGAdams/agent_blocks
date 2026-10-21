@@ -1,0 +1,1003 @@
+<!-- This file is normally injected into the SPA shell's #content via
+     app.js's loadFile() (innerHTML), which already has styles.css loaded --
+     this <link> is a no-op duplicate in that case. It exists so that a
+     direct link to this file (e.g. Interface File section 9's
+     "#next-steps" link) still renders styled rather than as bare HTML: a
+     browser parsing this file standalone hoists a leading <link> into an
+     implied <head>, per the HTML5 parsing algorithm. -->
+<link rel="stylesheet" href="../../styles.css?v=20260902leafsource">
+<!-- Breadcrumb nav for the same direct-link case as the <link> above. A
+     literal <body> tag here becomes the real document body (with its class)
+     when this file is opened standalone, but is silently dropped -- along
+     with its class -- when this markup is injected into the SPA shell's own
+     #content via innerHTML (verified empirically: innerHTML fragment
+     parsing does not create a body element for a body start tag). The CSS
+     below stays hidden unless it finds itself under a real body.split-doc,
+     so the breadcrumb only ever shows up on a standalone open, never as
+     visual clutter inside the SPA (which already has its own nav). -->
+<body class="split-doc">
+<style>
+  .construction-plan-standalone-nav { display: none; }
+  body.split-doc .construction-plan-standalone-nav {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    margin: 0 0 18px;
+    padding: 10px 14px;
+    background: #edf1f5;
+    border-bottom: 1px solid #d3dbe4;
+    font: 700 .8rem/1.5 Arial, Helvetica, sans-serif;
+    color: #5f6b7a;
+  }
+  body.split-doc .construction-plan-standalone-nav a { color: #315b8a; text-decoration: none; }
+  body.split-doc .construction-plan-standalone-nav a:hover { color: #17365d; text-decoration: underline; }
+</style>
+<nav class="construction-plan-standalone-nav" aria-label="Breadcrumb">
+  <a href="../../index.html">Documentation Home</a>
+  <span aria-hidden="true">&rsaquo;</span>
+  <a href="basic_agent_construction_status/index.html">Stage Sections</a>
+  <span aria-hidden="true">&rsaquo;</span>
+  <span aria-current="page">Building the IConversationAgent &mdash; Construction Status (full plan)</span>
+</nav>
+<div class="construction-plan-intro construction-textbook-intro">
+  <article class="construction-textbook-page">
+    <header class="construction-status-masthead">
+      <p class="construction-status-kicker">Short University Text &bull; Construction Studio</p>
+      <span class="construction-status-badge">Live Plan</span>
+      <h1>Building the IConversationAgent</h1>
+      <p class="construction-status-edition">Five stages, twenty-five checkable items, and the exact place we are standing right now</p>
+    </header>
+
+    <div class="construction-status-body">
+      <h2>1. The one sentence version</h2>
+      <blockquote class="construction-status-callout">
+        <span class="construction-status-callout-label">Where we are</span>
+        <strong>Stage 1 is finished: the plug-in point is declared and one working adapter proves it can be implemented. We are inside Stage 2, reconciling three copies of <code>AgentEvent</code> that have drifted apart. Nothing has been wired into Toyota yet, and no voice turn has ever run end to end.</strong>
+      </blockquote>
+      <p>Everything below expands that sentence. Read section 3 for the fact base, section 4 for the stage board, and then use the sidebar to open the one item that is actually in progress.</p>
+
+      <h2>2. What the three status words mean</h2>
+      <p>Words like &ldquo;done&rdquo; drift over time, so on this plan each status word is tied to something you can go and look at: a file that is on disk, a command you can run, or a screen you can watch. Every item names its own. If you cannot open the thing it names, the status has not been earned yet.</p>
+      <div class="construction-status-table-wrap">
+        <table class="construction-status-table">
+          <thead><tr><th>Status</th><th>What it tells you</th><th>Where to look</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><span class="construction-status-chip status-done">Done</span></td>
+              <td>The work is built, and something checkable was run against it &mdash; a test, a compile, a file you can open.</td>
+              <td>The item's page has a &ldquo;how to check this yourself&rdquo; section. If that check fails or the file is gone, the item goes back to In progress.</td>
+            </tr>
+            <tr>
+              <td><span class="construction-status-chip status-current">In progress</span></td>
+              <td>Part of it is built and part of it is not, and the item's page says which is which.</td>
+              <td>Read that item's &ldquo;what is still missing&rdquo; section. That list is the current worklist.</td>
+            </tr>
+            <tr>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Nothing has been written for it yet. Only the outcome is described.</td>
+              <td>Nothing to look at. If you do find code for it, the item was described wrongly and needs re-reading before anyone works on it.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>3. The verified fact base</h2>
+      <p>These are not recollections. Each line was checked against the working tree while this page was written.</p>
+      <ul class="construction-lesson-evidence">
+        <li><code>voice_communication/conversation_agent/conversation_agent.ts</code> declares one operation: <code>submit( text, generation )</code> returning <code>AsyncIterable&lt;AgentEvent&gt;</code>. It is a type-only file &mdash; there is no implementation of it anywhere in TypeScript.</li>
+        <li><code>voice_communication/typescript_contracts/contracts.ts</code> defines <code>GenerationId = number</code> and five <code>AgentEventKind</code> values: <code>reasoning</code>, <code>assistant_text</code>, <code>tool</code>, <code>terminal</code>, <code>error</code>.</li>
+        <li><code>npm run typecheck</code> (<code>tsc -p tsconfig.json</code>) passes, so the declared contract is at least internally consistent.</li>
+        <li><code>claude_agent_adapter/</code> in the parent workspace is a real, working implementation of the same plug-in point in Python: <code>ports.py</code> holds the <code>Protocol</code>, <code>adapter.py</code> streams events out of <code>claude-agent-sdk</code>, and <code>tests/test_adapter.py</code> reports <strong>4/4 passed</strong> offline with no API key.</li>
+        <li><code>letta_agent_adapter.ts</code> is still <code>interface ILettaAgentAdapter extends IConversationAgent {}</code> &mdash; a name reserved for an adapter that does not exist yet.</li>
+        <li>Three copies of the event shape have drifted: TypeScript's <code>AgentEvent</code> requires <code>sessionId</code>, <code>voice_communication/pydantic_models/models.py</code> requires <code>session_id: UUID</code>, and the Python adapter's local copy has no session field at all and only two of the five kinds.</li>
+      </ul>
+
+      <h2>4. The stage board</h2>
+      <div class="construction-status-metrics" aria-label="Live construction status summary">
+        <div><strong data-construction-count="total">0</strong><span>Total items</span></div>
+        <div><strong data-construction-count="current">0</strong><span>In progress</span></div>
+        <div><strong data-construction-count="planned">0</strong><span>Not started</span></div>
+        <div><strong data-construction-count="done">0</strong><span>Done</span></div>
+        <div><strong data-construction-completion>0%</strong><span>Complete</span></div>
+      </div>
+      <div class="construction-progress-track" aria-hidden="true">
+        <div class="construction-progress-bar" data-construction-progress></div>
+      </div>
+      <p class="construction-progress-caption">Counted from the hidden task definitions every time this page opens, so the numbers cannot drift from the plan.</p>
+
+      <div class="construction-status-table-wrap">
+        <table class="construction-status-table">
+          <thead><tr><th>Stage</th><th>Status</th><th>The question it answers</th><th>What proves it is finished</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>1. Declare the plug-in point</td>
+              <td><span class="construction-status-chip status-done">Done</span></td>
+              <td>Does the boundary have a name, a location, and a typed shape?</td>
+              <td>Three files on disk and a passing <code>tsc</code> run.</td>
+            </tr>
+            <tr>
+              <td>2. Prove it with one adapter</td>
+              <td><span class="construction-status-chip status-current">In progress</span></td>
+              <td>Can anything actually implement this plug-in point and stream real events?</td>
+              <td><code>ClaudeAgentAdapter</code> plus its 4 passing tests; still open: one agreed event shape and a cancellation decision.</td>
+            </tr>
+            <tr>
+              <td>3. Write the TypeScript adapter</td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Can the browser side implement the same plug-in point?</td>
+              <td>A <code>LettaAgentAdapter</code> class that compiles and passes contract tests.</td>
+            </tr>
+            <tr>
+              <td>4. Adopt in Toyota Input Options</td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Does the real screen depend on the plug-in point instead of a direct request?</td>
+              <td>An injected adapter, unchanged resume and timeout behavior, and focused UI tests.</td>
+            </tr>
+            <tr>
+              <td>5. Verify one live voice turn</td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Does one whole turn work in a browser, out loud?</td>
+              <td>Passing behavior tests plus a recorded browser observation per adapter path.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h2>5. The single next action</h2>
+      <p>Not &ldquo;the next area&rdquo; &mdash; the next thing to type. Open <strong>Stage 2 &rsaquo; Reconcile the three AgentEvent copies</strong> in the sidebar. It asks one decision: does <code>AgentEvent</code> carry a session id or not? Every later stage inherits that answer, which is why nothing downstream of it has been started.</p>
+      <p>Stages 3, 4, and 5 are deliberately left cold. Starting a TypeScript adapter before the event shape settles would mean writing the translation layer twice.</p>
+
+      <h2 id="next-steps">6. What's next, in the order it unblocks</h2>
+      <p>Section 5 names the single next action. This is the same queue in full: every remaining item across stages 2&ndash;5, in the order each one has to be settled before the next can be built without guessing.</p>
+      <blockquote class="construction-status-callout principle">
+        <span class="construction-status-callout-label">Work on this one first</span>
+        <strong>Reconcile the three <code>AgentEvent</code> copies. Every item below streams that type across the boundary, so until the three copies agree, anything built on top of them is built on a shape that is about to change.</strong>
+      </blockquote>
+      <div class="construction-status-table-wrap">
+        <table class="construction-status-table">
+          <thead><tr><th>Order</th><th>Object to work on</th><th>State</th><th>Why it comes here, and what it unblocks</th></tr></thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td><a href="basic_agent_construction_status/prove_with_one_adapter/reconcile_agent_event/index.html">Reconcile the three <code>AgentEvent</code> copies</a><br><em>Stage 2 &middot; step 3</em></td>
+              <td><span class="construction-status-chip status-current">In progress</span></td>
+              <td>TypeScript requires <code>sessionId</code>, <code>pydantic_models/models.py</code> requires <code>session_id: UUID</code>, and the Python adapter's copy has neither plus only two of the five kinds. Settling it &mdash; including deciding whether <code>submit()</code> hands the session id down or the event stops carrying it &mdash; unblocks every row below.</td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td><a href="basic_agent_construction_status/prove_with_one_adapter/cancellation_rule/index.html">Decide where cancellation lives</a><br><em>Stage 2 &middot; step 4</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>The only decision that can still change the interface file itself. Either interrupting a turn becomes a second method every adapter must implement, or it becomes a separate lifecycle interface. Answer it before an adapter is written, not after two of them exist.</td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td><a href="basic_agent_construction_status/typescript_adapter/implement_adapter_class/index.html">Implement the <code>LettaAgentAdapter</code> class</a><br><em>Stage 3 &middot; step 1</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td><code>letta_agent_adapter.ts</code> is still an empty <code>extends</code> with no body. Python proves the shape is implementable; nothing yet proves it in the browser, where the screen actually lives.</td>
+            </tr>
+            <tr>
+              <td>4</td>
+              <td><a href="basic_agent_construction_status/typescript_adapter/translate_the_stream/index.html">Translate the Letta stream into <code>AgentEvent</code></a><br><em>Stage 3 &middot; step 2</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>The translation seam where vendor messages become the shared event shape. It can only be written once row 1 has fixed what a legal event looks like.</td>
+            </tr>
+            <tr>
+              <td>5</td>
+              <td><a href="basic_agent_construction_status/typescript_adapter/contract_tests/index.html">Write contract tests in TypeScript</a><br><em>Stage 3 &middot; step 3</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Gives the TypeScript side the same offline proof <code>claude_agent_adapter/</code> already gives the Python side, so a future adapter can be checked against the port rather than against a running backend.</td>
+            </tr>
+            <tr>
+              <td>6</td>
+              <td><a href="basic_agent_construction_status/adopt_in_toyota/replace_direct_request/index.html">Replace Toyota's direct request call</a><br><em>Stage 4 &middot; step 2</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>The first real consumer. Until a screen calls <code>submit()</code>, the interface remains a well-supported hypothesis.</td>
+            </tr>
+            <tr>
+              <td>7</td>
+              <td><a href="basic_agent_construction_status/verify_live_turn/index.html">Verify one live voice turn</a><br><em>Stage 5</em></td>
+              <td><span class="construction-status-chip">Not started</span></td>
+              <td>Runs one full turn for real, end to end. It is the only evidence that the arrangement survives contact with a live backend.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p><strong>What would bring work back to the Interface File</strong></p>
+      <ul>
+        <li><strong>Row 1 removing the session id from the event.</strong> Then <code>submit()</code> grows a parameter, and <code>conversation_agent.ts</code> changes.</li>
+        <li><strong>Row 2 choosing a second method.</strong> Then cancellation lands on <code>IConversationAgent</code> itself rather than beside it.</li>
+        <li><strong>Row 6 landing.</strong> The interface file's own "how to check this yourself" grep gains a fourth hit, and its "A real screen depends on it" row finally moves off Not started.</li>
+      </ul>
+      <p><strong>What would bring work back to the Event Contracts</strong></p>
+      <ul>
+        <li><strong>Row 1 settling the session id.</strong> Either <code>contracts.ts</code> drops <code>sessionId</code> or <code>pydantic_models/models.py</code> stops typing it as a <code>UUID</code> &mdash; one of the three declarations on that page changes either way.</li>
+        <li><strong>Row 1 bringing the adapter copy up to five kinds.</strong> <code>claude_agent_adapter/models.py</code> emits two today; its "how to check this yourself" check 4 exists to catch exactly that change.</li>
+        <li><strong>Row 6 landing.</strong> The first consumer filters a real stream, and the page's "Something reads these events" row finally moves off Not started.</li>
+      </ul>
+
+      <h2>7. How to read the rest of this plan</h2>
+      <p>The sidebar shows one level at a time. A red corner triangle means the item opens into smaller items; a plain entry is a leaf, small enough to finish and prove in one sitting. Selecting any item replaces this chapter with a lesson about that item alone: what it means, what exists, what is missing, how we will know it is done, and the next concrete action.</p>
+      <blockquote class="construction-status-callout principle">
+        <span class="construction-status-callout-label">Construction Principle</span>
+        <strong>Move one narrow boundary from not started, to in progress, to verified. Then let the checks &mdash; not optimism &mdash; change its status to done.</strong>
+      </blockquote>
+    </div>
+
+    <footer class="construction-status-footer">Voice Communication University &bull; IConversationAgent &bull; Dynamic Construction Status</footer>
+  </article>
+</div>
+
+<section class="construction-task-focus construction-textbook-focus" data-construction-object="IConversationAgent" aria-live="polite" hidden></section>
+
+<ol class="construction-task-tree" data-construction-object="IConversationAgent" aria-label="IConversationAgent construction tasks" hidden>
+
+  <li class="construction-task" data-task-id="stage-1" data-task-label="1. Declare the Plug-in Point" data-task-status="done">
+    <div class="construction-task-row">
+      <span class="construction-task-box" aria-hidden="true"></span>
+      <span class="construction-task-copy">
+        <strong>Stage 1 &mdash; Declare the plug-in point</strong>
+        <small>Give the boundary between voice policy and any agent backend a name, a file, and a typed shape.</small>
+      </span>
+      <span class="construction-task-status">Done</span>
+    </div>
+    <div class="construction-task-lesson" hidden>
+      <section>
+        <h2>What this stage actually means</h2>
+        <p>A plug-in point is a promise written in the type system: <em>whatever answers our questions must look like this</em>. Declaring it is cheap and it is not the same as building anything. Its whole value is that the code above the boundary &mdash; voice policy, the Toyota screen &mdash; can now be written against a name instead of against a particular vendor's SDK.</p>
+        <p>This stage is finished. That is a real milestone and also a modest one: a declared plug-in point proves the design is expressible, not that it works.</p>
+      </section>
+      <section>
+        <h2>What was built</h2>
+        <p>Three artifacts, all type-only: the interface itself, the shared event vocabulary it streams, and the barrel file that publishes both to consumers.</p>
+      </section>
+      <section>
+        <h2>How to check this yourself</h2>
+        <p>From <code>voice_communication/</code>, run <code>npm run typecheck</code>. It runs <code>tsc -p tsconfig.json</code> and currently exits clean. If a later edit makes the contract inconsistent with its consumers, this is the check that catches it first.</p>
+      </section>
+      <section>
+        <h2>What this unlocked</h2>
+        <p>Stage 2 &mdash; someone can now try to implement the plug-in point and find out whether the shape survives contact with a real agent SDK.</p>
+      </section>
+    </div>
+    <ol class="construction-task-children">
+
+      <li class="construction-task" data-task-id="stage-1a" data-task-label="Interface File" data-task-status="done">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Write the interface file</strong>
+            <small>One operation, submit( text, generation ), returning an async stream of AgentEvent.</small>
+          </span>
+          <span class="construction-task-status">Done</span>
+        </div>
+        <div class="construction-task-lesson" data-lesson-src="voice_communication/conversation_agent/basic_agent_construction_status/declare_the_plug_in_point/interface_file/index.html" data-lesson-title="Interface File Construction Status" hidden></div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-1b" data-task-label="Event Contracts" data-task-status="done">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Define the shared event contracts</strong>
+            <small>AgentEvent, its five kinds, and the SessionId / GenerationId aliases the whole boundary shares.</small>
+          </span>
+          <span class="construction-task-status">Done</span>
+        </div>
+        <div class="construction-task-lesson" data-lesson-src="voice_communication/conversation_agent/basic_agent_construction_status/declare_the_plug_in_point/event_contracts/index.html" data-lesson-title="Event Contracts Construction Status" hidden></div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-1c" data-task-label="Publish Barrel" data-task-status="done">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Publish through the interfaces barrel</strong>
+            <small>Make consumers import from one stable entry point instead of reaching into block folders.</small>
+          </span>
+          <span class="construction-task-status">Done</span>
+        </div>
+        <div class="construction-task-lesson" data-lesson-title="Publish Barrel Construction Status" hidden>
+<section>
+<h2>Where this item stands</h2>
+<p>The barrels are <strong>written and loading</strong>. What is not finished is their use: a barrel earns its keep only when something imports through it, and today nothing does.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>The work</th><th>State</th><th>What you can go and check</th></tr></thead>
+<tbody>
+<tr><td>The TypeScript catalog exists</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>interfaces/index.ts</code>, 30 lines &mdash; thirteen plug-in points and thirteen shared contract types.</td></tr>
+<tr><td>The package facade re-exports it</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>index.ts</code> line&nbsp;3 &mdash; <code>export type *</code>, so importing the package emits no runtime code at all.</td></tr>
+<tr><td>The Python catalog exists</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>interfaces/__init__.py</code> &mdash; six service-side plug-in points, eleven models, and an explicit <code>__all__</code> of seventeen names.</td></tr>
+<tr><td>Every block is in exactly one barrel</td><td><span class="construction-status-chip status-done">Done</span></td><td>Thirteen browser-side blocks plus six service-side blocks &mdash; nineteen folders, no folder listed twice, none left out.</td></tr>
+<tr><td>Both barrels load</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>npm run typecheck</code> is clean; <code>import voice_communication</code> exposes all seventeen Python names.</td></tr>
+<tr><td>The package name resolves</td><td><span class="construction-status-chip">Not started</span></td><td><code>package.json</code> declares no <code>main</code>, no <code>types</code>, no <code>exports</code>. Only a relative path to <code>index.ts</code> works.</td></tr>
+<tr><td>A consumer imports through it</td><td><span class="construction-status-chip">Not started</span></td><td>Nothing outside the two barrel files imports either barrel. Toyota is not wired up until Stage&nbsp;4.</td></tr>
+<tr><td>Deep imports are prevented</td><td><span class="construction-status-chip">Not started</span></td><td>No rule, lint, or test forbids reaching past the barrel into a block folder.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Read this row first</span>
+<strong>Done here means both catalogs exist and both load. It does not mean the stable path they publish has ever been used &mdash; the barrel currently has no consumers at all.</strong>
+</blockquote>
+</section>
+
+<section>
+<h2>What this item is protecting against</h2>
+<p>Suppose Toyota imports <code>../../voice_communication/conversation_agent/conversation_agent.js</code>. That one line quietly turns two private facts into public API: that a folder is named <code>conversation_agent</code>, and that it sits exactly two directories up. Rename the folder, split it, or move the package, and the import breaks &mdash; not because the interface changed, but because the furniture moved.</p>
+<p>A barrel fixes the public surface at one path. Behind it, folders may be renamed, merged, or split, and the repair is one line inside the barrel instead of one line inside every consumer. That is the whole trade: one file absorbs the churn so the other files do not have to.</p>
+</section>
+
+<section>
+<h2>What was written &mdash; the TypeScript catalog</h2>
+<p>Thirty lines, every one of them a re-export. The first and last lines below are the two ends of the catalog; the middle is the shared contract block that the <strong>Event Contracts</strong> item feeds into it.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">&mdash;   &#9633;   &times;</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>voice_communication/interfaces/index.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="cm">/** Public TypeScript interface catalog for the Voice Communication blocks. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IConversationAgent</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../conversation_agent/conversation_agent.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IConversationCoordinator</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../conversation_coordinator/conversation_coordinator.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">AgentEvent</span><span class="p">,</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">&middot;&middot;&middot;</span><span class="vscode-line-text">&#8942;</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">VoiceHealthEvent</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">VoiceHealthStatus</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../typescript_contracts/contracts.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceDesignRule</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../design_protocol/design_protocol.js"</span><span class="p">;</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">&middot;&middot;&middot;</span><span class="vscode-line-text">&#8942;</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">29</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceHealthObserver</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../voice_health_observer/voice_health_observer.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">30</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceSession</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../voice_session/voice_session.js"</span><span class="p">;</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   &#10003; 0   &#9888; 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>Two details carry the file. Every line is <code>export type</code>, never a bare <code>export</code> &mdash; these are interfaces and aliases with no runtime existence, and saying so keeps the barrel from pulling code into a bundle that only wanted a shape. And every specifier ends in <code>.js</code>, not <code>.ts</code>, because the project compiles under <code>NodeNext</code> resolution, where the import path names the emitted file even in a source file that will never be emitted.</p>
+<p>The package facade above it is three lines, and the third is the one that matters:</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">&mdash;   &#9633;   &times;</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>voice_communication/index.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="cm">/** Stable package entry point; the public ports live in interfaces/. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"./interfaces/index.js"</span><span class="p">;</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   &#10003; 0   &#9888; 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p><code>export type *</code> forwards the entire catalog without naming any of it, so adding a plug-in point means editing <code>interfaces/index.ts</code> and nothing else.</p>
+</section>
+
+<section>
+<h2>The other barrel &mdash; the Python catalog</h2>
+<p>The voice boundary has two sides, and they do not share a language. The browser side is TypeScript; the local Pipecat service is Python. Each side gets its own catalog, and the same publishing idea is applied twice.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">&mdash;   &#9633;   &times;</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>voice_communication/interfaces/__init__.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="sd">"""Public Python interface catalog for the local Pipecat service."""</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..audio_capture.audio_capture</span><span class="w"> </span><span class="kn">import</span> <span class="n">AudioCapture</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..detection_interface.detection_interface</span><span class="w"> </span><span class="kn">import</span> <span class="n">DetectionInterface</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pydantic_models.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">&middot;&middot;&middot;</span><span class="vscode-line-text">&#8942;</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pipecat_local_service.pipecat_local_service</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipecatLocalService</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pipeline_factory.pipeline_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineFactory</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..speech_synthesizer.speech_synthesizer</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpeechSynthesizer</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..transcription_strategy.transcription_strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">TranscriptionStrategy</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   &#10003; 0   &#9888; 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   Python</div></div></div>
+<p>The Python file differs from its TypeScript twin in one visible way: it ends with an explicit <code>__all__</code> listing all seventeen names. Python has no <code>export type</code>, so <code>__all__</code> is what draws the line between the published surface and whatever else happens to be reachable through the module. <code>voice_communication/__init__.py</code> then does the facade's job in two lines, re-exporting the catalog and its <code>__all__</code> together.</p>
+</section>
+
+<section>
+<h2>What each catalog publishes</h2>
+<p>Nineteen block folders, split by which side of the wire they run on. No folder appears in both catalogs, and none is missing from both.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Catalog</th><th>Plug-in points it publishes</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td><code>interfaces/index.ts</code><br><small>browser side</small></td><td><code>IConversationAgent</code>, <code>IConversationCoordinator</code>, <code>IVoiceDesignRule</code>, <code>IInputDraft</code>, <code>ILanguageProcessor</code>, <code>ILettaAgentAdapter</code>, <code>INoteCommandChannel</code>, <code>IPipecatServiceClient</code>, <code>IRouteStrategy</code>, <code>ISpokenOutputPolicy</code>, <code>IToyotaVoiceApplication</code>, <code>IVoiceHealthObserver</code>, <code>IVoiceSession</code></td><td>13<br><small>+ 13 contract types</small></td></tr>
+<tr><td><code>interfaces/__init__.py</code><br><small>service side</small></td><td><code>AudioCapture</code>, <code>DetectionInterface</code>, <code>PipecatLocalService</code>, <code>PipelineFactory</code>, <code>SpeechSynthesizer</code>, <code>TranscriptionStrategy</code></td><td>6<br><small>+ 11 models</small></td></tr>
+</tbody>
+</table></div>
+<p>The split is not arbitrary. Microphone capture, wake-word detection, the pipeline factory, and speech synthesis all run inside the local Pipecat process; the browser never holds those. <code>IConversationAgent</code> &mdash; the plug-in point this stage exists to declare &mdash; sits on the browser side, and is the first export in the TypeScript catalog.</p>
+</section>
+
+<section>
+<h2>Where it sits</h2>
+<p>Drag to pan, wheel to zoom. The long arrow from the consumer straight down to the block folders is the import this item exists to make unnecessary.</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 &mdash; Two catalogs, one publishing rule</span>
+<span class="diagram-hint">Wheel: zoom &bull; Drag: pan &bull; Shift+wheel: horizontal pan &bull; Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">&minus;</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Class diagram showing consumers importing through the package facade into the two interface catalogs" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">classDiagram
+    direction LR
+
+    class Toyota["Toyota app"] {
+        &lt;&lt;consumer, not wired up&gt;&gt;
+    }
+
+    class Service["Pipecat service"] {
+        &lt;&lt;consumer, not wired up&gt;&gt;
+    }
+
+    class FacadeTs["index.ts"] {
+        &lt;&lt;package facade&gt;&gt;
+        export type *
+    }
+
+    class FacadePy["__init__.py"] {
+        &lt;&lt;package facade&gt;&gt;
+        import * from interfaces
+    }
+
+    class CatalogTs["interfaces/index.ts"] {
+        &lt;&lt;browser catalog&gt;&gt;
+        13 plug-in points
+        13 contract types
+    }
+
+    class CatalogPy["interfaces/__init__.py"] {
+        &lt;&lt;service catalog&gt;&gt;
+        6 plug-in points
+        11 models
+    }
+
+    class BlocksTs["13 block folders"] {
+        &lt;&lt;free to move&gt;&gt;
+    }
+
+    class BlocksPy["6 block folders"] {
+        &lt;&lt;free to move&gt;&gt;
+    }
+
+    Toyota ..&gt; FacadeTs : will import (Stage 4)
+    FacadeTs ..&gt; CatalogTs : re-exports
+    CatalogTs ..&gt; BlocksTs : re-exports
+    Service ..&gt; FacadePy : will import
+    FacadePy ..&gt; CatalogPy : re-exports
+    CatalogPy ..&gt; BlocksPy : re-exports
+    Toyota ..&gt; BlocksTs : deep import, what the barrel replaces</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> The two middle columns are built. The arrows leaving the consumers are all still hypothetical &mdash; including the last one, which is the shortcut this item is meant to make unattractive.</p>
+</section>
+
+<section>
+<h2>One folder move, with and without the barrel</h2>
+<p>Figure 1 is the arrangement; this is why the arrangement is worth the extra file. The move below has not happened; it is the cheapest way to show what the barrel buys.</p>
+<div class="mermaid-figure" data-diagram="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 &mdash; Renaming a block folder, both ways</span>
+<span class="diagram-hint">Wheel: zoom &bull; Drag: pan &bull; Shift+wheel: horizontal pan &bull; Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">&minus;</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Sequence diagram comparing a folder rename with a deep import against one through the barrel" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant Dev as Someone renaming a folder
+    participant Barrel as interfaces/index.ts
+    participant Toyota as A consumer
+
+    Note over Dev,Toyota: Without a barrel
+    Dev-&gt;&gt;Toyota: renames conversation_agent/
+    Toyota--&gt;&gt;Dev: import path is broken
+    Note over Toyota: Every consumer edits its own import.
+
+    Note over Dev,Toyota: With the barrel
+    Dev-&gt;&gt;Barrel: renames conversation_agent/
+    Barrel-&gt;&gt;Barrel: one re-export line changes
+    Toyota--&gt;&gt;Barrel: import is unchanged
+    Note over Dev,Toyota: The interface never moved. Only the furniture did.</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> The saving is not in writing the barrel. It is in every later edit that the barrel absorbs.</p>
+</section>
+
+<section>
+<h2>What has to happen next</h2>
+<ol>
+<li><strong>Give the package a resolvable name.</strong> <code>package.json</code> carries <code>name</code>, <code>private</code>, <code>type</code>, and a <code>scripts</code> block &mdash; but no <code>main</code>, no <code>types</code>, and no <code>exports</code>. Until one of those points at <code>index.ts</code>, the stable path is a relative path, which is exactly the fragility the barrel was written to remove.</li>
+<li><strong>Import through it once, for real.</strong> Nothing outside the two barrel files imports either catalog today. Stage&nbsp;4 wiring Toyota in is the first use, and it is the first chance for the arrangement to be wrong.</li>
+<li><strong>Decide what happens to deep imports.</strong> Inside the package they are correct &mdash; <code>spoken_output_policy.ts</code> reaches straight into <code>typescript_contracts/</code> because importing its own barrel would be circular. Outside the package they are the regression. Nothing currently distinguishes the two cases.</li>
+<li><strong>Keep the two catalogs honest as blocks are added.</strong> Nineteen folders, nineteen entries today. Nothing fails if the twentieth block is written and never listed; it simply stays unpublished, and only a reader would notice.</li>
+</ol>
+</section>
+
+<section>
+<h2>How to check this yourself</h2>
+<ol>
+<li><code>cat voice_communication/index.ts</code> &mdash; three lines, the third one <code>export type * from "./interfaces/index.js";</code>.</li>
+<li><code>grep -c "^export type" voice_communication/interfaces/index.ts</code> &mdash; every re-export line, none of them a value export.</li>
+<li><code>npm run typecheck</code> in <code>voice_communication/</code> &mdash; passes, which is what proves all fourteen module specifiers and twenty-six names resolve.</li>
+<li><code>python -c "import voice_communication as vc; print( len( vc.__all__ ))"</code> from <code>agent_blocks/</code> &mdash; prints <code>17</code>.</li>
+<li><code>grep -n '"main"\|"types"\|"exports"' voice_communication/package.json</code> &mdash; finds nothing. When this starts printing a line, the sixth row of the table above has moved.</li>
+</ol>
+</section>
+</div>
+      </li>
+
+    </ol>
+  </li>
+
+  <li class="construction-task" data-task-id="stage-2" data-task-label="2. Prove With One Adapter" data-task-status="current">
+    <div class="construction-task-row">
+      <span class="construction-task-box" aria-hidden="true"></span>
+      <span class="construction-task-copy">
+        <strong>Stage 2 &mdash; Prove the plug-in point with one working adapter</strong>
+        <small>Find out whether anything can really implement submit() before betting four more blocks on the shape.</small>
+      </span>
+      <span class="construction-task-status">In progress</span>
+    </div>
+    <div class="construction-task-lesson" hidden>
+      <section>
+        <h2>What this stage actually means</h2>
+        <p>A plug-in point that has never been implemented is a guess. This stage cashes the guess by building one adapter against a real agent SDK and letting the friction show up while it is still cheap to change the interface.</p>
+        <p>It half worked, in the most useful way. The adapter exists, streams, and is tested &mdash; and building it exposed a disagreement about the event shape that a diagram would never have revealed. That disagreement is now the item in progress.</p>
+      </section>
+      <section>
+        <h2>What exists today</h2>
+        <p>The reference implementation is <code>claude_agent_adapter/</code> in the parent workspace: a Python <code>Protocol</code> mirroring <code>IConversationAgent</code>, an adapter wrapping <code>claude-agent-sdk</code>'s <code>query()</code>, and an offline test suite that runs with no network and no API key. It answers the stage's question with a yes: the plug-in point is implementable, and the async-stream shape is natural on the implementing side.</p>
+      </section>
+      <section>
+        <h2>What is still missing</h2>
+        <p>Two things, both decisions rather than typing. First, three copies of <code>AgentEvent</code> now disagree about whether an event carries a session id. Second, nothing says what cancelling a turn does &mdash; and voice, where the user interrupts constantly, is the one domain that cannot leave that unspecified.</p>
+      </section>
+      <section>
+        <h2>How we will know this stage is done</h2>
+        <p>One event shape that all three copies agree on, and a written cancellation rule with a test that holds an adapter to it. Then a TypeScript adapter can be written once instead of twice.</p>
+      </section>
+    </div>
+    <ol class="construction-task-children">
+
+      <li class="construction-task" data-task-id="stage-2a" data-task-label="Reference Adapter" data-task-status="done">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Build the reference adapter</strong>
+            <small>ClaudeAgentAdapter implements the same plug-in point in Python over claude-agent-sdk.</small>
+          </span>
+          <span class="construction-task-status">Done</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>The adapter's job is translation, and nothing else: SDK messages in, <code>AgentEvent</code> out. Everything vendor-shaped stops at this file. That is why it is the only module allowed to import <code>claude_agent_sdk</code> &mdash; that single greppable rule <em>is</em> the dependency-inversion boundary, enforceable by search rather than by good intentions.</p>
+            <p>It also taught the plan something about failure. The Agent SDK does not raise on auth or model errors; it returns a <code>ResultMessage</code> with <code>is_error</code> set. An adapter that forwards blindly would report a failed turn as a successful one, and the voice policy above would happily speak an error string aloud.</p>
+          </section>
+          <section>
+            <h2>What was built</h2>
+            <p><code>claude_agent_adapter/adapter.py</code>, 91 lines. <code>submit()</code> yields an <code>assistant_text</code> event per text block, keeps the final <code>ResultMessage</code>, and only then yields <code>terminal</code> &mdash; after checking <code>is_error</code> and raising <code>AgentCallFailed</code> if it is set. It opens a fresh SDK session per call, with <code>setting_sources=[]</code> and <code>allowed_tools=[]</code> so it answers with text and cannot read files.</p>
+          </section>
+          <section>
+            <h2>How to check this yourself</h2>
+            <p>Read the file and confirm the <code>is_error</code> check still sits before the terminal yield. Confirm too that no module outside <code>adapter.py</code> imports <code>claude_agent_sdk</code>; the moment a second one does, the boundary has leaked and this item is no longer done.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-2b" data-task-label="Adapter Tests" data-task-status="done">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Cover the adapter with offline tests</strong>
+            <small>Prove the streaming and failure behavior without a network call or an API key.</small>
+          </span>
+          <span class="construction-task-status">Done</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>Tests that need credentials get skipped, and skipped tests protect nothing. Because the adapter depends on <code>query()</code> rather than on a live service, the SDK call can be faked with real <code>AssistantMessage</code> and <code>ResultMessage</code> objects &mdash; the same inversion that makes the plug-in point useful in production makes it testable offline.</p>
+          </section>
+          <section>
+            <h2>What was built</h2>
+            <p><code>claude_agent_adapter/tests/test_adapter.py</code> with <code>fakes.py</code> alongside it. Three named behaviors are pinned: text blocks stream out then a terminal event arrives; an errored result raises instead of yielding; and a run that produces no <code>ResultMessage</code> at all raises rather than ending silently.</p>
+          </section>
+          <section>
+            <h2>How to check this yourself</h2>
+            <p><code>cd claude_agent_adapter &amp;&amp; ../lancedb_memory/.venv/bin/python tests/test_adapter.py</code>. It reports <strong>4/4 passed</strong> today. The venv is needed only because <code>claude-agent-sdk</code> must be importable for the fake message classes; no key is read and no request goes out.</p>
+          </section>
+          <section>
+            <h2>Where the coverage stops</h2>
+            <p>These are adapter tests, not contract tests. They hold one implementation to its own behavior; they do not yet hold <em>every</em> implementation to a shared rule. That generalization is Stage 3's contract-test item.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-2c" data-task-label="Reconcile AgentEvent" data-task-status="current">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Reconcile the three AgentEvent copies</strong>
+            <small>Decide whether an event carries a session id, then make all three definitions agree.</small>
+          </span>
+          <span class="construction-task-status">In progress</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p><strong>This is the item currently being worked on, and it is the reason nothing downstream has started.</strong> Three definitions of the same event have drifted apart, and each one is defensible on its own:</p>
+            <ul class="construction-lesson-evidence">
+              <li>TypeScript &mdash; <code>contracts.ts</code>: <code>sessionId</code> required, <code>generation: number</code>, five kinds.</li>
+              <li>Python service side &mdash; <code>voice_communication/pydantic_models/models.py</code>: <code>session_id: UUID</code> required, five kinds.</li>
+              <li>Python adapter side &mdash; <code>claude_agent_adapter/models.py</code>: <em>no</em> session field, two kinds (<code>assistant_text</code>, <code>terminal</code>).</li>
+            </ul>
+            <p>The adapter's omission is not sloppiness; it is an argument. <code>submit( text, generation )</code> never receives a session id, so an adapter that emitted one would be inventing data. Either the plug-in point hands the session down, or the event stops carrying it and whoever owns the session attaches it above the boundary. Both are coherent designs. Choosing is the work.</p>
+          </section>
+          <section>
+            <h2>What exists today</h2>
+            <p>All three files, all valid, all disagreeing. The disagreement is invisible to every current check: <code>tsc</code> and the Python tests each see only their own side, so nothing fails today. That is exactly why it needs a decision rather than a bug report.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>A decision, written down in one place. Then: whichever of the three definitions loses gets edited, the two-kind Python copy grows to whatever set of kinds is agreed, and a note in the shared contracts file records why &mdash; so the next person does not silently re-add the field.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>The three definitions describe the same event; <code>npm run typecheck</code> and the adapter tests both still pass; and the reason for the choice is written next to the type, not just in this plan.</p>
+          </section>
+          <section>
+            <h2>The next concrete action</h2>
+            <p>Answer one question: <em>does an adapter know its session?</em> If yes, add the session parameter to <code>submit()</code> and keep the field. If no, drop <code>sessionId</code> from <code>AgentEvent</code> and let the coordinator stamp it. Everything else in this item follows mechanically from that answer.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-2d" data-task-label="Cancellation Rule" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Decide where cancellation lives</strong>
+            <small>Say what happens to a turn the user talks over, and which interface owns that verb.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>In a typed chat box, an abandoned response is a cosmetic problem. In voice it is the whole product: the assistant must stop talking the moment the user starts. So &ldquo;what does cancellation mean&rdquo; is not a refinement to add later &mdash; it is a load-bearing part of the contract.</p>
+            <p>There are three candidate homes, and the choice is a design commitment, not a preference. Cancellation can be implicit in the generation number, with the consumer discarding events from superseded turns. It can be a method on <code>IConversationAgent</code>, making every adapter implement it. Or it can be a separate lifecycle interface, keeping the plug-in point at one method for adapters that genuinely cannot interrupt their backend.</p>
+          </section>
+          <section>
+            <h2>What exists today</h2>
+            <p>Nothing, and the silence is the risk. <code>generation</code> exists and hints at the first option, but no file says whether a cancelled turn is expected to stop producing events or merely to be ignored downstream. Two adapters could each be &ldquo;correct&rdquo; and behave incompatibly.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>The written rule, in the plug-in point's own doc comment: after a generation is superseded, what may an adapter still emit, and what must a consumer do with it? Then whichever shape the decision implies &mdash; a parameter, a method, or a second interface.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Stage 5's cancellation test can be written from the doc comment alone, without asking anyone what was intended.</p>
+          </section>
+          <section>
+            <h2>Why it is not started</h2>
+            <p>It sits behind the <code>AgentEvent</code> reconciliation, because the same question &mdash; how much lifecycle the plug-in point owns &mdash; is easier to answer once for both.</p>
+          </section>
+        </div>
+      </li>
+
+    </ol>
+  </li>
+
+  <li class="construction-task" data-task-id="stage-3" data-task-label="3. TypeScript Adapter" data-task-status="planned">
+    <div class="construction-task-row">
+      <span class="construction-task-box" aria-hidden="true"></span>
+      <span class="construction-task-copy">
+        <strong>Stage 3 &mdash; Write the TypeScript adapter</strong>
+        <small>Turn ILettaAgentAdapter from a reserved name into a class the browser can actually construct.</small>
+      </span>
+      <span class="construction-task-status">Not started</span>
+    </div>
+    <div class="construction-task-lesson" hidden>
+      <section>
+        <h2>What this stage actually means</h2>
+        <p>The Python adapter proved the plug-in point is implementable. It cannot be shipped to a browser. This stage produces the implementation that Toyota will actually hold at runtime &mdash; the first non-type-only code in this block.</p>
+      </section>
+      <section>
+        <h2>What exists today</h2>
+        <p>A name and a promise: <code>interface ILettaAgentAdapter extends IConversationAgent {}</code>, which adds nothing and implements nothing. Every TypeScript file in this package is still type-only, so this stage also introduces the package's first emitted JavaScript.</p>
+      </section>
+      <section>
+        <h2>What is still missing</h2>
+        <p>All of it &mdash; the class, the stream translation, and the contract tests that keep the next adapter honest.</p>
+      </section>
+      <section>
+        <h2>Why it is not started</h2>
+        <p>The translation layer is written against the event shape. Starting before Stage 2's reconciliation lands means writing it, then rewriting it.</p>
+      </section>
+    </div>
+    <ol class="construction-task-children">
+
+      <li class="construction-task" data-task-id="stage-3a" data-task-label="Implement Adapter Class" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Implement the LettaAgentAdapter class</strong>
+            <small>A concrete class satisfying IConversationAgent, holding its transport as an injected dependency.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>One class with one async generator method. The interesting constraint is what it must <em>not</em> do: it must not construct its own transport, read global configuration, or know that a UI exists. Its dependencies arrive through its constructor so that a test can hand it a fake and a composition root can hand it the real one.</p>
+            <p>Follow the Python adapter's shape &mdash; it is the reference implementation for a reason, and matching it keeps the two sides of the boundary legible to the same reader.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>The file itself. <code>letta_agent_adapter/letta_agent_adapter.ts</code> currently holds only the empty extending interface.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>The class compiles under <code>npm run typecheck</code> with an explicit <code>implements IConversationAgent</code>, and it is the only file in this block that names Letta's transport.</p>
+          </section>
+          <section>
+            <h2>The next concrete action</h2>
+            <p>Blocked. Start it once Stage 2's event shape is settled &mdash; the method signature depends directly on that answer.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-3b" data-task-label="Translate The Stream" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Translate the Letta stream into AgentEvent</strong>
+            <small>Map vendor messages onto the five kinds, and fail closed on anything unrecognized.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>This is where a boundary is usually lost. It is tempting to pass an unmapped vendor message through &ldquo;just in case&rdquo; someone downstream finds it useful &mdash; and the moment that happens, the voice policy is coupled to Letta's message taxonomy and the plug-in point has become decoration.</p>
+            <p>So the rule is: everything is mapped onto one of the five kinds, or it is dropped or raised deliberately. Unknown kinds fail closed. The Python adapter's <code>is_error</code> handling is the pattern to copy &mdash; a failed turn must never arrive downstream wearing the shape of a successful one.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>The mapping table itself, and the decision for each vendor message type: which of the five kinds it becomes, or why it is dropped.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Every emitted event is one of the five kinds; an unmapped vendor message produces a deliberate outcome rather than a silent pass-through; and a backend failure ends the stream as <code>error</code> or a raised failure, never as <code>terminal</code>.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-3c" data-task-label="Contract Tests" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Write contract tests in TypeScript</strong>
+            <small>One suite any adapter must pass, so the second adapter cannot quietly redefine the plug-in point.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>Adapter tests and contract tests are different animals. An adapter test checks one implementation's own behavior; a contract test is written against the <em>interface</em> and run against every implementation, so it is the artifact that keeps two adapters honestly interchangeable.</p>
+            <p>The critical constraint: the suite must not import anything from Toyota or from any UI. The moment it does, the plug-in point's definition is entangled with a consumer, and a second consumer inherits assumptions nobody wrote down.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>Everything, including the choice of runner &mdash; this package currently has no test tooling at all, only <code>typecheck</code> in its <code>package.json</code> scripts.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>The same suite runs green against the Letta adapter and against a hand-written fake adapter. If it only passes for one of them, it is an adapter test wearing a contract test's name.</p>
+          </section>
+        </div>
+      </li>
+
+    </ol>
+  </li>
+
+  <li class="construction-task" data-task-id="stage-4" data-task-label="4. Adopt In Toyota" data-task-status="planned">
+    <div class="construction-task-row">
+      <span class="construction-task-box" aria-hidden="true"></span>
+      <span class="construction-task-copy">
+        <strong>Stage 4 &mdash; Adopt the plug-in point in Toyota Input Options</strong>
+        <small>Make the real screen depend on the interface instead of issuing its own request.</small>
+      </span>
+      <span class="construction-task-status">Not started</span>
+    </div>
+    <div class="construction-task-lesson" hidden>
+      <section>
+        <h2>What this stage actually means</h2>
+        <p>Until a real consumer depends on it, a plug-in point is a hypothesis. This stage is the first one where an existing, working screen changes &mdash; which makes it the first stage that can break something a user would notice.</p>
+        <p>The discipline for the whole stage is therefore: behavior identical, dependencies inverted. If the screen behaves differently afterwards, the refactor failed even if the architecture looks better.</p>
+      </section>
+      <section>
+        <h2>What exists today</h2>
+        <p>Toyota Input Options lives outside this workspace, in the dashboard application; nothing in <code>agent_blocks</code> imports it, and no adoption work has begun on either side. <code>IToyotaVoiceApplication</code> here is a two-method facade (<code>start</code>, <code>stop</code>) and nothing more.</p>
+      </section>
+      <section>
+        <h2>What is still missing</h2>
+        <p>Everything &mdash; and one piece of homework first: read how Input Options sends today, including its resume and timeout behavior, and write that down as the behavior the refactor must preserve. Before that reading exists, this stage cannot be estimated honestly.</p>
+      </section>
+      <section>
+        <h2>Why it is not started</h2>
+        <p>It requires a shippable TypeScript adapter from Stage 3. There is nothing to inject yet.</p>
+      </section>
+    </div>
+    <ol class="construction-task-children">
+
+      <li class="construction-task" data-task-id="stage-4a" data-task-label="Inject At Composition Root" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Construct the adapter at Toyota's composition root</strong>
+            <small>Name the concrete class in exactly one outer place, and pass the plug-in point inward.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>Dependency inversion is not achieved by having an interface; it is achieved by <em>where the concrete class is named</em>. Exactly one outer location may say <code>new LettaAgentAdapter( ... )</code>. Everything inward receives an <code>IConversationAgent</code> and cannot tell which implementation it holds.</p>
+            <p>This is the same rule the workspace already applies on the Python side, where only <code>main.py</code> names concrete implementations. It is greppable, which is what makes it survive.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Grepping the adapter's class name in the Toyota application finds exactly one construction site, and the component holding it declares only the interface type.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-4b" data-task-label="Replace Direct Request" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Replace the direct request call</strong>
+            <small>Route the send through submit() without losing resume or timeout behavior.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>The screen stops issuing a request and starts consuming a stream: <code>for await ( const event of agent.submit( text, generation ) )</code>. The rendering code moves from &ldquo;await a response, then draw&rdquo; to &ldquo;draw as events arrive&rdquo;.</p>
+            <p>The hazard is the behavior that lives around the old call rather than inside it &mdash; resume-after-reconnect, request timeouts, retry. That logic is easy to lose in a refactor because it is not part of the happy path, and it is exactly what users notice when it disappears.</p>
+          </section>
+          <section>
+            <h2>What is still missing</h2>
+            <p>A written inventory of the current send path's behavior, produced before the first line is changed. It is the checklist the refactor is graded against.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Every behavior on that inventory still holds after the change, and the screen no longer imports any transport directly.</p>
+          </section>
+        </div>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-4c" data-task-label="Keep UI State Out" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Keep input clearing out of the plug-in point</strong>
+            <small>Submit an immutable text snapshot; clearing the box stays with Input Draft and the coordinator.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>There is a pull, during every adoption like this, to let the agent call clear the text box &mdash; both happen on send, so it feels like one action. It is two responsibilities: talking to an agent, and mutating UI state. Joining them means every future adapter, including a headless voice one with no text box at all, inherits a UI concern.</p>
+            <p>The plug-in point receives an immutable snapshot of the text. What the input field does next belongs to <code>IInputDraft</code> and the conversation coordinator, which are separate blocks in this package for exactly this reason.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>No adapter and no call into <code>submit()</code> touches input state, and a headless caller can submit a turn without any input component existing.</p>
+          </section>
+        </div>
+      </li>
+
+    </ol>
+  </li>
+
+  <li class="construction-task" data-task-id="stage-5" data-task-label="5. Verify Live Turn" data-task-status="planned">
+    <div class="construction-task-row">
+      <span class="construction-task-box" aria-hidden="true"></span>
+      <span class="construction-task-copy">
+        <strong>Stage 5 &mdash; Verify one live voice turn</strong>
+        <small>Prove one whole path works out loud before adding the remaining Voice Communication blocks.</small>
+      </span>
+      <span class="construction-task-status">Not started</span>
+    </div>
+    <div class="construction-task-lesson" hidden>
+      <section>
+        <h2>What this stage actually means</h2>
+        <p>One narrow slice, verified end to end, is worth more than four blocks that each look finished in isolation. This stage is the acceptance gate for everything above it: microphone in, agent stream through the plug-in point, speech out.</p>
+      </section>
+      <section>
+        <h2>What is still missing</h2>
+        <p>All of it. No implementation of this plug-in point has ever run in a browser, so there is no observation to record yet.</p>
+      </section>
+      <section>
+        <h2>How we will know this stage is done</h2>
+        <p>The focused tests pass, and a person has watched one complete turn happen in a real browser for each adapter path that is meant to satisfy the plug-in point.</p>
+      </section>
+    </div>
+    <ol class="construction-task-children">
+
+      <li class="construction-task" data-task-id="stage-5a" data-task-label="Focused Behavior Tests" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Run the focused behavior tests</strong>
+            <small>Three separately diagnosable checks: vocabulary, ordering, and cancellation.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>Split by failure mode, not by convenience. One big &ldquo;it works&rdquo; test tells you something broke; three narrow tests tell you <em>what</em> broke, which is the entire value of a test at this boundary.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Each of the three children below passes on its own and names a distinct defect when it fails.</p>
+          </section>
+        </div>
+        <ol class="construction-task-children">
+          <li class="construction-task" data-task-id="stage-5a-1" data-task-label="Event Vocabulary" data-task-status="planned">
+            <div class="construction-task-row"><span class="construction-task-box" aria-hidden="true"></span><span class="construction-task-copy"><strong>Test the event vocabulary</strong><small>Supported kinds are admitted; unknown kinds fail closed instead of passing through.</small></span><span class="construction-task-status">Not started</span></div>
+            <div class="construction-task-lesson" hidden>
+              <section>
+                <h2>What this item actually means</h2>
+                <p>The check that keeps the boundary sealed. Feed the adapter a vendor message it has no mapping for and assert that nothing unrecognized reaches the consumer &mdash; a passed-through unknown kind is how a plug-in point quietly stops being one.</p>
+              </section>
+              <section>
+                <h2>How we will know it is done</h2>
+                <p>Every one of the agreed kinds round-trips, and an unmapped input produces the deliberate outcome chosen in Stage 3 rather than an event the consumer has to guess about.</p>
+              </section>
+            </div>
+          </li>
+          <li class="construction-task" data-task-id="stage-5a-2" data-task-label="Event Ordering" data-task-status="planned">
+            <div class="construction-task-row"><span class="construction-task-box" aria-hidden="true"></span><span class="construction-task-copy"><strong>Test event ordering</strong><small>Text arrives before the terminal event, and nothing follows a terminal.</small></span><span class="construction-task-status">Not started</span></div>
+            <div class="construction-task-lesson" hidden>
+              <section>
+                <h2>What this item actually means</h2>
+                <p>Consumers rely on ordering whether or not it is written down. A voice policy that speaks on <code>assistant_text</code> and closes the turn on <code>terminal</code> is broken by an adapter that emits them out of order &mdash; it will cut itself off mid-sentence.</p>
+                <p>The Python adapter already behaves correctly here: it holds the <code>ResultMessage</code> aside and yields <code>terminal</code> only after the stream is exhausted. This test generalizes that from one implementation's habit into the plug-in point's rule.</p>
+              </section>
+              <section>
+                <h2>How we will know it is done</h2>
+                <p>A terminal or error event is always last, and no event of any kind follows it.</p>
+              </section>
+            </div>
+          </li>
+          <li class="construction-task" data-task-id="stage-5a-3" data-task-label="Cancellation" data-task-status="planned">
+            <div class="construction-task-row"><span class="construction-task-box" aria-hidden="true"></span><span class="construction-task-copy"><strong>Test cancellation</strong><small>A superseded generation produces nothing the consumer can still act on.</small></span><span class="construction-task-status">Not started</span></div>
+            <div class="construction-task-lesson" hidden>
+              <section>
+                <h2>What this item actually means</h2>
+                <p>The user talks over the assistant. This test asserts the outcome that Stage 2's cancellation decision defines &mdash; which is why it cannot be written yet: there is currently no rule to assert against.</p>
+              </section>
+              <section>
+                <h2>How we will know it is done</h2>
+                <p>The test is derivable from the plug-in point's doc comment alone. If writing it requires asking someone what cancellation was supposed to mean, Stage 2's item was never really finished.</p>
+              </section>
+            </div>
+          </li>
+        </ol>
+      </li>
+
+      <li class="construction-task" data-task-id="stage-5b" data-task-label="Live Browser Check" data-task-status="planned">
+        <div class="construction-task-row">
+          <span class="construction-task-box" aria-hidden="true"></span>
+          <span class="construction-task-copy">
+            <strong>Verify the live browser flow</strong>
+            <small>One recorded observation per adapter path built on this plug-in point.</small>
+          </span>
+          <span class="construction-task-status">Not started</span>
+        </div>
+        <div class="construction-task-lesson" hidden>
+          <section>
+            <h2>What this item actually means</h2>
+            <p>Tests are written against what we believed. This item is the check against what actually happens &mdash; browser permissions, audio devices, stream buffering, and latency are all things no unit test in this plan will ever exercise.</p>
+          </section>
+          <section>
+            <h2>How we will know it is done</h2>
+            <p>Both children below have a recorded observation: what was said, what appeared, what was heard, and how long it took.</p>
+          </section>
+        </div>
+        <ol class="construction-task-children">
+          <li class="construction-task" data-task-id="stage-5b-1" data-task-label="Letta Path" data-task-status="planned">
+            <div class="construction-task-row"><span class="construction-task-box" aria-hidden="true"></span><span class="construction-task-copy"><strong>Verify the Letta submission path</strong><small>Toyota renders normalized reply events after submitting through the Letta adapter.</small></span><span class="construction-task-status">Not started</span></div>
+            <div class="construction-task-lesson" hidden>
+              <section>
+                <h2>What this item actually means</h2>
+                <p>The first end-to-end proof: type into the real screen, and watch reply text render from events that came through the plug-in point rather than from a direct response object. This is the moment Stages 3 and 4 are validated together.</p>
+              </section>
+              <section>
+                <h2>How we will know it is done</h2>
+                <p>Text streams into the screen as events arrive, the turn ends cleanly on the terminal event, and an induced backend failure shows as an error rather than as an empty successful turn.</p>
+              </section>
+            </div>
+          </li>
+          <li class="construction-task" data-task-id="stage-5b-2" data-task-label="Pipecat Path" data-task-status="planned">
+            <div class="construction-task-row"><span class="construction-task-box" aria-hidden="true"></span><span class="construction-task-copy"><strong>Verify the Pipecat voice path</strong><small>A spoken turn produces the same normalized events, out loud, through the same plug-in point.</small></span><span class="construction-task-status">Not started</span></div>
+            <div class="construction-task-lesson" hidden>
+              <section>
+                <h2>What this item actually means</h2>
+                <p>This is the point of the whole block: a second, completely different backend satisfies the same interface, and the code above the boundary does not change to accommodate it. Speech in, agent events through the plug-in point, speech out.</p>
+                <p>If anything above the boundary needs a special case for the voice path, the plug-in point is wrong &mdash; and finding that out here, on one slice, is far cheaper than finding it out after the remaining Voice Communication blocks are built on top of it.</p>
+              </section>
+              <section>
+                <h2>How we will know it is done</h2>
+                <p>One spoken turn completes out loud, interrupting the assistant behaves per the cancellation rule, and no consumer-side code branches on which adapter is in use.</p>
+              </section>
+            </div>
+          </li>
+        </ol>
+      </li>
+
+    </ol>
+  </li>
+
+</ol>

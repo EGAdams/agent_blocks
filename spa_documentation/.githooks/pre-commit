@@ -1,0 +1,51 @@
+#!/bin/sh
+# Blocks a commit that leaves Construction Status pages inconsistent -- see
+# skills/construction-status-queue-management/SKILL.md. Also warns (does not
+# block) about files left dirty outside this commit -- see CLAUDE.md's
+# "Commit before you stop, every time": a whole feature once sat uncommitted
+# and tangled with unrelated work for over a day because nothing flagged it.
+
+repo_root=$(git rev-parse --show-toplevel)
+cd "$repo_root" || exit 1
+
+# --- off-master-branch warning (always runs, never blocks) ----------------
+# This repo has always been worked on directly on master -- see git log.
+# A commit landing on some other branch is far more likely to be an
+# accidental `git checkout -b` than an intentional feature branch, so flag
+# it loudly rather than let it go unnoticed the way the uncommitted work did.
+current_branch=$(git rev-parse --abbrev-ref HEAD)
+if [ "$current_branch" != "master" ] && [ "$current_branch" != "HEAD" ]; then
+    echo "pre-commit: note -- committing to branch '$current_branch', not master."
+    echo "pre-commit: not blocking, but confirm this is intentional -- this repo has no other long-lived branches."
+fi
+
+# --- leftover-dirty-file warning (always runs, never blocks) --------------
+# Porcelain lines are XY<path>: X is the staged status, Y the worktree
+# status. A non-space Y (including "??") means something outside this
+# commit is still dirty -- a clean "M " (X=M, Y=space) is fully staged.
+leftover=$(git status --porcelain | grep -E '^.[^ ]' || true)
+if [ -n "$leftover" ]; then
+    leftover_count=$(echo "$leftover" | wc -l | tr -d ' ')
+    echo "pre-commit: note -- $leftover_count file(s) outside this commit are still dirty or untracked:"
+    echo "$leftover" | sed 's/^/pre-commit:   /'
+    echo "pre-commit: not blocking, but consider committing or stashing them too -- uncommitted work left sitting is how features end up silently tangled together (see CLAUDE.md)."
+fi
+
+# --- Construction Status consistency check (blocks on failure) ------------
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+echo "$staged" | grep -qE '(basic_agent_construction_status|construction-status-queue-management)' || exit 0
+
+echo "pre-commit: checking Construction Status pages for drift..."
+start=$(date +%s%N)
+python3 check_construction_status_consistency.py
+status=$?
+end=$(date +%s%N)
+elapsed_ms=$(( (end - start) / 1000000 ))
+echo "pre-commit: consistency check took ${elapsed_ms}ms"
+
+if [ "$status" -ne 0 ]; then
+    echo "pre-commit: blocking commit -- fix the findings above, or commit with --no-verify to override."
+    exit 1
+fi
+
+exit 0

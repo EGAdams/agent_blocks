@@ -1,0 +1,20 @@
+<h1>Source</h1>
+<p class="placeholder">Lines: 14&nbsp;&nbsp;Last modified: August, 29 15:25:09</p>
+<style>
+.vscode-pre { margin: 0; padding: 18px; overflow: auto; border-radius: 6px; background: #1e1e1e; color: #d4d4d4; font: 14px/1.55 Consolas, "Courier New", monospace; }
+.vscode-pre .comment { color: #6a9955; }
+</style>
+<pre class="vscode-pre"><code><span class="comment">/**
+ * Application-side port for Toyota's editable conversation input.
+ *
+ * The concrete browser adapter must keep the visible control and any backing
+ * transcript accumulator synchronized.  Clearing only the DOM element is not
+ * sufficient: the next recognition callback would otherwise restore the old
+ * committed prefix.
+ */</span>
+<span style="color:#569cd6">export interface</span> <span style="color:#4ec9b0">IInputDraft</span> {
+  <span style="color:#dcdcaa">getText</span>(): <span style="color:#569cd6">string</span>;
+  <span style="color:#dcdcaa">replace</span>(text: <span style="color:#569cd6">string</span>): <span style="color:#569cd6">void</span>;
+  <span style="color:#dcdcaa">append</span>(text: <span style="color:#569cd6">string</span>): <span style="color:#569cd6">void</span>;
+  <span style="color:#dcdcaa">clear</span>(): <span style="color:#569cd6">void</span>;
+}</code></pre>

@@ -1,0 +1,135 @@
+<h1>CLAUDE.md</h1>
+<p>This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.</p>
+<h2>Overview</h2>
+<p>A scratch/experiment repo of independent "agent blocks" — small standalone Python
+scripts plus a set of agent system prompts. <strong>Not a git repo.</strong> No package, build
+system, dependency manifest, or test suite; every script is run directly with
+<code>python3</code> from within its own directory.</p>
+<p>Three top-level areas, unrelated to each other except in theme:</p>
+<ul>
+<li><code>catherine_agent_sdk/</code> — Claude Agent SDK probe script</li>
+<li><code>lancedb_memory/</code> — two generations of the same idea: the original RAVEN-style
+  script (<code>3o_mini_chat_w_lance.py</code>, OpenAI), and <code>agent_memory/</code>, its ported
+  successor on the Claude Agent SDK with Protocol-based ports</li>
+<li><code>solid_agent_systems/</code> — one directory per SOLID-principle review agent</li>
+</ul>
+<h2>Running</h2>
+<pre><code class="language-bash">cd catherine_agent_sdk &amp;&amp; python3 basic_agent.py
+cd lancedb_memory    &amp;&amp; python3 3o_mini_chat_w_lance.py   # legacy, OpenAI
+cd lancedb_memory    &amp;&amp; .venv/bin/python main.py          # current, Claude SDK
+</code></pre>
+<p>Dependencies are not declared anywhere; install ad hoc:</p>
+<ul>
+<li><code>basic_agent.py</code> → <code>claude-agent-sdk</code> (<strong>not</strong> installed in the default
+  interpreter — importing it currently raises <code>ModuleNotFoundError</code>)</li>
+<li><code>3o_mini_chat_w_lance.py</code> → <code>openai</code> (legacy pre-1.0 API surface:
+  <code>openai.Embedding.create</code>, <code>openai.ChatCompletion.create</code>), <code>lancedb</code>,
+  <code>pyarrow</code>, <code>pandas</code></li>
+</ul>
+<h2><code>catherine_agent_sdk/basic_agent.py</code> — Agent SDK probe</h2>
+<p>Single-turn <code>query()</code> against the Claude Agent SDK, then dumps the
+<code>ResultMessage</code>: status, error flag, session id, per-model usage/context-window
+stats, and cost. The point of the script is the result-inspection block —
+<code>ResultMessage.is_error</code> is where auth/model/execution failures surface, since
+they do <em>not</em> raise.</p>
+<p>The comments at the top of the file matter: <code>ANTHROPIC_API_KEY</code> and
+<code>ANTHROPIC_BASE_URL</code> must be <strong>unset</strong> for the SDK to use the local Claude Code
+subscription auth rather than direct-API billing.</p>
+<h2><code>lancedb_memory/3o_mini_chat_w_lance.py</code> — vector-recall chatbot</h2>
+<p>An infinite REPL loop:</p>
+<ol>
+<li>Embed user input (<code>text-embedding-ada-002</code>, 1536 dims).</li>
+<li>Persist the turn as a uuid-named JSON file in the <em>nexus</em> directory.</li>
+<li>Vector-search LanceDB for the <code>convo_length</code> (30) most similar past turns.</li>
+<li><code>load_conversation()</code> re-reads those turns' JSON files from disk, sorts
+   chronologically, and joins them into the recalled transcript.</li>
+<li>Fill the <code>prompt_response.txt</code> template (<code>&lt;&lt;CONVERSATION&gt;&gt;</code>, <code>&lt;&lt;MESSAGE&gt;&gt;</code>),
+   call chat completion, log prompt+response to <code>gpt3_logs/</code>.</li>
+<li>Persist and index the assistant turn the same way, then <code>tbl.add()</code> both turns.</li>
+</ol>
+<p>Key design point: <strong>LanceDB stores the vectors, but the JSON files on disk are
+the source of truth for message text.</strong> Both must be written for recall to work;
+an emptied or missing nexus directory silently degrades recall to an empty
+conversation (<code>load_conversation</code> prints <code>file not found</code> and skips).</p>
+<p>External paths/files the script requires but which are <strong>not in this repo</strong>:</p>
+<ul>
+<li><code>key_openai.txt</code> (cwd) — OpenAI API key</li>
+<li><code>prompt_response.txt</code> (cwd) — prompt template</li>
+<li><code>/home/adamsl/linuxBash/agents/nexus/</code> — per-turn JSON store</li>
+<li><code>/home/adamsl/linuxBash/agents/run.txt</code> — alternate input when <code>USE_RUN_TEXT = True</code></li>
+<li><code>/tmp/lancedb</code> — LanceDB dir, table <code>youtube-chatbot</code></li>
+</ul>
+<p>These hardcoded absolute paths are load-bearing; changing one means changing both
+the write site (<code>save_json</code> calls) and the read site (<code>load_conversation</code>).</p>
+<h2><code>lancedb_memory/agent_memory/</code> — the current agent</h2>
+<p>The successor to <code>3o_mini_chat_w_lance.py</code>. Read <code>lancedb_memory/README.md</code>
+first; it documents the layout, the patterns, and the design decisions. Has its
+own venv at <code>lancedb_memory/.venv</code> (pydantic, lancedb, pyarrow, claude-agent-sdk)
+because the system interpreter is PEP 668 externally-managed.</p>
+<p>The rules that matter when touching it:</p>
+<ul>
+<li><strong><code>agent_memory/agent.py</code> may import <code>.models</code> and <code>.ports</code> and nothing else.</strong>
+  That single greppable rule is the DIP boundary. <code>lancedb</code>, <code>pyarrow</code>, and
+  <code>claude_agent_sdk</code> appear only under <code>agent_memory/adapters/</code>, and <code>main.py</code>
+  is the only module that names a concrete implementation.</li>
+<li><strong>LanceDB is the sole read path.</strong> The table stores the message body; recall
+  never touches the filesystem. <code>nexus/</code> is a write-only archive behind
+  <code>NexusArchiveObserver</code>, kept so raw text outlives any particular vector store.
+  This is the fix for the legacy script's dual-source-of-truth bug — deleting
+  the nexus must not affect recall, and a test asserts it.</li>
+<li><strong>Embeddings are lexical, not semantic</strong> (<code>HashingEmbedder</code>, 256 dims), because
+  Anthropic serves no embeddings endpoint. Swapping in a semantic embedder
+  changes the vector width; <code>LanceDBMemoryStore</code> raises on a dimension mismatch
+  rather than writing unsearchable rows, so a new table name is required.</li>
+<li>Tests run with no network and no API key:
+  <code>.venv/bin/python tests/test_agent.py</code> and <code>tests/test_lancedb_store.py</code>.</li>
+<li>Paths all default inside the repo via <code>config.py</code> — do not reintroduce the
+  legacy script's hardcoded <code>/home/adamsl/linuxBash/...</code> absolutes.</li>
+</ul>
+<h2><code>solid_agent_systems/</code> — SOLID review agents</h2>
+<p>Intended layout, one directory per principle:</p>
+<pre><code>&lt;principle_agent&gt;/
+  &lt;principle_agent&gt;.md   # the agent's system prompt
+  src/&lt;principle_agent&gt;.py  # the runner
+</code></pre>
+<p>Only <code>dependency_inversion_master/</code> is filled in. Its <code>.md</code> is a complete,
+carefully-specified system prompt worth reading before touching anything here —
+it defines the house style these agents enforce:</p>
+<ul>
+<li><code>typing.Protocol</code> for dependency abstractions (not ABCs), concrete types
+  injected from a composition root/factory</li>
+<li><strong>Pydantic <code>BaseModel</code> is mandatory</strong> for structured data crossing boundaries;
+  no new dataclasses, <code>NamedTuple</code>s, or ad-hoc dicts as substitutes</li>
+<li>explicit type annotations on params, returns, and Protocol methods</li>
+<li>smallest reasonable repair only, and a fixed output format
+  (<code>## DIP Result</code> → <code>VIOLATION</code> / <code>POSSIBLE VIOLATION</code> / <code>NO SIGNIFICANT VIOLATION</code>,
+  then <code>## Reason</code>, <code>## Dependency</code>, <code>## Corrected Code</code>)</li>
+<li>an explicit anti-over-engineering rule: do not abstract <code>str</code>, <code>int</code>, <code>Path</code>,
+  <code>datetime</code>, simple value objects, etc.</li>
+</ul>
+<p>Known state, so you don't mistake it for a design: the other four
+(<code>single_responsibility_guru</code>, <code>open_closed_sme</code>, <code>queen_liskov</code>,
+<code>interface_segregation_king</code>) are <strong>empty 0-byte <code>.md</code> stubs with no <code>src/</code></strong>,
+and <code>dependency_inversion_master/src/dependency_inversion_master.py</code> is currently
+a byte-for-byte (modulo spacing) copy of <code>catherine_agent_sdk/basic_agent.py</code> —
+the prompt is not yet wired into it, and the copied script still asks
+"Are you able to access the web?".</p>
+<h2>Style</h2>
+<p><code>basic_agent.py</code> and its copy use an unusual spacing convention inside call
+parens and f-string braces (<code>print( f"Status: { final_result.subtype }" )</code>).
+<code>3o_mini_chat_w_lance.py</code> uses a lighter, inconsistent variant of the same habit
+(<code>print( 'file not found:', filename)</code>). Match the surrounding file rather than
+normalizing it.</p>
+<p><code>agent_memory/</code> and everything under it (plus <code>basic_agent.py</code> and the
+<code>dependency_inversion_master.py</code> copy) additionally enforce the closing-bracket
+half of this rule strictly: every non-empty <code>)</code>, <code>]</code>, or <code>}</code> gets a space
+before it — <code>str )</code>, <code>[ 0.0 ]</code>, <code>{ "a": 1 }</code> — while an empty pair stays
+tight (<code>()</code>, <code>[]</code>, <code>{}</code>). This applies to every bracket type, not just call
+parens. The space belongs only next to the innermost non-bracket content:
+when closing brackets are adjacent, they stack with no space between them —
+<code>] )</code> becomes <code>])</code>, and <code>] ) )</code> becomes <code>]))</code>, however deep the nesting.
+When adding code to these files, write closing brackets this way from
+the start rather than relying on a cleanup pass afterward.</p>
+<h2>Note</h2>
+<p><code>catherine_agent_sdk/CLAUDE.md</code> predates this file and describes only the two
+Python scripts. Keep this root file as the authoritative one.</p>

@@ -1,5 +1,3 @@
-spa_documentation/
-catherine_agent_sdk/
 mailbox/
 .venv/
 __pycache__/
@@ -21,3 +19,7 @@ lancedb_memory/mazda_team/workspace/
 .credentials.json*
 *.key
 .env
+
+# --- from the Rosemary46 history ---
+.a_smartmenu/
+*.m4a

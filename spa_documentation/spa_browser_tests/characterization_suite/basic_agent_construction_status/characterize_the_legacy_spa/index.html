@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage 4 &mdash; Characterize the Legacy SPA &middot; Characterization Suite Construction Status</title>
+  <link rel="stylesheet" href="../../../../styles.css?v=20260908browsertests">
+  <!-- Shared with the IConversationAgent plan rather than copied; there is
+       one copy of page.js in this repo. -->
+  <link rel="stylesheet" href="../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.css?v=1">
+  <script defer src="../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.js?v=8"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../index.html">Construction Status</a> <span aria-hidden="true">&rsaquo;</span> <span aria-current="page">4. Characterize the Legacy SPA</span>
+  </nav>
+  <nav class="section-link-grid" aria-label="Child sections">
+    <a href="characterization_suite/index.html"><strong>Characterization Suite</strong><span>Done</span></a>
+  </nav>
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Stage 4 &mdash; Characterize the legacy SPA</h1>
+      <p class="construction-lesson-edition">Characterization Suite construction lesson</p>
+      <p class="construction-lesson-trail">Stage 4 of 5 &mdash; Characterize the legacy SPA</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Write down what app.js does today, in tests, before anything replaces it.</strong>
+</blockquote>
+<section>
+<h2>1. What this stage actually means</h2>
+<p>A characterization test does not assert what the code should do. It asserts what the code <em>does</em>, so a rewrite that changes behavior has to say so out loud. This stage is the safety net the whole TypeScript migration is supposed to fall into.</p>
+</section>
+<section>
+<h2>2. The work inside this stage</h2>
+<div class="construction-status-table-wrap">
+<table class="construction-status-table">
+<thead><tr><th>Step</th><th>Work item</th><th>Status</th><th>What it must deliver</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><a href="characterization_suite/index.html">Write the six characterization tests</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>Nav, detail tabs, deep links, invalid routes, embedded mode, both canonical lessons.</td></tr>
+<tr><td>2</td><td>Let a person watch the same run</td><td><span class="construction-status-chip status-done">Done</span></td><td>A step dialog between tests and a banner holding the last page open, as injected objects rather than flags.</td></tr>
+</tbody>
+</table>
+</div>
+</section>
+<section>
+<h2>3. How to check this stage yourself</h2>
+<p><code>npm test</code> &mdash; <code>tests 6 / pass 6 / fail 0</code>, about 8.0 seconds. It needs Chrome where the platform profile expects it; see Stage 5.</p>
+</section>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; Characterization Suite Construction Status</footer>
+  </article>
+
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../declare_the_test_seams/index.html">&larr; 1. Declare the Test Seams</a>
+<a class="pager-up" href="../index.html">&uarr; Construction Status</a>
+  </nav>
+  </main>
+</body>
+</html>

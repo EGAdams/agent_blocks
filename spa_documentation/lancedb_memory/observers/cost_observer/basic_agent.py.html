@@ -1,0 +1,126 @@
+<h1>Cost Observer Source</h1>
+<p class="placeholder">Lines: 21&nbsp;&nbsp;Last modified: August, 28 16:42:13</p>
+<style>
+.vscode-pre {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 14px;
+  line-height: 1.5;
+  padding: 16px;
+  border-radius: 4px;
+  overflow-x: auto;
+  white-space: pre;
+}
+.vscode-pre .c1 a {
+  color: inherit;
+  text-decoration: underline;
+}
+pre { line-height: 125%; }
+td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+.vscode-pre .hll { background-color: #ffffcc }
+.vscode-pre { background: #1e1e1e; color: #D4D4D4 }
+.vscode-pre .c { color: #6A9955; font-style: italic } /* Comment */
+.vscode-pre .err { color: #D4D4D4 } /* Error */
+.vscode-pre .esc { color: #D4D4D4 } /* Escape */
+.vscode-pre .g { color: #D4D4D4 } /* Generic */
+.vscode-pre .k { color: #C586C0 } /* Keyword */
+.vscode-pre .l { color: #D4D4D4 } /* Literal */
+.vscode-pre .n { color: #9CDCFE } /* Name */
+.vscode-pre .o { color: #D4D4D4 } /* Operator */
+.vscode-pre .x { color: #D4D4D4 } /* Other */
+.vscode-pre .p { color: #D4D4D4 } /* Punctuation */
+.vscode-pre .ch { color: #6A9955; font-style: italic } /* Comment.Hashbang */
+.vscode-pre .cm { color: #6A9955; font-style: italic } /* Comment.Multiline */
+.vscode-pre .cp { color: #6A9955; font-style: italic } /* Comment.Preproc */
+.vscode-pre .cpf { color: #6A9955; font-style: italic } /* Comment.PreprocFile */
+.vscode-pre .c1 { color: #6A9955; font-style: italic } /* Comment.Single */
+.vscode-pre .cs { color: #6A9955; font-style: italic } /* Comment.Special */
+.vscode-pre .gd { color: #D4D4D4 } /* Generic.Deleted */
+.vscode-pre .ge { color: #D4D4D4 } /* Generic.Emph */
+.vscode-pre .ges { color: #D4D4D4 } /* Generic.EmphStrong */
+.vscode-pre .gr { color: #D4D4D4 } /* Generic.Error */
+.vscode-pre .gh { color: #D4D4D4 } /* Generic.Heading */
+.vscode-pre .gi { color: #D4D4D4 } /* Generic.Inserted */
+.vscode-pre .go { color: #D4D4D4 } /* Generic.Output */
+.vscode-pre .gp { color: #D4D4D4 } /* Generic.Prompt */
+.vscode-pre .gs { color: #D4D4D4 } /* Generic.Strong */
+.vscode-pre .gu { color: #D4D4D4 } /* Generic.Subheading */
+.vscode-pre .gt { color: #D4D4D4 } /* Generic.Traceback */
+.vscode-pre .kc { color: #569CD6 } /* Keyword.Constant */
+.vscode-pre .kd { color: #569CD6 } /* Keyword.Declaration */
+.vscode-pre .kn { color: #C586C0 } /* Keyword.Namespace */
+.vscode-pre .kp { color: #C586C0 } /* Keyword.Pseudo */
+.vscode-pre .kr { color: #C586C0 } /* Keyword.Reserved */
+.vscode-pre .kt { color: #C586C0 } /* Keyword.Type */
+.vscode-pre .ld { color: #D4D4D4 } /* Literal.Date */
+.vscode-pre .m { color: #B5CEA8 } /* Literal.Number */
+.vscode-pre .s { color: #CE9178 } /* Literal.String */
+.vscode-pre .na { color: #9CDCFE } /* Name.Attribute */
+.vscode-pre .nb { color: #569CD6 } /* Name.Builtin */
+.vscode-pre .nc { color: #4EC9B0 } /* Name.Class */
+.vscode-pre .no { color: #9CDCFE } /* Name.Constant */
+.vscode-pre .nd { color: #DCDCAA } /* Name.Decorator */
+.vscode-pre .ni { color: #9CDCFE } /* Name.Entity */
+.vscode-pre .ne { color: #4EC9B0 } /* Name.Exception */
+.vscode-pre .nf { color: #DCDCAA } /* Name.Function */
+.vscode-pre .nl { color: #9CDCFE } /* Name.Label */
+.vscode-pre .nn { color: #9CDCFE } /* Name.Namespace */
+.vscode-pre .nx { color: #9CDCFE } /* Name.Other */
+.vscode-pre .py { color: #9CDCFE } /* Name.Property */
+.vscode-pre .nt { color: #9CDCFE } /* Name.Tag */
+.vscode-pre .nv { color: #9CDCFE } /* Name.Variable */
+.vscode-pre .ow { color: #C586C0 } /* Operator.Word */
+.vscode-pre .pm { color: #D4D4D4 } /* Punctuation.Marker */
+.vscode-pre .w { color: #D4D4D4 } /* Text.Whitespace */
+.vscode-pre .mb { color: #B5CEA8 } /* Literal.Number.Bin */
+.vscode-pre .mf { color: #B5CEA8 } /* Literal.Number.Float */
+.vscode-pre .mh { color: #B5CEA8 } /* Literal.Number.Hex */
+.vscode-pre .mi { color: #B5CEA8 } /* Literal.Number.Integer */
+.vscode-pre .mo { color: #B5CEA8 } /* Literal.Number.Oct */
+.vscode-pre .sa { color: #CE9178 } /* Literal.String.Affix */
+.vscode-pre .sb { color: #CE9178 } /* Literal.String.Backtick */
+.vscode-pre .sc { color: #CE9178 } /* Literal.String.Char */
+.vscode-pre .dl { color: #CE9178 } /* Literal.String.Delimiter */
+.vscode-pre .sd { color: #CE9178 } /* Literal.String.Doc */
+.vscode-pre .s2 { color: #CE9178 } /* Literal.String.Double */
+.vscode-pre .se { color: #D7BA7D } /* Literal.String.Escape */
+.vscode-pre .sh { color: #CE9178 } /* Literal.String.Heredoc */
+.vscode-pre .si { color: #569CD6 } /* Literal.String.Interpol */
+.vscode-pre .sx { color: #CE9178 } /* Literal.String.Other */
+.vscode-pre .sr { color: #CE9178 } /* Literal.String.Regex */
+.vscode-pre .s1 { color: #CE9178 } /* Literal.String.Single */
+.vscode-pre .ss { color: #CE9178 } /* Literal.String.Symbol */
+.vscode-pre .bp { color: #569CD6 } /* Name.Builtin.Pseudo */
+.vscode-pre .fm { color: #DCDCAA } /* Name.Function.Magic */
+.vscode-pre .vc { color: #9CDCFE } /* Name.Variable.Class */
+.vscode-pre .vg { color: #9CDCFE } /* Name.Variable.Global */
+.vscode-pre .vi { color: #9CDCFE } /* Name.Variable.Instance */
+.vscode-pre .vm { color: #9CDCFE } /* Name.Variable.Magic */
+.vscode-pre .il { color: #B5CEA8 } /* Literal.Number.Integer.Long */
+</style>
+<pre class="vscode-pre"><code><span class="kn">from</span><span class="w"> </span><span class="nn">..models</span><span class="w"> </span><span class="kn">import</span> <span class="n">AgentReply</span><span class="p">,</span> <span class="n">EmbeddedTurn</span><span class="p">,</span> <span class="n">Turn</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">CostObserver</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Accumulates usage across the session.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span> <span class="bp">self</span> <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_cost_usd</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_input_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_output_tokens</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">0</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_turn_complete</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">user_turn</span><span class="p">:</span> <span class="n">EmbeddedTurn</span><span class="p">,</span>
+        <span class="n">agent_turn</span><span class="p">:</span> <span class="n">EmbeddedTurn</span><span class="p">,</span>
+        <span class="n">recalled</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span> <span class="n">Turn</span> <span class="p">],</span>
+        <span class="n">reply</span><span class="p">:</span> <span class="n">AgentReply</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_cost_usd</span> <span class="o">+=</span> <span class="n">reply</span><span class="o">.</span><span class="n">cost_usd</span> <span class="ow">or</span> <span class="mf">0.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_input_tokens</span> <span class="o">+=</span> <span class="n">reply</span><span class="o">.</span><span class="n">input_tokens</span> <span class="ow">or</span> <span class="mi">0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">total_output_tokens</span> <span class="o">+=</span> <span class="n">reply</span><span class="o">.</span><span class="n">output_tokens</span> <span class="ow">or</span> <span class="mi">0</span>
+</code></pre>

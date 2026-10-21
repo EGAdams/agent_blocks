@@ -1,0 +1,121 @@
+/* Standalone hierarchy shell layered over the SPA's shared textbook styles. */
+body.split-doc {
+  margin: 0;
+  min-width: 0;
+  background: #edf1f5;
+}
+
+main.split-page-main {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 28px;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.split-breadcrumbs {
+  display: flex;
+  grid-template-columns: none;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 auto 18px;
+  max-width: 960px;
+  color: #5f6b7a;
+  font: 700 .8rem/1.5 Arial, Helvetica, sans-serif;
+}
+
+.split-breadcrumbs a,
+.split-breadcrumbs span {
+  display: inline;
+  padding: 0;
+  background: transparent;
+  color: #315b8a;
+  text-align: left;
+  text-decoration: none;
+}
+
+.split-breadcrumbs a:hover {
+  background: transparent;
+  color: #17365d;
+  text-decoration: underline;
+}
+
+.split-breadcrumbs span[aria-current="page"] {
+  color: #5f6b7a;
+}
+
+.section-link-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  max-width: 960px;
+  margin: 0 auto 22px;
+}
+
+.section-link-grid a {
+  display: flex;
+  min-height: 74px;
+  padding: 14px 16px;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #c7d2df;
+  border-radius: 8px;
+  background: #fff;
+  color: #17365d;
+  text-align: left;
+  box-shadow: 0 4px 14px rgba(17, 32, 52, .07);
+}
+
+.section-link-grid a:hover {
+  border-color: #4c6ef5;
+  background: #f7f9ff;
+}
+
+.section-link-grid a span {
+  color: #5f6b7a;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.page-pager {
+  display: flex;
+  grid-template-columns: none;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 960px;
+  margin: 20px auto 0;
+}
+
+.page-pager a {
+  flex: 1 1 220px;
+}
+
+.page-pager .pager-up {
+  background: #e03131;
+}
+
+.construction-lesson a,
+.construction-textbook-page a {
+  color: #315b8a;
+}
+
+.construction-lesson .construction-status-table a {
+  font-weight: 700;
+}
+
+@media ( max-width: 700px ) {
+  main.split-page-main {
+    padding: 14px;
+  }
+
+  .section-link-grid {
+    grid-template-columns: 1fr;
+  }
+}
+

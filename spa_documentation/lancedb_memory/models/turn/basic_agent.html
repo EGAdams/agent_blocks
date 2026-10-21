@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1" name="viewport"/>
+<title>Agent Memory University — The Turn</title>
+<style>
+:root {
+  --ink: #172033;
+  --muted: #5f6b7a;
+  --paper: #fbfaf7;
+  --panel: #ffffff;
+  --navy: #17365d;
+  --blue: #295f9e;
+  --gold: #b58b36;
+  --line: #d9dee7;
+  --soft: #eef3f8;
+  --soft-gold: #f8f2e4;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background:
+    linear-gradient(90deg, rgba(23,54,93,.035) 1px, transparent 1px),
+    linear-gradient(rgba(23,54,93,.025) 1px, transparent 1px),
+    var(--paper);
+  background-size: 32px 32px;
+  color: var(--ink);
+  font-family: Georgia, "Times New Roman", serif;
+  line-height: 1.72;
+}
+.page {
+  width: min(980px, calc(100% - 36px));
+  margin: 38px auto 70px;
+  background: rgba(255,255,255,.97);
+  border: 1px solid #d7dce4;
+  border-radius: 12px;
+  box-shadow: 0 18px 45px rgba(17, 32, 52, .12);
+  overflow: hidden;
+}
+.masthead {
+  padding: 56px 64px 48px;
+  background: linear-gradient(135deg, #122a4b 0%, #1b4678 68%, #295f9e 100%);
+  color: white;
+  position: relative;
+}
+.masthead::after {
+  content: "";
+  position: absolute;
+  left: 64px;
+  bottom: 28px;
+  width: 110px;
+  height: 4px;
+  background: var(--gold);
+}
+.kicker {
+  font-family: Arial, Helvetica, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .18em;
+  font-size: .76rem;
+  opacity: .78;
+  margin-bottom: 12px;
+}
+.masthead h1 {
+  color: white;
+  border: 0;
+  margin: 0 0 10px;
+  padding: 0;
+  font-size: clamp(2.2rem, 6vw, 4.2rem);
+  line-height: 1.05;
+  letter-spacing: -.025em;
+}
+.masthead .edition {
+  font-size: 1.2rem;
+  margin: 0;
+  opacity: .9;
+}
+.content {
+  padding: 42px 64px 64px;
+}
+h1, h2, h3, h4 {
+  font-family: Georgia, "Times New Roman", serif;
+  color: var(--navy);
+  line-height: 1.2;
+}
+.content > h1:first-of-type {
+  display: none;
+}
+h2 {
+  margin-top: 2.4em;
+  padding-bottom: .38em;
+  border-bottom: 2px solid var(--navy);
+  font-size: 2rem;
+}
+h3 {
+  margin-top: 2em;
+  font-size: 1.35rem;
+}
+h4 {
+  margin-top: 1.6em;
+  font-size: 1.08rem;
+  color: var(--blue);
+}
+p {
+  margin: .85em 0;
+}
+.subtitle {
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--muted);
+  font-size: .95rem;
+}
+a {
+  color: var(--blue);
+}
+strong {
+  color: #102844;
+}
+blockquote {
+  margin: 1.5em 0;
+  padding: 20px 24px;
+  border-left: 5px solid var(--blue);
+  background: var(--soft);
+  border-radius: 0 8px 8px 0;
+  font-size: 1.08rem;
+}
+blockquote.key-idea {
+  background: #eaf2fb;
+  border-left-color: var(--navy);
+}
+blockquote.principle {
+  background: var(--soft-gold);
+  border-left-color: var(--gold);
+}
+.callout-label {
+  display: block;
+  font-family: Arial, Helvetica, sans-serif;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: .14em;
+  font-size: .72rem;
+  color: var(--muted);
+  margin-bottom: 5px;
+}
+ul, ol {
+  padding-left: 1.55em;
+}
+li {
+  margin: .28em 0;
+}
+.table-wrap {
+  overflow-x: auto;
+  margin: 1.35em 0 1.8em;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--panel);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: .93rem;
+}
+th {
+  text-align: left;
+  background: var(--navy);
+  color: white;
+  padding: 12px 14px;
+}
+td {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+tbody tr:nth-child(even) {
+  background: #f8fafc;
+}
+pre {
+  margin: 1.4em 0;
+  padding: 18px 20px;
+  overflow-x: auto;
+  background: #111a28;
+  color: #eef4ff;
+  border-radius: 8px;
+  border: 1px solid #22334b;
+  line-height: 1.5;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.03);
+}
+code {
+  font-family: "Courier New", Consolas, monospace;
+  font-size: .92em;
+}
+p code, li code, td code {
+  color: #163d68;
+  background: #edf3f8;
+  padding: .08em .3em;
+  border-radius: 4px;
+}
+.section-rule {
+  border: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--gold), transparent);
+  margin: 2.6em 0;
+}
+.chapter-badge {
+  display: inline-block;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: .72rem;
+  text-transform: uppercase;
+  letter-spacing: .16em;
+  background: var(--gold);
+  color: white;
+  padding: 7px 10px;
+  border-radius: 999px;
+  margin-bottom: 12px;
+}
+.footer {
+  padding: 24px 64px 34px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: .8rem;
+  text-align: center;
+  background: #fafbfc;
+}
+@media (max-width: 700px) {
+  .page { width: 100%; margin: 0; border: 0; border-radius: 0; }
+  .masthead, .content, .footer { padding-left: 24px; padding-right: 24px; }
+}
+@media print {
+  body { background: white; }
+  .page { width: 100%; margin: 0; border: 0; box-shadow: none; }
+  .masthead {
+    background: white;
+    color: var(--navy);
+    border-bottom: 3px solid var(--navy);
+  }
+  .masthead h1 { color: var(--navy); }
+  pre { white-space: pre-wrap; }
+  h2, h3 { break-after: avoid; }
+  table, blockquote, pre { break-inside: avoid; }
+}
+
+
+/* Live Mermaid textbook figures */
+.mermaid-figure {
+  margin: 1.7em auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgba(17,32,52,.08);
+  overflow: hidden;
+}
+.diagram-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  background: linear-gradient(180deg, #fbfcfe 0%, #f3f6fa 100%);
+  font-family: Arial, Helvetica, sans-serif;
+  color: var(--muted);
+  font-size: .78rem;
+}
+.diagram-title {
+  font-weight: 700;
+  color: var(--navy);
+  letter-spacing: .02em;
+}
+.diagram-hint { text-align: center; flex: 1; }
+.diagram-controls { display: flex; gap: 6px; }
+.diagram-controls button {
+  min-width: 32px;
+  height: 28px;
+  padding: 0 9px;
+  border: 1px solid #c8d1dc;
+  border-radius: 5px;
+  background: white;
+  color: var(--navy);
+  font: 700 13px/1 Arial, Helvetica, sans-serif;
+  cursor: pointer;
+}
+.diagram-controls button:hover { background: var(--soft); }
+.mermaid-viewport {
+  position: relative;
+  height: 440px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(23,54,93,.035) 1px, transparent 1px),
+    linear-gradient(rgba(23,54,93,.025) 1px, transparent 1px),
+    #fbfaf7;
+  background-size: 24px 24px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.mermaid-viewport.dragging { cursor: grabbing; }
+.mermaid-canvas {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform-origin: 0 0;
+  will-change: transform;
+}
+.mermaid-canvas svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none !important;
+}
+.mermaid-viewport .nodeLabel,
+.mermaid-viewport .edgeLabel {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+.mermaid-viewport .edgeLabel {
+  background: #fbfaf7 !important;
+  color: var(--ink) !important;
+}
+@media (max-width: 700px) {
+  .mermaid-viewport { height: 360px; }
+  .diagram-hint { display: none; }
+}
+@media print {
+  .diagram-toolbar { display: none; }
+  .mermaid-viewport {
+    height: auto;
+    overflow: visible;
+    background: white;
+  }
+  .mermaid-canvas { transform: none !important; }
+  .mermaid-figure { break-inside: avoid; box-shadow: none; }
+}
+
+
+
+/* VS Code-style teaching editors */
+.vscode-editor {
+  margin: 1.55em 0 1.9em;
+  border: 1px solid #343434;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #1e1e1e;
+  box-shadow: 0 10px 28px rgba(15, 23, 42, .18);
+  font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+}
+.vscode-titlebar {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 10px 0 12px;
+  background: #181818;
+  color: #cccccc;
+  border-bottom: 1px solid #2b2b2b;
+  font: 12px/1.2 "Segoe UI", Arial, sans-serif;
+}
+.vscode-app {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #c8c8c8;
+}
+.vscode-logo {
+  width: 16px;
+  height: 16px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 3px;
+  background: #007acc;
+  color: white;
+  font: 700 8px/1 "Segoe UI", Arial, sans-serif;
+  letter-spacing: -.03em;
+}
+.vscode-window-controls {
+  display: flex;
+  gap: 14px;
+  color: #999;
+  font-size: 11px;
+  letter-spacing: .02em;
+}
+.vscode-tabs {
+  height: 36px;
+  display: flex;
+  align-items: stretch;
+  background: #252526;
+  border-bottom: 1px solid #191919;
+}
+.vscode-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 170px;
+  padding: 0 14px;
+  background: #1e1e1e;
+  border-top: 1px solid #007acc;
+  color: #d7d7d7;
+  font: 12.5px/1 "Segoe UI", Arial, sans-serif;
+}
+.vscode-python-badge {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, #3776ab 0 52%, #ffd343 52% 100%);
+  color: #fff;
+  font: 800 7px/1 Arial, sans-serif;
+  text-shadow: 0 1px 1px rgba(0,0,0,.45);
+}
+.vscode-text-badge {
+  width: 16px;
+  color: #9cdcfe;
+  font: 700 10px/1 Consolas, monospace;
+}
+.vscode-editor pre.vscode-code {
+  margin: 0;
+  padding: 10px 0 12px;
+  overflow-x: auto;
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  line-height: 1.25;
+  font-size: 13.5px;
+  tab-size: 4;
+  white-space: normal;
+}
+.vscode-editor code {
+  font-family: Consolas, "Cascadia Code", "Courier New", monospace;
+  font-size: 1em;
+}
+.vscode-code-line {
+  display: grid;
+  line-height: 1.25;
+  grid-template-columns: 52px max-content;
+  min-width: 100%;
+  width: max-content;
+  min-height: 17px;
+  margin: 0;
+  padding: 0;
+}
+.vscode-code-line:hover {
+  background: rgba(255,255,255,.025);
+}
+.vscode-line-number {
+  padding: 0 14px 0 0;
+  line-height: 1.25;
+  color: #858585;
+  text-align: right;
+  user-select: none;
+  border-right: 1px solid rgba(255,255,255,.035);
+}
+.vscode-line-text {
+  display: block;
+  line-height: 1.25;
+  padding: 0 18px 0 16px;
+  white-space: pre;
+  color: #d4d4d4;
+}
+.vscode-statusbar {
+  min-height: 23px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 0 10px;
+  background: #007acc;
+  color: white;
+  font: 11px/1.2 "Segoe UI", Arial, sans-serif;
+}
+.vscode-status-left,
+.vscode-status-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+/* VS Code Dark+ inspired Pygments palette */
+.vscode-editor .hll { background-color: #264f78; }
+.vscode-editor .c, .vscode-editor .ch, .vscode-editor .cm, .vscode-editor .cp,
+.vscode-editor .cpf, .vscode-editor .c1, .vscode-editor .cs { color: #6a9955; }
+.vscode-editor .k, .vscode-editor .kc, .vscode-editor .kd, .vscode-editor .kn,
+.vscode-editor .kp, .vscode-editor .kr, .vscode-editor .kt { color: #c586c0; }
+.vscode-editor .o, .vscode-editor .ow { color: #d4d4d4; }
+.vscode-editor .n { color: #9cdcfe; }
+.vscode-editor .na { color: #9cdcfe; }
+.vscode-editor .nb { color: #4ec9b0; }
+.vscode-editor .nc { color: #4ec9b0; }
+.vscode-editor .nd { color: #dcdcaa; }
+.vscode-editor .ne { color: #4ec9b0; }
+.vscode-editor .nf { color: #dcdcaa; }
+.vscode-editor .ni { color: #d4d4d4; }
+.vscode-editor .nl { color: #9cdcfe; }
+.vscode-editor .nn { color: #4ec9b0; }
+.vscode-editor .nt { color: #569cd6; }
+.vscode-editor .nv, .vscode-editor .vc, .vscode-editor .vg, .vscode-editor .vi { color: #9cdcfe; }
+.vscode-editor .m, .vscode-editor .mb, .vscode-editor .mf, .vscode-editor .mh,
+.vscode-editor .mi, .vscode-editor .mo, .vscode-editor .il { color: #b5cea8; }
+.vscode-editor .s, .vscode-editor .sa, .vscode-editor .sb, .vscode-editor .sc,
+.vscode-editor .dl, .vscode-editor .sd, .vscode-editor .s2, .vscode-editor .se,
+.vscode-editor .sh, .vscode-editor .si, .vscode-editor .sx, .vscode-editor .sr,
+.vscode-editor .s1, .vscode-editor .ss { color: #ce9178; }
+.vscode-editor .bp { color: #569cd6; }
+.vscode-editor .fm { color: #dcdcaa; }
+.vscode-editor .err { color: #f44747; background: transparent; }
+.vscode-editor .w { color: #d4d4d4; }
+
+@media (max-width: 700px) {
+  .vscode-window-controls { display: none; }
+  .vscode-tab { min-width: 145px; }
+  .vscode-editor pre.vscode-code { font-size: 12.5px; }
+  .vscode-code-line { grid-template-columns: 42px max-content; }
+  .vscode-line-number { padding-right: 10px; }
+  .vscode-line-text { padding-left: 12px; }
+  .vscode-status-left { display: none; }
+}
+@media print {
+  .vscode-titlebar, .vscode-tabs, .vscode-statusbar { display: none; }
+  .vscode-editor {
+    border: 1px solid #444;
+    box-shadow: none;
+    break-inside: avoid;
+  }
+  .vscode-editor pre.vscode-code {
+    white-space: pre-wrap;
+    background: #1e1e1e !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+</style>
+</head>
+<body>
+<article class="page">
+<header class="masthead">
+<div class="kicker">Short University Text • Agent Memory Edition</div>
+<div class="chapter-badge">Agent Memory Fundamentals</div>
+<h1>The Turn</h1>
+<p class="edition">Chapter 1 — The Atomic Unit of Agent Memory</p>
+</header>
+<main class="content">
+<h1>The Turn</h1>
+<h2>Agent Memory University — Agent Memory Fundamentals</h2>
+<p class="subtitle"><em>Plain-Language First Edition • Python + Pydantic</em></p>
+<p><strong>Running system:</strong> <code>agent_memory</code></p>
+<p><strong>Core model:</strong> <code>models/turn.py</code></p>
+<p><strong>Lesson goal:</strong> Understand why nearly every layer of the memory system agrees on one small object: <code>Turn</code>.</p>
+<hr class="section-rule"/>
+<h2>1.1 The one idea to understand first</h2>
+<p>Before worrying about embeddings, vector databases, similarity search, or prompt composition, learn this sentence:</p>
+<blockquote class="key-idea">
+<span class="callout-label">Key Idea</span>
+<strong>A <code>Turn</code> is one thing that one speaker said at one moment in one conversation.</strong>
+</blockquote>
+<p>That is all it is.</p>
+<p>If the user sends one message, that becomes one <code>Turn</code>. If the agent answers once, that answer becomes another <code>Turn</code>.</p>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>conversation.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">USER:  "Where did we leave off?"      →  Turn #1</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">AGENT: "We were debugging recall."    →  Turn #2</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">USER:  "Show me the last failure."    →  Turn #3</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">AGENT: "Here is the failure..."       →  Turn #4</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<p>The conversation may eventually contain thousands of turns, but the storage system does not need thousands of different shapes. It needs one dependable shape repeated many times.</p>
+<blockquote class="principle">
+<span class="callout-label">University Principle</span>
+<strong>Make the smallest useful data contract boring, strict, and predictable. Complexity can be added around it later.</strong>
+</blockquote>
+<hr class="section-rule"/>
+<h2>1.2 Think of a Turn as an index card</h2>
+<p>Imagine a university course on agent memory keeps a box of conversation index cards.</p>
+<p>Every time somebody speaks, the librarian creates exactly one card:</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 — Anatomy of one Turn</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Interactive diagram of a Turn as a conversation index card" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">flowchart TB
+    T["<b>TURN</b><br/>One utterance • one speaker • one moment"]
+    ID["<b>id : UUID</b><br/>Which exact record?"]
+    SESS["<b>session_id : str</b><br/>Which conversation?"]
+    SPK["<b>speaker : Speaker</b><br/>USER or AGENT"]
+    MSG["<b>message : str</b><br/>What was said?"]
+    TIME["<b>created_at : datetime</b><br/>When did it happen?"]
+
+    T --&gt; ID
+    T --&gt; SESS
+    T --&gt; SPK
+    T --&gt; MSG
+    T --&gt; TIME
+
+    classDef core fill:#17365d,stroke:#0d2744,color:#fff,stroke-width:3px;
+    classDef identity fill:#e8efff,stroke:#4169b1,color:#102844,stroke-width:2px;
+    classDef session fill:#e8f7ef,stroke:#2f7d5c,color:#143a2b,stroke-width:2px;
+    classDef speaker fill:#fff1d7,stroke:#c4881e,color:#5b3a00,stroke-width:2px;
+    classDef message fill:#f2eaff,stroke:#7a55ad,color:#3e245d,stroke-width:2px;
+    classDef time fill:#ffe9ee,stroke:#b94f67,color:#5a1e2b,stroke-width:2px;
+    class T core;
+    class ID identity;
+    class SESS session;
+    class SPK speaker;
+    class MSG message;
+    class TIME time;</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> A <code>Turn</code> is like a standardized conversation index card. The contents change; the card format does not.</p>
+<p>This analogy matters because memory systems become much easier to reason about when every stored utterance has the same basic contract.</p>
+<hr class="section-rule"/>
+<h2>1.3 The actual Pydantic model</h2>
+<p>The model is intentionally small. A representative implementation looks like this:</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>models/turn.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Literal</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">uuid</span><span class="w"> </span><span class="kn">import</span> <span class="n">UUID</span><span class="p">,</span> <span class="n">uuid4</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">BaseModel</span><span class="p">,</span> <span class="n">Field</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="n">Speaker</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"USER"</span><span class="p">,</span> <span class="s2">"AGENT"</span><span class="p">]</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="k">class</span><span class="w"> </span><span class="nc">Turn</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text">    <span class="nb">id</span><span class="p">:</span> <span class="n">UUID</span> <span class="o">=</span> <span class="n">Field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">uuid4</span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="p">:</span> <span class="nb">str</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="p">:</span> <span class="n">Speaker</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text">    <span class="n">message</span><span class="p">:</span> <span class="nb">str</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="p">:</span> <span class="n">datetime</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>Notice what is <em>not</em> here:</p>
+<ul>
+<li>no embedding vector;</li>
+<li>no similarity score;</li>
+<li>no database-specific record ID;</li>
+<li>no prompt-formatting instructions;</li>
+<li>no model provider;</li>
+<li>no retrieval rank.</li>
+</ul>
+<p>Those concerns belong elsewhere.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Design Boundary</span>
+<strong><code>Turn</code> describes the utterance. It does not describe every operation that may later be performed on the utterance.</strong>
+</blockquote>
+<hr class="section-rule"/>
+<h2>1.4 The five fields</h2>
+<p>Each field answers one small question.</p>
+<div class="table-wrap"><table>
+<thead>
+<tr><th>Field</th><th>Question it answers</th><th>Why it exists</th></tr>
+</thead>
+<tbody>
+<tr><td><code>id: UUID</code></td><td>Which exact turn is this?</td><td>Gives every utterance a stable unique identity.</td></tr>
+<tr><td><code>session_id: str</code></td><td>Which conversation owns it?</td><td>Keeps independent conversations from becoming mixed together.</td></tr>
+<tr><td><code>speaker: Speaker</code></td><td>Who said it?</td><td>Restricts the answer to the known roles <code>USER</code> or <code>AGENT</code>.</td></tr>
+<tr><td><code>message: str</code></td><td>What was said?</td><td>Stores the actual utterance.</td></tr>
+<tr><td><code>created_at: datetime</code></td><td>When was it said?</td><td>Preserves conversation order and temporal context.</td></tr>
+</tbody>
+</table></div>
+<h3>The automatically generated ID</h3>
+<p>Callers do not need to invent IDs:</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_turn.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">turn</span> <span class="o">=</span> <span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"session-123"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="o">=</span><span class="s2">"USER"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">message</span><span class="o">=</span><span class="s2">"Remember the Kerun mapping result."</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"><span class="nb">print</span><span class="p">(</span><span class="n">turn</span><span class="o">.</span><span class="n">id</span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="c1"># Example: 95e61b39-b86a-49d3-9c5c-2a04b3927867</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p><code>default_factory=uuid4</code> means each new object gets a fresh UUID when it is created.</p>
+<h3>The restricted speaker field</h3>
+<p><code>Speaker</code> is not just another arbitrary string.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>models/turn.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">Speaker</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">"USER"</span><span class="p">,</span> <span class="s2">"AGENT"</span><span class="p">]</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>That lets Pydantic catch role mistakes early:</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>speaker_validation.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="c1"># Valid</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"s1"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="o">=</span><span class="s2">"USER"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="n">message</span><span class="o">=</span><span class="s2">"Hello"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text"><span class="c1"># Invalid: "SYSTEM" is not part of Speaker</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"s1"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="o">=</span><span class="s2">"SYSTEM"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text">    <span class="n">message</span><span class="o">=</span><span class="s2">"Hello"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text"><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>Instead of allowing a bad role to quietly leak through the system, validation can stop it at the boundary.</p>
+<hr class="section-rule"/>
+<h2>1.5 What happens during one agent call</h2>
+<p>Suppose the user asks:</p>
+<blockquote>“What was the last thing we learned about agent memory?”</blockquote>
+<p>A simplified agent call may perform this sequence:</p>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>agent_call.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">1. Receive user text</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">2. Create USER Turn</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">3. Recall relevant old Turns</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">4. Compose the prompt</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">5. Ask the language model</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text">6. Receive the answer</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text">7. Create AGENT Turn</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text">8. Store completed Turns</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<div class="mermaid-figure" data-diagram="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 — One agent call</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Interactive diagram showing a user Turn flowing through agent memory and returning as an agent Turn" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">flowchart LR
+    U["<b>USER TEXT</b><br/>Where were we?"] --&gt; UT["<b>USER TURN</b><br/>speaker = USER"]
+    UT --&gt; R["<b>MEMORY STORE</b><br/>recall relevant old Turns"]
+    R --&gt; P["<b>PROMPT COMPOSER</b><br/>current Turn + recalled Turns"]
+    P --&gt; L["<b>LANGUAGE MODEL</b><br/>generate reply"]
+    L --&gt; AT["<b>AGENT TURN</b><br/>speaker = AGENT"]
+    AT --&gt; S["<b>STORE / OBSERVE</b><br/>persist completed Turns"]
+    S -. future recall .-&gt; R
+
+    classDef user fill:#295f9e,stroke:#17365d,color:#fff,stroke-width:3px;
+    classDef turn fill:#17365d,stroke:#0d2744,color:#fff,stroke-width:3px;
+    classDef memory fill:#dff4e8,stroke:#2f7d5c,color:#143a2b,stroke-width:2px;
+    classDef prompt fill:#f1e7ff,stroke:#7651a8,color:#3d2458,stroke-width:2px;
+    classDef model fill:#fff0cf,stroke:#b57a16,color:#503400,stroke-width:2px;
+    classDef persist fill:#ffe6ec,stroke:#b94f67,color:#5a1e2b,stroke-width:2px;
+    class U user;
+    class UT,AT turn;
+    class R memory;
+    class P prompt;
+    class L model;
+    class S persist;</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> The same core object appears on both sides of the model call: one <code>USER</code> turn goes in, one <code>AGENT</code> turn comes back.</p>
+<hr class="section-rule"/>
+<h2>1.6 Why every layer agrees on Turn</h2>
+<p>This is where the design becomes useful.</p>
+<p>Different parts of the system perform very different jobs, but they can still communicate through the same small domain object.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>ports.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">MemoryStore</span><span class="o">.</span><span class="n">recall</span><span class="p">(</span><span class="o">...</span><span class="p">)</span> <span class="err">→</span> <span class="nb">list</span><span class="p">[</span><span class="n">RecalledTurn</span><span class="p">]</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="n">PromptComposer</span><span class="o">.</span><span class="n">compose</span><span class="p">(</span><span class="o">...</span><span class="p">,</span> <span class="n">turns</span><span class="p">)</span> <span class="err">→</span> <span class="n">prompt</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="n">TurnObserver</span><span class="o">.</span><span class="n">on_turn_complete</span><span class="p">(</span><span class="n">turn</span><span class="p">)</span> <span class="err">→</span> <span class="n">side</span> <span class="n">effect</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="n">Agent</span> <span class="err">→</span> <span class="n">creates</span> <span class="n">Turn</span> <span class="n">objects</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>The layers do not need to exchange loose dictionaries such as this:</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>weak_contract.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="s2">"who"</span><span class="p">:</span> <span class="s2">"human maybe?"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="s2">"text"</span><span class="p">:</span> <span class="s2">"hello"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="s2">"date"</span><span class="p">:</span> <span class="s2">"some time"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="s2">"conversation"</span><span class="p">:</span> <span class="mi">42</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="p">}</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>They exchange a validated contract.</p>
+<blockquote class="principle">
+<span class="callout-label">Architecture Principle</span>
+<strong>When several layers agree on a small domain model, each layer can change internally without forcing every other layer to change with it.</strong>
+</blockquote>
+<hr class="section-rule"/>
+<h2>1.7 Turn is the core; wrappers add capabilities</h2>
+<p>A bare <code>Turn</code> does not contain a vector. That is deliberate.</p>
+<p>When the system needs embedding information, it can wrap or associate the core turn with another model.</p>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>model_layers.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">Turn</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> ├── the utterance itself</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"> │</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"> ├── EmbeddedTurn</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"> │    └── adds embedding/vector information</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"> │</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text"> └── RecalledTurn</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text">      └── adds retrieval information such as score/rank</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<div class="mermaid-figure" data-diagram="figure-3">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 3 — Clean core, specialized wrappers</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Interactive diagram showing Turn as the clean core with EmbeddedTurn and RecalledTurn specialized wrappers" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">flowchart TB
+    T["<b>TURN</b><br/>conversation fact<br/><i>id • session • speaker • message • time</i>"]
+    E["<b>EMBEDDED TURN</b><br/>Turn + vector representation<br/><i>vector-store concern</i>"]
+    R["<b>RECALLED TURN</b><br/>Turn + retrieval metadata<br/><i>score • rank • recall concern</i>"]
+    V[("VECTOR STORE")]
+    C["<b>PROMPT CONTEXT</b><br/>selected remembered turns"]
+
+    T --&gt;|add embedding only when needed| E
+    T --&gt;|add retrieval metadata only when recalled| R
+    E --&gt; V
+    V --&gt;|similarity search| R
+    R --&gt; C
+
+    classDef core fill:#17365d,stroke:#0d2744,color:#fff,stroke-width:4px;
+    classDef embedded fill:#e8efff,stroke:#4169b1,color:#102844,stroke-width:2px;
+    classDef recalled fill:#fff0cf,stroke:#b57a16,color:#503400,stroke-width:2px;
+    classDef store fill:#e7f7ee,stroke:#2f7d5c,color:#143a2b,stroke-width:2px;
+    classDef context fill:#f1e7ff,stroke:#7651a8,color:#3d2458,stroke-width:2px;
+    class T core;
+    class E embedded;
+    class R recalled;
+    class V store;
+    class C context;</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 3.</strong> <code>Turn</code> stays domain-focused. Vector-store and retrieval concerns are added by specialized surrounding models.</p>
+<h3>Why not put the embedding directly on Turn?</h3>
+<p>Because then every ordinary utterance would suddenly know about a storage technology it may not need.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>bad_turn.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="c1"># Tempting, but couples the core model to vector concerns</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="k">class</span><span class="w"> </span><span class="nc">Turn</span><span class="p">(</span><span class="n">BaseModel</span><span class="p">):</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="o">...</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">embedding</span><span class="p">:</span> <span class="nb">list</span><span class="p">[</span><span class="nb">float</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="n">similarity_score</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text">    <span class="n">vector_store_id</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>Now the simple conversation record knows about embedding, recall, and storage concerns. The object begins accumulating unrelated responsibilities.</p>
+<p>The cleaner design is:</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>model_layers.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">Turn</span> <span class="c1"># conversation fact</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="n">EmbeddedTurn</span> <span class="c1"># conversation fact + vector representation</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="n">RecalledTurn</span> <span class="c1"># conversation fact + recall metadata</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<hr class="section-rule"/>
+<h2>1.8 A complete miniature example</h2>
+<p>Let us follow two turns from creation to later recall.</p>
+<h3>Step 1 — The user speaks</h3>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_usage.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">user_turn</span> <span class="o">=</span> <span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"agent-memory-class-001"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="o">=</span><span class="s2">"USER"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">message</span><span class="o">=</span><span class="s2">"Explain dependency inversion."</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<h3>Step 2 — The agent replies</h3>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_usage.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">agent_turn</span> <span class="o">=</span> <span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"agent-memory-class-001"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">speaker</span><span class="o">=</span><span class="s2">"AGENT"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">message</span><span class="o">=</span><span class="s2">"High-level policy should not depend directly on low-level details."</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<h3>Step 3 — Memory stores them</h3>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_usage.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">store</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">user_turn</span><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"><span class="n">store</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">agent_turn</span><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<h3>Step 4 — Later, recall finds the old exchange</h3>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_usage.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">recalled</span> <span class="o">=</span> <span class="n">store</span><span class="o">.</span><span class="n">recall</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="n">session_id</span><span class="o">=</span><span class="s2">"agent-memory-class-001"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">query</span><span class="o">=</span><span class="s2">"What did we say about DIP?"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<h3>Step 5 — Prompt composition uses the remembered turns</h3>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>example_usage.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="n">prompt</span> <span class="o">=</span> <span class="n">composer</span><span class="o">.</span><span class="n">compose</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    <span class="n">current_turn</span><span class="o">=</span><span class="n">current_turn</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    <span class="n">recalled_turns</span><span class="o">=</span><span class="n">recalled</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>Different operations happened at every step. The conversational fact itself remained recognizable because the system kept returning to the same core <code>Turn</code> contract.</p>
+<hr class="section-rule"/>
+<h2>1.9 What Pydantic buys us</h2>
+<p>Pydantic makes the boundary executable.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>validation_example.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">pydantic</span><span class="w"> </span><span class="kn">import</span> <span class="n">ValidationError</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">try</span><span class="p">:</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    <span class="n">Turn</span><span class="p">(</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">        <span class="n">session_id</span><span class="o">=</span><span class="s2">"s1"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text">        <span class="n">speaker</span><span class="o">=</span><span class="s2">"DOG"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text">        <span class="n">message</span><span class="o">=</span><span class="s2">"woof"</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text">        <span class="n">created_at</span><span class="o">=</span><span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">(),</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text">    <span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text"><span class="k">except</span> <span class="n">ValidationError</span> <span class="k">as</span> <span class="n">exc</span><span class="p">:</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text">    <span class="nb">print</span><span class="p">(</span><span class="n">exc</span><span class="p">)</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Python 3</div></div></div>
+<p>The failure happens close to where the invalid object is created rather than much later inside storage, retrieval, or prompt composition.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Without a strict model</th><th>With <code>Turn</code></th></tr></thead>
+<tbody>
+<tr><td>Different layers may invent different field names.</td><td>Every layer receives the same named fields.</td></tr>
+<tr><td>Invalid speaker values may travel far into the system.</td><td><code>Literal</code> validation catches them early.</td></tr>
+<tr><td>IDs may be forgotten or inconsistently generated.</td><td>The model creates its own UUID.</td></tr>
+<tr><td>Callers may pass dictionaries with missing data.</td><td>Required fields are enforced.</td></tr>
+<tr><td>Refactoring becomes guesswork.</td><td>Type checkers and IDEs understand the contract.</td></tr>
+</tbody>
+</table></div>
+<hr class="section-rule"/>
+<h2>1.10 The architectural picture</h2>
+<p>If the system starts to feel complicated, return to this picture:</p>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>architecture.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">                 +----------------------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">                 |        AGENT         |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">                 | creates USER/AGENT   |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">                 |        Turns         |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">                 +----------+-----------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text">                            |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">7</span><span class="vscode-line-text">                            v</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">8</span><span class="vscode-line-text">                 +----------------------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">9</span><span class="vscode-line-text">                 |        TURN          |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">10</span><span class="vscode-line-text">                 |  core domain record  |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">11</span><span class="vscode-line-text">                 +---+-------------+----+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">12</span><span class="vscode-line-text">                     |             |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">13</span><span class="vscode-line-text">          +----------+             +-----------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">14</span><span class="vscode-line-text">          v                                  v</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">15</span><span class="vscode-line-text">+-------------------+              +-------------------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">16</span><span class="vscode-line-text">|   MEMORY STORE    |              | PROMPT COMPOSER   |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text">| save / recall     |              | builds context    |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text">+---------+---------+              +-------------------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text">          |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text">          v</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text">+-------------------+</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">22</span><span class="vscode-line-text">| EMBEDDED /        |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">23</span><span class="vscode-line-text">| RECALLED WRAPPERS |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">24</span><span class="vscode-line-text">| add special data  |</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">25</span><span class="vscode-line-text">+-------------------+</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<p>The important point is not the exact boxes. It is the direction of dependency:</p>
+<blockquote class="key-idea">
+<span class="callout-label">Mental Model</span>
+<strong><code>Turn</code> is the common language of the memory system. Storage, recall, embeddings, observers, and prompts may add behavior around it, but they do not redefine what an utterance is.</strong>
+</blockquote>
+<hr class="section-rule"/>
+<h2>1.11 Common misconceptions</h2>
+<h3>“A Turn is the whole conversation.”</h3>
+<p>No. A conversation or session contains many turns.</p>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>session_history.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">Session "abc"</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">    Turn 1 — USER</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">    Turn 2 — AGENT</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">    Turn 3 — USER</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">    Turn 4 — AGENT</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<h3>“A Turn is a pair of user message + agent answer.”</h3>
+<p>No. Those are two separate turns because they came from two different speakers at two different moments.</p>
+<h3>“A Turn should contain its vector.”</h3>
+<p>Not necessarily. The vector is a representation used by a particular memory mechanism. It is not part of the fundamental utterance.</p>
+<h3>“speaker could just be any string.”</h3>
+<p>It could, but that would weaken the contract. Restricting known roles catches mistakes and makes downstream code safer.</p>
+<hr class="section-rule"/>
+<h2>1.12 The 30-second version</h2>
+<blockquote class="principle">
+<span class="callout-label">Exam Answer</span>
+<strong>A <code>Turn</code> is one validated conversation utterance. It has a unique ID, session ID, speaker, message, and timestamp. The agent creates one for each user message and one for each agent reply. The rest of <code>agent_memory</code> uses that small model as a shared contract. Embeddings and recall metadata live in specialized wrappers so the core model stays clean.</strong>
+</blockquote>
+<hr class="section-rule"/>
+<h2>1.13 Self-check</h2>
+<ol>
+<li>If the user sends one message and the agent sends one reply, how many <code>Turn</code> objects should exist?</li>
+<li>Why is <code>speaker</code> better as <code>Literal["USER", "AGENT"]</code> than as an unrestricted string?</li>
+<li>What field ties several turns to the same conversation?</li>
+<li>Why is an embedding better placed on <code>EmbeddedTurn</code> than directly on <code>Turn</code>?</li>
+<li>What architectural benefit comes from <code>MemoryStore</code>, <code>PromptComposer</code>, and observers agreeing on the same core model?</li>
+</ol>
+<h3>Answers</h3>
+<div class="vscode-editor" data-language="text"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-text-badge">TXT</span><span>self_check_answers.txt</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text">1. Two Turns.</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text">2. It restricts the domain and catches invalid roles early.</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text">3. session_id.</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text">4. Embedding is a vector-storage concern, not part of the utterance itself.</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text">5. Layers can evolve independently while sharing a stable contract.</span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">main   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 1, Col 1   Spaces: 4   UTF-8   LF   Plain Text</div></div></div>
+<hr class="section-rule"/>
+<h2>1.14 The mental model to carry forward</h2>
+<p>Picture a university librarian recording a conversation.</p>
+<p>She does not store “the entire memory system” on each index card.</p>
+<p>She records only the facts that belong to the utterance:</p>
+<ul>
+<li>which conversation;</li>
+<li>which speaker;</li>
+<li>what was said;</li>
+<li>when it happened;</li>
+<li>and which exact record it is.</li>
+</ul>
+<p>Later systems may photocopy the card, index it, embed it, rank it, recall it, or place it into a prompt.</p>
+<p>But the card remains the card.</p>
+<blockquote class="key-idea">
+<span class="callout-label">Final Principle</span>
+<strong>The smaller and cleaner the shared core model, the easier it is to build sophisticated machinery around it without turning the whole system into spaghetti.</strong>
+</blockquote>
+</main>
+<footer class="footer">
+    Agent Memory University • Agent Memory Fundamentals • Chapter 1 — The Turn
+  </footer>
+</article>
+<script>
+  // Match the repository's Python convention: non-empty bracket pairs have
+  // one inner space (for example, Turn( value ) and list[ Turn ]).
+  document.querySelectorAll('.vscode-editor[data-language="python"] code').forEach((code) => {
+    if (code.dataset.bracketSpacingApplied === "1") return;
+    code.dataset.bracketSpacingApplied = "1";
+
+    const pairs = { "(": ")", "[": "]", "{": "}" };
+    const reversePairs = { ")": "(", "]": "[", "}": "{" };
+    const punctuation = Array.from(code.querySelectorAll("span.p"));
+
+    const adjacentCharacter = (node, direction) => {
+      const walker = document.createTreeWalker(code, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      while (walker.nextNode()) textNodes.push(walker.currentNode);
+      const ownText = node.firstChild;
+      const index = textNodes.indexOf(ownText);
+      for (let i = index + direction; i >= 0 && i < textNodes.length; i += direction) {
+        const text = textNodes[i].textContent;
+        for (let j = direction > 0 ? 0 : text.length - 1;
+             j >= 0 && j < text.length;
+             j += direction) {
+          if (!/\s/.test(text[j])) return text[j];
+        }
+      }
+      return "";
+    };
+
+    punctuation.forEach((token) => {
+      const symbol = token.textContent;
+      if (pairs[symbol]) {
+        const next = adjacentCharacter(token, 1);
+        if (next && next !== pairs[symbol] && token.nextSibling?.textContent?.[0] !== " ") {
+          token.after(document.createTextNode(" "));
+        }
+      } else if (reversePairs[symbol[0]]) {
+        const previous = adjacentCharacter(token, -1);
+        if (previous && previous !== reversePairs[symbol[0]] && token.previousSibling?.textContent?.at(-1) !== " ") {
+          token.before(document.createTextNode(" "));
+        }
+      }
+    });
+  });
+</script>
+
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+  mermaid.initialize({
+    startOnLoad: false,
+    securityLevel: "loose",
+    theme: "base",
+    flowchart: {
+      htmlLabels: true,
+      curve: "basis",
+      nodeSpacing: 42,
+      rankSpacing: 58,
+      useMaxWidth: false
+    },
+    themeVariables: {
+      fontFamily: "Arial, Helvetica, sans-serif",
+      fontSize: "17px",
+      lineColor: "#b58b36",
+      primaryColor: "#17365d",
+      primaryTextColor: "#ffffff",
+      primaryBorderColor: "#0d2744",
+      secondaryColor: "#eaf2fb",
+      tertiaryColor: "#f8f2e4",
+      edgeLabelBackground: "#fbfaf7"
+    }
+  });
+
+  await mermaid.run({ querySelector: ".mermaid" });
+
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  document.querySelectorAll(".mermaid-figure").forEach((figure) => {
+    const viewport = figure.querySelector(".mermaid-viewport");
+    const canvas = figure.querySelector(".mermaid-canvas");
+    const controls = figure.querySelector(".diagram-controls");
+    let scale = 1;
+    let x = 0;
+    let y = 0;
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+
+    const apply = () => {
+      canvas.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+    };
+
+    const reset = () => {
+      scale = 1;
+      x = 0;
+      y = 0;
+      apply();
+    };
+
+    const zoomAt = (clientX, clientY, factor) => {
+      const rect = viewport.getBoundingClientRect();
+      const px = clientX - rect.left;
+      const py = clientY - rect.top;
+      const oldScale = scale;
+      const nextScale = clamp(scale * factor, 0.45, 4.5);
+      if (nextScale === oldScale) return;
+      x = px - (px - x) * (nextScale / oldScale);
+      y = py - (py - y) * (nextScale / oldScale);
+      scale = nextScale;
+      apply();
+    };
+
+    viewport.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      if (event.shiftKey) {
+        x -= event.deltaY;
+        apply();
+        return;
+      }
+      const factor = Math.exp(-event.deltaY * 0.0015);
+      zoomAt(event.clientX, event.clientY, factor);
+    }, { passive: false });
+
+    viewport.addEventListener("pointerdown", (event) => {
+      if (event.button !== 0) return;
+      dragging = true;
+      viewport.classList.add("dragging");
+      viewport.setPointerCapture(event.pointerId);
+      startX = event.clientX - x;
+      startY = event.clientY - y;
+    });
+
+    viewport.addEventListener("pointermove", (event) => {
+      if (!dragging) return;
+      x = event.clientX - startX;
+      y = event.clientY - startY;
+      apply();
+    });
+
+    const endDrag = (event) => {
+      if (!dragging) return;
+      dragging = false;
+      viewport.classList.remove("dragging");
+      if (viewport.hasPointerCapture(event.pointerId)) viewport.releasePointerCapture(event.pointerId);
+    };
+    viewport.addEventListener("pointerup", endDrag);
+    viewport.addEventListener("pointercancel", endDrag);
+    viewport.addEventListener("dblclick", reset);
+
+    controls.addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const action = button.dataset.action;
+      if (action === "reset") return reset();
+      const rect = viewport.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      zoomAt(cx, cy, action === "in" ? 1.22 : 1 / 1.22);
+    });
+
+    reset();
+  });
+</script>
+</body>
+</html>

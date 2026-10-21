@@ -1,0 +1,51 @@
+<p class="placeholder">The SPA's own test suite &middot; 21 modules + 1 test file &middot; 1,203 lines &middot; documented September 8, 2026</p>
+
+<h2>What Browser Tests is</h2>
+<p>Every other section here documents a project that lives one level up, in the
+<code>agent_blocks</code> workspace. This one documents <em>this repository</em> &mdash;
+the characterization suite at <code>spa_documentation/browser_tests/</code> that
+drives the documentation SPA you are reading right now.</p>
+
+<p>It exists because <code>app.js</code> is 1,301 lines and is about to be replaced
+by the strict-TypeScript design under <code>app/</code>. Before any of that reaches
+<code>index.html</code>, something has to fail loudly when behavior changes.
+Six Playwright tests launch a real Chrome against a real <code>server.py</code> on
+an ephemeral port and pin down what the current navigation does &mdash; home nav,
+all five detail tabs, deep links with anchors, invalid-route fallback, embedded
+mode, and both canonical lessons with their Mermaid figures and terminal buttons.</p>
+
+<h2>Where it stands</h2>
+<p><code>npm test</code> reports <strong>6 passed, 0 failed</strong> in about eight
+seconds. <code>npm run typecheck</code> passes across <code>app/</code>,
+<code>app_tests/</code> and <code>browser_tests/</code>.</p>
+
+<p>Two things are open. The Chrome path is a hard-coded constant in both platform
+profiles with no environment override, so a fresh checkout fails at browser launch
+rather than running. And the Update Documentation lifecycle &mdash; the largest
+single behavior in <code>app.js</code> &mdash; is still unpinned: the tab is opened
+and its HTTP status checked, but nothing asserts what it then does.</p>
+
+<h2>The blocks</h2>
+<ul>
+  <li><strong>Characterization Suite</strong> &mdash; the whole suite, with a
+      five-stage construction plan. Two items carry full lessons: the
+      <em>Platform Profile</em> abstract factory that absorbs every Windows/WSL
+      versus Linux difference, and the <em>Characterization Suite</em> tests
+      themselves.</li>
+</ul>
+
+<h2>Two things worth knowing before editing here</h2>
+<ul>
+  <li><strong>The folder is <code>spa_browser_tests/</code>, not
+      <code>browser_tests/</code>.</strong> The latter is already taken on disk by
+      the source this documents. Its <code>doc_source_map.py</code> branch resolves
+      against <code>DOCS_ROOT</code> rather than <code>REPO_ROOT</code> for the same
+      reason.</li>
+  <li><strong>Adding a top-level nav section is a four-place change.</strong> Two of
+      the six tests assert the home navigation exactly and in order, so
+      <code>HOME_NAV_LABELS</code> in
+      <code>browser_tests/nav-fixtures/nav-fixtures.ts</code> has to be updated in the
+      same commit. That red run is the mechanism that makes a nav change deliberate
+      instead of accidental &mdash; adding this very section is the worked example,
+      in the Characterization Suite lesson, figure&nbsp;2.</li>
+</ul>

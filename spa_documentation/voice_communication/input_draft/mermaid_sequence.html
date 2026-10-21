@@ -1,0 +1,6 @@
+<h1>Sequence Diagram</h1>
+<p><strong>Design skeleton.</strong> The required order is accept capture, clear the synchronized draft, then admit only current transcript events.</p>
+<pre><code>User -&gt; Coordinator: Start Listening
+Coordinator -&gt; InputDraft: clear()
+InputDraft -&gt; TextSurface: replace("")
+InputDraft -&gt; TranscriptBuffer: reset()</code></pre>

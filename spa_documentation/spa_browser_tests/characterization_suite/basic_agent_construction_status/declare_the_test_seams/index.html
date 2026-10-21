@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Stage 1 &mdash; Declare the Test Seams &middot; Characterization Suite Construction Status</title>
+  <link rel="stylesheet" href="../../../../styles.css?v=20260908browsertests">
+  <!-- Shared with the IConversationAgent plan rather than copied; there is
+       one copy of page.js in this repo. -->
+  <link rel="stylesheet" href="../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.css?v=1">
+  <script defer src="../../../../voice_communication/conversation_agent/basic_agent_construction_status/assets/page.js?v=8"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../index.html">Construction Status</a> <span aria-hidden="true">&rsaquo;</span> <span aria-current="page">1. Declare the Test Seams</span>
+  </nav>
+  <nav class="section-link-grid" aria-label="Child sections">
+    <a href="platform_profile/index.html"><strong>Platform Profile</strong><span>Done</span></a>
+  </nav>
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Stage 1 &mdash; Declare the test seams</h1>
+      <p class="construction-lesson-edition">Characterization Suite construction lesson</p>
+      <p class="construction-lesson-trail">Stage 1 of 5 &mdash; Declare the test seams</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Turn every host and headed/headless difference into an object the rest of the suite can hold without inspecting.</strong>
+</blockquote>
+<section>
+<h2>1. What this stage actually means</h2>
+<p>A suite that runs on two hosts grows host checks everywhere unless somebody decides early where those differences are allowed to live. This stage makes that decision: one abstract factory for the host family, and Null Objects for everything that only happens when a human is watching.</p>
+<p>It is finished, and that is a modest milestone: a declared seam proves the differences are expressible, not that the suite starts anywhere.</p>
+</section>
+<section>
+<h2>2. The work inside this stage</h2>
+<div class="construction-status-table-wrap">
+<table class="construction-status-table">
+<thead><tr><th>Step</th><th>Work item</th><th>Status</th><th>What it must deliver</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><a href="platform_profile/index.html">Write the platform profile</a></td><td><span class="construction-status-chip status-done">Done</span></td><td>One abstract factory supplying the spawn plan, browser path, flags and window focuser.</td></tr>
+<tr><td>2</td><td>Give every headed-only behaviour a Null Object</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>StepGate</code>, <code>HoldOpenNotice</code> and <code>WindowFocuser</code>, so a headless run has nothing to check.</td></tr>
+<tr><td>3</td><td>Hold the expected navigation as data</td><td><span class="construction-status-chip status-done">Done</span></td><td>One module, no imports, listing exactly what <code>app.js</code> should render.</td></tr>
+</tbody>
+</table>
+</div>
+<p>Steps 2 and 3 are authored inline in the plan file; open them through the SPA's task navigation.</p>
+</section>
+<section>
+<h2>3. How to check this stage yourself</h2>
+<p><code>grep -rn "isWindows" browser_tests/</code> returns two hits, in <code>test-config.ts</code> and <code>composition-root.ts</code>. A third hit means a host check has leaked into a consumer, which is exactly what this stage exists to prevent.</p>
+</section>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; Characterization Suite Construction Status</footer>
+  </article>
+
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a class="pager-up" href="../index.html">&uarr; Construction Status</a>
+<a rel="next" href="../characterize_the_legacy_spa/index.html">4. Characterize the Legacy SPA &rarr;</a>
+  </nav>
+  </main>
+</body>
+</html>

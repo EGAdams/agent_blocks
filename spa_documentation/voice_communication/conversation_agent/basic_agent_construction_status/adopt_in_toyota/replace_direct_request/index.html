@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Replace the direct request call · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">4. Adopt In Toyota</a> <span aria-hidden="true">›</span> <span aria-current="page">Replace Direct Request</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Replace the direct request call</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 4 of 5 — Adopt the plug-in point in Toyota Input Options  ›  Step 2 of 3 — Replace the direct request call</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Route the send through submit() without losing resume or timeout behavior.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>The screen stops issuing a request and starts consuming a stream: <code>for await ( const event of agent.submit( text, generation ) )</code>. The rendering code moves from “await a response, then draw” to “draw as events arrive”.</p>
+<p>The hazard is the behavior that lives around the old call rather than inside it — resume-after-reconnect, request timeouts, retry. That logic is easy to lose in a refactor because it is not part of the happy path, and it is exactly what users notice when it disappears.</p>
+</section>
+<section>
+<h2>2. What is still missing</h2>
+<p>A written inventory of the current send path's behavior, produced before the first line is changed. It is the checklist the refactor is graded against.</p>
+</section>
+<section>
+<h2>3. How we will know it is done</h2>
+<p>Every behavior on that inventory still holds after the change, and the screen no longer imports any transport directly.</p>
+</section>
+<section>
+<h2>4. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../inject_at_composition_root/index.html">← Inject At Composition Root</a>
+<a class="pager-up" href="../index.html">↑ 4. Adopt In Toyota</a>
+<a rel="next" href="../keep_ui_state_out/index.html">Keep UI State Out →</a>
+</nav>
+  </main>
+</body>
+</html>
+

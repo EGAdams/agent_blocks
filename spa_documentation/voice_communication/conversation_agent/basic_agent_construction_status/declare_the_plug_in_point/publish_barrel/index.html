@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Publish Barrel Construction Status · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">1. Declare the Plug-in Point</a> <span aria-hidden="true">›</span> <span aria-current="page">Publish Barrel</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-done">Done</span>
+      <h1>Publish Barrel Construction Status</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 1 of 5 — Declare the plug-in point  ›  Step 3 of 3 — Publish through the interfaces barrel</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>Make consumers import from one stable entry point instead of reaching into block folders.</strong>
+</blockquote>
+<section>
+<h2>1. Where this item stands</h2>
+<p>The barrels are <strong>written and loading</strong>. What is not finished is their use: a barrel earns its keep only when something imports through it, and today nothing does.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>The work</th><th>State</th><th>What you can go and check</th></tr></thead>
+<tbody>
+<tr><td>The TypeScript catalog exists</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>interfaces/index.ts</code>, 30 lines — thirteen plug-in points and thirteen shared contract types.</td></tr>
+<tr><td>The package facade re-exports it</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>index.ts</code> line 3 — <code>export type *</code>, so importing the package emits no runtime code at all.</td></tr>
+<tr><td>The Python catalog exists</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>interfaces/__init__.py</code> — six service-side plug-in points, eleven models, and an explicit <code>__all__</code> of seventeen names.</td></tr>
+<tr><td>Every block is in exactly one barrel</td><td><span class="construction-status-chip status-done">Done</span></td><td>Thirteen browser-side blocks plus six service-side blocks — nineteen folders, no folder listed twice, none left out.</td></tr>
+<tr><td>Both barrels load</td><td><span class="construction-status-chip status-done">Done</span></td><td><code>npm run typecheck</code> is clean; <code>import voice_communication</code> exposes all seventeen Python names.</td></tr>
+<tr><td>The package name resolves</td><td><span class="construction-status-chip">Not started</span></td><td><code>package.json</code> declares no <code>main</code>, no <code>types</code>, no <code>exports</code>. Only a relative path to <code>index.ts</code> works.</td></tr>
+<tr><td>A consumer imports through it</td><td><span class="construction-status-chip">Not started</span></td><td>Nothing outside the two barrel files imports either barrel. Toyota is not wired up until Stage 4.</td></tr>
+<tr><td>Deep imports are prevented</td><td><span class="construction-status-chip">Not started</span></td><td>No rule, lint, or test forbids reaching past the barrel into a block folder.</td></tr>
+</tbody>
+</table></div>
+<blockquote class="key-idea">
+<span class="callout-label">Read this row first</span>
+<strong>Done here means both catalogs exist and both load. It does not mean the stable path they publish has ever been used — the barrel currently has no consumers at all.</strong>
+</blockquote>
+</section>
+<section>
+<h2>2. What this item is protecting against</h2>
+<p>Suppose Toyota imports <code>../../voice_communication/conversation_agent/conversation_agent.js</code>. That one line quietly turns two private facts into public API: that a folder is named <code>conversation_agent</code>, and that it sits exactly two directories up. Rename the folder, split it, or move the package, and the import breaks — not because the interface changed, but because the furniture moved.</p>
+<p>A barrel fixes the public surface at one path. Behind it, folders may be renamed, merged, or split, and the repair is one line inside the barrel instead of one line inside every consumer. That is the whole trade: one file absorbs the churn so the other files do not have to.</p>
+</section>
+<section>
+<h2>3. What was written — the TypeScript catalog</h2>
+<p>Thirty lines, every one of them a re-export. The first and last lines below are the two ends of the catalog; the middle is the shared contract block that the <strong>Event Contracts</strong> item feeds into it.</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>voice_communication/interfaces/index.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="cm">/** Public TypeScript interface catalog for the Voice Communication blocks. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IConversationAgent</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../conversation_agent/conversation_agent.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IConversationCoordinator</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../conversation_coordinator/conversation_coordinator.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">6</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">AgentEvent</span><span class="p">,</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">VoiceHealthEvent</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="w">  </span><span class="nx">VoiceHealthStatus</span><span class="p">,</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../typescript_contracts/contracts.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceDesignRule</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../design_protocol/design_protocol.js"</span><span class="p">;</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">29</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceHealthObserver</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../voice_health_observer/voice_health_observer.js"</span><span class="p">;</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">30</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="p">{</span><span class="w"> </span><span class="nx">IVoiceSession</span><span class="w"> </span><span class="p">}</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"../voice_session/voice_session.js"</span><span class="p">;</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p>Two details carry the file. Every line is <code>export type</code>, never a bare <code>export</code> — these are interfaces and aliases with no runtime existence, and saying so keeps the barrel from pulling code into a bundle that only wanted a shape. And every specifier ends in <code>.js</code>, not <code>.ts</code>, because the project compiles under <code>NodeNext</code> resolution, where the import path names the emitted file even in a source file that will never be emitted.</p>
+<p>The package facade above it is three lines, and the third is the one that matters:</p>
+<div class="vscode-editor" data-language="typescript"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-ts-badge">TS</span><span>voice_communication/index.ts</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="cm">/** Stable package entry point; the public ports live in interfaces/. */</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="k">export</span><span class="w"> </span><span class="kr">type</span><span class="w"> </span><span class="o">*</span><span class="w"> </span><span class="kr">from</span><span class="w"> </span><span class="s2">"./interfaces/index.js"</span><span class="p">;</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   TypeScript</div></div></div>
+<p><code>export type *</code> forwards the entire catalog without naming any of it, so adding a plug-in point means editing <code>interfaces/index.ts</code> and nothing else.</p>
+</section>
+<section>
+<h2>4. The other barrel — the Python catalog</h2>
+<p>The voice boundary has two sides, and they do not share a language. The browser side is TypeScript; the local Pipecat service is Python. Each side gets its own catalog, and the same publishing idea is applied twice.</p>
+<div class="vscode-editor" data-language="python"><div class="vscode-titlebar"><div class="vscode-app"><span class="vscode-logo">&lt;&gt;</span> Visual Studio Code</div><div aria-hidden="true" class="vscode-window-controls">—   □   ×</div></div><div class="vscode-tabs"><div class="vscode-tab"><span class="vscode-python-badge">PY</span><span>voice_communication/interfaces/__init__.py</span></div></div><pre class="vscode-code"><code><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">1</span><span class="vscode-line-text"><span class="sd">"""Public Python interface catalog for the local Pipecat service."""</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">2</span><span class="vscode-line-text"> </span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">3</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..audio_capture.audio_capture</span><span class="w"> </span><span class="kn">import</span> <span class="n">AudioCapture</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">4</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..detection_interface.detection_interface</span><span class="w"> </span><span class="kn">import</span> <span class="n">DetectionInterface</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">5</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pydantic_models.models</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span></span></span><span class="vscode-code-line vscode-code-elision"><span aria-hidden="true" class="vscode-line-number">···</span><span class="vscode-line-text">⋮</span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">17</span><span class="vscode-line-text"><span class="p">)</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">18</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pipecat_local_service.pipecat_local_service</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipecatLocalService</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">19</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..pipeline_factory.pipeline_factory</span><span class="w"> </span><span class="kn">import</span> <span class="n">PipelineFactory</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">20</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..speech_synthesizer.speech_synthesizer</span><span class="w"> </span><span class="kn">import</span> <span class="n">SpeechSynthesizer</span></span></span><span class="vscode-code-line"><span aria-hidden="true" class="vscode-line-number">21</span><span class="vscode-line-text"><span class="kn">from</span><span class="w"> </span><span class="nn">..transcription_strategy.transcription_strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">TranscriptionStrategy</span></span></span></code></pre><div class="vscode-statusbar"><div class="vscode-status-left">master   ✓ 0   ⚠ 0</div><div class="vscode-status-right">Ln 3, Col 1   Spaces: 2   UTF-8   LF   Python</div></div></div>
+<p>The Python file differs from its TypeScript twin in one visible way: it ends with an explicit <code>__all__</code> listing all seventeen names. Python has no <code>export type</code>, so <code>__all__</code> is what draws the line between the published surface and whatever else happens to be reachable through the module. <code>voice_communication/__init__.py</code> then does the facade's job in two lines, re-exporting the catalog and its <code>__all__</code> together.</p>
+</section>
+<section>
+<h2>5. What each catalog publishes</h2>
+<p>Nineteen block folders, split by which side of the wire they run on. No folder appears in both catalogs, and none is missing from both.</p>
+<div class="table-wrap"><table>
+<thead><tr><th>Catalog</th><th>Plug-in points it publishes</th><th>Count</th></tr></thead>
+<tbody>
+<tr><td><code>interfaces/index.ts</code><br/><small>browser side</small></td><td><code>IConversationAgent</code>, <code>IConversationCoordinator</code>, <code>IVoiceDesignRule</code>, <code>IInputDraft</code>, <code>ILanguageProcessor</code>, <code>INoteCommandChannel</code>, <code>IPipecatServiceClient</code>, <code>IRouteStrategy</code>, <code>ISpokenOutputPolicy</code>, <code>IToyotaVoiceApplication</code>, <code>IVoiceHealthObserver</code>, <code>IVoiceSession</code></td><td>12<br/><small>+ 13 contract types &mdash; <code>LettaAgentAdapter</code> is a class now, so it no longer lives in the interface catalog</small></td></tr>
+<tr><td><code>interfaces/__init__.py</code><br/><small>service side</small></td><td><code>AudioCapture</code>, <code>DetectionInterface</code>, <code>PipecatLocalService</code>, <code>PipelineFactory</code>, <code>SpeechSynthesizer</code>, <code>TranscriptionStrategy</code></td><td>6<br/><small>+ 11 models</small></td></tr>
+</tbody>
+</table></div>
+<p>The split is not arbitrary. Microphone capture, wake-word detection, the pipeline factory, and speech synthesis all run inside the local Pipecat process; the browser never holds those. <code>IConversationAgent</code> — the plug-in point this stage exists to declare — sits on the browser side, and is the first export in the TypeScript catalog.</p>
+</section>
+<section>
+<h2>6. Where it sits</h2>
+<p>Drag to pan, wheel to zoom. The long arrow from the consumer straight down to the block folders is the import this item exists to make unnecessary.</p>
+<div class="mermaid-figure" data-diagram="figure-1">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 1 — Two catalogs, one publishing rule</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Class diagram showing consumers importing through the package facade into the two interface catalogs" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">classDiagram
+    direction LR
+
+    class Toyota["Toyota app"] {
+        &lt;&lt;consumer, not wired up&gt;&gt;
+    }
+
+    class Service["Pipecat service"] {
+        &lt;&lt;consumer, not wired up&gt;&gt;
+    }
+
+    class FacadeTs["index.ts"] {
+        &lt;&lt;package facade&gt;&gt;
+        export type *
+    }
+
+    class FacadePy["__init__.py"] {
+        &lt;&lt;package facade&gt;&gt;
+        import * from interfaces
+    }
+
+    class CatalogTs["interfaces/index.ts"] {
+        &lt;&lt;browser catalog&gt;&gt;
+        13 plug-in points
+        13 contract types
+    }
+
+    class CatalogPy["interfaces/__init__.py"] {
+        &lt;&lt;service catalog&gt;&gt;
+        6 plug-in points
+        11 models
+    }
+
+    class BlocksTs["13 block folders"] {
+        &lt;&lt;free to move&gt;&gt;
+    }
+
+    class BlocksPy["6 block folders"] {
+        &lt;&lt;free to move&gt;&gt;
+    }
+
+    Toyota ..&gt; FacadeTs : will import (Stage 4)
+    FacadeTs ..&gt; CatalogTs : re-exports
+    CatalogTs ..&gt; BlocksTs : re-exports
+    Service ..&gt; FacadePy : will import
+    FacadePy ..&gt; CatalogPy : re-exports
+    CatalogPy ..&gt; BlocksPy : re-exports
+    Toyota ..&gt; BlocksTs : deep import, what the barrel replaces</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 1.</strong> The two middle columns are built. The arrows leaving the consumers are all still hypothetical — including the last one, which is the shortcut this item is meant to make unattractive.</p>
+</section>
+<section>
+<h2>7. One folder move, with and without the barrel</h2>
+<p>Figure 1 is the arrangement; this is why the arrangement is worth the extra file. The move below has not happened; it is the cheapest way to show what the barrel buys.</p>
+<div class="mermaid-figure" data-diagram="figure-2">
+<div class="diagram-toolbar">
+<span class="diagram-title">Figure 2 — Renaming a block folder, both ways</span>
+<span class="diagram-hint">Wheel: zoom • Drag: pan • Shift+wheel: horizontal pan • Double-click: reset</span>
+<span class="diagram-controls"><button data-action="out" title="Zoom out">−</button><button data-action="reset" title="Reset view">Reset</button><button data-action="in" title="Zoom in">+</button></span>
+</div>
+<div aria-label="Sequence diagram comparing a folder rename with a deep import against one through the barrel" class="mermaid-viewport">
+<div class="mermaid-canvas">
+<pre class="mermaid">sequenceDiagram
+    autonumber
+    participant Dev as Someone renaming a folder
+    participant Barrel as interfaces/index.ts
+    participant Toyota as A consumer
+
+    Note over Dev,Toyota: Without a barrel
+    Dev-&gt;&gt;Toyota: renames conversation_agent/
+    Toyota--&gt;&gt;Dev: import path is broken
+    Note over Toyota: Every consumer edits its own import.
+
+    Note over Dev,Toyota: With the barrel
+    Dev-&gt;&gt;Barrel: renames conversation_agent/
+    Barrel-&gt;&gt;Barrel: one re-export line changes
+    Toyota--&gt;&gt;Barrel: import is unchanged
+    Note over Dev,Toyota: The interface never moved. Only the furniture did.</pre>
+</div>
+</div>
+</div>
+<p class="subtitle"><strong>Figure 2.</strong> The saving is not in writing the barrel. It is in every later edit that the barrel absorbs.</p>
+</section>
+<section>
+<h2>8. What has to happen next</h2>
+<ol>
+<li><strong>Give the package a resolvable name.</strong> <code>package.json</code> carries <code>name</code>, <code>private</code>, <code>type</code>, and a <code>scripts</code> block — but no <code>main</code>, no <code>types</code>, and no <code>exports</code>. Until one of those points at <code>index.ts</code>, the stable path is a relative path, which is exactly the fragility the barrel was written to remove.</li>
+<li><strong>Import through it once, for real.</strong> Nothing outside the two barrel files imports either catalog today. Stage 4 wiring Toyota in is the first use, and it is the first chance for the arrangement to be wrong.</li>
+<li><strong>Decide what happens to deep imports.</strong> Inside the package they are correct — <code>spoken_output_policy.ts</code> reaches straight into <code>typescript_contracts/</code> because importing its own barrel would be circular. Outside the package they are the regression. Nothing currently distinguishes the two cases.</li>
+<li><strong>Keep the two catalogs honest as blocks are added.</strong> Nineteen folders, nineteen entries today. Nothing fails if the twentieth block is written and never listed; it simply stays unpublished, and only a reader would notice.</li>
+</ol>
+</section>
+<section>
+<h2>9. How to check this yourself</h2>
+<ol>
+<li><code>cat voice_communication/index.ts</code> — three lines, the third one <code>export type * from "./interfaces/index.js";</code>.</li>
+<li><code>grep -c "^export type" voice_communication/interfaces/index.ts</code> — every re-export line, none of them a value export.</li>
+<li><code>npm run typecheck</code> in <code>voice_communication/</code> — passes, which is what proves all fourteen module specifiers and twenty-six names resolve.</li>
+<li><code>python -c "import voice_communication as vc; print( len( vc.__all__ ))"</code> from <code>agent_blocks/</code> — prints <code>17</code>.</li>
+<li><code>grep -n '"main"\|"types"\|"exports"' voice_communication/package.json</code> — finds nothing. When this starts printing a line, the sixth row of the table above has moved.</li>
+</ol>
+</section>
+<section>
+<h2>10. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../event_contracts/index.html">← Event Contracts</a>
+<a class="pager-up" href="../index.html">↑ 1. Declare the Plug-in Point</a>
+</nav>
+  </main>
+</body>
+</html>
+

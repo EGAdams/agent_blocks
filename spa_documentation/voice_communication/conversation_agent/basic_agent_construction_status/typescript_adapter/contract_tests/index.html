@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Write contract tests in TypeScript · IConversationAgent Construction Status</title>
+  <link rel="stylesheet" href="../../../../../styles.css?v=20260830eventcontracts">
+  <link rel="stylesheet" href="../../assets/page.css?v=1">
+  <script defer src="../../assets/page.js?v=1"></script>
+</head>
+<body class="split-doc" data-mermaid-src="../../../../../vendor/mermaid.min.js">
+  <main class="split-page-main">
+  <nav class="split-breadcrumbs" aria-label="Breadcrumb">
+    <a href="../../index.html">Construction Status</a> <span aria-hidden="true">›</span> <a href="../index.html">3. TypeScript Adapter</a> <span aria-hidden="true">›</span> <span aria-current="page">Contract Tests</span>
+  </nav>
+
+  <article class="construction-lesson">
+    <header class="construction-lesson-masthead">
+      <p class="construction-lesson-kicker">Voice Communication University &bull; Construction Studio</p>
+      <span class="construction-lesson-badge status-planned">Not started</span>
+      <h1>Write contract tests in TypeScript</h1>
+      <p class="construction-lesson-edition">IConversationAgent construction lesson</p>
+      <p class="construction-lesson-trail">Stage 3 of 5 — Write the TypeScript adapter  ›  Step 3 of 3 — Write contract tests in TypeScript</p>
+    </header>
+    <div class="construction-lesson-body">
+<blockquote class="construction-lesson-callout">
+<span class="construction-lesson-callout-label">What this step is for</span>
+<strong>One suite any adapter must pass, so the second adapter cannot quietly redefine the plug-in point.</strong>
+</blockquote>
+<section>
+<h2>1. What this item actually means</h2>
+<p>Adapter tests and contract tests are different animals. An adapter test checks one implementation's own behavior; a contract test is written against the <em>interface</em> and run against every implementation, so it is the artifact that keeps two adapters honestly interchangeable.</p>
+<p>The critical constraint: the suite must not import anything from Toyota or from any UI. The moment it does, the plug-in point's definition is entangled with a consumer, and a second consumer inherits assumptions nobody wrote down.</p>
+</section>
+<section>
+<h2>2. What is still missing</h2>
+<p>Everything, including the choice of runner — this package currently has no test tooling at all, only <code>typecheck</code> in its <code>package.json</code> scripts.</p>
+</section>
+<section>
+<h2>3. How we will know it is done</h2>
+<p>The same suite runs green against the Letta adapter and against a hand-written fake adapter. If it only passes for one of them, it is an adapter test wearing a contract test's name.</p>
+</section>
+<section>
+<h2>4. How to continue from here</h2>
+<p>This is a leaf: the smallest unit in this plan, small enough that one person can finish it and prove it in one sitting. Nothing under it is hidden.</p>
+</section>
+<blockquote class="construction-lesson-callout principle">
+<span class="construction-lesson-callout-label">Construction principle</span>
+<strong>A status follows the work you can go and look at: a test that runs, a screen that works, a file that is really there. It never follows how finished the idea feels.</strong>
+</blockquote>
+    </div>
+    <footer class="construction-lesson-footer">Voice Communication University &bull; IConversationAgent Construction Status</footer>
+  </article>
+  <nav class="page-pager" aria-label="Sibling page navigation">
+<a rel="prev" href="../translate_the_stream/index.html">← Translate The Stream</a>
+<a class="pager-up" href="../index.html">↑ 3. TypeScript Adapter</a>
+</nav>
+  </main>
+</body>
+</html>
+
