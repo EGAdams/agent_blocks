@@ -13,3 +13,11 @@ adws/adw_data/sssf.db*
 
 # mazda_team generated runtime state (placeholder deliverables + Michi's progress snapshot)
 lancedb_memory/mazda_team/workspace/
+
+# Secrets: a copied ~/.claude (OAuth .credentials.json, daemon/session keys,
+# token notes) was once committed here; it was stripped from history before
+# the first push to the public GitHub repo. Keep it out.
+.claude/skills/.claude/
+.credentials.json*
+*.key
+.env
