@@ -23,3 +23,6 @@ lancedb_memory/mazda_team/workspace/
 # --- from the Rosemary46 history ---
 .a_smartmenu/
 *.m4a
+
+# spa_documentation is its own repo (github.com/EGAdams/spa_documentation)
+spa_documentation/
