@@ -131,21 +131,22 @@ is a role it shouldn't be routing to. `TOYOTA_SYSTEM_PROMPT` builds its
 roster and its allowed-agent-names list from `ROLES` too, so no third list
 needs editing.
 
-### The delegation acknowledgment, and what is still only half-wired
+### The delegation acknowledgment
 
 `TOYOTA_SYSTEM_PROMPT` tells the model to emit a bare ROUTE line because
 "the application supplies the spoken acknowledgment separately so that it can
 begin playback immediately while the delegated agent starts working." That is
-now true on one path and still not on the other.
+now true on both front ends.
 
 `RoutingModel.__init__` takes an optional `on_delegation: Callable[[str], None]`
 and calls it with `roles.delegation_acknowledgment(role_name)` *before*
 awaiting `run_role`. The sidecar passes one (see below), so a dashboard user
 hears "let me check with accounting" within a second and the reply lands
-minutes later on the same stream. **The CLI does not** — `main.py` leaves
-`on_delegation=None`, so `--voice` still goes silent for the whole delegation.
-Wiring `voice_io.speak()` into that hook is the remaining piece; the hook
-itself is no longer the missing part.
+minutes later on the same stream. `main.py`'s `repl()` wires `voice_io.speak`
+into the same hook when `--voice` is set (`on_delegation=voice_io.speak if
+voice_io else None`), so a CLI voice session is announced the same way;
+typed mode has no voice_io and correctly leaves `on_delegation=None`, same as
+before. `tests/test_repl_voice_delegation.py` pins both branches.
 
 The callback is synchronous and fire-and-forget on purpose: it runs inside
 `complete()`, so anything slow or raising there would delay or break the very

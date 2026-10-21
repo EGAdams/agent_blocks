@@ -27,6 +27,6 @@ class TaxIssuesPolicy:
         if intent.action == 'select' and intent.expense_id is None:
             raise ValueError('Which expense should I open? Please give its number.')
         if intent.action == 'category':
-            if not intent.category.strip() or _normalized(intent.category) not in _normalized(request.text):
+            if not intent.category.strip() or _normalized(intent.category.split(' / ')[-1]) not in _normalized(request.text):
                 raise ValueError('Which exact category should I use? Please name the category in your instruction.')
         return intent.model_copy(update={'instruction': request.text})

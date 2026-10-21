@@ -13,9 +13,12 @@ from agent_memory.models import AgentReply
 from agent_memory.ports import LanguageModel
 
 from finance_team.adapters.tool_agent import run_role
-from finance_team.roles import REPO_ROOT, ROLES
+from finance_team.roles import REPO_ROOT
 
-from ..roles import delegation_acknowledgment
+# ROLES comes from receptionist_team.roles, not finance_team.roles directly:
+# it's finance_team's ROLES merged with EXTRA_ROLES (specialists that can't
+# live in the locked finance_team/roles.py). See extra_roles.py.
+from ..roles import ROLES, delegation_acknowledgment
 
 # Must match the WHOLE reply (re.fullmatch), not just contain the word ROUTE --
 # ordinary conversation is allowed to mention routing without triggering it.

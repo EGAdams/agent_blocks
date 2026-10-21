@@ -4,7 +4,15 @@ No SDK or database imports. Finance agent roles come from finance_team.roles;
 this module supplies descriptions and natural spoken names for those roles.
 """
 
-from finance_team.roles import ROLES
+from finance_team.roles import ROLES as _FINANCE_ROLES
+
+from .extra_roles import EXTRA_ROLES
+
+# Specialists Toyota can route to: finance_team's own roles, plus any defined
+# here because finance_team/roles.py can't be edited (see extra_roles.py).
+# adapters/routing_model.py imports this merged dict, not finance_team's bare
+# one, so a ROUTE line naming an EXTRA_ROLES entry actually resolves.
+ROLES = {**_FINANCE_ROLES, **EXTRA_ROLES}
 
 
 ROLE_BLURBS: dict[str, str] = {
@@ -30,6 +38,19 @@ ROLE_BLURBS: dict[str, str] = {
         "finds expenses without matching receipts, excluding "
         "transactions known not to need receipts"
     ),
+    "category_spreadsheet": (
+        "makes a spreadsheet of every expense in ONE named category, with its "
+        "sub-categories, from the real books; read-only"
+    ),
+    "spreadsheet_reshaper": (
+        "reshapes an existing combined expense spreadsheet into one column "
+        "per person; reads the file you name and writes a new one, never "
+        "the database and never the original file"
+    ),
+    "toyota_mechanic": (
+        "diagnoses or improves Toyota's OWN Python code in a sandbox; applies "
+        "a change automatically only if every test passes"
+    ),
     "progress_check": (
         "checks which finance reports already exist and how fresh they are; "
         "only reads existing reports, has no database access, "
@@ -45,6 +66,9 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "synthesizer": "our report analyst",
     "receipt_scanner": "our receipt scanner",
     "expense_reconciler": "our expense reconciler",
+    "category_spreadsheet": "our spreadsheet maker",
+    "spreadsheet_reshaper": "our spreadsheet reshaper",
+    "toyota_mechanic": "our mechanic",
     "progress_check": "our progress checker",
 }
 
@@ -59,6 +83,9 @@ ROLE_START_TASKS: dict[str, str] = {
     ),
     "receipt_scanner": "checking your receipt images against your expenses",
     "expense_reconciler": "checking for expenses with missing receipts",
+    "category_spreadsheet": "building your category spreadsheet",
+    "spreadsheet_reshaper": "reshaping your combined spreadsheet into separate columns per person",
+    "toyota_mechanic": "looking at my own code",
     "progress_check": "checking the status of your latest finance reports",
 }
 
@@ -166,6 +193,53 @@ can begin playback immediately while the delegated agent starts working.
 
 Preserve relevant details from the user's request in the extra instructions.
 Do not invent a year, account, filename, or other missing detail.
+
+TOYOTA'S MECHANIC
+
+A request to diagnose, debug or improve YOU (Toyota), such as "implement the next
+voice enhancement for yourself" or "why is your voice silent during a delegation?",
+goes to toyota_mechanic. Pass the request as the user said it. If they only want to
+know what is wrong or what is next, add "diagnose only". It reads the voice plan,
+works in a sandbox copy of your Python, and applies a change automatically only if
+every test passes; you may be offline about 30 seconds while you restart, and you
+roll back by yourself if you do not come back. It cannot edit the dashboard.
+
+For example:
+ROUTE: toyota_mechanic | implement the next voice enhancement
+ROUTE: toyota_mechanic | diagnose only: why is voice silent during a delegation
+
+CATEGORY SPREADSHEETS
+
+A request for a spreadsheet of the real expenses in one category, such as
+medical expenses, goes to category_spreadsheet. Pass the category name the user
+said, and the year if they gave one. If they did not name a category, ask which
+one first; never guess it.
+
+For example:
+ROUTE: category_spreadsheet | Medical Expenses
+ROUTE: category_spreadsheet | Priority Health, year 2025
+ROUTE: category_spreadsheet | Medical, compare 2025 with 2024
+
+"Medical" is a built-in group (both Benefits & Medical parents). Comparison with
+last year, patterns, duplicates and mislabeled rows all come in the same workbook.
+Report flags as things to review; never say anything was fixed.
+
+If the result lists several matching categories, read them to the user and ask
+which one; then route again with that exact name. This is different from the
+practice report in the reports assignment, which uses the training data.
+
+SPREADSHEET RESHAPING
+
+A request to take an existing combined expense spreadsheet (one that mixes
+more than one person's expenses together) and split it into separate columns
+per person goes to spreadsheet_reshaper. Pass the file path and, if the user
+named it, which column identifies each person, exactly as they said them. If
+they did not name the file, ask which one; never guess it. This only reshapes
+a file the user already has; it never queries the database.
+
+For example:
+ROUTE: spreadsheet_reshaper | readable_documents/reports/combined_2025.csv, person column is "payee"
+ROUTE: spreadsheet_reshaper | the medical spreadsheet I just got, split by who paid
 
 PROGRESS AND STATUS
 

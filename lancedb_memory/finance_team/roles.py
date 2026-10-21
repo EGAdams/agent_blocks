@@ -318,3 +318,72 @@ not exist yet -- that is expected, just note it):
 Reply with one sentence: how many of the 7 deliverables are present and
 current, and name anything missing or stale.""",
 )
+
+
+ROLES[ "category_spreadsheet" ] = AgentRole(
+    name="category_spreadsheet",
+    output_path=f"{REPO_ROOT}/readable_documents/reports",
+    max_turns=8,
+    allowed_tools=[ "Bash", "Read" ],
+    system_prompt="""\
+You are a spreadsheet-maker. You do not query the database or write files
+yourself: you run ONE existing workflow (an ADW) that is code-only and
+read-only, then report what it printed. Never edit any file or the database.""",
+    task_prompt=f"""\
+The user wants a spreadsheet of every expense in one category. The category
+name (and optionally a year or an exact category id) is in the additional
+instructions below. Run this from `{REPO_ROOT}`, substituting the name:
+
+    cd {REPO_ROOT} && .venv/bin/python3 adws/adw_category_spreadsheet.py "<category name>" [--year YYYY] [--compare] [--category-id N]
+
+Use --compare (with --year) whenever the user asks to compare with last year, spot
+patterns, or find duplicates or mislabeled rows. The name "Medical" is a built-in
+group: both Benefits & Medical parents (Robert and Rosemary) with all their sub-categories.
+
+Read the last lines of its output:
+- `DONE:` and `FILE:` -> reply with a few plain sentences: the category,
+  how many expenses, the total, the file path from the `FILE:` line, the
+  `COMPARE:` line (this year vs last) and each `FLAG:` line, saying the flags
+  are things for a person to check, not corrections. Nothing was changed.
+- `NEEDS_CHOICE:` -> the name did not single out one category. Do NOT pick
+  one yourself and do NOT retry with a guessed id. Reply with the candidate
+  names listed and ask which one the user means (an id may be passed back via
+  `--category-id`).
+- Anything else or a crash -> say it failed and quote the last error line.
+If no category name was given, do not run anything; ask which category.""",
+)
+
+
+ROLES[ "toyota_mechanic" ] = AgentRole(
+    name="toyota_mechanic",
+    output_path=f"{REPO_ROOT}/adws/adw_data/mechanic",
+    max_turns=8,
+    allowed_tools=[ "Bash", "Read" ],
+    system_prompt="""\
+You are the dispatcher for Toyota's mechanic. You do not edit anything yourself:
+you run ONE existing workflow (an ADW) that does the work in a sandbox and
+applies it only if every test passes. Report exactly what it printed.""",
+    task_prompt=f"""\
+Toyota wants her own code diagnosed or improved. The request is in the
+additional instructions below. Run this from `{REPO_ROOT}`, quoting the request:
+
+    cd {REPO_ROOT} && .venv/bin/python3 adws/adw_toyota_mechanic.py "<request>" [--diagnose]
+
+Add --diagnose when the user only wants to know what is wrong or what comes next
+(nothing is changed). Without it, the mechanic makes the change in a sandbox,
+runs every test, and applies it automatically only if all tests pass. This can
+take several minutes; wait for it to finish.
+
+Read the last lines of its output:
+- `DIAGNOSIS:` -> relay it in a few plain sentences. Nothing was changed.
+- `DONE:` with `CHANGED:` lines -> say which files changed and that the tests
+  passed, then that Toyota restarts about 30 seconds after this reply (she may
+  be offline about 30 seconds more on top of that) and rolls back by herself
+  if she does not come back healthy.
+- `NO_CHANGE:` -> the mechanic changed nothing; relay why.
+- `REFUSED:` -> nothing reached Toyota's live code. Say why in plain words.
+- `BUSY:` -> another mechanic run is in progress; ask them to try again later.
+- Anything else or a crash -> say it failed and quote the last error line.
+The mechanic only works on Toyota's own Python. Never claim a change works
+beyond what the tests proved.""",
+)

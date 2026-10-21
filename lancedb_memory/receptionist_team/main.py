@@ -139,8 +139,13 @@ def build_toyota(
 
 
 async def repl(settings: Settings, role_model: str, voice: bool) -> None:
-    agent, cost = build_toyota(settings, role_model)
     voice_io = DashboardVoiceIO() if voice else None
+    # Wire voice_io.speak into the delegation hook so --voice speaks the
+    # acknowledgment the instant a ROUTE is matched, same as the sidecar's
+    # relay does for the browser -- see RoutingModel.__init__ and
+    # CLAUDE.md's "The delegation acknowledgment" section. Typed mode has no
+    # voice_io, so on_delegation stays None and RoutingModel just prints.
+    agent, cost = build_toyota(settings, role_model, on_delegation=voice_io.speak if voice_io else None)
     print(f"Toyota -- session: {settings.session_id}  model: {settings.model}  voice: {voice}")
     print("ctrl-c to quit\n")
 

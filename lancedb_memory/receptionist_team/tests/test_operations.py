@@ -127,6 +127,16 @@ async def test_category_change_is_accepted_without_the_canonical_parentheses():
         assert workflows.calls[0][0].category == 'Walgreens (RJ)'
 
 
+async def test_category_change_is_accepted_when_the_model_emits_the_full_path():
+    # The checkpoint shows categories as "Church / Robert — Benefits & Medical / Walgreens (RJ)";
+    # the model copies that path, but the user only ever says the leaf name.
+    full = 'Church / Robert — Benefits & Medical / Walgreens (RJ)'
+    for text in ['Change it to Walgreens R.J.', 'Put it under Walgreens RJ please']:
+        agent, _, workflows, _, _, _ = build(['WORK: {"action":"category","category":"%s"}' % full])
+        reply = await agent.handle_turn(text)
+        assert workflows.calls, f'full-path category rejected for {text!r} ({reply.text})'
+
+
 async def test_category_change_is_still_refused_when_the_model_guesses():
     # Guarding against the opposite regression: loosening the match must not let the
     # model's own guessed category sneak through when the user never named one at all.
@@ -194,6 +204,13 @@ async def test_the_spoken_capabilities_list_installed_assignments_rather_than_a_
     # The prompt's claim of what is installed is derived from the registry, so it
     # cannot keep advertising an assignment that was removed from the composition root.
     assert 'tax_issues' in model.prompts[0] and 'receipts' in model.prompts[0]
+
+
+async def test_the_prompt_tells_her_to_offer_the_closest_thing_when_refusing():
+    agent, model, _, _, _, _ = build(['Not yet.'])
+    await agent.handle_turn('Can you make me a spreadsheet of the real books?')
+    assert 'closest thing' in model.prompts[0]
+    assert 'ROUTE: category_spreadsheet' in model.prompts[0]
 
 
 async def test_the_registry_reports_what_is_installed_without_running_a_turn():
