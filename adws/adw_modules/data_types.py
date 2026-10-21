@@ -465,6 +465,7 @@ class DestinationOutput(EnvelopeBase):
     address: str = ""
     confidence: str = ""            # high | medium | low
     locatable: bool = True          # False: the source names no place at all
+    store_number: str = ""          # a chain receipt's store number, when it prints no address
 
 
 class DistanceResult(BaseModel):
@@ -508,6 +509,9 @@ class ReceiptAddressOptions(BaseModel):
     prompt: str                     # why this address is being read
     receipt_path: str = ""          # path to the receipt image to read
     resolver: str = ""              # agent name from the config; empty = OCR only
+    vendor: str = ""                # the expense's own vendor words; names the chain for a store-number lookup
+    store_number: str = ""          # a store number already known; skips reading it off the receipt
+    no_ocr: bool = False            # skip the OCR pass and go straight to the agent
     config: str = "adws/adw_sssf_config/sssf.config.yaml"
     adw_id: Optional[str] = None
     message_out: str = ""
@@ -518,6 +522,8 @@ class ReceiptAddressRequest(BaseModel):
     """Everything the receipt-address phases need. Passed as one object."""
 
     receipt_path: str = ""
+    vendor: str = ""
+    store_number: str = ""
 
 
 class AddressExtraction(BaseModel):
@@ -534,7 +540,7 @@ class ReceiptAddressResult(BaseModel):
     it came from, and the operator's one line."""
 
     address: str = ""
-    source: str = ""                # "ocr" | "agent" | "none"
+    source: str = ""                # "ocr" | "store" | "agent" | "none"
     message: str = ""
 
 

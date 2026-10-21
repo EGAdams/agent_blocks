@@ -52,7 +52,7 @@ House rules those prompts impose on generated Python, which apply to code writte
 - Explicit type annotations on parameters, returns, Protocol methods, and new attributes.
 - Smallest reasonable change; preserve behavior.
 
-`src/dependency_inversion_master.py` is currently an unmodified copy of `catherine_agent_sdk/basic_agent.py` (a hardcoded one-shot `query()` — it does not yet load the sibling `.md` prompt). Expect the other agents' runners to be forked from the same file; when changing the shared shape, check both copies.
+`src/dependency_inversion_master.py` is a **deliberate** copy of `catherine_agent_sdk/basic_agent.py`, kept as the starting point to build the real runner from — it is not yet wired to the sibling `.md` prompt (it still runs the hardcoded one-shot `query()`), and that is expected, not a bug to fix on sight. The other agents' runners will be forked from the same file; when changing the shared shape, check every copy.
 
 ## `lancedb_memory/3o_mini_chat_w_lance.py`
 
