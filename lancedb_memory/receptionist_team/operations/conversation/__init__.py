@@ -12,3 +12,6 @@ class OperationalConversationAgent:
     async def handle_turn(self, user_message: str, request_id: str | None = None) -> AgentReply:
         with self.context.bind(ConversationRequest(text=user_message, request_id=request_id)):
             return await self.inner.handle_turn(user_message)
+
+    def clear_context(self) -> str:
+        return self.inner.clear_context()

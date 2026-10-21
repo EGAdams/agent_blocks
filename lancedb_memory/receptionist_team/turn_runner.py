@@ -83,6 +83,23 @@ class _TurnRunner:
             "total_cost_usd": round(self._cost.total_cost_usd, 6),
         }
 
+    def clear_context(self) -> dict[str, Any]:
+        """The dashboard's "compact conversation" button.
+
+        Routed through the same lock a turn uses, so it can't land between a
+        running turn's recall and its persist -- see _turn()'s docstring on
+        why that ordering matters. Updates self._settings too, so /health and
+        the next turn's TurnRecord.session agree with what the agent now uses.
+        """
+        future = asyncio.run_coroutine_threadsafe(self._clear_context(), self._loop)
+        return future.result()
+
+    async def _clear_context(self) -> dict[str, Any]:
+        async with self._lock:
+            new_session = self._agent.clear_context()
+            self._settings = self._settings.model_copy(update={"session_id": new_session})
+            return {"ok": True, "session": new_session}
+
     def stream(self, request: TurnRequest) -> Iterator[TurnRecord]:
         """Yield this turn's records as they happen, on the caller's thread.
 

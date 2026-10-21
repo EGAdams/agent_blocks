@@ -39,6 +39,11 @@ class _ScriptedAgent:
         self._fail = fail
         self._gate = gate
         self.seen = []
+        self.cleared = 0
+
+    def clear_context(self):
+        self.cleared += 1
+        return f"toyota-test--ctx{self.cleared}"
 
     async def handle_turn(self, text, request_id=None):
         self.seen.append(text)
@@ -120,6 +125,25 @@ async def test_turns_serialize_so_memory_stays_ordered():
     await first
     await second
     assert agent.seen == ["first", "second"], agent.seen
+
+
+async def test_clear_context_rotates_session_and_calls_the_agent():
+    """The dashboard's 'compact conversation' button maps to this: the warm
+    agent is told to forget its context, and the next turn's result reports
+    the new session id -- /health and later TurnRecords must agree."""
+    agent = _ScriptedAgent(reply="Fresh start.")
+    runner = _runner(agent)
+
+    before = _drain(runner, "hello")
+    assert before[-1].session == "toyota-test"
+
+    result = runner.clear_context()
+    assert result == {"ok": True, "session": "toyota-test--ctx1"}
+    assert agent.cleared == 1
+    assert runner.health()["session"] == "toyota-test--ctx1"
+
+    after = _drain(runner, "hello again")
+    assert after[-1].session == "toyota-test--ctx1"
 
 
 async def test_request_rejects_empty_and_oversized_text():

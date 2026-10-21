@@ -8,6 +8,7 @@ from ..models import ConversationRequest, WorkIntent, WorkReply, WorkView
 
 class ConversationTurns(Protocol):
     async def handle_turn(self, user_message: str) -> AgentReply: ...
+    def clear_context(self) -> str: ...
 
 
 class AssignmentPolicy(Protocol):
@@ -33,6 +34,7 @@ class Workflows(Protocol):
 
 class RequestConversation(Protocol):
     async def handle_turn(self, user_message: str, request_id: str | None = None) -> AgentReply: ...
+    def clear_context(self) -> str: ...
 
 
 class WorkObserver(Protocol):

@@ -31,6 +31,8 @@ class ConversationAgent:
         observer: TurnObserver,
     ) -> None:
         self._session_id = session_id
+        self._session_root = session_id
+        self._context_epoch = 0
         self._embedder = embedder
         self._store = store
         self._recall = recall
@@ -71,3 +73,16 @@ class ConversationAgent:
         self._observer.on_turn_complete( user_turn, agent_turn, recalled, reply )
 
         return reply
+
+    def clear_context( self ) -> str:
+        """Start a fresh recall scope -- a "compact conversation" button.
+
+        Nothing is deleted: every turn already persisted stays in the store
+        under its original session id, and RecallStrategy is session-scoped
+        (see recall.py / test_sessions_are_isolated), so rotating onto a new
+        id is enough to make the next turn's recall find nothing from before
+        -- without a destructive delete anywhere on this path.
+        """
+        self._context_epoch += 1
+        self._session_id = f"{ self._session_root }--ctx{ self._context_epoch }"
+        return self._session_id

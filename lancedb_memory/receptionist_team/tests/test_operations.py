@@ -75,6 +75,23 @@ async def test_operational_turns_are_persisted_and_recalled_through_normal_memor
     assert len(observer.calls) == 2
 
 
+async def test_clear_context_forgets_recall_without_deleting_history():
+    """The dashboard's 'compact conversation' button calls agent.clear_context():
+    the next turn must not recall anything said before, but nothing already
+    persisted is deleted -- the old session's turns are still in the store."""
+    agent, model, _, _, store, _ = build(['Noted.', 'Nothing comes to mind.'])
+    await agent.handle_turn('the secret passphrase is orangutan')
+
+    new_session = agent.clear_context()
+    assert new_session != 's1'
+
+    await agent.handle_turn('what is the secret passphrase?')
+    assert 'orangutan' not in model.prompts[1]
+
+    hits = store.search(MemoryQuery(vector=[0.0] * 256, session_id='s1', limit=10))
+    assert any('orangutan' in hit.turn.message for hit in hits)
+
+
 async def test_unrequested_and_ambiguous_category_targets_do_not_run():
     cases = [
         ('Fix Walgreens', '{"action":"category","category":"Walgreens (RM)"}', 'exact category'),

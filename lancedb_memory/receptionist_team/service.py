@@ -46,7 +46,7 @@ from .turn_runner import _DelegationRelay, _TurnRunner
 DEFAULT_PORT = 8767
 
 class _ToyotaHandler(BaseHTTPRequestHandler):
-    """GET /health, POST /turn. Nothing else, and no static files."""
+    """GET /health, POST /turn, POST /compact. Nothing else, and no static files."""
 
     server_version = "ToyotaReceptionist/1.0"
     protocol_version = "HTTP/1.0"
@@ -58,7 +58,14 @@ class _ToyotaHandler(BaseHTTPRequestHandler):
         self._json(404, {"ok": False, "error": "not found"})
 
     def do_POST(self) -> None:
-        if self._route() != "/turn":
+        route = self._route()
+        if route == "/compact":
+            # The dashboard's "compact conversation" button: rotate the warm
+            # agent onto a fresh session id. A plain JSON reply, not NDJSON --
+            # this isn't a turn, so it never touches Groq or finance_team.
+            self._json(200, self.server.runner.clear_context())
+            return
+        if route != "/turn":
             self._json(404, {"ok": False, "error": "not found"})
             return
 

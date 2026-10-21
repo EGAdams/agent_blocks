@@ -155,10 +155,18 @@ turn it is announcing.
 
 `service.py` is a `ThreadingHTTPServer` holding **one warm
 `ConversationAgent`**, because loading the sentence-transformers model and the
-LanceDB table costs ~30 seconds — per process, not per turn. Two endpoints:
-`GET /health` (the dashboard's tile probe) and `POST /turn`, which streams
+LanceDB table costs ~30 seconds — per process, not per turn. Three endpoints:
+`GET /health` (the dashboard's tile probe), `POST /turn`, which streams
 NDJSON `service_models.TurnRecord`s: zero or more `acknowledgment`s, then a
-`reply`, then a terminal `result` — or a single `error`.
+`reply`, then a terminal `result` — or a single `error`; and `POST /compact`,
+a single plain-JSON `{"ok": true, "session": ...}` reply for the dashboard's
+"compact conversation" button. `/compact` rotates the warm agent onto a new
+session id (`ConversationAgent.clear_context()`,
+`agent_memory/agent.py`) rather than deleting anything — recall is
+session-scoped, so the next turn's recall simply finds nothing from before.
+It goes through `_TurnRunner`'s same lock as a turn, so it can't land
+mid-turn, and `self._settings.session_id` is updated with it so `/health`
+and the next `TurnRecord.session` agree.
 
 Four things here are load-bearing:
 
