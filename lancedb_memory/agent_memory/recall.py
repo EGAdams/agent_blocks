@@ -1,4 +1,6 @@
 """RecallStrategy implementations -- the swappable 'which turns become context' policy."""
+from collections.abc import Callable
+
 from .models import MemoryQuery, Turn
 from .ports import MemoryStore, RecallStrategy
 
@@ -67,3 +69,46 @@ class TokenBudgetedRecall:
             kept.append( turn )
             used += cost
         return list( reversed( kept ))            # restore chronological order
+
+
+class PeerSessionRecall:
+    """Decorator over another strategy: adds turns from ONE other agent's session.
+
+    Two agents (Toyota at the front desk, Mazda on Letta) share one store, so
+    each can remember what the user told the other. The peer's turns are
+    labelled in the message text -- not by inventing a new Speaker -- so a
+    composer printing "AGENT: ..." never makes one agent believe it said what
+    the other one did. The peer id is a callable because Toyota's session
+    rotates on compact.
+    """
+
+    def __init__(
+        self,
+        inner: RecallStrategy,
+        store: MemoryStore,
+        peer_session: Callable[[], str ],
+        label: str,
+        limit: int = 8,
+        floor: int = 4,
+    ) -> None:
+        self._inner = inner
+        self._store = store
+        self._peer_session = peer_session
+        self._label = label
+        self._limit = limit
+        self._floor = floor
+
+    def recall( self, session_id: str, query_vector: list[ float ]) -> list[ Turn ]:
+        own = self._inner.recall( session_id, query_vector )
+        peer = self._peer_session()
+        if not peer or peer == session_id:
+            return own
+        hits = self._store.search( MemoryQuery( vector=query_vector, session_id=peer, limit=self._limit ))
+        merged = { hit.turn.id: hit.turn for hit in hits }
+        for turn in self._store.recent( peer, self._floor ):
+            merged[ turn.id ] = turn
+        labelled = [
+            turn.model_copy( update={ "message": f"[{ self._label }] { turn.message }" })
+            for turn in merged.values()
+        ]
+        return sorted( own + labelled, key=lambda t: t.created_at )

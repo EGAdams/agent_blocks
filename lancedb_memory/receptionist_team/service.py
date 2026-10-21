@@ -32,6 +32,7 @@ session's memory (recall-before-persist only holds if turns don't overlap).
 """
 import argparse
 import json
+from typing import Any
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from pydantic import ValidationError
@@ -39,14 +40,15 @@ from pydantic import ValidationError
 from agent_memory.config import Settings
 
 from .main import _load_dotenv
-from .service_models import MAX_TURN_CHARS, TurnRequest
+from .service_models import MAX_TURN_CHARS, MemoryComposeRequest, MemoryRecordRequest, TurnRequest
 from .turn_runner import _DelegationRelay, _TurnRunner
 
 # 8766 is thought_bridge.py on this box; 8765 is the dashboard itself.
 DEFAULT_PORT = 8767
 
 class _ToyotaHandler(BaseHTTPRequestHandler):
-    """GET /health, POST /turn, POST /compact. Nothing else, and no static files."""
+    """GET /health, POST /turn, POST /compact, POST /memory/compose,
+    POST /memory/record. Nothing else, and no static files."""
 
     server_version = "ToyotaReceptionist/1.0"
     protocol_version = "HTTP/1.0"
@@ -65,24 +67,30 @@ class _ToyotaHandler(BaseHTTPRequestHandler):
             # this isn't a turn, so it never touches Groq or finance_team.
             self._json(200, self.server.runner.clear_context())
             return
+        if route in ("/memory/compose", "/memory/record"):
+            # Shared LanceDB memory for Mazda, whose turns run on Letta via the
+            # dashboard. Plain JSON in and out; no Groq, no finance_team.
+            model = MemoryComposeRequest if route == "/memory/compose" else MemoryRecordRequest
+            request = self._read(model, MAX_TURN_CHARS * 24)
+            if request is None:
+                return
+            runner = self.server.runner
+            try:
+                if route == "/memory/compose":
+                    self._json(200, runner.compose_memory(request))
+                else:
+                    self._json(200, runner.record_memory(request))
+            except Exception as exc:
+                print(f"[toyota-service] {route} failed: {type(exc).__name__}: {exc}")
+                self._json(500, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
+            return
         if route != "/turn":
             self._json(404, {"ok": False, "error": "not found"})
             return
 
-        try:
-            length = int(self.headers.get("Content-Length") or 0)
-        except ValueError:
-            self._json(400, {"ok": False, "error": "bad Content-Length"})
-            return
         # The body is one turn of text; anything larger is not a turn.
-        if length <= 0 or length > MAX_TURN_CHARS * 4:
-            self._json(400, {"ok": False, "error": "missing or oversized body"})
-            return
-
-        try:
-            request = TurnRequest.model_validate_json(self.rfile.read(length))
-        except ValidationError as exc:
-            self._json(400, {"ok": False, "error": f"invalid request: {exc}"})
+        request = self._read(TurnRequest, MAX_TURN_CHARS * 4)
+        if request is None:
             return
 
         self.send_response(200)
@@ -101,6 +109,22 @@ class _ToyotaHandler(BaseHTTPRequestHandler):
             # thread -- it has already written to memory, and abandoning a
             # half-finished delegation would be worse than finishing it.
             records.close()
+
+    def _read(self, model, max_bytes: int):
+        """Validate the JSON body as `model`, or answer 400 and return None."""
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            self._json(400, {"ok": False, "error": "bad Content-Length"})
+            return None
+        if length <= 0 or length > max_bytes:
+            self._json(400, {"ok": False, "error": "missing or oversized body"})
+            return None
+        try:
+            return model.model_validate_json(self.rfile.read(length))
+        except ValidationError as exc:
+            self._json(400, {"ok": False, "error": f"invalid request: {exc}"})
+            return None
 
     def _route(self) -> str:
         return self.path.split("?", 1)[0].rstrip("/") or "/"

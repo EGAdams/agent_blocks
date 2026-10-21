@@ -20,7 +20,9 @@ from agent_memory.config import Settings
 from agent_memory.models import AgentReply
 
 from ..service import _DelegationRelay, _TurnRunner
-from ..service_models import MAX_TURN_CHARS, TurnRequest
+from ..service_models import (
+    MAX_TURN_CHARS, MemoryComposeRequest, MemoryRecordRequest, TurnRequest,
+)
 
 ACK = "Please wait a few seconds while I contact our receipt scanner."
 
@@ -32,8 +34,10 @@ class _FakeCost:
 class _ScriptedAgent:
     """Stands in for ConversationAgent: one reply, optional ack, optional boom."""
 
-    def __init__(self, reply="All set.", relay=None, ack=None, fail=None, gate=None):
+    def __init__(self, reply="All set.", relay=None, ack=None, fail=None, gate=None,
+                 handoff=None):
         self._reply = reply
+        self._handoff = handoff
         self._relay = relay
         self._ack = ack
         self._fail = fail
@@ -49,6 +53,8 @@ class _ScriptedAgent:
         self.seen.append(text)
         if self._ack is not None and self._relay is not None:
             self._relay(self._ack)
+        if self._handoff is not None:
+            self._handoff({"agent": "mazda", "name": "Mazda"})
         if self._gate is not None:
             await self._gate.wait()
         await asyncio.sleep(0)
@@ -57,10 +63,22 @@ class _ScriptedAgent:
         return AgentReply(text=self._reply, cost_usd=0.01)
 
 
-def _runner(agent, relay=None):
+class _FakeDesk:
+    def __init__(self):
+        self.recorded = []
+
+    async def compose(self, session_id, user_message):
+        return f"[memory for {session_id}]\n{user_message}", 1
+
+    async def record(self, session_id, user_message, agent_message):
+        self.recorded.append((session_id, user_message, agent_message))
+
+
+def _runner(agent, relay=None, handoff_relay=None, desk=None):
     settings = Settings(session_id="toyota-test", model="fake", embedding_profile="hash")
     return _TurnRunner(
-        agent, _FakeCost(), settings, "fake-role-model", relay or _DelegationRelay()
+        agent, _FakeCost(), settings, "fake-role-model", relay or _DelegationRelay(),
+        handoff_relay=handoff_relay, memory_desk=desk,
     )
 
 
@@ -144,6 +162,33 @@ async def test_clear_context_rotates_session_and_calls_the_agent():
 
     after = _drain(runner, "hello again")
     assert after[-1].session == "toyota-test--ctx1"
+
+
+async def test_handoff_arrives_before_the_reply():
+    """The browser opens Mazda's window while Toyota's sentence is spoken."""
+    handoff = _DelegationRelay()
+    agent = _ScriptedAgent(reply="Opening Mazda.", handoff=handoff)
+    records = _drain(_runner(agent, handoff_relay=handoff), "open Mazda")
+
+    assert [r.kind for r in records] == ["handoff", "reply", "result"], [r.kind for r in records]
+    assert records[0].handoff == {"agent": "mazda", "name": "Mazda"}
+
+
+async def test_memory_compose_and_record_go_through_the_desk():
+    desk = _FakeDesk()
+    runner = _runner(_ScriptedAgent(), desk=desk)
+
+    composed = runner.compose_memory(MemoryComposeRequest(session="mazda", text="hi"))
+    assert composed == {"ok": True, "prompt": "[memory for mazda]\nhi", "recalled": 1}, composed
+    assert runner.record_memory(MemoryRecordRequest(session="mazda", user="hi", agent="hello")) == {"ok": True}
+    assert desk.recorded == [("mazda", "hi", "hello")], desk.recorded
+    assert runner.health()["shared_memory"] is True
+
+
+async def test_memory_without_a_desk_fails_soft():
+    runner = _runner(_ScriptedAgent())
+    result = runner.compose_memory(MemoryComposeRequest(session="mazda", text="hi"))
+    assert result["ok"] is False, result
 
 
 async def test_request_rejects_empty_and_oversized_text():

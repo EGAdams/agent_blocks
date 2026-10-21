@@ -52,12 +52,20 @@ from agent_memory.observers import (
     CostObserver,
     NexusArchiveObserver,
 )
-from agent_memory.prompts import TemplatePromptComposer
-from agent_memory.recall import RecencyFloorRecall, SimilarityRecall, TokenBudgetedRecall
+from agent_memory.ports import Embedder
+from agent_memory.prompts import RecallOnlyComposer, TemplatePromptComposer
+from agent_memory.recall import (
+    PeerSessionRecall,
+    RecencyFloorRecall,
+    SimilarityRecall,
+    TokenBudgetedRecall,
+)
 
+from .adapters.handoff_model import AgentHandoffModel
 from .adapters.metrics import Stopwatch
 from .adapters.routing_model import RoutingModel
 from .adapters.voice_io import DashboardVoiceIO, VoiceUnavailableError
+from .memory_desk import MemoryDesk
 from .roles import TOYOTA_SYSTEM_PROMPT
 from .operations.conversation import OperationalConversationAgent
 from .operations.http_client import CallbackWorkObserver, DashboardWorkflows
@@ -88,23 +96,64 @@ def _load_dotenv() -> None:
         os.environ.setdefault(key.strip(), value.strip())
 
 
-def build_toyota(
-    settings: Settings,
-    role_model: str,
-    on_delegation: Callable[[str], None] | None = None,
-    on_work: Callable[[dict], None] | None = None,
-) -> tuple[RequestConversation, CostObserver]:
+# Mazda's session in the shared store. Her Letta conversation is the real
+# history; this is only what the dashboard recorded of it for recall.
+MAZDA_SESSION = "mazda"
+
+
+def build_shared_memory(settings: Settings) -> tuple[Embedder, LanceDBMemoryStore]:
+    """One embedder and one LanceDB table, shared by Toyota and Mazda's desk."""
     embedder, profile_table_name = build_embedder(settings.embedding_profile)
     store = LanceDBMemoryStore(
         uri=settings.lancedb_uri,
         table_name=settings.table_name or profile_table_name,
         dimensions=embedder.dimensions,
     )
+    return embedder, store
+
+
+def build_mazda_desk(
+    embedder: Embedder,
+    store: LanceDBMemoryStore,
+    toyota_session: Callable[[], str],
+) -> MemoryDesk:
+    """Recall for Mazda's turns: her own recorded turns plus Toyota's current ones.
+
+    Smaller than Toyota's budget -- Letta already carries Mazda's recent
+    history, and every recalled line becomes part of her Letta conversation.
+    """
     recall = TokenBudgetedRecall(
-        RecencyFloorRecall(
-            SimilarityRecall(store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall),
+        PeerSessionRecall(
+            RecencyFloorRecall(SimilarityRecall(store, limit=8), store, floor=4),
             store,
-            floor=settings.recall_recency_floor,
+            peer_session=toyota_session,
+            label="with Toyota",
+        ),
+        max_chars=4000,
+    )
+    return MemoryDesk(embedder, store, recall, RecallOnlyComposer(), SystemClock())
+
+
+def build_toyota(
+    settings: Settings,
+    role_model: str,
+    on_delegation: Callable[[str], None] | None = None,
+    on_work: Callable[[dict], None] | None = None,
+    on_handoff: Callable[[dict], None] | None = None,
+    memory: tuple[Embedder, LanceDBMemoryStore] | None = None,
+) -> tuple[RequestConversation, CostObserver]:
+    embedder, store = memory or build_shared_memory(settings)
+    recall = TokenBudgetedRecall(
+        PeerSessionRecall(
+            RecencyFloorRecall(
+                SimilarityRecall(store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall),
+                store,
+                floor=settings.recall_recency_floor,
+            ),
+            store,
+            # What the user said to Mazda is Toyota's to remember too.
+            peer_session=lambda: MAZDA_SESSION,
+            label="with Mazda",
         ),
         max_chars=settings.recall_max_chars,
     )
@@ -120,6 +169,8 @@ def build_toyota(
     # sidecar passes a sink so the acknowledgment reaches the browser's
     # speaker while the delegated role is still running. See service.py.
     model = RoutingModel(RetryingModel(inner_model), model=role_model, on_delegation=on_delegation)
+    # OPEN_AGENT: mazda -> the browser opens her window (handoff_model.py).
+    model = AgentHandoffModel(model, on_handoff=on_handoff)
     context = ScopedTurnContext()
     model = WorkflowModel(model, DashboardWorkflows(os.getenv('TOYOTA_DASHBOARD_URL', 'http://127.0.0.1:8765')),
                           context, InstalledPolicies({'tax_issues': TaxIssuesPolicy(), 'reports': ReportsPolicy()}),

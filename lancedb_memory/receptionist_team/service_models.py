@@ -45,15 +45,18 @@ class TurnRecord(BaseModel):
     kind=reply           Toyota's answer
     kind=result          terminal; no more records for this turn
     kind=error           terminal; the turn failed and said why
+    kind=work            an installed workflow operation for the browser
+    kind=handoff         open another agent's window (see adapters/handoff_model.py)
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["acknowledgment", "reply", "result", "error", "work"]
+    kind: Literal["acknowledgment", "reply", "result", "error", "work", "handoff"]
     text: str = ""
     cost_usd: float | None = None
     session: str | None = None
     work: dict | None = None
+    handoff: dict | None = None
 
     @field_validator("session")
     @classmethod
@@ -65,3 +68,27 @@ class TurnRecord(BaseModel):
     @property
     def is_terminal(self) -> bool:
         return self.kind in ("result", "error")
+
+
+# Sessions the shared-memory endpoints may read and write. Toyota's own
+# session is written only by her turns, never through these endpoints.
+MemorySession = Literal["mazda"]
+
+
+class MemoryComposeRequest(BaseModel):
+    """Ask for recalled context to put in front of one of another agent's turns."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    session: MemorySession
+    text: str = Field(min_length=1, max_length=MAX_TURN_CHARS)
+
+
+class MemoryRecordRequest(BaseModel):
+    """Persist one finished exchange of another agent into the shared store."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    session: MemorySession
+    user: str = Field(min_length=1, max_length=MAX_TURN_CHARS)
+    agent: str = Field(default="", max_length=MAX_TURN_CHARS * 4)

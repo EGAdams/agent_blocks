@@ -5,8 +5,8 @@ import threading
 from typing import Any, Iterator
 
 from agent_memory.config import Settings
-from .main import build_toyota
-from .service_models import TurnRecord, TurnRequest
+from .main import build_mazda_desk, build_shared_memory, build_toyota
+from .service_models import MemoryComposeRequest, MemoryRecordRequest, TurnRecord, TurnRequest
 
 _DONE = object()
 
@@ -44,6 +44,8 @@ class _TurnRunner:
         role_model: str,
         relay: _DelegationRelay,
         work_relay: _DelegationRelay | None = None,
+        handoff_relay: _DelegationRelay | None = None,
+        memory_desk=None,
     ) -> None:
         self._agent = agent
         self._cost = cost
@@ -51,6 +53,8 @@ class _TurnRunner:
         self._role_model = role_model
         self._relay = relay
         self._work_relay = work_relay or _DelegationRelay()
+        self._handoff_relay = handoff_relay or _DelegationRelay()
+        self._memory_desk = memory_desk
         self._loop = asyncio.new_event_loop()
         self._lock = asyncio.Lock()
         threading.Thread(
@@ -66,12 +70,44 @@ class _TurnRunner:
         """
         relay = _DelegationRelay()
         work_relay = _DelegationRelay()
-        agent, cost = build_toyota(settings, role_model, on_delegation=relay, on_work=work_relay)
-        return cls(agent, cost, settings, role_model, relay, work_relay)
+        handoff_relay = _DelegationRelay()
+        memory = build_shared_memory(settings)
+        agent, cost = build_toyota(
+            settings, role_model, on_delegation=relay, on_work=work_relay,
+            on_handoff=handoff_relay, memory=memory,
+        )
+        runner: list["_TurnRunner"] = []
+        # Mazda's recall reads Toyota's CURRENT session, which rotates on compact.
+        desk = build_mazda_desk(*memory, toyota_session=lambda: runner[0].session_id)
+        runner.append(cls(agent, cost, settings, role_model, relay, work_relay, handoff_relay, desk))
+        return runner[0]
 
     def _run_loop(self) -> None:
         asyncio.set_event_loop(self._loop)
         self._loop.run_forever()
+
+    @property
+    def session_id(self) -> str:
+        return self._settings.session_id
+
+    def compose_memory(self, request: MemoryComposeRequest) -> dict[str, Any]:
+        """Recalled context for another agent's turn. Takes no turn lock: it
+        reads and writes a different session, so it can't break Toyota's
+        recall-before-persist ordering, and Mazda never waits on a delegation."""
+        if self._memory_desk is None:
+            return {"ok": False, "error": "shared memory is not configured"}
+        future = asyncio.run_coroutine_threadsafe(
+            self._memory_desk.compose(request.session, request.text), self._loop)
+        prompt, recalled = future.result()
+        return {"ok": True, "prompt": prompt, "recalled": recalled}
+
+    def record_memory(self, request: MemoryRecordRequest) -> dict[str, Any]:
+        if self._memory_desk is None:
+            return {"ok": False, "error": "shared memory is not configured"}
+        future = asyncio.run_coroutine_threadsafe(
+            self._memory_desk.record(request.session, request.user, request.agent), self._loop)
+        future.result()
+        return {"ok": True}
 
     def health(self) -> dict[str, Any]:
         return {
@@ -81,6 +117,7 @@ class _TurnRunner:
             "role_model": self._role_model,
             "embedding_profile": self._settings.embedding_profile,
             "total_cost_usd": round(self._cost.total_cost_usd, 6),
+            "shared_memory": self._memory_desk is not None,
         }
 
     def clear_context(self) -> dict[str, Any]:
@@ -123,6 +160,8 @@ class _TurnRunner:
         """
         async with self._lock:
             self._work_relay.bind(lambda work: outbox.put(TurnRecord(kind="work", work=work)))
+            self._handoff_relay.bind(
+                lambda handoff: outbox.put(TurnRecord(kind="handoff", handoff=handoff)))
             self._relay.bind(
                 lambda sentence: outbox.put(
                     TurnRecord(kind="acknowledgment", text=sentence)
@@ -147,6 +186,7 @@ class _TurnRunner:
                 )
             finally:
                 self._work_relay.unbind()
+                self._handoff_relay.unbind()
                 self._relay.unbind()
                 outbox.put(_DONE)
 
