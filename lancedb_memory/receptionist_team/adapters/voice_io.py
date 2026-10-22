@@ -39,6 +39,61 @@ from .metrics import Stopwatch, log_stage
 
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
+# Title/initialism abbreviations whose trailing "." is not a sentence end --
+# left alone, `_SENTENCE_SPLIT_RE` treats "Dr. Smith" as two sentences and
+# `speak()` makes a spurious extra synthesize call mid-name. `re`
+# lookbehind must be fixed-width, so one regex can't skip these (they aren't
+# all the same length); `_split_sentences` re-merges them after the split
+# instead.
+#
+# "m" covers "a.m."/"p.m.": `_TRAILING_WORD_RE` only sees the run of word
+# chars right before the *final* period, and the first period in "a.m."
+# already breaks that run -- so for both "a.m." and "p.m." the captured
+# fragment is just "m", never "am"/"pm". A receptionist reading an
+# appointment time back ("at 9 a.m. tomorrow") would otherwise get a
+# spurious synthesize call split right after the time.
+_ABBREVIATIONS = frozenset({
+    "mr", "mrs", "ms", "dr", "jr", "sr", "st", "prof", "rev", "gen", "col",
+    "capt", "lt", "sgt", "no", "vs", "approx", "ave", "blvd", "inc", "ltd",
+    "co", "corp", "m", "etc",
+    # Month abbreviations -- a finance receptionist routinely reads date
+    # ranges and report periods back ("the Jan. through Dec. totals", "the
+    # Mar. statement"), and each one tripped the same bug "Dr." did before
+    # it was added: a multi-letter trailing word that is a real abbreviation
+    # but wasn't on the fixed list, so `_split_sentences` treated it as a
+    # sentence end and gave a spurious extra synthesize call -- and a
+    # spoken pause -- mid-range. "May" is a whole word, never abbreviated.
+    "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "sept", "oct",
+    "nov", "dec",
+})
+_TRAILING_WORD_RE = re.compile(r"(\w+)\.$")
+
+
+def _split_sentences(text: str) -> list[str]:
+    """Split `text` into sentences, then re-merge any split that only
+    happened because the piece before it ended in a known abbreviation
+    (e.g. "Dr.") -- or in a single-letter initial (e.g. "J.", "U.S.") --
+    rather than a real sentence end. `_ABBREVIATIONS` is necessarily a fixed
+    word list and can never cover every initial a name or acronym might use
+    ("J. Smith", "U.S.", "U.K."), so any single letter before the period is
+    treated as an initial generically, on top of the fixed list. A run of
+    several initials in a row ("U.S.") keeps re-merging one piece at a time
+    rather than stopping after the first. Only that one join is undone each
+    time -- a genuine sentence boundary right after the merged piece still
+    splits normally."""
+    pieces = [p for p in _SENTENCE_SPLIT_RE.split(text) if p]
+    sentences: list[str] = []
+    for piece in pieces:
+        if sentences:
+            match = _TRAILING_WORD_RE.search(sentences[-1])
+            if match and (
+                len(match.group(1)) == 1 or match.group(1).lower() in _ABBREVIATIONS
+            ):
+                sentences[-1] = f"{sentences[-1]} {piece}"
+                continue
+        sentences.append(piece)
+    return sentences
+
 SAMPLE_RATE = 16000
 SAMPLE_WIDTH = 2  # bytes -- S16LE
 FRAME_MS = 30
@@ -230,7 +285,9 @@ class DashboardVoiceIO:
         anything is heard. Splitting into sentences and prefetching sentence
         N+1's audio while sentence N plays turns that into "wait for one
         sentence" instead, and hides the rest of the synthesis time behind
-        playback that's already happening.
+        playback that's already happening. Sentences play back to back with
+        no inserted pause between them, so a multi-sentence reply sounds
+        continuous instead of leaving a noticeable gap after every period.
 
         Fails closed: a broken player/request only skips playback, never
         crashes the conversation -- the reply is always already printed to
@@ -244,7 +301,7 @@ class DashboardVoiceIO:
             print("[voice output unavailable: none of ffplay/mpg123/paplay on PATH]")
             return
 
-        sentences = [s for s in _SENTENCE_SPLIT_RE.split(text.strip()) if s]
+        sentences = _split_sentences(text.strip())
         if not sentences:
             return
 
