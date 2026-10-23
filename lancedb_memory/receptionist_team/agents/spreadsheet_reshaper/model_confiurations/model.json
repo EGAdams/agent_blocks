@@ -1,0 +1,15 @@
+{
+  "description": "reshapes one combined expense spreadsheet into one column per person",
+  "model": null,
+  "max_turns": 20,
+  "allowed_tools": [
+    "Bash",
+    "Read",
+    "Write",
+    "Glob",
+    "Grep"
+  ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/rol_finances/readable_documents/reports",
+  "notes": "Migrated out of extra_roles.py: this folder is now the definition, and extra_roles.py loads it. Reads the file the user names and writes a new one; never the database, never the original."
+}

@@ -1,0 +1,9 @@
+{
+  "description": "the receptionist: conversation, routing, and the dashboard's front door",
+  "model": "openai/gpt-oss-120b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": null,
+  "notes": "Served by Groq, not Claude. --model on receptionist_team.main overrides this; the model field here is the documented default, not a second source of truth. max_turns 1 and no tools because she is text-only chat: delegated work runs as its own agent folder."
+}

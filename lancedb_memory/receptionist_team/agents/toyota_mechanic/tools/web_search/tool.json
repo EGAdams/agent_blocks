@@ -1,0 +1,5 @@
+{
+  "kind": "stub",
+  "status": "stub",
+  "description": "STUB -- a web lookup for vendor names and tax questions. The Claude Agent SDK already offers WebSearch/WebFetch, so this folder most likely becomes an allowed_tools entry in model.json rather than code. Left declared-but-unbuilt until a real need picks one."
+}

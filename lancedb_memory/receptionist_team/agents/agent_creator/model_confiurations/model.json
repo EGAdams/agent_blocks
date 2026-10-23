@@ -1,0 +1,16 @@
+{
+  "description": "builds new agents for Toyota's team, and the ADWs they drive",
+  "model": null,
+  "max_turns": 80,
+  "allowed_tools": [
+    "Bash",
+    "Read",
+    "Write",
+    "Edit",
+    "Glob",
+    "Grep"
+  ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/lancedb_memory/receptionist_team/agents",
+  "notes": "The only agent whose deliverable is source code in this repository rather than a report in rol_finances, hence the output_path pointing at the agents directory it writes into. Edit is in allowed_tools because registration means three surgical edits to fail-loud files (extra_roles.py, roles.py, toyota's system prompt) where overwriting with Write would be reckless. max_turns 80 because one run reads four reference documents, writes an ADW plus six agent files, makes three edits, and runs a five-command verification gate. Will be renamed Scissari."
+}

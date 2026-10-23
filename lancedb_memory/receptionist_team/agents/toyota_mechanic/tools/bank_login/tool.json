@@ -1,0 +1,5 @@
+{
+  "kind": "stub",
+  "status": "stub",
+  "description": "STUB -- names a capability nobody has built: an authenticated session against the bank so statements can be fetched without a manual download. Nothing loads this file as code; the catalog only reports it. Implementing it needs a credential story first (the dashboard is Tailscale-served to a phone), so it is deliberately left for a separate agent."
+}

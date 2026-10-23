@@ -1,0 +1,9 @@
+{
+  "description": "answers questions about and makes requested code edits to the Letta-Code Dashboard codebase",
+  "model": null,
+  "max_turns": 30,
+  "allowed_tools": [ "Bash", "Read", "Write", "Edit", "Glob", "Grep" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/dashboard_expert",
+  "notes": "Edits land in place under /home/adamsl/letta-code/dashboard/, the live dashboard codebase on this box (dashboard-server.service, port 8765); output_path is a runtime scratch dir for this agent's own notes, not a deliverable document. Bash is for running pytest and read-only systemctl/curl checks only -- the system prompt forbids restarting the service or deploying without the user's explicit confirmation. No ADW: the work is open-ended reading and judgement-driven editing of one codebase, not a fixed repeatable sequence, same reasoning as spreadsheet_reshaper and mechanic_translator."
+}

@@ -1,0 +1,5 @@
+{
+  "kind": "stub",
+  "status": "stub",
+  "description": "STUB -- locate and read a statement PDF, identified by its printed account number and statement period rather than its filename (directory names in the finance repo are known to be shifted by one statement). Trust the PDF's own closing date. Left declared-but-unbuilt; the parser specialist owns the extraction itself."
+}

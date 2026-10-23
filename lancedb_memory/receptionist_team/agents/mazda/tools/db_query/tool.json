@@ -1,0 +1,5 @@
+{
+  "kind": "stub",
+  "status": "stub",
+  "description": "STUB -- read-only query against the expenses database to confirm a statement row is present, find duplicate entries, and look up the category behind a vendor key. Read-only on purpose: Mazda's rules forbid quietly changing financial data, so a write path should be a separate, explicitly named tool if one is ever needed."
+}

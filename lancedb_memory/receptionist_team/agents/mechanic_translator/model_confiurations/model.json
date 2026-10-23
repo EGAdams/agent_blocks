@@ -1,0 +1,9 @@
+{
+  "description": "translates a vague user request about Toyota herself into one precise instruction for toyota_mechanic",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Read", "Write" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/mechanic_translator",
+  "notes": "Pure text translation, no action on the world and no ADW: it reads toyota_mechanic's README and Toyota's system prompt section about it, then rewrites the user's vague ask into one concrete instruction sentence in toyota_mechanic's own vocabulary. It never calls or routes to toyota_mechanic itself -- dispatch stays Toyota's job -- so there is no Bash and no adw_<name>.py. output_path is a small runtime directory, not readable_documents/reports, because the deliverable is a one-line instruction, not a finance document."
+}

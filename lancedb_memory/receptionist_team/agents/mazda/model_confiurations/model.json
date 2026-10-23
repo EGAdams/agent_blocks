@@ -1,0 +1,9 @@
+{
+  "description": "the document verification receptionist: statement verification conversation and routing",
+  "model": "openai/gpt-oss-120b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": null,
+  "notes": "Served by Groq, not Claude, same as Toyota. --model on receptionist_team.main overrides this; the model field here is the documented default, not a second source of truth. max_turns 1 and no tools because she is text-only chat: her specialists are their own agents. She is the receptionist layer in front of the Letta agent 'Mazda' (agent-6b536cf4-ec88-4290-b595-fed21d14bd8e), which holds the real verification tools and memory; this folder does not reach it yet."
+}

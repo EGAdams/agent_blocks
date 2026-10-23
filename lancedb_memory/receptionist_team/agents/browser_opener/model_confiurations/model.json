@@ -1,0 +1,9 @@
+{
+  "description": "opens a URL or search phrase in the Windows browser, via the existing launcher ladder",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/browser_open",
+  "notes": "Drives adws/adw_browser_open.py, which reuses adw_modules/map_open.py's launcher ladder and launch() phase -- no Playwright/Selenium, no new launcher. Its deliverable is a spawned detached browser process plus a one-line report, not a written document, so output_path points at the ADW's own runtime data directory rather than readable_documents/reports. Read is for the --message-out file; no Write/Edit, since this agent changes nothing in the repo."
+}
