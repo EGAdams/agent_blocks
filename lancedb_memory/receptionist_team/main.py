@@ -46,7 +46,14 @@ from pathlib import Path
 
 from agent_memory.adapters.decorators import RetryingModel
 from agent_memory.adapters.embedding_profiles import build_embedder
+from agent_memory.adapters.decorators import FallbackModel
 from agent_memory.adapters.groq_model import GroqLanguageModel
+from agent_memory.adapters.openai_model import (
+    API_KEY_VARS as FALLBACK_KEY_VARS,
+    DEFAULT_MODEL as DEFAULT_FALLBACK_MODEL,
+    OpenAILanguageModel,
+    resolve_api_key as resolve_fallback_key,
+)
 from agent_memory.adapters.lancedb_store import LanceDBMemoryStore
 from agent_memory.agent import ConversationAgent
 from agent_memory.clock import SystemClock
@@ -57,7 +64,7 @@ from agent_memory.observers import (
     CostObserver,
     NexusArchiveObserver,
 )
-from agent_memory.ports import Embedder
+from agent_memory.ports import Embedder, LanguageModel
 from agent_memory.prompts import RecallOnlyComposer, TemplatePromptComposer
 from agent_memory.recall import (
     PeerSessionRecall,
@@ -141,6 +148,65 @@ def build_mazda_desk(
     return MemoryDesk(embedder, store, recall, RecallOnlyComposer(), SystemClock())
 
 
+def build_chat_model(
+    profile: ReceptionistProfile,
+    settings: Settings,
+    fallback_model: str | None,
+) -> LanguageModel:
+    """Her conversational model, with a paid backup behind the free one.
+
+    Groq first: one HTTP call, no per-turn claude_agent_sdk CLI subprocess
+    spawn (see groq_model.py), and free. What it is not is unlimited -- 200000
+    tokens per model per day, and two receptionists at ~3500 tokens a turn
+    reach that in an afternoon. Past it every turn is a 429 and all she can do
+    is report the wall.
+
+    So OpenAI sits behind her, built only when a key is actually present --
+    RECEPTIONIST_OPENAI_API_KEY for preference, see openai_model.API_KEY_VARS
+    for why the scoped name exists. Without a key this returns exactly what it
+    returned before the fallback existed and the machine stays Groq-only -- no
+    fallback is a quieter day, not a broken startup.
+
+    A third hop would be one more entry in the list: ClaudeAgentModel is
+    already a LanguageModel and runs free on the local subscription, just ~8s
+    a turn against Groq's ~2s because of the CLI subprocess spawn.
+    """
+    groq = RetryingModel(
+        GroqLanguageModel(model=settings.model, system_prompt=profile.system_prompt)
+    )
+    wanted = fallback_model or os.environ.get("OPENAI_FALLBACK_MODEL") or DEFAULT_FALLBACK_MODEL
+    key = resolve_fallback_key()
+    if not key:
+        # flush=True throughout: a sidecar redirects stdout to a file, so
+        # an unflushed startup line is invisible for hours. See FallbackModel.
+        print(
+            f"[no {FALLBACK_KEY_VARS[0]}, so {profile.display_name} "
+            "has no fallback: Groq only]",
+            flush=True,
+        )
+        return groq
+
+    try:
+        # Handed over explicitly so nothing else in this process can reach it.
+        backup = OpenAILanguageModel(
+            model=wanted, system_prompt=profile.system_prompt, api_key=key
+        )
+    except Exception as exc:
+        # A key that is present but unusable must not take the receptionist
+        # down with it -- Groq alone still works.
+        print(f"[fallback model unavailable, continuing on Groq only: {exc}]", flush=True)
+        return groq
+
+    print(
+        f"[{profile.display_name}: Groq {settings.model}, "
+        f"falling back to OpenAI {wanted}]",
+        flush=True,
+    )
+    return FallbackModel(
+        groq, [RetryingModel(backup)], names=[f"Groq {settings.model}", f"OpenAI {wanted}"]
+    )
+
+
 def build_receptionist(
     profile: ReceptionistProfile,
     settings: Settings,
@@ -149,6 +215,7 @@ def build_receptionist(
     on_work: Callable[[dict], None] | None = None,
     on_handoff: Callable[[dict], None] | None = None,
     memory: tuple[Embedder, LanceDBMemoryStore] | None = None,
+    fallback_model: str | None = None,
 ) -> tuple[RequestConversation, CostObserver]:
     """One engine, one profile. Toyota and Mazda differ only in the profile.
 
@@ -171,26 +238,33 @@ def build_receptionist(
             peer_session=lambda: profile.peer_session,
             label=profile.peer_label or f"with {profile.peer_session}",
         )
-    recall = TokenBudgetedRecall(recall, max_chars=settings.recall_max_chars)
+    # Her profile may ask for a tighter budget than the shared default --
+    # Groq's ceiling is per-minute, so one turn's size is what decides
+    # whether the next turn goes through. See ReceptionistProfile.
+    recall = TokenBudgetedRecall(
+        recall, max_chars=profile.recall_max_chars or settings.recall_max_chars
+    )
 
     cost = CostObserver()
-    # Her own conversational replies go straight to Groq -- one HTTP call, no
-    # per-turn claude_agent_sdk CLI subprocess spawn (see groq_model.py).
-    # RoutingModel still sees the whole reply before deciding on a ROUTE
-    # directive; a delegated role runs on whatever the profile's runner uses
+    # Her own conversational replies go to Groq, then to OpenAI if Groq's
+    # daily budget is spent -- see build_chat_model. RoutingModel still sees
+    # the whole reply before deciding on a ROUTE directive, whichever backend
+    # wrote it; a delegated role runs on whatever the profile's runner uses
     # (Claude, for Toyota's finance roles), since that needs real tool use
     # against the DB/receipts, not just chat.
-    inner_model = GroqLanguageModel(model=settings.model, system_prompt=profile.system_prompt)
+    inner_model = build_chat_model(profile, settings, fallback_model)
     # on_delegation stays None for the REPL (RoutingModel just prints); the
     # sidecar passes a sink so the acknowledgment reaches the browser's
     # speaker while the delegated role is still running. See service.py.
     model = RoutingModel(
-        RetryingModel(inner_model),
+        # Already retry-wrapped per backend inside build_chat_model.
+        inner_model,
         model=role_model,
         roster=profile.roster,
         runner=profile.build_runner(),
         speaker=profile.display_name,
         on_delegation=on_delegation,
+        override=profile.route_override,
     )
     context = ScopedTurnContext()
     if profile.handoff:
@@ -230,12 +304,14 @@ def build_toyota(
     on_work: Callable[[dict], None] | None = None,
     on_handoff: Callable[[dict], None] | None = None,
     memory: tuple[Embedder, LanceDBMemoryStore] | None = None,
+    fallback_model: str | None = None,
 ) -> tuple[RequestConversation, CostObserver]:
     """Toyota, specifically. Kept as a named function because turn_runner.py
     and the sidecar tests reference it by name."""
     return build_receptionist(
         TOYOTA, settings, role_model,
         on_delegation=on_delegation, on_work=on_work, on_handoff=on_handoff, memory=memory,
+        fallback_model=fallback_model,
     )
 
 
@@ -265,7 +341,13 @@ def _is_compact_command(text: str) -> bool:
     return bool(_COMPACT_COMMAND_PATTERN.fullmatch(normalized))
 
 
-async def repl(profile: ReceptionistProfile, settings: Settings, role_model: str, voice: bool) -> None:
+async def repl(
+    profile: ReceptionistProfile,
+    settings: Settings,
+    role_model: str,
+    voice: bool,
+    fallback_model: str | None = None,
+) -> None:
     # <NAME>_EDGE_TTS_VOICE wins over the profile's default, which in turn
     # wins over whatever /api/tts would have picked on its own.
     tts_voice = os.environ.get(f"{profile.name.upper()}_EDGE_TTS_VOICE", profile.tts_voice)
@@ -284,6 +366,7 @@ async def repl(profile: ReceptionistProfile, settings: Settings, role_model: str
     agent, cost = build_receptionist(
         profile, settings, role_model,
         on_delegation=speaker.say if speaker is not None else None,
+        fallback_model=fallback_model,
     )
     name = profile.display_name
     print(f"{name} -- session: {settings.session_id}  model: {settings.model}  voice: {voice}")
@@ -354,8 +437,17 @@ def main() -> None:
         default=None,
         help=(
             "her own conversational/routing model, served by Groq (not Claude). "
-            "Defaults to the chat_model on her profile (Toyota: gpt-oss-120b, "
-            "Mazda: gpt-oss-20b); pass one here to override it for this run"
+            "Defaults to the chat_model on her profile (gpt-oss-120b for both "
+            "receptionists); pass one here to override it for this run"
+        ),
+    )
+    parser.add_argument(
+        "--fallback-model",
+        default=None,
+        help=(
+            "OpenAI model she falls back to when Groq's daily token budget is "
+            f"spent (default: $OPENAI_FALLBACK_MODEL, else {DEFAULT_FALLBACK_MODEL}). "
+            "Ignored entirely when no OpenAI key is set"
         ),
     )
     parser.add_argument(
@@ -384,7 +476,12 @@ def main() -> None:
     )
     settings = settings.model_copy(update={"nexus_dir": settings.nexus_dir / profile.nexus_subdir})
 
-    asyncio.run(repl(profile, settings, role_model=args.role_model, voice=args.voice))
+    asyncio.run(
+        repl(
+            profile, settings, role_model=args.role_model, voice=args.voice,
+            fallback_model=args.fallback_model,
+        )
+    )
 
 
 if __name__ == "__main__":

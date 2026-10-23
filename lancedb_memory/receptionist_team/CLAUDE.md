@@ -19,15 +19,16 @@ Source files, by job:
 |---|---|
 | `profiles.py` | `ReceptionistProfile` — everything that differs between the two |
 | `rosters.py` | `Roster` — which agent names a receptionist may route to |
-| `delegation.py` | `IDelegationRunner`, `UnwiredRunner`, `RunnerMap` — *how* a route runs |
+| `delegation.py` | `IDelegationRunner`, `IRouteOverride`, `UnwiredRunner`, `RunnerMap` — *how* a route runs, and the one route the model doesn't get to choose |
 | `roles.py` / `extra_roles.py` | Toyota's roster wording, blurbs, spoken names, extra `AgentRole`s |
-| `mazda_roles.py` | Mazda's six specialists (five stubs + Michi) and her rendered prompt |
+| `mazda_roles.py` | Mazda's six specialists (five stubs + Mickey) and her rendered prompt |
 | `main.py` | the composition root: `build_receptionist()`, `build_toyota()`, `repl()` |
 | `service.py` / `service_models.py` / `turn_runner.py` | the loopback HTTP sidecar the dashboard talks to |
-| `adapters/` | `routing_model`, `handoff_model`, `tool_agent_runner`, `michi_runner`, `voice_io`, `metrics` |
-| `progress/` | Michi: `tracker` reads report files, `narrate` prompts, `michi` composes the two |
+| `adapters/` | `routing_model`, `status_route`, `handoff_model`, `tool_agent_runner`, `mickey_runner`, `adw_runner`, `voice_io`, `metrics` |
+| `progress/` | Mickey: `tracker` reads report files, `narrate` prompts, `mickey` composes the two |
 | `operations/` | Toyota-only `WorkflowModel` stack (reports/tax intents, assignment policies) |
 | `memory_desk.py` | the shared-memory recall wiring both receptionists use |
+| `forget.py` | deletes turns the agent got wrong, so recall stops quoting them back |
 
 Everything else comes from `agent_memory/` (the engine) and `finance_team/`
 (the roles Toyota delegates to).
@@ -67,7 +68,7 @@ cd ..
 .venv/bin/python -m receptionist_team.main --agent mazda --voice
 .venv/bin/python -m receptionist_team.main --session toyota --embedding-profile sentence
 .venv/bin/python -m receptionist_team.main --role-model claude-haiku-4-5-20251001
-.venv/bin/python -m receptionist_team.progress.cli             # Michi's snapshot, no LLM
+.venv/bin/python -m receptionist_team.progress.cli             # Mickey's snapshot, no LLM
 .venv/bin/python -m receptionist_team.service --port 8767   # the dashboard sidecar
 ```
 
@@ -77,15 +78,18 @@ log `/tmp/toyota_receptionist.log`), restartable from the dashboard's Server
 Management tab. A hand-started copy will collide on the port with the unit.
 
 Tests cover the sidecar's turn loop, the agent folders, both profiles, the
-delegation acknowledgment, the operations stack and Michi's tracker — sixteen
+delegation acknowledgment, the operations stack and Mickey's tracker — sixteen
 standalone scripts in `tests/`, each run as a module from `..`:
 
 ```bash
 .venv/bin/python -m receptionist_team.tests.test_service_turns
 .venv/bin/python -m receptionist_team.tests.test_mazda_profile
 .venv/bin/python -m receptionist_team.tests.test_delegation_acknowledgment
-.venv/bin/python -m receptionist_team.tests.test_michi_routing
+.venv/bin/python -m receptionist_team.tests.test_mickey_routing
 .venv/bin/python -m receptionist_team.tests.test_progress_tracker
+.venv/bin/python -m receptionist_team.tests.test_status_route
+.venv/bin/python -m receptionist_team.tests.test_adw_browser_runner
+.venv/bin/python -m receptionist_team.tests.test_search_open_adw
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 .venv/bin/python -m receptionist_team.agents.cli validate
 ```
@@ -103,7 +107,7 @@ Claude Agent SDK with tools against the live MySQL DB. The async harness is
 (no `python-dotenv` in the venv); copy `.env.example` beside it. `GROQ_API_KEY`
 is required (the receptionist's own replies *and* STT);
 `PIPECAT_PILOT_AGENT_ID` is optional and only speeds up STT;
-`<NAME>_EDGE_TTS_VOICE` and `MICHI_REPO_ROOT` are optional overrides.
+`<NAME>_EDGE_TTS_VOICE` and `MICKEY_REPO_ROOT` are optional overrides.
 Don't add a `source .env` step to docs — `setdefault` already means an
 exported value wins.
 
@@ -121,12 +125,102 @@ dependencies are the external binaries `parecord` and one of
 
 ### Both receptionists are Groq; only delegated roles are Claude
 
-`main.py` builds `GroqLanguageModel` (`--model`, default `openai/gpt-oss-120b`)
+`main.py` builds `GroqLanguageModel` (`--model`, default `openai/gpt-oss-120b`
+— both receptionists)
 for conversation and routing — one HTTP call per turn, no `claude_agent_sdk`
 subprocess spawn. Claude is reserved for delegated finance work
 (`--role-model`, default `claude-sonnet-5`), which needs real Bash/Read/Write
 tool use. The root `CLAUDE.md` and `README.md` may still describe this split as
 *Mazda's* divergence; it is both receptionists' arrangement.
+
+**Two Groq limits bite, and they behave differently.** 8000 tokens per
+minute, *shared* across both `gpt-oss` sizes (`x-ratelimit-limit-tokens` on any
+response), and 200000 tokens per day, counted *separately per model* — read it
+off a daily 429, which names the model and reports `(TPD): Limit 200000, Used
+…`. A refused request consumes nothing, so an oversized probe is a free way to
+read either counter. Two consequences worth keeping straight: the per-minute
+ceiling is about the size of one turn, while the daily one is about how many
+turns a day the receptionists get — roughly 55–65 each at 3000–3700 tokens a
+turn — and because the daily budgets are per model, a receptionist stuck on an
+exhausted model can be moved to the other one and keep working. That is not a
+fix, only a second bucket; both were spent in one day on 2026-10-23.
+
+**Neither limit ends the turn any more.** `main.py`'s `build_chat_model()`
+builds `FallbackModel( RetryingModel( groq ), [ RetryingModel( openai )])`
+(`agent_memory/adapters/decorators.py`,
+`agent_memory/adapters/openai_model.py`), so a spent daily budget falls
+through to OpenAI's `gpt-5-mini` instead of reaching the user as a 429. The
+backup is built **only when a key is present** -- without one
+`build_chat_model` returns the bare retry-wrapped Groq model and the machine
+behaves exactly as it did before, because no fallback has to mean a quieter
+day rather than a broken startup.
+
+The key goes in `receptionist_team/.env` as **`RECEPTIONIST_OPENAI_API_KEY`**,
+not `OPENAI_API_KEY`, and `openai_model.resolve_api_key()` checks that name
+first. The scoped name is not decoration: `adapters/openai_embedder.py`
+constructs a bare `OpenAI()` and reads only the ambient `OPENAI_API_KEY`, so a
+key parked under the scoped name is invisible to it and a stray
+`--embedding-profile openai` cannot bill a paid embedding run against credits
+bought for fallback replies. The resolved key is handed to the client as
+`OpenAI( api_key=... )` rather than left to the SDK's ambient lookup, which is
+what makes that guarantee hold instead of being a naming convention.
+
+Worth stating once because it has caused real confusion: an OpenAI key has no
+bearing on Claude's auth, and neither has any bearing on a ChatGPT
+subscription. `ANTHROPIC_API_KEY` is the variable that silently flips Claude
+Code off subscription OAuth onto metered billing (see this repo's standing
+rule and the two commented-out exports in `~/.bashrc`); OpenAI API credits and
+a ChatGPT subscription are separate systems that cannot spend each other's
+money, which is also why the subscription cannot drive this code. Both entrypoints get this for free:
+`service.py` calls the same `_load_dotenv()`, and `fallback_model=None`
+threads down to `$OPENAI_FALLBACK_MODEL` and then the adapter default.
+
+Three details in that adapter are load-bearing. `reasoning_effort` is pinned
+to the floor because the GPT-5 family bills hidden reasoning tokens at the
+output rate and pays for them in latency -- a receptionist writing three
+sentences has nothing to reason about, and leaving it off is the difference
+between a few dollars a month and three times that. **The floor is spelled
+differently per generation**: `gpt-5` wants `"minimal"` and 400s on `"none"`,
+`gpt-5.4` wants `"none"` and 400s on `"minimal"`. Rather than a model-name
+table that the next release invalidates,
+`_retry_without_refused_effort()` reads the supported list out of the 400 and
+retries once with the cheapest one, then remembers it on the instance -- a
+warm sidecar must not pay a wasted 400 per turn to rediscover the same
+answer. Measured on gpt-5.4-mini, whose floor is spelled differently from the
+default's: it self-heals to `none` on turn one (2.1s) and
+turn two costs 0.53s with 5 output tokens, i.e. no reasoning billed. The default is a *mini*, never a nano: the
+one time this repo ran a model of that weight (Groq's `gpt-oss-20b`) it
+answered status questions from recalled chat instead of emitting a `ROUTE:`
+line, which is why `adapters/status_route.py` exists -- not worth re-fighting
+to save a few dollars a year. And `_refusal()` separates "out of credit" from
+"rate limited", because a receptionist reporting a rate limit when the real
+answer is the billing page sends the next hour down the wrong path; that
+mistake has already been made once here, with Groq's daily cap.
+
+A 400 is classified as `ModelUnavailable` rather than left to retry, because
+`RetryingModel` sits on anything else: five attempts at one un-retryable 400
+turned `"does not support 'minimal' with this model"` into `"Model failed
+after 5 attempts"`, which is how a one-word config mistake hid for an
+afternoon. And every operator-visible `print()` here passes `flush=True` --
+not tidiness: a sidecar redirects stdout to a file, so an unflushed warning
+sits in an 8KB buffer for hours, which is precisely the silent paid usage the
+warning exists to prevent. That one was found reading an empty log.
+
+`FallbackModel` falls through on `ModelUnavailable` and on `RuntimeError`
+(which covers `RetryingModel` giving up and both provider error classes), and
+deliberately **not** on `TypeError` and friends -- a bug in our own
+prompt-building should surface as a bug, not quietly buy a second paid API
+call on every turn. It prints each hop, every time, so a receptionist silently
+costing money because the free backend has been dead for a week is visible.
+When every hop fails it raises the *last* error, not the first.
+
+Against the per-minute ceiling the model makes no difference and the size of
+one turn is everything. Toyota's system prompt is ~12000 characters of routing
+rules against Mazda's ~7700, which is why `ReceptionistProfile.recall_max_chars`
+exists and why **Toyota's** is 6000 rather than the shared 12000 default —
+Mazda's is still unset, since her smaller prompt left her turn under the
+ceiling. Shrinking a system prompt is the only lever left after that, and it is
+the one lever that helps against both limits at once.
 
 `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` must stay unset (local Claude Code
 OAuth, not metered API) — same repo-wide rule; `finance_team/adapters/tool_agent.py`
@@ -174,7 +268,9 @@ injected runner; it never learns whether anything real is on the other side.
 | runner | used by | what it does |
 |---|---|---|
 | `ToolAgentRunner` (`adapters/`) | Toyota | `run_role` through the Claude Agent SDK against `rol_finances` |
-| `MichiRunner` (`adapters/`) | Mazda's `michi` | collects the progress snapshot, then one constrained model call |
+| `MickeyRunner` (`adapters/`) | Mazda's `mickey` | collects the progress snapshot, then one constrained model call |
+| `AdwBrowserRunner` (`adapters/`) | Mazda's `browser_opener` | subprocesses `adws/adw_interface_browser_open.py` and reports the line it wrote |
+| `ToolAgentRunner` | Toyota's `search_link_opener` | the agent folder below; no dedicated runner, because picking a result link is a judgement |
 | `UnwiredRunner` | Mazda's other five | says plainly the connection isn't built and nothing ran |
 | `RunnerMap` | Mazda | dispatches by agent name over a default |
 
@@ -186,24 +282,82 @@ thing she must not do. Her five stub `AgentRole`s also carry
 and `agents/mazda/tools/*/tool.json` are declared `"kind": "stub"` — the
 `db_query` one is read-only by design.
 
+`browser_opener` is the first thing Mazda can actually *do*, and it is a
+workflow rather than an agent: `adapters/adw_runner.py` runs the ADW as a
+subprocess with `--message-out`, reads that one line, and returns it verbatim.
+No Claude turn, no `bypassPermissions`, no model anywhere in the path — the
+same "deterministic first" shape as Mickey, and for the same reason. Toyota
+reaches the same ADW through her `browser_opener` *agent folder* (a Claude SDK
+turn with Bash that decides `--url` vs `--phrase` itself); Mazda makes that
+decision in `target_of()`, a plain tested function, because "open this" doesn't
+need an agent. Its two halves live where the mistakes are: `target_of` treats
+anything it can't recognise as a search phrase (wrong toward "url" sends a
+sentence to a URL validator; wrong toward "search" is harmless), and a
+workflow that writes no line is reported as *unknown*, never as opened.
+`mazda_roles.BROWSER_AGENT_NAME` is the one spelling of the routing name.
+
+### `search_link_opener` is the only agent that drives a page
+
+Toyota's `search_link_opener` folder is the step past `browser_opener`, and the
+two split on one question: does the user already have the address? If yes it is
+`browser_opener`, which hands a link to the launcher ladder and stops. If the
+site has to be *found* first -- "pull up Fifth Third Bank so I can log in" --
+it is `search_link_opener`, which runs
+`adws/adw_interface_search_open.py`: search headlessly, read the organic result
+links off the results page, pick the one that IS the site, trim it to the front
+door, and only then spawn the real window. `"Fifth Third Bank"` lands on
+`https://www.53.com/`, logged out, in a window the user controls.
+
+The headless half is **selenium-headless's `WebBrowserManager`**
+(`/home/adamsl/selenium-headless/browser_manager/`), imported by path inside
+that ADW's `SeleniumResultPageReader` and nowhere else -- that repository is a
+separate history with no packaging, and its other pieces (`link_analyzer`,
+`data_extractor`, `duplicate_manager`) belong to its sunbiz.org crawler and are
+not used here. `selenium` is therefore now a dependency of `../.venv`, the one
+interpreter that has both it and the ADW's `pyyaml`/`rich`/`dotenv`. The
+everything-after is `adw_modules/map_open.py` untouched -- same `validate()`,
+`select_launcher()`, `launch()` as the other ADW.
+
+Three things about it are load-bearing:
+
+- **Bing leads the backend ladder, and that order is measured, not preferred.**
+  Google answers headless Chrome with `/sorry/index` and DuckDuckGo's html
+  endpoint with "Unfortunately, bots use DuckDuckGo too"; Bing answers with ten
+  organic rows. Both blocked engines stay on the ladder because a challenge
+  page is zero candidates and one page load, not an error. A Google
+  `search?q=...` URL handed in as `--search-url` is read for its `q=` and run
+  against the ladder instead of being fetched, and the operator's line says so.
+- **Bing's result anchors are not destinations.** They point at
+  `bing.com/ck/a?...&u=a1<base64url>`; the href at face value opens bing.com. A
+  redirect that will not decode is dropped rather than opened.
+- **No pick means the search page opens, and the line says so.** Nothing
+  invents a destination -- same rule as `UnwiredRunner`. The agent's own prompt
+  repeats it, because "it opened the bank" when it opened a results page is the
+  one outright lie this workflow could tell.
+
+`tests/test_search_open_adw.py` pins all three with a faked reader, plus one
+`--dry-run` spawn of the real workflow that *does* reach the network, since a
+backend that quietly starts challenging us is exactly what no fake can catch
+(it skips rather than fails when offline).
+
 Her prompt also has a vocabulary rule, pinned by a test: she must not use the
 words "idempotent", "fail-closed" or "canonical" — say "safe to repeat",
 "stops safely rather than guessing", "standard vendor key".
 
-### Michi is deterministic first, explained second
+### Mickey is deterministic first, explained second
 
 `progress/tracker.py` reads
 `<repo_root>/finance_reports/<year>/<month>/<account>.json` with no model
 involved and persists one snapshot; `narrate.py` turns that snapshot into a
 prompt; only then does a model speak. That order is the design — the
 explanation cannot add a fact the tracker didn't collect, and
-`tests/test_michi_routing.py` pins it. Repo root defaults to
-`receptionist_team/workspace/` and `MICHI_REPO_ROOT`,
-`MICHI_EXPECTED_ACCOUNTS`, `MICHI_MONTHS_BACK`, `MICHI_STALE_DAYS` override the
+`tests/test_mickey_routing.py` pins it. Repo root defaults to
+`receptionist_team/workspace/` and `MICKEY_REPO_ROOT`,
+`MICKEY_EXPECTED_ACCOUNTS`, `MICKEY_MONTHS_BACK`, `MICKEY_STALE_DAYS` override the
 defaults (they were `MAZDA_TEAM_*` before the move; nothing in the repo sets
 either spelling).
 
-`tracker.REPORT_WRITER_AGENT` is `"michi"`: writing the finance reports is her
+`tracker.REPORT_WRITER_AGENT` is `"mickey"`: writing the finance reports is her
 own job (it read `"sheeta"` until that `mazda_team` role was retired). She
 carries no tools, so a next step assigned to her is work still waiting — never
 work she did, and `narrate.py`'s system prompt says so explicitly, because a
@@ -233,6 +387,36 @@ and the real `rol_finances` MySQL DB. Extra instructions are appended to a
 `dataclasses.replace`'d copy of the role, never mutated in place. An unknown
 agent name returns a friendly message listing known agents rather than
 raising.
+
+### One route doesn't wait for the model to agree
+
+`delegation.IRouteOverride` is consulted by `RoutingModel` **before** the
+inner model is called at all; returning `None` means "no opinion, let the
+model decide", which is still Toyota's whole arrangement
+(`TOYOTA.route_override is None`).
+
+Mazda's is `adapters/status_route.StatusQuestionRoute("mickey")`. Her prompt has
+always said every status question goes to Mickey, and the 20b often ignored it —
+answering from recalled conversation instead and re-asserting a year of
+finished finance reports that do not exist, which recall then handed back to
+her as history. The forced route skips the inner call entirely: a model that is
+asked gets the chance to answer the question itself from memory.
+
+Two details are load-bearing. It reads the **last** `USER:` in the composed
+prompt (`agent_memory/prompts.py`'s `DEFAULT_TEMPLATE` labels recalled turns
+the same way, so matching the whole prompt would make every later turn a status
+question for as long as that turn stayed in recall). And with no `USER:`/
+`AGENT:` marker at all — `RecallOnlyComposer` — it returns `""` and forces
+nothing, rather than treating the whole prompt as the user's words. An override
+naming an agent off the roster is ignored, so a typo falls back to the model
+deciding instead of breaking every turn. `tests/test_status_route.py` pins all
+of it.
+
+`agent_memory/adapters/lancedb_store.py` gained `forget(ids)` for the same
+episode's aftermath: her own fabrications were stored turns, so recall kept
+handing them back as fact. `receptionist_team/forget.py` is the CLI (dry-run by
+default, `--match` regex, `--keep` to spare ids, `--apply`), and the warm
+sidecar must be restarted afterwards — it holds the old table handle.
 
 ### `roles.py` fails loud at import on an unregistered role
 
@@ -400,5 +584,5 @@ that path.
   an unrelated change.
 - `adapters/voice_io.py` imports `log_stage` but only uses `Stopwatch` —
   harmless, but don't take the import as evidence of a second logging path.
-- `workspace/progress/michi_state.json` is gitignored; `workspace/` itself is
+- `workspace/progress/mickey_state.json` is gitignored; `workspace/` itself is
   tracked for its `README.md` only.

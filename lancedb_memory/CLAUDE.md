@@ -20,7 +20,11 @@ one on conflict:
 Everything runs through `lancedb_memory/.venv` (Python 3.14, `pydantic`,
 `lancedb`, `pyarrow`, `claude-agent-sdk`, `openai`, `sentence-transformers`,
 plus `python-dotenv`/`pyyaml`/`rich`, which are there only because
-`sssf_interfaces` loads the SSSF factory's `adw_modules`).
+`sssf_interfaces` loads the SSSF factory's `adw_modules`, and `selenium`,
+which is there only because `adws/adw_interface_search_open.py` reads a
+results page — this venv is the one interpreter that has both it and the
+ADW's `pyyaml`/`rich`/`dotenv`, which is why that workflow runs under
+`.venv/bin/python` rather than its own `uv run` header).
 The system interpreter is PEP 668 externally-managed, so **always invoke
 `.venv/bin/python`, never bare `python3`**. There is no `requirements.txt`,
 `pyproject.toml`, or lockfile anywhere in the workspace — dependencies were
@@ -54,7 +58,7 @@ All commands run from `lancedb_memory/` (the import root for every package here)
 .venv/bin/python -m receptionist_team.main                   # Toyota
 .venv/bin/python -m receptionist_team.main --voice --session toyota
 .venv/bin/python -m receptionist_team.main --agent mazda     # Mazda, same engine
-.venv/bin/python -m receptionist_team.progress.cli           # Michi snapshot, no LLM
+.venv/bin/python -m receptionist_team.progress.cli           # Mickey snapshot, no LLM
 .venv/bin/python -m receptionist_team.agents.cli list        # the agent folders, no LLM
 .venv/bin/python -m receptionist_team.agents.cli show mazda
 .venv/bin/python -m receptionist_team.agents.cli validate
@@ -70,11 +74,15 @@ its `test_*` function from a REPL.
 .venv/bin/python tests/test_agent.py                # turn loop; no network, no disk
 .venv/bin/python tests/test_lancedb_store.py        # real LanceDB in a tmpdir
 .venv/bin/python tests/test_embedding_profiles.py   # factory; asserts torch is NOT imported
+.venv/bin/python tests/test_fallback_model.py       # FallbackModel; no provider contacted
 
 .venv/bin/python -m receptionist_team.tests.test_mazda_profile
-.venv/bin/python -m receptionist_team.tests.test_michi_routing
+.venv/bin/python -m receptionist_team.tests.test_mickey_routing
 .venv/bin/python -m receptionist_team.tests.test_progress_tracker
 .venv/bin/python -m receptionist_team.tests.test_delegation_acknowledgment
+.venv/bin/python -m receptionist_team.tests.test_status_route
+.venv/bin/python -m receptionist_team.tests.test_adw_browser_runner
+.venv/bin/python -m receptionist_team.tests.test_search_open_adw
 
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 ```
@@ -89,7 +97,7 @@ duplicated per team. All tests are offline and need no API key.
 
 `finance_team` has **no tests** — it talks to a real MySQL DB.
 `receptionist_team` has tests for its sidecar turn loop, its `agents/` folder
-catalog, both profiles, the delegation acknowledgment and Michi's tracker;
+catalog, both profiles, the delegation acknowledgment and Mickey's tracker;
 what sits between the sidecar and the engine still needs the real dashboard.
 
 ## Architecture
@@ -165,25 +173,43 @@ is on the other side:
 | runner | used by | what it does |
 |---|---|---|
 | `ToolAgentRunner` (`adapters/`) | Toyota | `run_role` through the Claude Agent SDK against `rol_finances` |
-| `MichiRunner` (`adapters/`) | Mazda's `michi` | collects the progress snapshot, then one constrained model call |
+| `MickeyRunner` (`adapters/`) | Mazda's `mickey` | collects the progress snapshot, then one constrained model call |
 | `UnwiredRunner` | Mazda's other five | says plainly that the connection isn't built and nothing ran |
+| `AdwBrowserRunner` (`adapters/`) | Mazda's `browser_opener` | subprocesses `adws/adw_interface_browser_open.py` and reports the line it wrote, verbatim |
+| `ToolAgentRunner` | Toyota's `search_link_opener` | an agent folder, not a dedicated runner, because picking which result *is* the site is a judgement |
 | `RunnerMap` | Mazda | dispatches by agent name, with one default |
+
+Toyota's two browser agents split on one question: does the user already have
+the address? If yes it is `browser_opener`. If the site has to be *found*
+first — "pull up Fifth Third Bank so I can log in" — it is
+`search_link_opener`, which runs `adws/adw_interface_search_open.py`: search
+headlessly, read the organic result links, pick the one that IS the site, trim
+it to the front door, and only then spawn a real window the user can log in
+by hand. The headless half is selenium-headless's `WebBrowserManager`
+(`/home/adamsl/selenium-headless/browser_manager/`), imported by file path
+inside that ADW's `SeleniumResultPageReader` and nowhere else; the
+window-opening half is `adw_modules/map_open.py` unchanged. Bing leads its
+backend ladder because Google and DuckDuckGo both answer headless Chrome with
+a challenge page — measured, not preferred, and pinned by a test. When no
+result can be picked it opens the *search* page and says so; it never invents
+a destination, the same rule `UnwiredRunner` enforces for Mazda. See
+`receptionist_team/CLAUDE.md` for the rest.
 
 `UnwiredRunner` exists because Mazda's standing rule is never to claim work
 was done without a tool confirming it. **Do not replace it with a stub that
 fabricates a plausible result** — that is the one thing she must not do.
 
-### Michi is deterministic first, explained second
+### Mickey is deterministic first, explained second
 
 `receptionist_team/progress/` (ported intact when `mazda_team` was retired):
 `tracker.py` reads `<repo_root>/finance_reports/<year>/<month>/<account>.json`
 with no model involved and writes one snapshot; `narrate.py` turns that
 snapshot into a prompt; only then does a model speak. That order is the whole
 design — the explanation cannot add a fact the tracker didn't collect. Repo
-root defaults to `receptionist_team/workspace/`; `MICHI_REPO_ROOT`,
-`MICHI_EXPECTED_ACCOUNTS`, `MICHI_MONTHS_BACK`, `MICHI_STALE_DAYS` override
+root defaults to `receptionist_team/workspace/`; `MICKEY_REPO_ROOT`,
+`MICKEY_EXPECTED_ACCOUNTS`, `MICKEY_MONTHS_BACK`, `MICKEY_STALE_DAYS` override
 the defaults (they were `MAZDA_TEAM_*` before the move, and nothing in the
-repo sets either spelling). `tracker.REPORT_WRITER_AGENT` is `"michi"` —
+repo sets either spelling). `tracker.REPORT_WRITER_AGENT` is `"mickey"` —
 writing the reports is her own job now (it was `"sheeta"`, a retired
 `mazda_team` role). She has no tools, so a next step assigned to her is work
 still waiting, and `narrate.py`'s prompt forbids her from claiming she wrote
@@ -270,6 +296,36 @@ matched with `re.fullmatch`, **not** `search`, so ordinary conversation that
 merely mentions routing can't trigger a delegation. An unknown agent name
 yields a friendly message listing known agents, not a crash.
 
+One route no longer waits for the model to agree. `delegation.IRouteOverride`
+is consulted *before* the inner model is called; Mazda's is
+`adapters/status_route.StatusQuestionRoute("mickey")`, because the 20b often
+ignored her prompt's "every status question goes to Mickey" and answered from
+recall instead — re-asserting a year of finance reports that do not exist.
+Toyota's is `None`, which is the old behaviour. See
+`receptionist_team/CLAUDE.md` for the two details that matter (it reads the
+*last* `USER:` line, and forces nothing when the prompt has no marker).
+
+`MemoryStore.forget(ids)` and `receptionist_team/forget.py` exist for the
+aftermath of that episode: a wrong turn is stored history, so recall keeps
+handing it back as fact, and deleting is the only way out of the loop.
+
+### A spent Groq budget is no longer the end of the turn
+
+`decorators.FallbackModel` is a third `LanguageModel` Decorator beside
+`RetryingModel`: a list of backends tried in order, so the agent still sees
+one `complete()` call. `RetryingModel` handles "wait a second and ask again";
+this handles the kind of failure waiting cannot fix -- Groq's 200000 tokens
+per model per day. `receptionist_team/main.py`'s `build_chat_model()` chains
+Groq to `adapters/openai_model.py` (`gpt-5-mini`, with `reasoning_effort` pinned to the floor),
+and builds the backup **only when a key is present** --
+`RECEPTIONIST_OPENAI_API_KEY` in `receptionist_team/.env`, a scoped name so
+`openai_embedder.py`'s bare `OpenAI()` cannot reach it -- so a machine without
+a key behaves exactly as before. A third hop is one more list entry --
+`ClaudeAgentModel` is already a `LanguageModel` and free on the local
+subscription, just ~8s a turn against Groq's ~2s because of the CLI subprocess
+spawn. See `receptionist_team/CLAUDE.md` for why the default is a mini and not
+a nano.
+
 ### Chat model vs. tool model
 
 Two Claude-facing adapters exist because the jobs differ:
@@ -295,8 +351,8 @@ every default lands inside this repo — do not reintroduce the legacy script's
 `/home/adamsl/linuxBash/...` absolutes. `finance_team/roles.py` is the
 deliberate exception: `REPO_ROOT = "/home/adamsl/rol_finances"` and a DB
 briefing pointing at `/home/adamsl/planner/.env`, because those roles operate on
-a real external repository. Michi keeps her own escape hatch
-(`MICHI_REPO_ROOT`, default `receptionist_team/workspace/`).
+a real external repository. Mickey keeps her own escape hatch
+(`MICKEY_REPO_ROOT`, default `receptionist_team/workspace/`).
 
 ## Known drift between docs and code
 
