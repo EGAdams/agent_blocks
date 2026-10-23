@@ -3,7 +3,8 @@ instead of re-implementing speech I/O for this CLI:
 
 - STT: POST /api/voice (whisper.cpp/Groq transcription + cleanup, same path
   the browser's push-to-talk uses) -- dashboard/http_app/post_routes.py.
-- TTS: POST /api/tts (server-side edge-tts, en-GB-SoniaNeural by default) --
+- TTS: POST /api/tts (server-side edge-tts, en-GB-SoniaNeural unless a
+  `voice` is given) --
   same endpoint dashboard/js/implementation/edge-tts-speech-synthesizer.js calls.
 
 Requires dashboard-server.service running locally (localhost:8765). This
@@ -28,6 +29,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -130,8 +132,18 @@ class VoiceUnavailableError(RuntimeError):
 
 
 class DashboardVoiceIO:
-    def __init__(self, base_url: str = "http://localhost:8765", pipecat_agent_id: str | None = None) -> None:
+    def __init__(
+        self,
+        base_url: str = "http://localhost:8765",
+        pipecat_agent_id: str | None = None,
+        voice: str | None = None,
+    ) -> None:
         self._base_url = base_url.rstrip("/")
+        # None leaves the voice out of the /api/tts payload entirely, so the
+        # dashboard picks its own default (en-GB-SoniaNeural) -- that is
+        # Toyota. A receptionist who wants to sound different names her voice
+        # here instead (see profiles.py's tts_voice).
+        self._voice = voice
         # Requesting the pipecat backend routes STT through Groq (~1s) instead of
         # the default local whisper.cpp pass (~25s on this CPU) -- the dashboard
         # server only allows it for this one pilot agent id, set as an env var
@@ -329,7 +341,9 @@ class DashboardVoiceIO:
         utterance."""
         request = urllib.request.Request(
             f"{self._base_url}/api/tts",
-            data=json.dumps({"text": sentence}).encode(),
+            data=json.dumps(
+                {"text": sentence, "voice": self._voice} if self._voice else {"text": sentence}
+            ).encode(),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
@@ -373,3 +387,43 @@ class DashboardVoiceIO:
                     print(f"[voice output timed out: sentence {index}]")
         finally:
             Path(mp3_path).unlink(missing_ok=True)
+
+
+class AcknowledgmentSpeaker:
+    """Play a delegation acknowledgment while the delegated work runs.
+
+    `DashboardVoiceIO.speak` is fully blocking -- its ThreadPoolExecutor is a
+    context manager (shutdown waits) and `_play` shells out to a blocking
+    subprocess.run. So calling it straight from RoutingModel's on_delegation
+    sink would serialize "please wait..." in front of the delegation and buy
+    nothing; the point is to overlap them. Playback therefore goes to a
+    background thread, and `wait()` joins it before the final reply is spoken
+    so two players never talk over each other.
+    """
+
+    def __init__(self, voice_io: DashboardVoiceIO) -> None:
+        self._voice_io = voice_io
+        self._thread: threading.Thread | None = None
+
+    def say(self, sentence: str) -> None:
+        """Start playing `sentence`; return immediately."""
+        self.wait()  # one acknowledgment at a time, never two overlapping
+        thread = threading.Thread(target=self._speak, args=(sentence,), daemon=True)
+        self._thread = thread
+        thread.start()
+
+    def wait(self) -> None:
+        """Block until any in-flight acknowledgment has finished playing."""
+        if self._thread is None:
+            return
+        self._thread.join()
+        self._thread = None
+
+    def _speak(self, sentence: str) -> None:
+        # Fails closed, like every other voice path here: an acknowledgment
+        # that can't be played must not kill the turn it belongs to, and an
+        # exception on this thread would otherwise surface as a bare traceback.
+        try:
+            self._voice_io.speak(sentence)
+        except Exception as exc:
+            print(f"[acknowledgment playback failed: {type(exc).__name__}: {exc}]")

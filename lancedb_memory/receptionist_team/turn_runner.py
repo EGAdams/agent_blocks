@@ -5,7 +5,9 @@ import threading
 from typing import Any, Iterator
 
 from agent_memory.config import Settings
-from .main import build_mazda_desk, build_shared_memory, build_toyota
+from agent_memory.errors import ModelUnavailable
+from .main import build_mazda_desk, build_receptionist, build_shared_memory
+from .profiles import TOYOTA, ReceptionistProfile
 from .service_models import MemoryComposeRequest, MemoryRecordRequest, TurnRecord, TurnRequest
 
 _DONE = object()
@@ -46,6 +48,7 @@ class _TurnRunner:
         work_relay: _DelegationRelay | None = None,
         handoff_relay: _DelegationRelay | None = None,
         memory_desk=None,
+        profile: ReceptionistProfile = TOYOTA,
     ) -> None:
         self._agent = agent
         self._cost = cost
@@ -55,31 +58,45 @@ class _TurnRunner:
         self._work_relay = work_relay or _DelegationRelay()
         self._handoff_relay = handoff_relay or _DelegationRelay()
         self._memory_desk = memory_desk
+        self._profile = profile
         self._loop = asyncio.new_event_loop()
         self._lock = asyncio.Lock()
         threading.Thread(
-            target=self._run_loop, name="toyota-turns", daemon=True
+            target=self._run_loop, name=f"{profile.name}-turns", daemon=True
         ).start()
 
     @classmethod
-    def build(cls, settings: Settings, role_model: str) -> "_TurnRunner":
-        """The real composition: one warm Toyota, wired to stream her acks.
+    def build(
+        cls, settings: Settings, role_model: str, profile: ReceptionistProfile = TOYOTA
+    ) -> "_TurnRunner":
+        """The real composition: one warm receptionist, wired to stream her acks.
 
         Separate from __init__ so tests can drive the turn loop with a fake
-        agent instead of loading torch and opening a LanceDB table.
+        agent instead of loading torch and opening a LanceDB table. `profile`
+        defaults to Toyota because the sidecar was hers before Mazda had one.
         """
         relay = _DelegationRelay()
         work_relay = _DelegationRelay()
         handoff_relay = _DelegationRelay()
         memory = build_shared_memory(settings)
-        agent, cost = build_toyota(
-            settings, role_model, on_delegation=relay, on_work=work_relay,
+        agent, cost = build_receptionist(
+            profile, settings, role_model, on_delegation=relay, on_work=work_relay,
             on_handoff=handoff_relay, memory=memory,
         )
         runner: list["_TurnRunner"] = []
-        # Mazda's recall reads Toyota's CURRENT session, which rotates on compact.
-        desk = build_mazda_desk(*memory, toyota_session=lambda: runner[0].session_id)
-        runner.append(cls(agent, cost, settings, role_model, relay, work_relay, handoff_relay, desk))
+        # Only Toyota hosts a guest's memory: the dashboard can still run Mazda
+        # as a Letta agent, whose turns happen outside this package and would
+        # otherwise have no recall. Her recall reads Toyota's CURRENT session,
+        # which rotates on compact -- hence the callable, not a fixed string.
+        desk = (
+            build_mazda_desk(*memory, toyota_session=lambda: runner[0].session_id)
+            if profile.serves_peer_memory
+            else None
+        )
+        runner.append(cls(
+            agent, cost, settings, role_model, relay, work_relay, handoff_relay, desk,
+            profile=profile,
+        ))
         return runner[0]
 
     def _run_loop(self) -> None:
@@ -90,10 +107,15 @@ class _TurnRunner:
     def session_id(self) -> str:
         return self._settings.session_id
 
+    @property
+    def display_name(self) -> str:
+        return self._profile.display_name
+
     def compose_memory(self, request: MemoryComposeRequest) -> dict[str, Any]:
         """Recalled context for another agent's turn. Takes no turn lock: it
-        reads and writes a different session, so it can't break Toyota's
-        recall-before-persist ordering, and Mazda never waits on a delegation."""
+        reads and writes a different session, so it can't break this
+        receptionist's recall-before-persist ordering, and the guest never
+        waits on a delegation."""
         if self._memory_desk is None:
             return {"ok": False, "error": "shared memory is not configured"}
         future = asyncio.run_coroutine_threadsafe(
@@ -115,6 +137,8 @@ class _TurnRunner:
             "session": self._settings.session_id,
             "model": self._settings.model,
             "role_model": self._role_model,
+            "agent": self._profile.name,
+            "display_name": self._profile.display_name,
             "embedding_profile": self._settings.embedding_profile,
             "total_cost_usd": round(self._cost.total_cost_usd, 6),
             "shared_memory": self._memory_desk is not None,
@@ -180,10 +204,17 @@ class _TurnRunner:
                     )
                 )
             except Exception as exc:
-                print(f"[toyota-service] turn failed: {type(exc).__name__}: {exc}")
-                outbox.put(
-                    TurnRecord(kind="error", text=f"{type(exc).__name__}: {exc}")
-                )
+                print(f"[{self._profile.name}-service] turn failed: "
+                      f"{type(exc).__name__}: {exc}")
+                # ModelUnavailable's message is already written for a person
+                # ("the daily Groq token allowance is used up, and it clears in
+                # about 23 minute(s)"), so the class name in front of it is
+                # just noise in the browser. The log above keeps it.
+                outbox.put(TurnRecord(
+                    kind="error",
+                    text=str(exc) if isinstance(exc, ModelUnavailable)
+                    else f"{type(exc).__name__}: {exc}",
+                ))
             finally:
                 self._work_relay.unbind()
                 self._handoff_relay.unbind()

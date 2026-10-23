@@ -1,9 +1,14 @@
-"""RoutingModel -- Decorator that lets Toyota delegate a turn to one of
-finance_team's headless roles.
+"""RoutingModel -- Decorator that lets a receptionist delegate a turn to one
+of her specialists.
 
 Same shape as agent_memory/adapters/decorators.py's RetryingModel: wraps a
 LanguageModel, returns a LanguageModel. agent.py and ConversationAgent never
 know a delegation happened -- they see one complete() call, one AgentReply.
+
+Nothing here is Toyota-specific any more. Who the specialists are comes from
+the injected Roster, how they run comes from the injected IDelegationRunner,
+and whose name appears in the console line comes from `speaker`. Toyota passes
+TOYOTA_ROSTER + ToolAgentRunner; Mazda passes MAZDA_ROSTER + UnwiredRunner.
 """
 import re
 from collections.abc import Callable
@@ -12,13 +17,8 @@ from dataclasses import replace
 from agent_memory.models import AgentReply
 from agent_memory.ports import LanguageModel
 
-from finance_team.adapters.tool_agent import run_role
-from finance_team.roles import REPO_ROOT
-
-# ROLES comes from receptionist_team.roles, not finance_team.roles directly:
-# it's finance_team's ROLES merged with EXTRA_ROLES (specialists that can't
-# live in the locked finance_team/roles.py). See extra_roles.py.
-from ..roles import ROLES, delegation_acknowledgment
+from ..delegation import IDelegationRunner
+from ..rosters import Roster
 
 # Must match the WHOLE reply (re.fullmatch), not just contain the word ROUTE --
 # ordinary conversation is allowed to mention routing without triggering it.
@@ -27,26 +27,32 @@ _ROUTE_RE = re.compile(r"ROUTE:\s*([A-Za-z_]+)\s*(?:\|\s*(.*))?", re.DOTALL)
 
 class RoutingModel:
     """If the inner model's reply is a bare ROUTE directive, run that
-    finance_team role to completion and hand its result back as the reply.
-    Anything else passes through untouched -- Toyota's ordinary conversation
-    never goes near finance_team or the live database.
+    specialist to completion and hand its result back as the reply.
+    Anything else passes through untouched -- ordinary conversation never
+    goes near a specialist or the live database.
     """
 
     def __init__(
         self,
         inner: LanguageModel,
         model: str,
+        roster: Roster,
+        runner: IDelegationRunner,
+        speaker: str = "Toyota",
         on_delegation: Callable[[str], None] | None = None,
     ) -> None:
         self._inner = inner
         self._role_model = model
+        self._roster = roster
+        self._runner = runner
+        self._speaker = speaker
         # Called with the spoken acknowledgment the moment a ROUTE line is
-        # matched, BEFORE the slow run_role call -- which is what
-        # TOYOTA_SYSTEM_PROMPT has always promised ("the application supplies
-        # the spoken acknowledgment separately so that it can begin playback
-        # immediately while the delegated agent starts working"). The CLI
-        # leaves this None and just prints; service.py passes a sink that
-        # streams the sentence so the browser can start speaking it.
+        # matched, BEFORE the slow runner call -- which is what the system
+        # prompt has always promised ("the application supplies the spoken
+        # acknowledgment separately so that it can begin playback immediately
+        # while the delegated agent starts working"). The CLI leaves this None
+        # and just prints; service.py passes a sink that streams the sentence
+        # so the browser can start speaking it.
         self._on_delegation = on_delegation
 
     async def complete(self, prompt: str) -> AgentReply:
@@ -55,16 +61,11 @@ class RoutingModel:
         if not match:
             return reply
 
-        role_name, extra = match.group(1), (match.group(2) or "").strip()
-        role = ROLES.get(role_name)
-        if role is None:
-            return AgentReply(
-                text=(
-                    f'I tried to route that to "{role_name}", but I don\'t have '
-                    f"an agent by that name. I know: {', '.join(sorted(ROLES))}."
-                )
-            )
+        agent_name, extra = match.group(1), (match.group(2) or "").strip()
+        if not self._roster.has(agent_name):
+            return AgentReply(text=self._roster.unknown_agent_reply(agent_name))
 
+        role = self._roster.role(agent_name)
         if extra:
             role = replace(
                 role,
@@ -74,15 +75,20 @@ class RoutingModel:
                 ),
             )
 
-        acknowledgment = delegation_acknowledgment(role_name)
-        print(f"\n[Toyota -> {role_name}] {acknowledgment}")
-        if self._on_delegation is not None:
+        self._acknowledge(agent_name)
+        return await self._runner.run(role, agent_name, self._role_model, extra)
+
+    def _acknowledge(self, agent_name: str) -> None:
+        """Say "please wait" now, before the slow call -- never after it.
+
+        A broken sink must not cost the user the delegated work that was about
+        to run, so a failure here is reported and stepped over.
+        """
+        acknowledgment = self._roster.acknowledgment(agent_name)
+        print(f"\n[{self._speaker} -> {agent_name}] {acknowledgment}")
+        if self._on_delegation is None:
+            return
+        try:
             self._on_delegation(acknowledgment)
-
-        result = await run_role(role, cwd=REPO_ROOT, model=self._role_model)
-
-        if result.is_error:
-            text = f"I checked with {role_name}, but it hit a problem: {result.final_text}"
-        else:
-            text = f"I checked with {role_name}: {result.final_text}"
-        return AgentReply(text=text, cost_usd=result.cost_usd)
+        except Exception as exc:
+            print(f"[acknowledgment playback failed: {type(exc).__name__}: {exc}]")

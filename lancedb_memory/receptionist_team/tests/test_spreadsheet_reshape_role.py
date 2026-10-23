@@ -13,7 +13,14 @@ actually resolves at dispatch time.
 from agent_memory.models import AgentReply
 
 from ..adapters import routing_model as routing_model_module
-from ..roles import ROLE_BLURBS, ROLES, TOYOTA_SYSTEM_PROMPT, delegation_acknowledgment
+from ..adapters import tool_agent_runner as tool_agent_runner_module
+from ..roles import (
+    ROLE_BLURBS,
+    ROLES,
+    TOYOTA_ROSTER,
+    TOYOTA_SYSTEM_PROMPT,
+    delegation_acknowledgment,
+)
 
 
 async def test_the_role_exists_with_file_tools_and_never_overwrites_the_input():
@@ -59,18 +66,23 @@ async def test_routing_model_resolves_the_new_specialist_by_name():
 
         return _Result()
 
-    original = routing_model_module.run_role
-    routing_model_module.run_role = fake_run_role
+    # run_role moved out of routing_model.py into the ToolAgentRunner --
+    # RoutingModel now only matches the control line and hands the role to
+    # an injected IDelegationRunner. The SDK call is still what's faked.
+    original = tool_agent_runner_module.run_role
+    tool_agent_runner_module.run_role = fake_run_role
     try:
         model = routing_model_module.RoutingModel(
             _FakeRouteOnceModel(
                 "ROUTE: spreadsheet_reshaper | reshape readable_documents/reports/combined.csv, person column is payee"
             ),
             model="fake-role-model",
+            roster=TOYOTA_ROSTER,
+            runner=tool_agent_runner_module.ToolAgentRunner(),
         )
         reply = await model.complete("please reshape that spreadsheet")
     finally:
-        routing_model_module.run_role = original
+        tool_agent_runner_module.run_role = original
 
     assert calls.get("role_name") == "spreadsheet_reshaper"
     assert "don't have an agent" not in reply.text

@@ -1,9 +1,9 @@
-"""repl()'s --voice path must wire voice_io.speak into build_toyota's
+"""repl()'s --voice path must wire the acknowledgment speaker into build_receptionist's
 on_delegation hook, so a delegation acknowledgment is spoken immediately
 instead of going silent for the whole delegation (see CLAUDE.md, "The
 delegation acknowledgment, and what is still only half-wired").
 
-Offline: build_toyota and DashboardVoiceIO are both monkeypatched to fakes,
+Offline: build_receptionist and DashboardVoiceIO are both monkeypatched to fakes,
 so this never touches LanceDB, Groq, or the dashboard's voice endpoints.
 
     cd lancedb_memory
@@ -13,6 +13,7 @@ from agent_memory.config import Settings
 from agent_memory.models import AgentReply
 
 from .. import main as main_module
+from ..adapters.voice_io import AcknowledgmentSpeaker
 
 
 class _FakeCost:
@@ -51,24 +52,31 @@ async def test_voice_mode_wires_speak_into_on_delegation():
     _FakeVoiceIO.instances = []
     captured = {}
 
-    def fake_build_toyota(settings, role_model, on_delegation=None, on_work=None):
+    def fake_build_receptionist(profile, settings, role_model, on_delegation=None, on_work=None, **kwargs):
         captured["on_delegation"] = on_delegation
         return _FakeAgent(), _FakeCost()
 
-    original_build_toyota = _patch(main_module, "build_toyota", fake_build_toyota)
+    original_build_receptionist = _patch(main_module, "build_receptionist", fake_build_receptionist)
     original_voice_io = _patch(main_module, "DashboardVoiceIO", _FakeVoiceIO)
     try:
         settings = Settings(session_id="toyota-test", model="fake", embedding_profile="hash")
-        await main_module.repl(settings, role_model="fake-role-model", voice=True)
+        await main_module.repl(main_module.TOYOTA, settings, role_model="fake-role-model", voice=True)
     finally:
-        main_module.build_toyota = original_build_toyota
+        main_module.build_receptionist = original_build_receptionist
         main_module.DashboardVoiceIO = original_voice_io
 
     assert "on_delegation" in captured
     assert captured["on_delegation"] is not None, "voice mode left on_delegation=None"
 
     voice_io = _FakeVoiceIO.instances[0]
-    captured["on_delegation"]("let me check with accounting")
+    sink = captured["on_delegation"]
+    # The sink is AcknowledgmentSpeaker.say, not voice_io.speak: say() hands
+    # playback to a background thread so the delegation can start immediately.
+    # wait() is what the reply path uses to join it, so the test joins too
+    # rather than racing the thread.
+    assert isinstance(sink.__self__, AcknowledgmentSpeaker)
+    sink("let me check with accounting")
+    sink.__self__.wait()
     assert voice_io.spoken == ["let me check with accounting"], voice_io.spoken
 
 
@@ -77,17 +85,17 @@ async def test_typed_mode_leaves_on_delegation_none():
     on_delegation must stay None, same as before this change."""
     captured = {}
 
-    def fake_build_toyota(settings, role_model, on_delegation=None, on_work=None):
+    def fake_build_receptionist(profile, settings, role_model, on_delegation=None, on_work=None, **kwargs):
         captured["on_delegation"] = on_delegation
         return _FakeAgent(), _FakeCost()
 
-    original_build_toyota = _patch(main_module, "build_toyota", fake_build_toyota)
+    original_build_receptionist = _patch(main_module, "build_receptionist", fake_build_receptionist)
     original_input = _patch(__import__("builtins"), "input", lambda prompt="": (_ for _ in ()).throw(EOFError))
     try:
         settings = Settings(session_id="toyota-test", model="fake", embedding_profile="hash")
-        await main_module.repl(settings, role_model="fake-role-model", voice=False)
+        await main_module.repl(main_module.TOYOTA, settings, role_model="fake-role-model", voice=False)
     finally:
-        main_module.build_toyota = original_build_toyota
+        main_module.build_receptionist = original_build_receptionist
         __import__("builtins").input = original_input
 
     assert captured["on_delegation"] is None

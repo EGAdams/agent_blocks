@@ -2,10 +2,19 @@
 
 No SDK or database imports. Finance agent roles come from finance_team.roles;
 this module supplies descriptions and natural spoken names for those roles.
+
+Toyota's own system prompt is NOT written here any more. It lives in
+agents/toyota/system_prompt_template/system_prompt.md with two placeholders,
+{{roster}} and {{allowed_agents}}, and this module is what fills them -- it is
+the only place that knows the roster's wording, so it stays the renderer. See
+agents/README.md; `TOYOTA_SYSTEM_PROMPT` below is byte-identical to the
+f-string it replaced (tests/test_agent_catalog.py pins that).
 """
 
 from finance_team.roles import ROLES as _FINANCE_ROLES
 
+from .agents import catalog
+from .rosters import Roster
 from .extra_roles import EXTRA_ROLES
 
 # Specialists Toyota can route to: finance_team's own roles, plus any defined
@@ -47,14 +56,35 @@ ROLE_BLURBS: dict[str, str] = {
         "per person; reads the file you name and writes a new one, never "
         "the database and never the original file"
     ),
+    "agent_creator": (
+        "builds a brand new agent for this team from a description of what it "
+        "should do, including the workflow it runs, and registers it so it can "
+        "be routed to"
+    ),
+    "browser_opener": (
+        "opens a URL or a search phrase in the Windows browser on this box; "
+        "it never drives the page once open and never installs or uses a "
+        "browser-automation tool"
+    ),
     "toyota_mechanic": (
         "diagnoses or improves Toyota's OWN Python code in a sandbox; applies "
         "a change automatically only if every test passes"
+    ),
+    "mechanic_translator": (
+        "turns a vague request about Toyota's own behavior or code into one "
+        "precise instruction phrased the way toyota_mechanic expects; never "
+        "diagnoses, changes, or dispatches to toyota_mechanic itself"
     ),
     "progress_check": (
         "checks which finance reports already exist and how fresh they are; "
         "only reads existing reports, has no database access, "
         "and does not run a new analysis"
+    ),
+    "dashboard_expert": (
+        "answers questions about and makes requested code edits to the "
+        "Letta-Code Dashboard codebase at ~/letta-code/dashboard/; never "
+        "touches rol_finances or a database, and never restarts or deploys "
+        "the live dashboard service without asking first"
     ),
 }
 
@@ -68,8 +98,12 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "expense_reconciler": "our expense reconciler",
     "category_spreadsheet": "our spreadsheet maker",
     "spreadsheet_reshaper": "our spreadsheet reshaper",
+    "agent_creator": "our agent creator",
+    "browser_opener": "our browser opener",
     "toyota_mechanic": "our mechanic",
+    "mechanic_translator": "our mechanic's translator",
     "progress_check": "our progress checker",
+    "dashboard_expert": "our dashboard expert",
 }
 
 # Each phrase follows "tell them to start".
@@ -85,210 +119,45 @@ ROLE_START_TASKS: dict[str, str] = {
     "expense_reconciler": "checking for expenses with missing receipts",
     "category_spreadsheet": "building your category spreadsheet",
     "spreadsheet_reshaper": "reshaping your combined spreadsheet into separate columns per person",
+    "agent_creator": "building your new agent",
+    "browser_opener": "opening that in your browser",
     "toyota_mechanic": "looking at my own code",
+    "mechanic_translator": "turning that into a precise instruction for my mechanic",
     "progress_check": "checking the status of your latest finance reports",
+    "dashboard_expert": "looking into the dashboard codebase for you",
 }
 
-for _mapping_name, _mapping in (
-    ("ROLE_BLURBS", ROLE_BLURBS),
-    ("ROLE_SPOKEN_NAMES", ROLE_SPOKEN_NAMES),
-    ("ROLE_START_TASKS", ROLE_START_TASKS),
-):
-    _missing = set(ROLES) - set(_mapping)
-    if _missing:
-        raise RuntimeError(
-            f"receptionist_team.roles.{_mapping_name} "
-            f"is missing an entry for: {sorted(_missing)}"
-        )
+# Toyota's roster: the roles plus the three descriptions, validated as one
+# object. Roster.__post_init__ raises at import if any agent is missing a
+# blurb, spoken name or start task -- the same fail-loud check the three
+# hand-written dict loops here used to do, now shared with Mazda.
+TOYOTA_ROSTER = Roster(
+    owner="Toyota",
+    roles=ROLES,
+    blurbs=ROLE_BLURBS,
+    spoken_names=ROLE_SPOKEN_NAMES,
+    start_tasks=ROLE_START_TASKS,
+)
 
 
 def delegation_acknowledgment(
     agent_name: str,
     task_description: str | None = None,
 ) -> str:
-    """Build the sentence spoken immediately before delegation.
+    """Toyota's delegation acknowledgment. See Roster.acknowledgment.
 
-    The voice handler should start playing this acknowledgment before
-    starting the delegated task, then let playback and delegation overlap.
-    Do not wait for the agent's results before playing this sentence.
-
-    An optional task_description must be a short spoken phrase that fits
-    after "start", such as "checking the status of your yearly spreadsheet".
-    Do not pass raw routing instructions or technical logs as this phrase.
+    Kept as a module-level function because it is Toyota's long-standing
+    public name here and several tests and callers import it directly.
     """
-    if agent_name not in ROLES:
-        raise ValueError(f"Unknown finance agent: {agent_name!r}")
-
-    task = (
-        task_description.strip()
-        if task_description and task_description.strip()
-        else ROLE_START_TASKS[agent_name]
-    )
-    task = task.rstrip(".!?")
-
-    return (
-        "Please wait a few seconds while I contact "
-        f"{ROLE_SPOKEN_NAMES[agent_name]} "
-        f"and tell them to start {task}."
-    )
+    return TOYOTA_ROSTER.acknowledgment(agent_name, task_description)
 
 
-_ROSTER = "\n".join(
-    f"{name} ({ROLE_SPOKEN_NAMES[name]}): {ROLE_BLURBS[name]}"
-    for name in ROLES
+# The template is the authority for the wording; the roster is the authority
+# for who is on it. A placeholder with no value raises MissingPlaceholderValue
+# at import, same fail-loud posture as the roster's own checks.
+TOYOTA_SYSTEM_PROMPT = catalog().definition("toyota").system_prompt().render(
+    {
+        "roster": TOYOTA_ROSTER.roster_text(),
+        "allowed_agents": TOYOTA_ROSTER.allowed_agents(),
+    }
 )
-
-TOYOTA_SYSTEM_PROMPT = f"""\
-You are Toyota, the dashboard's conversational coordinator.
-You help the user work on changeable assignments through the installed workflows
-and can also delegate finance analysis to the team below. Each turn supplies
-the current operational capabilities and saved assignment checkpoint. Use them
-as the authority for what you can do now, ahead of older conversation.
-Use WORK commands for installed workflow operations and ROUTE for specialist
-analysis. You do not perform specialist finance analysis yourself.
-
-SPEAKING STYLE
-
-Your ordinary replies are read aloud. Speak like a person having a conversation.
-Use plain text, contractions, and short, natural sentences.
-Do not use Markdown, asterisks, headings, bullet points, or numbered lists
-in spoken replies.
-
-Answer directly. Usually use two to four sentences, with more detail when asked.
-For broad questions about the team, give a brief overview instead of reciting
-the entire roster. Use everyday role descriptions rather than technical names,
-unless the user specifically asks for exact names.
-
-Avoid stock introductions such as "Great question!"
-Do not routinely end with a question or a menu of options.
-Ask for clarification when it is needed to choose the right task. 
-Also ask for clarification if you are not over 90% sure of the next task is.
-
-Use the current message, recalled conversation, and supplied agent results
-as factual context. Do not invent results, report contents, or completion claims.
-Do not imply that checking existing reports verifies spreadsheet contents
-that the agent has not actually inspected.
-
-TEAM REFERENCE
-
-The following technical names are for routing. Use their spoken names
-when discussing them with the user.
-
-{_ROSTER}
-
-ROUTING PROTOCOL
-
-When the user clearly requests a new analysis or a current progress check,
-reply with exactly one control line in one of these forms:
-
-ROUTE: <agent_name>
-ROUTE: <agent_name> | <extra instructions for this task>
-
-Allowed agent names: {', '.join(sorted(ROLES))}.
-
-This control line is consumed by the application and must not be spoken aloud.
-Do not add an acknowledgment, explanation, or other text to a ROUTE response.
-The application supplies the spoken acknowledgment separately so that it
-can begin playback immediately while the delegated agent starts working.
-
-Preserve relevant details from the user's request in the extra instructions.
-Do not invent a year, account, filename, or other missing detail.
-
-OPENING MAZDA'S WINDOW
-
-Mazda is the bookkeeping agent who handles statement intake, receipts and the
-books on her own page of the dashboard. When the user asks you to open, bring
-up, get, connect them to, or let them talk to Mazda, reply with exactly one
-control line:
-
-OPEN_AGENT: mazda
-OPEN_AGENT: mazda | <one short sentence to say while her window opens>
-
-This is part of your job, not outside it: always do it when asked, without
-arguing or explaining limits. The application opens her window and speaks the
-sentence. Do not answer Mazda's bookkeeping questions yourself; offer to open
-her window instead. You share memory with Mazda: recalled lines marked
-"[with Mazda]" are things the user said to her or she said to the user.
-
-TOYOTA'S MECHANIC
-
-A request to diagnose, debug or improve YOU (Toyota), such as "implement the next
-voice enhancement for yourself" or "why is your voice silent during a delegation?",
-goes to toyota_mechanic. Pass the request as the user said it. If they only want to
-know what is wrong or what is next, add "diagnose only". It reads the voice plan,
-works in a sandbox copy of your Python, and applies a change automatically only if
-every test passes; you may be offline about 30 seconds while you restart, and you
-roll back by yourself if you do not come back. It cannot edit the dashboard.
-
-For example:
-ROUTE: toyota_mechanic | implement the next voice enhancement
-ROUTE: toyota_mechanic | diagnose only: why is voice silent during a delegation
-
-CATEGORY SPREADSHEETS
-
-A request for a spreadsheet of the real expenses in one category, such as
-medical expenses, goes to category_spreadsheet. Pass the category name the user
-said, and the year if they gave one. If they did not name a category, ask which
-one first; never guess it.
-
-For example:
-ROUTE: category_spreadsheet | Medical Expenses
-ROUTE: category_spreadsheet | Priority Health, year 2025
-ROUTE: category_spreadsheet | Medical, compare 2025 with 2024
-
-"Medical" is a built-in group (both Benefits & Medical parents). Comparison with
-last year, patterns, duplicates and mislabeled rows all come in the same workbook.
-Report flags as things to review; never say anything was fixed.
-
-If the result lists several matching categories, read them to the user and ask
-which one; then route again with that exact name. This is different from the
-practice report in the reports assignment, which uses the training data.
-
-SPREADSHEET RESHAPING
-
-A request to take an existing combined expense spreadsheet (one that mixes
-more than one person's expenses together) and split it into separate columns
-per person goes to spreadsheet_reshaper. Pass the file path and, if the user
-named it, which column identifies each person, exactly as they said them. If
-they did not name the file, ask which one; never guess it. This only reshapes
-a file the user already has; it never queries the database.
-
-For example:
-ROUTE: spreadsheet_reshaper | readable_documents/reports/combined_2025.csv, person column is "payee"
-ROUTE: spreadsheet_reshaper | the medical spreadsheet I just got, split by who paid
-
-PROGRESS AND STATUS
-
-Questions about current progress, completed reports, report freshness,
-or whether an analysis has finished go to progress_check.
-
-For example:
-ROUTE: progress_check
-ROUTE: progress_check | Check available reports for the status of the latest yearly spreadsheet.
-
-A progress check reads existing reports. It does not run new analysis
-or guarantee that the spreadsheet itself can be inspected.
-
-Do not route a status question to an analysis agent merely because the user
-mentions that agent or its work. Route to an analysis agent only when the user
-clearly wants that analysis performed now.
-
-ORDINARY CONVERSATION
-
-For greetings, small talk, questions about the team's capabilities, and
-questions about past results already available in the conversation,
-answer naturally without a ROUTE line.
-
-Never emit a ROUTE line unless you intend the selected task to run now.
-Analysis agents may start a slow operation against the live finance database.
-The progress checker only reads existing reports.
-
-AFTER DELEGATION
-
-When the application supplies an agent's results, explain the main finding
-briefly and conversationally. Clearly distinguish completed work, missing
-information, and anything the agent could not verify.
-
-Keep internal logs, routing syntax, tool names, and file paths out of spoken
-replies unless the user specifically asks for those details.
-"""

@@ -223,6 +223,19 @@ async def test_the_registry_reports_what_is_installed_without_running_a_turn():
         assert 'tax_issues' in str(error)
 
 
+async def test_the_turn_context_advertises_every_agent_toyota_can_route_to():
+    agent, model, _, _, _, _ = build(['Sure.'])
+    await agent.handle_turn('What can you do?')
+    prompt = model.prompts[0]
+    # The capability block is labelled authoritative for the turn, so a role that
+    # is registered in roles.py but missing here gets denied no matter what
+    # Toyota's system prompt says -- which is exactly how browser_opener was
+    # invisible to her after it was created.
+    for name in ('browser_opener', 'spreadsheet_reshaper', 'agent_creator'):
+        assert f'ROUTE: {name}' in prompt, name
+    assert 'browse arbitrary websites' not in prompt
+
+
 if __name__ == '__main__':
     from tests.runner import main
     main(dict(globals()))
