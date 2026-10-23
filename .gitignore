@@ -26,3 +26,6 @@ lancedb_memory/mazda_team/workspace/
 
 # spa_documentation is its own repo (github.com/EGAdams/spa_documentation)
 spa_documentation/
+
+# git worktrees of this same repo live here; never commit them into the outer repo
+.claude/worktrees/
