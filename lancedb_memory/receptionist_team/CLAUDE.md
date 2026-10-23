@@ -252,6 +252,19 @@ system prompt, roster, a `build_runner` factory, the peer session/label, the
 TTS voice, and two flags — `handoff` and `operations` — for the dashboard-only
 decorators Toyota has and Mazda doesn't.
 
+**`operations=True` is load-bearing for Toyota's prompt, not just a feature
+flag.** Six of her routes — `mazda` (the `OPEN_AGENT` handoff), `live_books`,
+`toyota_mechanic`, `category_spreadsheet`, `spreadsheet_reshaper` and
+`agent_creator` — are described only in `operations/workflow_model`'s
+`CAPABILITIES`, which is injected on every turn. Her `system_prompt.md` keeps
+just their control-line syntax under "CONTROL LINES THE CAPABILITIES BLOCK
+COVERS" and defers the when-and-how to that block, because stating all six
+twice a turn cost ~3800 characters against Groq's 8000-tokens-*per-minute*
+ceiling. The consequence: a receptionist who copies Toyota's folder **without**
+`operations=True` gets a prompt that names six routes it cannot explain. Either
+set the flag or write those sections back into the copy. `mechanic_translator`
+stays in the system prompt precisely because `CAPABILITIES` never mentions it.
+
 `build_receptionist(profile, settings, role_model, ...)` is the whole
 assembly; `build_toyota()` survives only as a thin wrapper because
 `turn_runner.py` and four tests name it. **Adding a third receptionist is one
