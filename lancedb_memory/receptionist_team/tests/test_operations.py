@@ -242,6 +242,24 @@ async def test_the_turn_context_advertises_every_agent_toyota_can_route_to():
     assert 'browse arbitrary websites' not in prompt
 
 
+async def test_every_control_line_in_the_capability_text_survives_on_one_line():
+    """Reflowing the block must not split a control line across a newline.
+
+    Trimming it for Groq's per-minute ceiling broke two this way --
+    "ROUTE: agent_creator" and "normal expense editor" each ended up with a
+    line break inside -- so the model was shown a route it could not emit.
+    Checked here rather than left to the three tests that happen to assert on
+    individual names.
+    """
+    from receptionist_team.operations.workflow_model import CAPABILITIES
+    routes = ('live_books', 'toyota_mechanic', 'mechanic_translator',
+              'category_spreadsheet', 'spreadsheet_reshaper', 'agent_creator',
+              'browser_opener')
+    for name in routes:
+        assert f'ROUTE: {name} |' in CAPABILITIES, name
+    assert 'OPEN_AGENT: mazda' in CAPABILITIES
+
+
 if __name__ == '__main__':
     from tests.runner import main
     main(dict(globals()))

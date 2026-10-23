@@ -253,17 +253,25 @@ TTS voice, and two flags — `handoff` and `operations` — for the dashboard-on
 decorators Toyota has and Mazda doesn't.
 
 **`operations=True` is load-bearing for Toyota's prompt, not just a feature
-flag.** Six of her routes — `mazda` (the `OPEN_AGENT` handoff), `live_books`,
-`toyota_mechanic`, `category_spreadsheet`, `spreadsheet_reshaper` and
-`agent_creator` — are described only in `operations/workflow_model`'s
-`CAPABILITIES`, which is injected on every turn. Her `system_prompt.md` keeps
+flag.** Seven of her routes — `mazda` (the `OPEN_AGENT` handoff), `live_books`,
+`toyota_mechanic`, `mechanic_translator`, `category_spreadsheet`,
+`spreadsheet_reshaper` and `agent_creator` — are described only in
+`operations/workflow_model`'s `CAPABILITIES`, which is injected on every turn. Her `system_prompt.md` keeps
 just their control-line syntax under "CONTROL LINES THE CAPABILITIES BLOCK
 COVERS" and defers the when-and-how to that block, because stating all six
 twice a turn cost ~3800 characters against Groq's 8000-tokens-*per-minute*
 ceiling. The consequence: a receptionist who copies Toyota's folder **without**
 `operations=True` gets a prompt that names six routes it cannot explain. Either
-set the flag or write those sections back into the copy. `mechanic_translator`
-stays in the system prompt precisely because `CAPABILITIES` never mentions it.
+set the flag or write those sections back into the copy. 
+
+`CAPABILITIES` itself was trimmed the same way and for the same ceiling: the
+four restatements of "never invent a missing detail" and the four of "ask if
+they did not name it" are now one paragraph declaring that both apply to every
+route and action below it. **Keep every control line on a single source line.**
+Reflowing the block split `ROUTE: agent_creator` and `normal expense editor`
+across newlines, which showed the model a route it could not emit and broke two
+tests; `tests/test_operations.py::test_every_control_line_in_the_capability_text_survives_on_one_line`
+now pins all eight.
 
 `build_receptionist(profile, settings, role_model, ...)` is the whole
 assembly; `build_toyota()` survives only as a thin wrapper because

@@ -112,8 +112,8 @@ class ReceptionistProfile:
     # None means settings.recall_max_chars (12000). This is a profile field
     # because Groq's real ceiling is 8000 tokens *per minute*, shared across
     # models, not a daily allowance -- so what matters is the size of one turn.
-    # Her rendered system prompt is ~10000 characters and the operations
-    # capabilities block adds ~7600 more on every turn, so the shared 12000
+    # Her rendered system prompt is ~9900 characters and the operations
+    # capabilities block adds ~7000 more on every turn, so the shared 12000
     # recall budget pushed her single turn past the ceiling and the next one
     # came back 429.
     recall_max_chars: int | None = None
@@ -160,8 +160,8 @@ TOYOTA = ReceptionistProfile(
     chat_model=TOYOTA_CHAT_MODEL,
     # Tighter than the 12000 default: her routing prompt and the per-turn
     # capabilities block eat most of the per-minute budget between them.
-    # ~10000 chars of system prompt plus 7600 of capabilities plus 6000 of
-    # recall is about 5900 tokens a turn, which fits under 8000 with room for
+    # ~9900 chars of system prompt plus 7000 of capabilities plus 6000 of
+    # recall is about 5700 tokens a turn, which fits under 8000 with room for
     # the reply. It does not fit twice -- one turn a minute is the real rate.
     recall_max_chars=6000,
     handoff=True,
