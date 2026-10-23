@@ -13,12 +13,14 @@ one on conflict:
    feature docs, design rationale.
 3. this file — the commands, the invariants that are easy to break, and the
    places where the two documents above have drifted from the code.
-4. `mazda_team/CLAUDE.md` — authoritative for that subpackage.
+4. `receptionist_team/CLAUDE.md` — authoritative for both receptionists.
 
 ## Environment
 
 Everything runs through `lancedb_memory/.venv` (Python 3.14, `pydantic`,
-`lancedb`, `pyarrow`, `claude-agent-sdk`, `openai`, `sentence-transformers`).
+`lancedb`, `pyarrow`, `claude-agent-sdk`, `openai`, `sentence-transformers`,
+plus `python-dotenv`/`pyyaml`/`rich`, which are there only because
+`sssf_interfaces` loads the SSSF factory's `adw_modules`).
 The system interpreter is PEP 668 externally-managed, so **always invoke
 `.venv/bin/python`, never bare `python3`**. There is no `requirements.txt`,
 `pyproject.toml`, or lockfile anywhere in the workspace — dependencies were
@@ -48,13 +50,14 @@ All commands run from `lancedb_memory/` (the import root for every package here)
 .venv/bin/python -m finance_team.orchestrate --only mapper_bank
 .venv/bin/python -m finance_team.orchestrate --skip-receipts --skip-expense-check
 
-# receptionist_team — Toyota (conversational front end to finance_team)
-.venv/bin/python -m receptionist_team.main
+# receptionist_team — Toyota and Mazda (see receptionist_team/CLAUDE.md)
+.venv/bin/python -m receptionist_team.main                   # Toyota
 .venv/bin/python -m receptionist_team.main --voice --session toyota
-
-# mazda_team — Mazda (see mazda_team/CLAUDE.md)
-.venv/bin/python -m mazda_team.main
-.venv/bin/python -m mazda_team.progress.cli                 # Michi snapshot, no LLM
+.venv/bin/python -m receptionist_team.main --agent mazda     # Mazda, same engine
+.venv/bin/python -m receptionist_team.progress.cli           # Michi snapshot, no LLM
+.venv/bin/python -m receptionist_team.agents.cli list        # the agent folders, no LLM
+.venv/bin/python -m receptionist_team.agents.cli show mazda
+.venv/bin/python -m receptionist_team.agents.cli validate
 ```
 
 ### Tests
@@ -68,33 +71,124 @@ its `test_*` function from a REPL.
 .venv/bin/python tests/test_lancedb_store.py        # real LanceDB in a tmpdir
 .venv/bin/python tests/test_embedding_profiles.py   # factory; asserts torch is NOT imported
 
-.venv/bin/python -m mazda_team.tests.test_michi_routing
-.venv/bin/python -m mazda_team.tests.test_progress_tracker
-.venv/bin/python -m mazda_team.tests.test_roles_registration
+.venv/bin/python -m receptionist_team.tests.test_mazda_profile
+.venv/bin/python -m receptionist_team.tests.test_michi_routing
+.venv/bin/python -m receptionist_team.tests.test_progress_tracker
+.venv/bin/python -m receptionist_team.tests.test_delegation_acknowledgment
+
+.venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 ```
 
 `tests/*.py` self-bootstrap via `sys.path.insert(...parent)`, so they also work
-when invoked by path. `mazda_team/tests/runner.py` is a ~30-line async harness
-that discovers module-level `test_*` coroutines — the mazda tests call it from
-their `__main__` block. Shared fakes (`ScriptedModel`, `RecordingObserver`,
-`TickingClock`) live in `lancedb_memory/tests/fakes.py` and are reused by
-`mazda_team/tests/` rather than duplicated. All tests are offline and need no
-API key.
+when invoked by path. `tests/runner.py` is a ~30-line async harness that
+discovers module-level `test_*` coroutines — every team's tests call it from
+their `__main__` block, which is why they must be run as `-m` modules from
+`lancedb_memory/`. Shared fakes (`ScriptedModel`, `RecordingObserver`,
+`TickingClock`) live in `lancedb_memory/tests/fakes.py` rather than being
+duplicated per team. All tests are offline and need no API key.
 
-`finance_team` and `receptionist_team` have **no tests** — they talk to a real
-MySQL DB and a real dashboard process.
+`finance_team` has **no tests** — it talks to a real MySQL DB.
+`receptionist_team` has tests for its sidecar turn loop, its `agents/` folder
+catalog, both profiles, the delegation acknowledgment and Michi's tracker;
+what sits between the sidecar and the engine still needs the real dashboard.
 
 ## Architecture
 
-### One engine, four composition roots
+### Agents are folders, and the SSSF vocabulary is a module
 
-`agent_memory/` is a reusable engine; `main.py`, `finance_team/`,
-`receptionist_team/`, and `mazda_team/` are four independent composition roots
-over it. The dependency direction is strictly one-way: teams import
-`agent_memory`, never the reverse, and the teams don't import each other except
-for one deliberate edge — `receptionist_team/adapters/routing_model.py` imports
+`sssf_interfaces/` is a one-responsibility module: locate
+`super-simple-software-factory/.claude/skills/sssf/templates/adws/adw_interface_prompt.py`
+(override with `SSSF_ADWS_DIR`), load it by file path, and re-export its roles
+— `IApplication`, `IArgumentParser`, `IPhase`, `IPhaseExecutor`,
+`ILifecycleLog`, `LifecycleLogged`. It is a `uv run` script with a PEP 723
+header, not a package, so a plain `import` cannot reach it; failure is loud
+and names `SSSF_ADWS_DIR` rather than falling back to a local copy of the
+interfaces, because a silent fallback is exactly how the two definitions would
+drift. This is the standardization direction for the workspace — new
+interface-shaped code should import the vocabulary, not restate it.
+
+`receptionist_team/agents/` is the first consumer: one folder per agent
+(both receptionists included) holding `system_prompt_template/`,
+`user_prompt_template/`, `model_confiurations/` (sic), `tools/` and
+`documentation/`, with a Protocol-per-responsibility loader over it.
+`receptionist_team/agents/README.md` is authoritative; the
+`/new-receptionist-agent` skill is the procedure for adding one. Mazda's
+specialists are not folders yet — they are stub `AgentRole`s in
+`mazda_roles.py`, and her three `tools/*/tool.json` files are declared
+`"kind": "stub"`.
+
+Two gotchas worth knowing before you copy the template's style: the
+bracket-spacing convention cannot reach inside an f-string format specifier
+(`f"{ x:<24 }"` raises `ValueError`), and the template's own
+`PrintLifecycleLog`/`ConsoleLifecycleLog` ship with that bug
+(`#{ id( obj ):x }`) so they raise on first call —
+`receptionist_team/agents/lifecycle.py` implements `ILifecycleLog` locally for
+that reason.
+
+### One engine, three composition roots — and two receptionists in one of them
+
+`agent_memory/` is a reusable engine; `main.py`, `finance_team/` and
+`receptionist_team/` are three independent composition roots over it.
+`mazda_team/` was a fourth until Mazda became a profile inside
+`receptionist_team` (see below); it is gone, and nothing should re-create it.
+
+The dependency direction is strictly one-way: teams import `agent_memory`,
+never the reverse, and the teams don't import each other except for one
+deliberate edge — `receptionist_team/adapters/tool_agent_runner.py` imports
 `finance_team.adapters.tool_agent` and `finance_team.roles`, because Toyota's
-whole purpose is to delegate to finance roles.
+whole purpose is to delegate to finance roles. That import lives in the runner
+and **not** in `routing_model.py` on purpose: it is what lets Mazda reuse the
+same `RoutingModel` without dragging the Claude SDK and the `rol_finances`
+repo root in behind her.
+
+### Two receptionists, one `build_receptionist()`
+
+`profiles.py` holds a frozen `ReceptionistProfile` per receptionist — agents/
+folder, display name, default session, nexus subdir, system prompt, roster,
+runner factory, peer session/label, TTS voice, and two flags for the
+dashboard-only decorators (`handoff`, `operations`). `main.py
+--agent {toyota,mazda}` picks one and `build_receptionist(profile, ...)`
+assembles it; `build_toyota()` remains as a thin wrapper because
+`turn_runner.py` and four tests name it.
+
+Adding a third receptionist is one `PROFILES` entry plus an `agents/<name>/`
+folder. It is not another `build_*()` function, and it is **not** a new
+package — that was the mistake `mazda_team` embodied.
+
+### Delegation is a Strategy, so an unwired agent can say so
+
+`delegation.py`'s `IDelegationRunner` is how a matched ROUTE line actually
+runs. `RoutingModel` matches the control line, speaks the acknowledgment, and
+hands the role to the injected runner — it has no idea whether anything real
+is on the other side:
+
+| runner | used by | what it does |
+|---|---|---|
+| `ToolAgentRunner` (`adapters/`) | Toyota | `run_role` through the Claude Agent SDK against `rol_finances` |
+| `MichiRunner` (`adapters/`) | Mazda's `michi` | collects the progress snapshot, then one constrained model call |
+| `UnwiredRunner` | Mazda's other five | says plainly that the connection isn't built and nothing ran |
+| `RunnerMap` | Mazda | dispatches by agent name, with one default |
+
+`UnwiredRunner` exists because Mazda's standing rule is never to claim work
+was done without a tool confirming it. **Do not replace it with a stub that
+fabricates a plausible result** — that is the one thing she must not do.
+
+### Michi is deterministic first, explained second
+
+`receptionist_team/progress/` (ported intact when `mazda_team` was retired):
+`tracker.py` reads `<repo_root>/finance_reports/<year>/<month>/<account>.json`
+with no model involved and writes one snapshot; `narrate.py` turns that
+snapshot into a prompt; only then does a model speak. That order is the whole
+design — the explanation cannot add a fact the tracker didn't collect. Repo
+root defaults to `receptionist_team/workspace/`; `MICHI_REPO_ROOT`,
+`MICHI_EXPECTED_ACCOUNTS`, `MICHI_MONTHS_BACK`, `MICHI_STALE_DAYS` override
+the defaults (they were `MAZDA_TEAM_*` before the move, and nothing in the
+repo sets either spelling). `tracker.REPORT_WRITER_AGENT` is `"michi"` —
+writing the reports is her own job now (it was `"sheeta"`, a retired
+`mazda_team` role). She has no tools, so a next step assigned to her is work
+still waiting, and `narrate.py`'s prompt forbids her from claiming she wrote
+anything. `TAX_FORM_AGENT` is still `"tarita"`: a label in the snapshot
+naming an agent outside this package, not something routable.
 
 ### The DIP boundary is a greppable import rule
 
@@ -107,8 +201,9 @@ an import line grows in `agent.py`, the design has regressed — that single
 
 `agent_memory/ports.py` holds all seven Protocols (`Embedder`, `MemoryStore`,
 `RecallStrategy`, `PromptComposer`, `LanguageModel`, `TurnObserver`, `Clock`).
-Role definitions (`finance_team/roles.py`, `mazda_team/specialist_roles.py`)
-follow the same posture: pure data `AgentRole` dataclasses, no SDK import.
+Role definitions (`finance_team/roles.py`, `receptionist_team/mazda_roles.py`)
+follow the same posture: pure data `AgentRole` dataclasses, no SDK import — and
+so do `receptionist_team/profiles.py` and `rosters.py`.
 
 > Naming note: the user prefers interface names like `ISomeUsefulInterface` over
 > a `*Port` suffix. The existing Protocols here are unsuffixed (`Embedder`, not
@@ -154,8 +249,9 @@ rather than writing unsearchable rows. `lance_data/` currently holds only the
 hash256 and sentence384 tables.
 
 Defaults differ per entrypoint, deliberately: `main.py` and
-`agent_memory/config.py` default to `hash` (fast, free, test-shaped); Toyota and
-Mazda default to `sentence` (real human chats need meaning-based recall).
+`agent_memory/config.py` default to `hash` (fast, free, test-shaped); the
+receptionists default to `sentence` (real human chats need meaning-based
+recall).
 
 ### Routing is a `LanguageModel` Decorator
 
@@ -182,8 +278,7 @@ Two Claude-facing adapters exist because the jobs differ:
   `max_turns=1`, `setting_sources=[]`. Text-only chat, deliberately isolated:
   the SDK must not load the enclosing repo's `CLAUDE.md` or read files, because
   the agent's only context is what *our* store recalled.
-- `finance_team/adapters/tool_agent.py` and `mazda_team/adapters/tool_agent.py`
-  — tools enabled, `permission_mode="bypassPermissions"`, `max_turns=40`. These
+- `finance_team/adapters/tool_agent.py` — tools enabled, `permission_mode="bypassPermissions"`, `max_turns=40`. These
   roles must query MySQL and walk receipt directories headless, with no human
   to approve each call. They also convert `ResultMessage.is_error` into a
   `RoleResult(is_error=True)` rather than treating an error string as output.
@@ -200,8 +295,8 @@ every default lands inside this repo — do not reintroduce the legacy script's
 `/home/adamsl/linuxBash/...` absolutes. `finance_team/roles.py` is the
 deliberate exception: `REPO_ROOT = "/home/adamsl/rol_finances"` and a DB
 briefing pointing at `/home/adamsl/planner/.env`, because those roles operate on
-a real external repository. `mazda_team` keeps its own escape hatch
-(`MAZDA_TEAM_REPO_ROOT`, default `mazda_team/workspace/`).
+a real external repository. Michi keeps her own escape hatch
+(`MICHI_REPO_ROOT`, default `receptionist_team/workspace/`).
 
 ## Known drift between docs and code
 
@@ -225,11 +320,15 @@ source.
   missing. So `main.py` works, and the on-disk template it advertises is not
   actually in play. Creating that file would silently change the prompt.
 - **Both receptionists load their own `.env`.** There's no `python-dotenv` in
-  the venv, so `receptionist_team/main.py` and `mazda_team/main.py` each parse
-  `<package>/.env` with `os.environ.setdefault`. `GROQ_API_KEY` is required;
-  `PIPECAT_PILOT_AGENT_ID` is optional. Don't add a `source .env` step to docs —
-  the code already handles it, and `setdefault` means an already-exported value
-  wins.
+  the venv, so `receptionist_team/main.py` parses `receptionist_team/.env` with
+  `os.environ.setdefault` for whichever receptionist `--agent` selected.
+  `GROQ_API_KEY` is required; `PIPECAT_PILOT_AGENT_ID` is optional. Don't add a
+  `source .env` step to docs — the code already handles it, and `setdefault`
+  means an already-exported value wins.
+- **`mazda_team/` is gone.** Mazda is a `ReceptionistProfile` in
+  `receptionist_team/profiles.py`, reached with `--agent mazda`. Any surviving
+  reference to `mazda_team`, `MAZDA_TEAM_REPO_ROOT`, `specialist_roles.py`, or
+  the `sheeta`/`tarita` roles in docs, specs or skills is stale.
 
 ## Style
 
@@ -238,9 +337,9 @@ The workspace bracket-spacing convention (`str )`, `[ 0.0 ]`, tight stacked
 
 - follows it: `main.py`, `3o_mini_chat_w_lance.py`, all of `agent_memory/`,
   `tests/`, `finance_team/orchestrate.py`, `finance_team/adapters/tool_agent.py`
-- does not: `receptionist_team/*`, and the newer `mazda_team` files
-  (`roles.py`, `adapters/routing_model.py`, `adapters/voice_io.py`,
-  `progress/*`, `tests/*`)
+- does not: `receptionist_team/*` **except** `receptionist_team/agents/*`,
+  which follows it — that includes `profiles.py`, `rosters.py`,
+  `delegation.py`, `mazda_roles.py`, `adapters/*`, `progress/*` and `tests/*`
 
 Match the file you're editing. Never run a normalizing pass across both groups.
 

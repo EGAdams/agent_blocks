@@ -27,11 +27,12 @@ The top-level areas are:
 - `lancedb_memory/` — two generations of the same idea: the original RAVEN-style
   script (`3o_mini_chat_w_lance.py`, OpenAI), and `agent_memory/`, its ported
   successor on the Claude Agent SDK with Protocol-based ports. Also home to
-  three further composition roots built on the same conventions: `finance_team/`
-  (a 6-agent vendor-pattern/receipt-audit team), `receptionist_team/`
-  (Toyota, a conversational front end that delegates to `finance_team`), and
-  `mazda_team/` (Mazda, a second, unrelated receptionist that delegates to her
-  own `sheeta`/`tarita` specialist roles)
+  two further composition roots built on the same conventions: `finance_team/`
+  (a 6-agent vendor-pattern/receipt-audit team) and `receptionist_team/`
+  (**two** receptionists over one engine — Toyota, who delegates to
+  `finance_team`, and Mazda, a document-verification receptionist — selected
+  with `--agent`). A third, `mazda_team/`, was retired into that profile and
+  no longer exists.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
@@ -188,54 +189,41 @@ data, no SDK import, matching `agent_memory/ports.py` staying Protocol-only.
 Run with `.venv/bin/python -m finance_team.orchestrate` from `lancedb_memory/`
 (`--skip-receipts`, `--only <agent>` also supported).
 
-`receptionist_team/` is Toyota, a persistent conversational agent backed by
-the unmodified `agent_memory.agent.ConversationAgent`, that delegates to
-`finance_team` roles when a request calls for one via a `LanguageModel`
-Decorator (`RoutingModel`, same shape as `decorators.py`'s `RetryingModel`) —
-the underlying `ConversationAgent` never knows a delegation happened. Voice
-mode reuses the dashboard's existing HTTP speech pipeline
-(`POST /api/voice` / `POST /api/tts` on `localhost:8765`) rather than
-reimplementing STT/TTS, and fails closed to typed I/O if the dashboard or mic
-is unavailable. Run with `.venv/bin/python -m receptionist_team.main` from
-`lancedb_memory/` (`--voice`, `--role-model <model>` also supported).
+`receptionist_team/` holds **two** persistent conversational receptionists
+backed by the unmodified `agent_memory.agent.ConversationAgent`:
+
+- **Toyota** delegates to `finance_team` roles when a request calls for one.
+- **Mazda** is a document-verification receptionist whose five specialists are
+  Letta agents not yet reachable from this package (so they answer honestly
+  that nothing ran) plus Michi, a progress tracker that reads report files off
+  disk. The older standalone `mazda_team/` package was retired into her
+  profile; don't re-create it, and treat any surviving `mazda_team` /
+  `MAZDA_TEAM_*` / `sheeta` / `tarita` reference as stale.
+
+They are not two code paths. `profiles.py`'s `ReceptionistProfile` is pure
+data holding everything that differs, `main.py`'s `build_receptionist(profile,
+...)` assembles either one, and `--agent {toyota,mazda}` picks it. A third
+receptionist is one `PROFILES` entry plus an `agents/<name>/` folder.
+
+Delegation goes through a `LanguageModel` Decorator (`RoutingModel`, same
+shape as `decorators.py`'s `RetryingModel`) so the underlying
+`ConversationAgent` never knows it happened, and *how* a route runs is an
+injected Strategy (`IDelegationRunner`: `ToolAgentRunner`, `MichiRunner`,
+`UnwiredRunner`, dispatched by `RunnerMap`). Conversation and routing run on
+**Groq** (`agent_memory/adapters/groq_model.py`, default
+`openai/gpt-oss-120b`) for both; the Claude Agent SDK is reserved for
+delegated tool work (`--role-model`, default `claude-sonnet-5`). Voice mode
+reuses the dashboard's existing HTTP speech pipeline (`POST /api/voice` /
+`POST /api/tts` on `localhost:8765`) rather than reimplementing STT/TTS, and
+fails closed to typed I/O if the dashboard or mic is unavailable; only the TTS
+voice (`en-GB-SoniaNeural` vs. Mazda's `en-US-AriaNeural`) and the `nexus/`
+subdirectory differ. Run with `.venv/bin/python -m receptionist_team.main`
+from `lancedb_memory/` (`--agent mazda`, `--voice`, `--role-model <model>`
+also supported).
 
 Both keep the same auth convention as the rest of the repo:
 `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE_URL` stay unset so everything runs on
 local Claude Code subscription (OAuth) auth.
-
-## `lancedb_memory/mazda_team/`
-
-A second, independent receptionist, **Mazda**, built on the same
-`agent_memory.agent.ConversationAgent` engine as Toyota but otherwise
-unrelated to `finance_team`/`receptionist_team` — she routes to her own
-`specialist_roles.py` briefs (`sheeta`: spreadsheet creation, `tarita`:
-tax-form extraction into IRS Form 1040 fields), both placeholder deliverables
-under `mazda_team/workspace/` (override with `MAZDA_TEAM_REPO_ROOT`). The
-pre-existing `/home/adamsl/agent_blocks/mazda/` package is an unrelated
-system; this team lives only under `lancedb_memory/mazda_team/`.
-
-Two divergences from the Toyota stack, both in `main.py`/`adapters/`:
-
-- Mazda's own conversation/routing model is served by **Groq**
-  (`agent_memory/adapters/groq_model.py`, default `openai/gpt-oss-120b`), not
-  Claude; only delegated specialist work (`adapters/tool_agent.py`, same
-  `ClaudeAgentOptions(permission_mode="bypassPermissions")` shape as
-  `finance_team/adapters/tool_agent.py`) goes through the Claude Agent SDK.
-  `adapters/routing_model.py`'s `RoutingModel` is the same
-  wrap-a-`LanguageModel`-Decorator shape as `receptionist_team`'s, matching
-  `agent_memory/adapters/decorators.py`'s `RetryingModel`.
-- Voice reuses the dashboard's HTTP pipeline exactly like
-  `receptionist_team`, but with Mazda's own `MAZDA_EDGE_TTS_VOICE` (default
-  `en-US-AriaNeural`, vs. Toyota's `en-GB-SoniaNeural`) and its own
-  `voice_metrics.log`/`Stopwatch` stage timing in `adapters/metrics.py`.
-
-`mazda_team/main.py` loads `mazda_team/.env` itself (no `python-dotenv` in
-the venv) — copy `.env.example` to `.env` and set `GROQ_API_KEY` (required)
-and `PIPECAT_PILOT_AGENT_ID` (optional, faster Groq-backed STT) rather than
-relying on the caller's shell to export them. Run with
-`.venv/bin/python -m mazda_team.main` (`--voice` also supported) or
-`.venv/bin/python -m mazda_team.orchestrate` (`--only sheeta`/`tarita`) from
-`lancedb_memory`.
 
 ## `solid_agent_systems/` — SOLID review agents
 

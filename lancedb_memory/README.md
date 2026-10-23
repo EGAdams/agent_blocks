@@ -76,12 +76,14 @@ Role briefs (system prompt, task prompt, DB credentials briefing) live in
 `finance_team/roles.py` and are pure data -- no SDK import there, matching
 `agent_memory/ports.py` staying Protocol-only.
 
-## receptionist_team -- Toyota, the finance team's receptionist
+## receptionist_team -- Toyota and Mazda, one engine, two profiles
 
-Another composition root (`receptionist_team/`) alongside `finance_team/`: a
-persistent, conversational agent named **Toyota** you chat with from the
-command line, backed by the same LanceDB-memory conversational engine as this
-repo's own `main.py` (`agent_memory.agent.ConversationAgent`, unmodified).
+Another composition root (`receptionist_team/`) alongside `finance_team/`:
+persistent, conversational agents you chat with from the command line, backed
+by the same LanceDB-memory conversational engine as this repo's own `main.py`
+(`agent_memory.agent.ConversationAgent`, unmodified). `--agent` picks which
+one -- **Toyota** (default) or **Mazda** (see the Mazda section below); the
+rest of this section describes Toyota.
 Toyota knows about all `finance_team` roles and, when a request clearly
 calls for one, delegates to it and relays the result -- otherwise she just
 talks. Routing is a `LanguageModel` Decorator (`RoutingModel`, same shape as
@@ -130,47 +132,64 @@ Ask "what's the finance team's progress so far?" to route to
 Close and reopen with the same `--session toyota` to recall earlier
 conversation and route results from the persistent LanceDB session.
 
-## mazda_team -- Mazda, spreadsheet and tax teams
+## Mazda -- the second receptionist, same engine
 
-`mazda_team/` is a self-contained second receptionist, **Mazda**, using the
-same `ConversationAgent` memory engine, Groq for conversation, and Claude for
-delegated file-writing work. She routes to her own `specialist_roles.py`
-(`sheeta` and `tarita`), not the finance team's roles.
-
-| Agent | Starter output (under `mazda_team/workspace/`) |
-|---|---|
-| `sheeta` | Leads spreadsheet creation; writes `spreadsheets/sample_spreadsheet.csv` (sample rows) |
-| `tarita` | Extracts available intake into IRS Form 1040 fields, or writes `tax_forms/sample_form_1040.json` as a null-valued template when no intake exists |
-| `michi` | Tracks finance-report progress by year/month/account and plans next steps; reads existing reports and writes only `progress/michi_state.json` |
-
-Michi's status and completion checks are deterministic Python
-(`mazda_team/progress/tracker.py`); an LLM only explains findings and proposes
-priorities. She reads `workspace/finance_reports/<year>/<month>/<account>.json`
-(with fields `year`, `month`, `account`, `transactions` containing `id` and
-`resolved`, and optional `generated_at`, `generated_by`, `notes`). No agent
-writes this schema yet: Sheeta is its intended future writer, so an empty
-workspace shows not-started reports. Expected accounts and rolling months are
-configurable via `MAZDA_TEAM_EXPECTED_ACCOUNTS`, `MAZDA_TEAM_MONTHS_BACK`, and
-`MAZDA_TEAM_STALE_DAYS`. Ask Mazda "where are we with the finance reports?"
-or "what's blocking completion?" to route to Michi. Run
-`.venv/bin/python -m mazda_team.progress.cli` for an offline snapshot.
-
-These are placeholder deliverables, not yet wired to a real spreadsheet or
-tax repository. `MAZDA_TEAM_REPO_ROOT` can override the workspace path.
-Mazda uses `MAZDA_EDGE_TTS_VOICE` (default `en-US-AriaNeural`) instead of
-Toyota's `en-GB-SoniaNeural`: her voice adapter sends the explicit `voice`
-id in each `/api/tts` request. Copy `mazda_team/.env.example` to
-`mazda_team/.env` and set the local credentials if they aren't already exported.
+Mazda is no longer a package of her own. `mazda_team/` was retired and she is
+now a **profile** inside `receptionist_team/`: `profiles.py` holds the short
+list of things that differ between her and Toyota (prompts folder, roster, how
+a delegation runs, session, nexus subdirectory, peer recall, TTS voice, which
+decorators apply), and `main.py --agent mazda` picks it.
 
 ```bash
 cd lancedb_memory
-.venv/bin/python -m mazda_team.main                  # typed chat
-.venv/bin/python -m mazda_team.main --voice           # mic in / spoken out
-.venv/bin/python -m mazda_team.orchestrate            # run sheeta + tarita directly
+.venv/bin/python -m receptionist_team.main --agent mazda           # typed chat
+.venv/bin/python -m receptionist_team.main --agent mazda --voice   # mic in / spoken out
+.venv/bin/python -m receptionist_team.progress.cli                 # Michi snapshot, no LLM
 ```
 
-The pre-existing `/home/adamsl/agent_blocks/mazda/` is an unrelated system;
-this team lives only under `lancedb_memory/mazda_team/`.
+She is a **document-verification** receptionist, not a spreadsheet one: her
+prompt (`agents/mazda/system_prompt_template/system_prompt.md`) was written
+from the Letta Mazda's own answers about her responsibilities -- statement
+arithmetic checked by script, every transaction confirmed present in the
+database, duplicates, vendor keys, categories, and one HTML verification
+report per statement. Her roster is in `mazda_roles.py`:
+
+| Agent | What she routes to it for | Wired? |
+|---|---|---|
+| `parser` | pulling transaction rows out of a statement PDF | no |
+| `vendor_identity` | working out who an unclear merchant is | no |
+| `receipt_linker` | matching receipts to transactions without double-entry | no |
+| `categorization` | checking a category fits its vendor key | no |
+| `router` | ordering an unclear, multi-step verification request | no |
+| `michi` | where every report stands, what's blocked, what's next | **yes** |
+
+The five unwired names are real Letta agents this package cannot reach yet.
+Routing to one goes to `delegation.py`'s `UnwiredRunner`, which says plainly
+that the connection isn't built and nothing has run -- Mazda's own standing
+rule is never to claim work happened without a tool confirming it. Wiring one
+in is a new entry in `profiles.py`'s runner map, nothing else.
+
+Michi came across from `mazda_team` intact as `receptionist_team/progress/`.
+Her status and completion checks are deterministic Python
+(`progress/tracker.py`); an LLM only explains the snapshot and proposes
+priorities, and it never sees anything the tracker didn't collect. She reads
+`<repo_root>/finance_reports/<year>/<month>/<account>.json` (fields `year`,
+`month`, `account`, `transactions` with `id` and `resolved`, plus optional
+`generated_at`, `generated_by`, `notes`) and writes only
+`progress/michi_state.json`. The repo root defaults to
+`receptionist_team/workspace/`; `MICHI_REPO_ROOT`,
+`MICHI_EXPECTED_ACCOUNTS`, `MICHI_MONTHS_BACK` and `MICHI_STALE_DAYS`
+override the defaults (they were `MAZDA_TEAM_*` before the move). Nothing
+writes that report schema yet, so an empty workspace honestly reports
+not-started reports.
+
+Mazda's voice is `en-US-AriaNeural` (Toyota keeps the dashboard's own
+`en-GB-SoniaNeural`); `DashboardVoiceIO` sends an explicit `voice` id in each
+`/api/tts` request when a profile names one. `MAZDA_EDGE_TTS_VOICE` still
+overrides it. Both receptionists share one `receptionist_team/.env` -- copy
+`.env.example`.
+
+The pre-existing `/home/adamsl/agent_blocks/mazda/` is an unrelated system.
 
 ## Layout
 
@@ -199,7 +218,8 @@ main.py          composition root + REPL
 | Repository (PoEAA) | `MemoryStore` — persistence and retrieval, hidden from the agent |
 | Adapter | `LanceDBMemoryStore`, `ClaudeAgentModel`, `HashingEmbedder`, `SentenceTransformerEmbedder`, `OpenAIEmbedder` |
 | Strategy | `Embedder`, `RecallStrategy` — interchangeable behind one Protocol each |
-| Decorator | `TokenBudgetedRecall`, `RetryingModel`, `CachingEmbedder` |
+| Decorator | `TokenBudgetedRecall`, `RetryingModel`, `CachingEmbedder`, `RoutingModel`, `AgentHandoffModel`, `WorkflowModel` |
+| Strategy | `IDelegationRunner` — `ToolAgentRunner` runs a real role, `UnwiredRunner` says plainly that one isn't connected, `MichiRunner` answers from a snapshot; `RunnerMap` dispatches by agent name |
 | Observer | `TurnObserver` — logging, cost, nexus archive |
 | Abstract Factory | `build_agent()` in `main.py` — assembles the whole matched family: embedder, store, recall, model, observers |
 | Factory Method | `build_embedder()` in `embedding_profiles.py` — one profile name in, one matched (embedder, table) pair out; `PROFILE_BUILDERS` is a registry, so a new profile is a new dict entry, not an edited `if/elif` |
