@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_search_open.py -- the six-phase workflow this agent exists to run. Searches the web headlessly, chooses the organic result that is the site itself, scheme-checks it, and hands it to the Windows launcher ladder detached. Never blocks and never raises: a blocked results page or a missing launcher comes back as a message. Reports through --message-out, which is the contract this agent reads."
+}

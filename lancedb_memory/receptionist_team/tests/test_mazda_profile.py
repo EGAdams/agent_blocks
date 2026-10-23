@@ -12,7 +12,7 @@ from agent_memory.models import AgentReply
 
 from tests.fakes import ScriptedModel
 
-from ..adapters.michi_runner import MichiRunner
+from ..adapters.mickey_runner import MickeyRunner
 from ..delegation import RunnerMap, UnwiredRunner
 from ..mazda_roles import (
     MAZDA_CHAT_MODEL,
@@ -38,29 +38,31 @@ async def test_her_specialists_are_all_named_described_and_routable():
     # Roster.__post_init__ already raises on a missing entry at import, so
     # this is about the set itself, not the dicts' completeness.
     assert set(MAZDA_ROSTER.sorted_names()) == {
-        "categorization", "michi", "parser", "receipt_linker", "router",
+        "categorization", "mickey", "parser", "receipt_linker", "router",
         "vendor_identity",
+        # Not a specialist -- the Open Browser ADW, routed to by name like one.
+        "browser_opener",
     }
     for name in MAZDA_ROSTER.names():
         assert MAZDA_ROSTER.has(name)
         assert name in delegation_acknowledgment(name) or ROLE_SPOKEN_NAMES[name] in delegation_acknowledgment(name)
 
 
-async def test_michi_is_the_one_specialist_who_actually_runs():
-    # The other five are Letta agents this package can't reach; Michi reads
-    # the report files herself, so routing to her must reach MichiRunner and
-    # not the "not connected yet" refusal.
+async def test_mickey_is_a_specialist_who_actually_runs():
+    # Her five document specialists are Letta agents this package can't reach;
+    # Mickey reads the report files herself, so routing to her must reach
+    # MickeyRunner and not the "not connected yet" refusal.
     runner = MAZDA.build_runner()
     assert type(runner.run.__self__).__name__ == "RunnerMap"
 
     with tempfile.TemporaryDirectory() as root:
         explainer = ScriptedModel(["Two reports are missing; nothing is blocked."])
         model = routing_model_module.RoutingModel(
-            _FakeRouteOnceModel("ROUTE: michi | which statements are outstanding"),
+            _FakeRouteOnceModel("ROUTE: mickey | which statements are outstanding"),
             model="fake-role-model",
             roster=MAZDA_ROSTER,
             runner=RunnerMap(
-                {"michi": MichiRunner(explainer=explainer, repo_root=root)},
+                {"mickey": MickeyRunner(explainer=explainer, repo_root=root)},
                 default=UnwiredRunner(ROLE_SPOKEN_NAMES),
             ),
             speaker="Mazda",
@@ -101,13 +103,13 @@ async def test_her_prompt_tells_her_what_she_actually_runs_on():
     assert "not ChatGPT" in MAZDA_SYSTEM_PROMPT
 
 
-async def test_status_questions_must_reach_michi_and_never_come_from_memory():
+async def test_status_questions_must_reach_mickey_and_never_come_from_memory():
     # She reported a year of finance reports as complete with no report files
-    # on disk at all -- recalled chat, not a tracker reading. Michi is the only
+    # on disk at all -- recalled chat, not a tracker reading. Mickey is the only
     # thing here that knows, so status is never hers to recall.
     lowered = MAZDA_SYSTEM_PROMPT.lower()
-    assert "never state where a statement, report, or month stands unless michi" in lowered
-    assert "a status question is a route to\nmichi, every time" in lowered
+    assert "never state where a statement, report, or month stands unless mickey" in lowered
+    assert "a status question is a route to\nmickey, every time" in lowered
     # And the "answer from this conversation yourself" licence must carve it out.
     assert "status is the exception" in lowered
 

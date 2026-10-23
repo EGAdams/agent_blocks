@@ -97,9 +97,15 @@ commands are steps of a real ADW.
 - **`documentation/`** — empty everywhere. Generating diagrams and an HTML
   manual from an agent's prompts is its own job for its own agent; the loader
   only reports which directories have files. See `documentation.py`.
-- **`tools/*/tool.json`** — declarations, not code. `bank_login` needs a
-  credential story first; `web_search` is probably an `allowed_tools` entry
-  rather than a folder.
+- **`tools/*/tool.json`** — mostly declarations, not code. Mazda's three are
+  still `"kind": "stub"`: `bank_login` needs a credential story first, and
+  `web_search` is probably an `allowed_tools` entry rather than a folder.
+  `search_link_opener/tools/` is the exception and the pattern to copy — both
+  of its files are `"kind": "script", "status": "implemented"`, each naming a
+  path that exists (`adws/adw_interface_search_open.py`, and
+  `/home/adamsl/selenium-headless/browser_manager/`). A `tool.json` claiming
+  `implemented` is a promise the agent's prompt is allowed to rely on, so only
+  write it once the thing on the other end runs.
 - **`toyota_mechanic/`** — directories only. Its prompts are still in the
   locked `finance_team/roles.py`; see that folder's `README.md`. `validate`
   reports it incomplete, which is the correct signal.

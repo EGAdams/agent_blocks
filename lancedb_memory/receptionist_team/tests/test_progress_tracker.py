@@ -1,4 +1,4 @@
-"""Offline evidence and persistence checks for Michi.
+"""Offline evidence and persistence checks for Mickey.
 
 Ported from mazda_team when it was retired; the tracker itself is unchanged
 apart from the repo root being a parameter and the responsible-agent names
@@ -143,15 +143,15 @@ async def test_rolling_periods_cross_year_boundary():
     assert tracker.expected_periods(date(2025, 1, 15), 3) == [(2024, 11), (2024, 12), (2025, 1)]
 
 
-async def test_michi_is_the_report_writer_but_claims_no_finished_work():
+async def test_mickey_is_the_report_writer_but_claims_no_finished_work():
     # The label used to read "sheeta", a retired mazda_team role, so snapshots
     # told the user an agent that no longer exists owed them a report.
-    assert tracker.REPORT_WRITER_AGENT == "michi"
+    assert tracker.REPORT_WRITER_AGENT == "mickey"
     # She has no tools, so a step assigned to her is work still waiting. Her
     # narrator prompt has to say that, or she becomes the fabrication Mazda's
     # rules exist to prevent.
     # Collapsed, because the prompt is hard-wrapped and the rules are not.
-    prompt = " ".join(narrate.MICHI_SYSTEM_PROMPT.lower().split())
+    prompt = " ".join(narrate.MICKEY_SYSTEM_PROMPT.lower().split())
     assert "sheeta" not in prompt
     assert "no tools" in prompt
     assert "never say you wrote, updated, or finished a report" in prompt

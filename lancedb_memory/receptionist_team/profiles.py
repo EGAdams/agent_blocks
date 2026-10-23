@@ -17,29 +17,37 @@ folder; it is not another build_*() function.
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from .delegation import IDelegationRunner, RunnerMap, UnwiredRunner
+from .delegation import IDelegationRunner, IRouteOverride, RunnerMap, UnwiredRunner
 from .mazda_roles import (
+    BROWSER_AGENT_NAME as MAZDA_BROWSER_AGENT,
     MAZDA_CHAT_MODEL,
     MAZDA_ROSTER,
     MAZDA_SYSTEM_PROMPT,
     ROLE_SPOKEN_NAMES as MAZDA_SPOKEN_NAMES,
 )
-from .progress.michi import AGENT_NAME as MICHI_AGENT_NAME
-from .roles import TOYOTA_ROSTER, TOYOTA_SYSTEM_PROMPT
+from .adapters.status_route import StatusQuestionRoute
+from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
+from .roles import TOYOTA_CHAT_MODEL, TOYOTA_ROSTER, TOYOTA_SYSTEM_PROMPT
 from .rosters import Roster
 
 
 def _mazda_runner() -> IDelegationRunner:
-    """Michi really runs; the other four aren't connected yet.
+    """Mickey and the browser workflow really run; the other five don't yet.
 
-    Imported here rather than at module scope so adapters/michi_runner.py's
+    Imported here rather than at module scope so adapters/mickey_runner.py's
     GroqLanguageModel import stays off the path of anything that only reads
     the profiles.
     """
-    from .adapters.michi_runner import MichiRunner
+    from .adapters.adw_runner import AdwBrowserRunner
+    from .adapters.mickey_runner import MickeyRunner
 
     return RunnerMap(
-        {MICHI_AGENT_NAME: MichiRunner()},
+        {
+            MICKEY_AGENT_NAME: MickeyRunner(),
+            # A subprocess and the line it wrote -- no agent, no model, so
+            # nothing in the path can embellish what happened. See adw_runner.
+            MAZDA_BROWSER_AGENT: AdwBrowserRunner(),
+        },
         default=UnwiredRunner(MAZDA_SPOKEN_NAMES),
     )
 
@@ -77,7 +85,18 @@ class ReceptionistProfile:
     # than an import from adapters/groq_model.py, so reading a profile never
     # drags the openai client in -- same reasoning as the deferred runner
     # imports above. Both entrypoints' --model override this when given.
+    # Both receptionists now name their own; the default is the cheap one, so
+    # a third receptionist starts inside the Groq allowance rather than
+    # draining it.
     chat_model: str = "openai/gpt-oss-120b"
+    # How many characters of recalled transcript her turn prompt may carry.
+    # None means settings.recall_max_chars (12000). This is a profile field
+    # because Groq's real ceiling is 8000 tokens *per minute*, shared across
+    # models, not a daily allowance -- so what matters is the size of one turn.
+    # Her system prompt alone is ~12000 characters, 4000 more than Mazda's, so
+    # the shared recall budget pushed her single turn to roughly 6500 tokens
+    # and a second turn in the same minute came back 429.
+    recall_max_chars: int | None = None
     # None means "whatever voice the dashboard's /api/tts defaults to"
     # (en-GB-SoniaNeural). Mazda names her own so the two sound different.
     # main.py lets <NAME>_EDGE_TTS_VOICE in the environment override it, which
@@ -98,6 +117,11 @@ class ReceptionistProfile:
     # as a Letta agent whose turns happen outside this package and would
     # otherwise have no LanceDB recall. Mazda's own sidecar has no such guest.
     serves_peer_memory: bool = False
+    # A route taken from the user's own words, before the model gets a say --
+    # see delegation.IRouteOverride. None leaves every routing decision to the
+    # model, which is still Toyota's arrangement. Stateless and import-light,
+    # so the instance sits here rather than behind a factory like build_runner.
+    route_override: IRouteOverride | None = None
 
 
 TOYOTA = ReceptionistProfile(
@@ -110,6 +134,12 @@ TOYOTA = ReceptionistProfile(
     build_runner=_toyota_runner,
     peer_session="mazda",
     peer_label="with Mazda",
+    # The 120b, same as Mazda -- see roles.TOYOTA_CHAT_MODEL.
+    chat_model=TOYOTA_CHAT_MODEL,
+    # Tighter than the 12000 default: her long routing prompt eats the rest of
+    # the per-minute budget. ~12000 chars of system prompt plus 6000 of recall
+    # is about 4500 tokens a turn, so two turns a minute now fit under 8000.
+    recall_max_chars=6000,
     handoff=True,
     operations=True,
     service_port=8767,
@@ -123,7 +153,7 @@ MAZDA = ReceptionistProfile(
     nexus_subdir="mazda",
     system_prompt=MAZDA_SYSTEM_PROMPT,
     roster=MAZDA_ROSTER,
-    # Michi answers for real; the other five are Letta agents this package
+    # Mickey answers for real; the other five are Letta agents this package
     # can't reach yet, so they fall to UnwiredRunner, which says so plainly
     # instead of implying work happened. Wiring one in is a change to
     # _mazda_runner's map, nothing else.
@@ -132,9 +162,14 @@ MAZDA = ReceptionistProfile(
     peer_label="with Toyota",
     tts_voice="en-US-AriaNeural",
     service_port=8768,
-    # The 20b, not Toyota's 120b -- see mazda_roles.MAZDA_CHAT_MODEL, which her
+    # The 120b, same as Toyota -- see mazda_roles.MAZDA_CHAT_MODEL, which her
     # system prompt is also rendered with so she names the right one.
     chat_model=MAZDA_CHAT_MODEL,
+    # Her prompt says every status question goes to Mickey. The 20b often
+    # answered from recalled conversation instead, re-asserting a year of
+    # finished reports that do not exist -- so the route no longer depends on
+    # the model agreeing to take it.
+    route_override=StatusQuestionRoute(MICKEY_AGENT_NAME),
 )
 
 PROFILES: dict[str, ReceptionistProfile] = {TOYOTA.name: TOYOTA, MAZDA.name: MAZDA}

@@ -66,6 +66,12 @@ ROLE_BLURBS: dict[str, str] = {
         "it never drives the page once open and never installs or uses a "
         "browser-automation tool"
     ),
+    "search_link_opener": (
+        "searches the web for a site by name, reads the results page with a "
+        "headless browser, and opens the result that IS that site in the real "
+        "Windows browser so you can log in by hand; it never types a password "
+        "and never claims the site came up when it only opened the search page"
+    ),
     "toyota_mechanic": (
         "diagnoses or improves Toyota's OWN Python code in a sandbox; applies "
         "a change automatically only if every test passes"
@@ -100,6 +106,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "spreadsheet_reshaper": "our spreadsheet reshaper",
     "agent_creator": "our agent creator",
     "browser_opener": "our browser opener",
+    "search_link_opener": "our site finder",
     "toyota_mechanic": "our mechanic",
     "mechanic_translator": "our mechanic's translator",
     "progress_check": "our progress checker",
@@ -121,6 +128,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "spreadsheet_reshaper": "reshaping your combined spreadsheet into separate columns per person",
     "agent_creator": "building your new agent",
     "browser_opener": "opening that in your browser",
+    "search_link_opener": "finding that site and opening it for you to log in",
     "toyota_mechanic": "looking at my own code",
     "mechanic_translator": "turning that into a precise instruction for my mechanic",
     "progress_check": "checking the status of your latest finance reports",
@@ -150,6 +158,18 @@ def delegation_acknowledgment(
     public name here and several tests and callers import it directly.
     """
     return TOYOTA_ROSTER.acknowledgment(agent_name, task_description)
+
+
+# Which Groq model speaks as Toyota. profiles.py reads this for her chat_model.
+#
+# Back on the 120b after a detour through the 20b. The detour was based on a
+# misreading: the 429s looked like the 120b exhausting a daily allowance, but
+# Groq's x-ratelimit headers show the binding limit is 8000 tokens per MINUTE,
+# one bucket shared by both gpt-oss sizes. So the size of one turn decides
+# whether the next turn goes through, and the model does not -- which makes the
+# 120b free to use, since it costs the same tokens and is the better model.
+# ReceptionistProfile.recall_max_chars is the lever that actually moves this.
+TOYOTA_CHAT_MODEL = "openai/gpt-oss-120b"
 
 
 # The template is the authority for the wording; the roster is the authority

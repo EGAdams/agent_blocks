@@ -1,4 +1,4 @@
-"""Composition point for Michi's deterministic tracker and LLM narrator.
+"""Composition point for Mickey's deterministic tracker and LLM narrator.
 
 The order is the whole design: collect the facts first (tracker, no model),
 then hand the model a prompt it can only explain, never extend (narrate).
@@ -12,13 +12,13 @@ from agent_memory.ports import LanguageModel
 from . import tracker
 from .narrate import DEFAULT_PROGRESS_QUESTION, build_explainer_prompt
 
-AGENT_NAME = "michi"
+AGENT_NAME = "mickey"
 
 # Where the finance_reports/ tree and her snapshot live. A placeholder
 # workspace inside the package, same escape hatch mazda_team had, so a real
 # report repository can be pointed at later without a code change.
 REPO_ROOT = os.environ.get(
-    "MICHI_REPO_ROOT", str(Path(__file__).resolve().parent.parent / "workspace")
+    "MICKEY_REPO_ROOT", str(Path(__file__).resolve().parent.parent / "workspace")
 )
 
 

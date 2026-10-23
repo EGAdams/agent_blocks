@@ -23,6 +23,16 @@ class MemoryStore( Protocol ):
         """The last `limit` turns by time, no vector involved. Newest first."""
         ...
 
+    def forget( self, ids: list[ str ]) -> int:
+        """Remove these turns. Returns how many were there to remove.
+
+        Recall treats a stored turn as history, so a turn the agent got wrong
+        keeps being handed back to it as established fact. Deleting is the
+        only way out of that loop, which is why it belongs on the port rather
+        than in a one-off script.
+        """
+        ...
+
 
 class RecallStrategy( Protocol ):
     """Decides WHICH turns become context. Swappable policy."""

@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "WebBrowserManager, from /home/adamsl/selenium-headless/browser_manager/ -- the headless Chrome driver the search phase reads results with. Reached only inside the workflow's SeleniumResultPageReader, never by this agent directly, and never edited: selenium-headless is a separate repository with its own history. It owns the headless options, the navigate/find/quit lifecycle, and CSS-selector lookup; the repository's other crawler pieces (link_analyzer, data_extractor, duplicate_manager) belong to its sunbiz.org crawler and are not used here."
+}

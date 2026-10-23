@@ -13,7 +13,7 @@ one -- ask what to open, and stop.
 2. Run, from /home/adamsl/agent_blocks:
 
    /home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python \
-     adws/adw_browser_open.py "<why this is being opened, in a few words>" \
+     adws/adw_interface_browser_open.py "<why this is being opened, in a few words>" \
      [--url "<the literal URL>"] [--phrase "<the search phrase>"] \
      --message-out /tmp/browser_open_line.txt
 

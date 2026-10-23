@@ -144,7 +144,7 @@ decorators apply), and `main.py --agent mazda` picks it.
 cd lancedb_memory
 .venv/bin/python -m receptionist_team.main --agent mazda           # typed chat
 .venv/bin/python -m receptionist_team.main --agent mazda --voice   # mic in / spoken out
-.venv/bin/python -m receptionist_team.progress.cli                 # Michi snapshot, no LLM
+.venv/bin/python -m receptionist_team.progress.cli                 # Mickey snapshot, no LLM
 ```
 
 She is a **document-verification** receptionist, not a spreadsheet one: her
@@ -161,7 +161,7 @@ report per statement. Her roster is in `mazda_roles.py`:
 | `receipt_linker` | matching receipts to transactions without double-entry | no |
 | `categorization` | checking a category fits its vendor key | no |
 | `router` | ordering an unclear, multi-step verification request | no |
-| `michi` | where every report stands, what's blocked, what's next | **yes** |
+| `mickey` | where every report stands, what's blocked, what's next | **yes** |
 
 The five unwired names are real Letta agents this package cannot reach yet.
 Routing to one goes to `delegation.py`'s `UnwiredRunner`, which says plainly
@@ -169,16 +169,16 @@ that the connection isn't built and nothing has run -- Mazda's own standing
 rule is never to claim work happened without a tool confirming it. Wiring one
 in is a new entry in `profiles.py`'s runner map, nothing else.
 
-Michi came across from `mazda_team` intact as `receptionist_team/progress/`.
+Mickey came across from `mazda_team` intact as `receptionist_team/progress/`.
 Her status and completion checks are deterministic Python
 (`progress/tracker.py`); an LLM only explains the snapshot and proposes
 priorities, and it never sees anything the tracker didn't collect. She reads
 `<repo_root>/finance_reports/<year>/<month>/<account>.json` (fields `year`,
 `month`, `account`, `transactions` with `id` and `resolved`, plus optional
 `generated_at`, `generated_by`, `notes`) and writes only
-`progress/michi_state.json`. The repo root defaults to
-`receptionist_team/workspace/`; `MICHI_REPO_ROOT`,
-`MICHI_EXPECTED_ACCOUNTS`, `MICHI_MONTHS_BACK` and `MICHI_STALE_DAYS`
+`progress/mickey_state.json`. The repo root defaults to
+`receptionist_team/workspace/`; `MICKEY_REPO_ROOT`,
+`MICKEY_EXPECTED_ACCOUNTS`, `MICKEY_MONTHS_BACK` and `MICKEY_STALE_DAYS`
 override the defaults (they were `MAZDA_TEAM_*` before the move). Nothing
 writes that report schema yet, so an empty workspace honestly reports
 not-started reports.
@@ -219,7 +219,7 @@ main.py          composition root + REPL
 | Adapter | `LanceDBMemoryStore`, `ClaudeAgentModel`, `HashingEmbedder`, `SentenceTransformerEmbedder`, `OpenAIEmbedder` |
 | Strategy | `Embedder`, `RecallStrategy` — interchangeable behind one Protocol each |
 | Decorator | `TokenBudgetedRecall`, `RetryingModel`, `CachingEmbedder`, `RoutingModel`, `AgentHandoffModel`, `WorkflowModel` |
-| Strategy | `IDelegationRunner` — `ToolAgentRunner` runs a real role, `UnwiredRunner` says plainly that one isn't connected, `MichiRunner` answers from a snapshot; `RunnerMap` dispatches by agent name |
+| Strategy | `IDelegationRunner` — `ToolAgentRunner` runs a real role, `UnwiredRunner` says plainly that one isn't connected, `MickeyRunner` answers from a snapshot; `RunnerMap` dispatches by agent name |
 | Observer | `TurnObserver` — logging, cost, nexus archive |
 | Abstract Factory | `build_agent()` in `main.py` — assembles the whole matched family: embedder, store, recall, model, observers |
 | Factory Method | `build_embedder()` in `embedding_profiles.py` — one profile name in, one matched (embedder, table) pair out; `PROFILE_BUILDERS` is a registry, so a new profile is a new dict entry, not an edited `if/elif` |

@@ -33,6 +33,15 @@ The top-level areas are:
   `finance_team`, and Mazda, a document-verification receptionist — selected
   with `--agent`). A third, `mazda_team/`, was retired into that profile and
   no longer exists.
+- `adws/` — AI Developer Workflows in "interface style": PEP 723 `uv run`
+  scripts whose phases are objects implementing the SSSF `IPhase` roles, with
+  `build_application()` as the only composition root allowed to name
+  concretes. `adw_modules/` is shared, reused machinery and is **not** edited
+  from here — `map_open.py` in particular must keep its two promises: never
+  block (detached spawn, exit status unread) and never raise (a bad URL or
+  missing launcher is a message, not a traceback). Two of these are reachable
+  from `receptionist_team`: `adw_interface_browser_open.py` (open a link) and
+  `adw_interface_search_open.py` (find the site first, then open it).
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
@@ -195,7 +204,7 @@ backed by the unmodified `agent_memory.agent.ConversationAgent`:
 - **Toyota** delegates to `finance_team` roles when a request calls for one.
 - **Mazda** is a document-verification receptionist whose five specialists are
   Letta agents not yet reachable from this package (so they answer honestly
-  that nothing ran) plus Michi, a progress tracker that reads report files off
+  that nothing ran) plus Mickey, a progress tracker that reads report files off
   disk. The older standalone `mazda_team/` package was retired into her
   profile; don't re-create it, and treat any surviving `mazda_team` /
   `MAZDA_TEAM_*` / `sheeta` / `tarita` reference as stale.
@@ -208,8 +217,21 @@ receptionist is one `PROFILES` entry plus an `agents/<name>/` folder.
 Delegation goes through a `LanguageModel` Decorator (`RoutingModel`, same
 shape as `decorators.py`'s `RetryingModel`) so the underlying
 `ConversationAgent` never knows it happened, and *how* a route runs is an
-injected Strategy (`IDelegationRunner`: `ToolAgentRunner`, `MichiRunner`,
-`UnwiredRunner`, dispatched by `RunnerMap`). Conversation and routing run on
+injected Strategy (`IDelegationRunner`: `ToolAgentRunner`, `MickeyRunner`,
+`AdwBrowserRunner`, `UnwiredRunner`, dispatched by `RunnerMap`). Mazda's
+`browser_opener` is the first thing she can actually *do*: `AdwBrowserRunner`
+runs `adws/adw_interface_browser_open.py` as a subprocess and reports its one
+written line verbatim, with no model in the path — the same
+deterministic-first shape as Mickey. Toyota's equivalent pair goes through
+`ToolAgentRunner` and an `agents/` folder instead, because her
+`search_link_opener` has a judgement to make: it searches the web with a
+headless Chrome driver (`WebBrowserManager`, from the separate
+`/home/adamsl/selenium-headless/` repository at `browser_manager/`), picks the
+result that *is* the site being asked for, trims it to the front door, and
+opens that in the real browser so the user can log in by hand — it never types
+a password, and when it cannot pick a result it opens the search page and says
+so rather than claiming the site came up. Her one route the model doesn't get to
+choose is `delegation.IRouteOverride` / `adapters/status_route.py`. Conversation and routing run on
 **Groq** (`agent_memory/adapters/groq_model.py`, default
 `openai/gpt-oss-120b`) for both; the Claude Agent SDK is reserved for
 delegated tool work (`--role-model`, default `claude-sonnet-5`). Voice mode

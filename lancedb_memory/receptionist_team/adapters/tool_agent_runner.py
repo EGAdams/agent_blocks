@@ -27,7 +27,7 @@ class ToolAgentRunner:
         # `extra` is ignored here on purpose: RoutingModel has already merged
         # it into a replace()d copy of role.task_prompt, which is how a tool
         # agent receives instructions. Runners that aren't prompt-driven --
-        # MichiRunner -- need the raw text instead, hence the parameter.
+        # MickeyRunner -- need the raw text instead, hence the parameter.
         result = await run_role(role, cwd=self._cwd, model=model)
         # is_error becomes spoken text rather than an exception: the user asked
         # a question out loud and deserves an answer either way.

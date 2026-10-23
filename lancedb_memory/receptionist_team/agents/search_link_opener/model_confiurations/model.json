@@ -1,0 +1,9 @@
+{
+  "description": "searches the web headlessly, picks the result link that is the site itself, and opens it in the Windows browser for a manual login",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/search_open",
+  "notes": "Drives adws/adw_interface_search_open.py. That workflow does the headless browsing through selenium-headless's WebBrowserManager and reuses adw_modules/map_open.py's launcher ladder for the real window -- so this agent needs no Selenium itself, only Bash to run it and Read for the --message-out file. No Write/Edit: it changes nothing in either repository. Its deliverable is a spawned browser plus a one-line report, not a document, so output_path is the ADW's runtime data directory rather than readable_documents/reports -- same reasoning as browser_opener. max_turns 10 because one bad --phrase may want a second attempt with --prefer-domain, and no more than that."
+}

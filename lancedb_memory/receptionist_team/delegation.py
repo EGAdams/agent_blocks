@@ -28,6 +28,25 @@ class IDelegationRunner(Protocol):
     ) -> AgentReply: ...
 
 
+class IRouteOverride(Protocol):
+    """Decide a delegation from the user's own words, before the model speaks.
+
+    Normally the model chooses, by emitting a ROUTE line. That works only as
+    well as the model obeys: Mazda's prompt says every status question goes to
+    Mickey, and the 120b mostly did while the 20b mostly didn't -- it answered
+    from recalled conversation instead and re-asserted a year of finished
+    reports that do not exist. Some routes are too important to leave to the
+    model's goodwill, so this looks at the composed prompt and can name the
+    agent outright. Returning None means "no opinion; let the model decide".
+    """
+
+    def forced_agent(self, prompt: str) -> str | None: ...
+
+    def question(self, prompt: str) -> str:
+        """What to relay to the agent as the user's request."""
+        ...
+
+
 class UnwiredRunner:
     """Says plainly that an agent is not connected yet. Runs nothing.
 
@@ -61,7 +80,7 @@ class RunnerMap:
     """Dispatch by agent name, with one default for everybody else.
 
     One receptionist can have specialists that run in different ways --
-    Michi's progress answer is a local snapshot plus one explaining model
+    Mickey's progress answer is a local snapshot plus one explaining model
     call, while her other specialists are headless tool agents (or, for now,
     not connected at all). RoutingModel shouldn't know that: it asks one
     runner, and this is the one that forwards.

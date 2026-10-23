@@ -23,7 +23,7 @@ from .agents import AgentRoleFactory, catalog
 # import rather than at the moment a user asks for the work.
 EXTRA_ROLE_NAMES = (
     "spreadsheet_reshaper", "agent_creator", "browser_opener",
-    "mechanic_translator", "dashboard_expert",
+    "search_link_opener", "mechanic_translator", "dashboard_expert",
 )
 
 _factory = AgentRoleFactory()

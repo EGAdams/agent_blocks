@@ -90,12 +90,12 @@ async def test_the_sidecar_still_defaults_to_toyota():
 
 
 async def test_each_receptionist_carries_her_own_chat_model():
-    # Mazda's recall is large, and on the 120b that spent the whole 200k-token
-    # daily Groq allowance in roughly forty turns. The model is a profile
-    # field, not a shared CLI default, so one receptionist can move without
-    # moving the other.
+    # Both are on the 20b: the 120b spent the whole 200k-token daily Groq
+    # allowance in roughly forty turns, Mazda first and then Toyota. They
+    # happen to agree today, but the model stays a profile field rather than a
+    # shared CLI default, so either can move back up without moving the other.
     assert TOYOTA.chat_model == "openai/gpt-oss-120b"
-    assert MAZDA.chat_model == "openai/gpt-oss-20b"
+    assert MAZDA.chat_model == "openai/gpt-oss-120b"
     # Both entrypoints must fall back to the profile, or it is quietly ignored.
     here = Path(__file__).resolve().parent.parent
     for entrypoint in ("main.py", "service.py"):

@@ -1,4 +1,4 @@
-"""Boundary models for finance reports and Michi's progress snapshots."""
+"""Boundary models for finance reports and Mickey's progress snapshots."""
 from datetime import datetime
 from typing import Literal
 

@@ -75,6 +75,15 @@ class LanceDBMemoryStore:
         rows.sort( key=lambda row: row[ "time" ], reverse=True )
         return [ self._to_recalled( row ).turn for row in rows[ :limit ]]
 
+    def forget( self, ids: list[ str ]) -> int:
+        """Delete these rows by id. See MemoryStore.forget."""
+        if not ids:
+            return 0
+        quoted = ", ".join( f"'{ _escape( one )}'" for one in ids )
+        before = self._table.count_rows()
+        self._table.delete( f"id IN ({ quoted })" )
+        return before - self._table.count_rows()
+
     def _to_row( self, embedded: EmbeddedTurn ) -> dict[ str, Any ]:
         turn = embedded.turn
         return {

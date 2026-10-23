@@ -20,9 +20,13 @@ No SDK import, same as roles.py -- this module is pure data plus one render.
 from dataclasses import dataclass, field
 
 from .agents import catalog
-from .progress.michi import AGENT_NAME as MICHI_AGENT_NAME
+from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .progress.narrate import DEFAULT_PROGRESS_QUESTION
 from .rosters import Roster
+
+# The Open Browser workflow's routing name. Not a Letta specialist and not a
+# stub: it really runs (adapters/adw_runner.py).
+BROWSER_AGENT_NAME = "browser_opener"
 
 
 # Mirrors finance_team.roles.AgentRole / mazda_team's shape: role config, not
@@ -79,18 +83,33 @@ ROLES: dict[str, AgentRole] = {
         "router",
         "break an unclear or multi-step verification request into ordered steps",
     ),
-    # Michi is the one specialist here that actually runs: her tracker reads
+    # Mickey is the one specialist here that actually runs: her tracker reads
     # the report files off disk and the explaining model only rephrases that
-    # snapshot (progress/, adapters/michi_runner.py). She carries no tools
+    # snapshot (progress/, adapters/mickey_runner.py). She carries no tools
     # because she needs none -- the reading is Python, not an agent.
-    MICHI_AGENT_NAME: AgentRole(
-        name=MICHI_AGENT_NAME,
+    MICKEY_AGENT_NAME: AgentRole(
+        name=MICKEY_AGENT_NAME,
         system_prompt=(
-            "You are Michi, the progress and planning tracker, and the one who "
+            "You are Mickey, the progress and planning tracker, and the one who "
             "writes the finance reports. You report on observed status; you have "
             "no tools here, so a step assigned to you is work still waiting."
         ),
         task_prompt=DEFAULT_PROGRESS_QUESTION,
+        max_turns=1,
+    ),
+    # Not a specialist at all -- a workflow. adapters/adw_runner.py runs
+    # adws/adw_interface_browser_open.py as a subprocess and reports the line
+    # it wrote, so no agent and no model is involved and allowed_tools has
+    # nothing to grant. The role exists only because routing is addressed by
+    # name and the roster wants an entry under that name.
+    BROWSER_AGENT_NAME: AgentRole(
+        name=BROWSER_AGENT_NAME,
+        system_prompt=(
+            "Not an agent. This name routes to the Open Browser workflow, "
+            "which opens one address or one search phrase and reports back "
+            "the single line it produced."
+        ),
+        task_prompt="Open what the user asked for.",
         max_turns=1,
     ),
 }
@@ -116,9 +135,13 @@ ROLE_BLURBS: dict[str, str] = {
         "breaks an unclear or multi-step verification request into ordered "
         "steps before any of the work starts"
     ),
-    "michi": (
+    "mickey": (
         "tracks which statements and reports are done, blocked or missing and "
         "what should happen next, and writes the finance reports herself"
+    ),
+    BROWSER_AGENT_NAME: (
+        "opens a web address, or a search for something, in the browser on "
+        "this machine"
     ),
 }
 
@@ -128,7 +151,8 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "receipt_linker": "our receipt linker",
     "categorization": "our categorization specialist",
     "router": "our request router",
-    "michi": "our progress tracker",
+    "mickey": "our progress tracker",
+    BROWSER_AGENT_NAME: "the browser workflow",
 }
 
 # Each phrase follows "tell them to start".
@@ -138,7 +162,8 @@ ROLE_START_TASKS: dict[str, str] = {
     "receipt_linker": "matching those receipts to the statement",
     "categorization": "checking those expense categories",
     "router": "breaking that request into steps",
-    "michi": "checking where every report stands and what's next",
+    "mickey": "checking where every report stands and what's next",
+    BROWSER_AGENT_NAME: "opening that up",
 }
 
 MAZDA_ROSTER = Roster(
@@ -158,12 +183,14 @@ def delegation_acknowledgment(
     return MAZDA_ROSTER.acknowledgment(agent_name, task_description)
 
 
-# Which Groq model speaks as Mazda. The 20b rather than Toyota's 120b: her
-# recall is large, and on the 120b she spent the whole 200k-token daily Groq
-# allowance in roughly forty turns, after which every turn came back 429.
-# profiles.py reads this for her chat_model and the prompt below is rendered
-# with the same value, so she cannot end up naming a model she isn't on.
-MAZDA_CHAT_MODEL = "openai/gpt-oss-20b"
+# Which Groq model speaks as Mazda, same as Toyota. profiles.py reads this for
+# her chat_model and the prompt below is rendered with the same value, so she
+# cannot end up naming a model she isn't on.
+#
+# The 20b she sat on for a while was a wrong diagnosis -- see
+# roles.TOYOTA_CHAT_MODEL: Groq's ceiling is 8000 tokens per minute shared
+# across both sizes, so dropping a size bought nothing.
+MAZDA_CHAT_MODEL = "openai/gpt-oss-120b"
 
 MAZDA_SYSTEM_PROMPT = catalog().definition("mazda").system_prompt().render(
     {

@@ -1,11 +1,11 @@
-"""Deterministic collection of Michi's finance-report progress; no LLM calls.
+"""Deterministic collection of Mickey's finance-report progress; no LLM calls.
 
 Reads `<repo_root>/finance_reports/<year>/<month>/<account>.json` and writes
-one snapshot back to `<repo_root>/progress/michi_state.json`. No LLM call
+one snapshot back to `<repo_root>/progress/mickey_state.json`. No LLM call
 happens here at all -- narrate.py turns a snapshot into a prompt, and that
 separation is the point: nothing a model says can add a fact to a snapshot.
 
-The repo root is always a parameter. The MICHI_* environment variables tune
+The repo root is always a parameter. The MICKEY_* environment variables tune
 what counts as expected or stale; they were MAZDA_TEAM_* before this moved
 out of mazda_team, and nothing in the repo sets either spelling.
 """
@@ -18,19 +18,19 @@ from .schema import AccountPeriodStatus, FinanceReport, NextStepCandidate, Progr
 FINANCE_REPORTS_DIRNAME = "finance_reports"
 # Who a next step belongs to. Labels in the snapshot, not something this
 # module can call -- which is why they are constants here rather than imports
-# from a roster. Writing the reports is Michi's own job now; it used to belong
+# from a roster. Writing the reports is Mickey's own job now; it used to belong
 # to "sheeta", a mazda_team role that was retired with that package. The
 # tax-form preparer is still an agent outside this package.
-REPORT_WRITER_AGENT = "michi"  # michi.AGENT_NAME; not imported, michi imports us
+REPORT_WRITER_AGENT = "mickey"  # mickey.AGENT_NAME; not imported, mickey imports us
 TAX_FORM_AGENT = "tarita"
 HUMAN_AGENT = "human"
-STATE_RELATIVE_PATH = "progress/michi_state.json"
+STATE_RELATIVE_PATH = "progress/mickey_state.json"
 DEFAULT_EXPECTED_ACCOUNTS = ("checking", "savings", "credit_card")
 EXPECTED_ACCOUNTS = tuple(
-    a.strip() for a in os.environ.get("MICHI_EXPECTED_ACCOUNTS", "").split(",") if a.strip()
+    a.strip() for a in os.environ.get("MICKEY_EXPECTED_ACCOUNTS", "").split(",") if a.strip()
 ) or DEFAULT_EXPECTED_ACCOUNTS
-STALE_DAYS = int(os.environ.get("MICHI_STALE_DAYS", "30"))
-MONTHS_BACK = int(os.environ.get("MICHI_MONTHS_BACK", "3"))
+STALE_DAYS = int(os.environ.get("MICKEY_STALE_DAYS", "30"))
+MONTHS_BACK = int(os.environ.get("MICKEY_MONTHS_BACK", "3"))
 
 
 def finance_reports_dir(repo_root: str) -> Path:

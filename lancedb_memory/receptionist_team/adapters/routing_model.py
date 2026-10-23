@@ -17,7 +17,7 @@ from dataclasses import replace
 from agent_memory.models import AgentReply
 from agent_memory.ports import LanguageModel
 
-from ..delegation import IDelegationRunner
+from ..delegation import IDelegationRunner, IRouteOverride
 from ..rosters import Roster
 
 # Must match the WHOLE reply (re.fullmatch), not just contain the word ROUTE --
@@ -40,6 +40,7 @@ class RoutingModel:
         runner: IDelegationRunner,
         speaker: str = "Toyota",
         on_delegation: Callable[[str], None] | None = None,
+        override: IRouteOverride | None = None,
     ) -> None:
         self._inner = inner
         self._role_model = model
@@ -54,8 +55,19 @@ class RoutingModel:
         # and just prints; service.py passes a sink that streams the sentence
         # so the browser can start speaking it.
         self._on_delegation = on_delegation
+        # A route that must not depend on the model choosing well -- see
+        # delegation.IRouteOverride. None means the model decides everything,
+        # which is still Toyota's arrangement.
+        self._override = override
 
     async def complete(self, prompt: str) -> AgentReply:
+        forced = self._override.forced_agent(prompt) if self._override else None
+        if forced is not None and self._roster.has(forced):
+            # No inner call at all: the decision is already made, so asking the
+            # model to make it again only spends tokens and gives it a chance
+            # to answer the question itself from memory instead.
+            return await self._delegate(forced, self._override.question(prompt))
+
         reply = await self._inner.complete(prompt)
         match = _ROUTE_RE.fullmatch(reply.text.strip())
         if not match:
@@ -65,6 +77,9 @@ class RoutingModel:
         if not self._roster.has(agent_name):
             return AgentReply(text=self._roster.unknown_agent_reply(agent_name))
 
+        return await self._delegate(agent_name, extra)
+
+    async def _delegate(self, agent_name: str, extra: str) -> AgentReply:
         role = self._roster.role(agent_name)
         if extra:
             role = replace(

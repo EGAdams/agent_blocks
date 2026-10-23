@@ -19,7 +19,14 @@ from ..errors import ModelUnavailable
 from ..models import AgentReply
 
 DEFAULT_MODEL = "openai/gpt-oss-120b"
-# "openai/gpt-oss-20b" tested.  use if the 120b is too slow.
+# Both gpt-oss sizes draw on one 8000-tokens-per-minute bucket, so the smaller
+# model buys no headroom against *that* limit and there is no reason not to run
+# the better one. What governs a per-minute 429 is the size of a single turn --
+# see receptionist_team/profiles.py's recall_max_chars.
+#
+# The 200000-tokens-per-DAY cap is the other story: it is counted per model, so
+# the two sizes are two separate daily budgets and switching is a real (if
+# temporary) way out of an exhausted one.  Pass model= to override.
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are Toyota, a friendly conversational assistant with long-term memory. "
@@ -67,17 +74,36 @@ def _rate_limit_error( message: str ) -> ModelUnavailable | None:
     A per-minute limit can clear in a second or two, so that one still goes
     through the retry loop. A daily token limit cannot, and the provider says
     so -- we pass that sentence on instead of burning the backoff budget.
+
+    The daily cap is 200000 tokens per model per day, counted separately for
+    each model (the 8000-per-minute bucket is the shared one), in a rolling
+    window rather than a midnight reset. So the wait Groq quotes on a daily
+    429 is when enough tokens age out, not when the day ends -- saying "the
+    daily allowance is used up, and it clears in about 22 minutes" read as a
+    contradiction and sent one diagnosis down the wrong path entirely.
     """
     if "rate_limit_exceeded" not in message and "429" not in message:
         return None
     wait = _retry_after_seconds( message )
     if wait is not None and wait <= WORTH_WAITING_SECONDS:
         return None
-    if "per day" in message or "TPD" in message:
-        detail = "The daily Groq token allowance is used up"
+    daily = "per day" in message or "TPD" in message
+    if daily:
+        detail = "This model's daily Groq token budget is used up"
     else:
         detail = "Groq is rate limiting this model"
-    when = f", and it clears in about { round( wait / 60 ) } minute(s)" if wait else ""
+    # The common case here is the per-minute token ceiling, which clears in
+    # well under a minute -- rounding that to minutes used to say "about 0
+    # minute(s)". Say seconds while it is still seconds.
+    # A daily cap frees up gradually as old usage ages out, so the quoted wait
+    # is "enough room again", not "the allowance was restored".
+    freed = "there should be room again" if daily else "it clears"
+    if not wait:
+        when = ""
+    elif wait < 60:
+        when = f", and { freed } in about { round( wait ) } second(s)"
+    else:
+        when = f", and { freed } in about { round( wait / 60 ) } minute(s)"
     return ModelUnavailable( f"{ detail }{ when }.", retry_after=wait )
 
 

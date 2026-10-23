@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from tests.fakes import ScriptedModel
 
 from ..adapters import tool_agent_runner as tool_agent_runner_module
-from ..adapters.michi_runner import MichiRunner
+from ..adapters.mickey_runner import MickeyRunner
 from ..adapters.routing_model import RoutingModel
 from ..adapters.voice_io import AcknowledgmentSpeaker
 from ..delegation import RunnerMap, UnwiredRunner
@@ -23,7 +23,7 @@ from ..roles import TOYOTA_ROSTER
 def _mazda_routing(reply_text, on_delegation, explainer=None, root=None):
     runners = {}
     if explainer is not None:
-        runners["michi"] = MichiRunner(explainer=explainer, repo_root=root)
+        runners["mickey"] = MickeyRunner(explainer=explainer, repo_root=root)
     return RoutingModel(
         ScriptedModel([reply_text]),
         model="fake-role-model",
@@ -67,12 +67,12 @@ async def test_acknowledgment_reaches_the_sink_before_the_role_runs():
     assert "Please wait" in order[0][1]
 
 
-async def test_michi_route_also_acknowledges_first():
+async def test_mickey_route_also_acknowledges_first():
     with tempfile.TemporaryDirectory() as root:
         spoken = []
         explainer = ScriptedModel(["Here is the status."])
         reply = await _mazda_routing(
-            "ROUTE: michi", spoken.append, explainer=explainer, root=root
+            "ROUTE: mickey", spoken.append, explainer=explainer, root=root
         ).complete("where are we?")
 
         assert spoken and "progress tracker" in spoken[0]
@@ -85,7 +85,7 @@ async def test_unknown_route_name_never_acknowledges():
 
     # Nothing is going to run, so there is nothing to ask the user to wait for.
     assert not spoken
-    assert all(name in reply.text for name in ("michi", "parser"))
+    assert all(name in reply.text for name in ("mickey", "parser"))
 
 
 async def test_ordinary_reply_never_acknowledges():

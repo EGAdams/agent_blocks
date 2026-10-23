@@ -1,1 +1,1 @@
-# Michi's generated snapshot lives here; see receptionist_team/progress/.
+# Mickey's generated snapshot lives here; see receptionist_team/progress/.

@@ -1,15 +1,15 @@
-"""Michi's route must reach her tracker and nobody else's runner.
+"""Mickey's route must reach her tracker and nobody else's runner.
 
-Ported from mazda_team/tests/test_michi_routing.py when that package was
-retired. The shape changed -- RoutingModel no longer knows Michi exists, it
+Ported from mazda_team/tests/test_mickey_routing.py when that package was
+retired. The shape changed -- RoutingModel no longer knows Mickey exists, it
 asks the injected RunnerMap -- so these now pin the dispatch instead of an
-`if role_name == "michi"` branch. All models are offline doubles.
+`if role_name == "mickey"` branch. All models are offline doubles.
 """
 import tempfile
 
 from tests.fakes import ScriptedModel
 
-from ..adapters.michi_runner import MichiRunner
+from ..adapters.mickey_runner import MickeyRunner
 from ..adapters.routing_model import RoutingModel
 from ..delegation import RunnerMap, UnwiredRunner
 from ..mazda_roles import MAZDA_ROSTER, ROLE_SPOKEN_NAMES
@@ -22,7 +22,7 @@ def _routing(reply_text, explainer, root, on_delegation=None):
         model="fake-role-model",
         roster=MAZDA_ROSTER,
         runner=RunnerMap(
-            {"michi": MichiRunner(explainer=explainer, repo_root=root)},
+            {"mickey": MickeyRunner(explainer=explainer, repo_root=root)},
             default=UnwiredRunner(ROLE_SPOKEN_NAMES),
         ),
         speaker="Mazda",
@@ -30,10 +30,10 @@ def _routing(reply_text, explainer, root, on_delegation=None):
     )
 
 
-async def test_progress_question_routes_to_michi_and_persists_a_snapshot():
+async def test_progress_question_routes_to_mickey_and_persists_a_snapshot():
     with tempfile.TemporaryDirectory() as root:
         explainer = ScriptedModel(["Here is the status."])
-        reply = await _routing("ROUTE: michi | focus on checking", explainer, root).complete(
+        reply = await _routing("ROUTE: mickey | focus on checking", explainer, root).complete(
             "where are we?"
         )
 
@@ -55,14 +55,14 @@ async def test_ordinary_reply_passes_through_and_never_calls_the_explainer():
         assert not tracker.state_path(root).exists()
 
 
-async def test_unknown_route_name_lists_michi_among_the_others():
+async def test_unknown_route_name_lists_mickey_among_the_others():
     with tempfile.TemporaryDirectory() as root:
         reply = await _routing("ROUTE: bogus", ScriptedModel([]), root).complete("go")
 
-        assert all(name in reply.text for name in ("michi", "parser", "categorization"))
+        assert all(name in reply.text for name in ("mickey", "parser", "categorization"))
 
 
-async def test_another_specialists_route_never_reaches_michi():
+async def test_another_specialists_route_never_reaches_mickey():
     """The map dispatches by name: a parser route must not collect a snapshot."""
     with tempfile.TemporaryDirectory() as root:
         explainer = ScriptedModel([])

@@ -32,6 +32,13 @@ class InMemoryMemoryStore:
         scored.sort( key=lambda hit: hit.distance )
         return scored[ :query.limit ]
 
+    def forget( self, ids: list[ str ]) -> int:
+        """See MemoryStore.forget."""
+        wanted = set( ids )
+        before = len( self._rows )
+        self._rows = [ row for row in self._rows if str( row.turn.id ) not in wanted ]
+        return before - len( self._rows )
+
     def recent( self, session_id: str, limit: int ) -> list[ Turn ]:
         candidates = [ row.turn for row in self._rows if row.turn.session_id == session_id ]
         candidates.sort( key=lambda turn: turn.created_at, reverse=True )

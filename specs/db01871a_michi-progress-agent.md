@@ -1,8 +1,8 @@
-# Plan: Michi — progress tracking and planning for `mazda_team`
+# Plan: Mickey — progress tracking and planning for `mazda_team`
 
 ## Request
 
-Add a new agent, **Michi**, to `lancedb_memory/mazda_team`. She tracks
+Add a new agent, **Mickey**, to `lancedb_memory/mazda_team`. She tracks
 finance-report progress (by year, month, account), records completed work /
 remaining tasks / blockers / unresolved transactions / verification status,
 never marks work complete without evidence, maintains a persistent progress
@@ -37,7 +37,7 @@ uses an LLM.
   Unknown names get an error reply listing `sorted(ROLES)`.
 - `mazda_team/adapters/tool_agent.py` — `run_role(role, cwd, model)`, spawns
   `claude_agent_sdk.query()`. This is infrastructure for **tool-using**
-  agents; Michi does not need it (she has no tools to run, no files to
+  agents; Mickey does not need it (she has no tools to run, no files to
   write).
 - `mazda_team/main.py` — composition root. Builds `GroqLanguageModel` for
   Mazda's own chat, wraps it in `RoutingModel(RetryingModel(inner), model=role_model)`.
@@ -59,7 +59,7 @@ uses an LLM.
   This task explicitly asks for the opposite split: **deterministic code**
   collects status and computes completion; the LLM is only used to *explain*
   already-computed facts and *propose* an order for already-identified next
-  steps. Do not reuse `progress_check`'s shape for Michi.
+  steps. Do not reuse `progress_check`'s shape for Mickey.
 - `agent_memory/ports.py` — `LanguageModel` Protocol: `async def complete(self, prompt: str) -> AgentReply`.
   `agent_memory/models/agent_reply.py` — `AgentReply(text, input_tokens=None, output_tokens=None, cost_usd=None)`,
   a Pydantic `BaseModel`. `tests/fakes.py` — `ScriptedModel` (records prompts,
@@ -71,7 +71,7 @@ uses an LLM.
   `tests/test_agent.py`). Follow this exact style for new tests; do not add a
   pytest dependency.
 - `claude_agent_sdk` imports cleanly with no network/auth side effect (only
-  needed by `tool_agent.py`, which Michi's own tests never need to import
+  needed by `tool_agent.py`, which Mickey's own tests never need to import
   with real behavior — mock `run_role` if a test happens to touch the
   sheeta/tarita path).
 
@@ -81,7 +81,7 @@ uses an LLM.
 
 Sheeta is the eventual writer of these; **this task does not change what
 Sheeta generates** (report generation stays with her, per the request) — it
-only defines the schema/location Michi reads, and Michi must honestly report
+only defines the schema/location Mickey reads, and Mickey must honestly report
 "not started" / "missing" for everything until real reports land there. Note
 this explicitly as a limitation in the final summary.
 
@@ -107,9 +107,9 @@ Ordinary PEP8 spacing (matches `roles.py`/`main.py`/`routing_model.py`, the
 files this package plugs into — not the padded-bracket style of
 `specialist_roles.py`/`tool_agent.py`, which this package does not touch).
 
-**`mazda_team/progress/__init__.py`** — one-line module docstring: "Michi's
+**`mazda_team/progress/__init__.py`** — one-line module docstring: "Mickey's
 deterministic progress tracking (`tracker.py`, `schema.py`) and LLM
-explanation layer (`narrate.py`, `michi.py`)."
+explanation layer (`narrate.py`, `mickey.py`)."
 
 **`mazda_team/progress/schema.py`** — Pydantic boundary models only, no
 filesystem/LLM imports:
@@ -177,7 +177,7 @@ class ProgressSnapshot(BaseModel):
 ```
 
 **`mazda_team/progress/tracker.py`** — deterministic only, no LLM/network
-imports. Module docstring: "Deterministic collection of Michi's
+imports. Module docstring: "Deterministic collection of Mickey's
 finance-report progress. No LLM calls here — narrate.py is the only place an
 LLM is involved." Public (no leading underscore — the tests call these
 directly) functions/constants:
@@ -192,7 +192,7 @@ from .schema import AccountPeriodStatus, FinanceReport, NextStepCandidate, Progr
 from ..specialist_roles import REPO_ROOT
 
 FINANCE_REPORTS_DIRNAME = "finance_reports"
-STATE_RELATIVE_PATH = "progress/michi_state.json"
+STATE_RELATIVE_PATH = "progress/mickey_state.json"
 DEFAULT_EXPECTED_ACCOUNTS = ("checking", "savings", "credit_card")
 
 EXPECTED_ACCOUNTS = tuple(
@@ -294,12 +294,12 @@ def load_snapshot(path: Path) -> ProgressSnapshot | None:
 def collect_and_persist(repo_root: str, today: date | None = None, expected_accounts=None) -> ProgressSnapshot:
     """collect_progress(...) then save_snapshot(..., state_path(repo_root)); returns the snapshot.
     This IS the "persistent progress summary and prioritized next-step plan"
-    the request asks for -- every Michi invocation refreshes and overwrites
-    {REPO_ROOT}/progress/michi_state.json with the current deterministic facts."""
+    the request asks for -- every Mickey invocation refreshes and overwrites
+    {REPO_ROOT}/progress/mickey_state.json with the current deterministic facts."""
 ```
 
 **`mazda_team/progress/narrate.py`** — the only file allowed to shape an LLM
-prompt/system-prompt for Michi. No filesystem access.
+prompt/system-prompt for Mickey. No filesystem access.
 
 ```python
 from .schema import ProgressSnapshot
@@ -309,8 +309,8 @@ DEFAULT_PROGRESS_QUESTION = (
     "and what should happen next for the finance reports."
 )
 
-MICHI_SYSTEM_PROMPT = """\
-You are Michi, the progress and planning tracker for a small finance-report
+MICKEY_SYSTEM_PROMPT = """\
+You are Mickey, the progress and planning tracker for a small finance-report
 team (Sheeta writes the reports, TaRita prepares tax forms from them). You do
 not write reports or tax forms yourself.
 
@@ -346,7 +346,7 @@ def build_explainer_prompt(snapshot: ProgressSnapshot, question: str) -> str:
     formatting, no LLM call in this function."""
 ```
 
-**`mazda_team/progress/michi.py`** — the composition point `RoutingModel`
+**`mazda_team/progress/mickey.py`** — the composition point `RoutingModel`
 calls:
 
 ```python
@@ -357,7 +357,7 @@ from .. import specialist_roles
 from . import tracker
 from .narrate import DEFAULT_PROGRESS_QUESTION, build_explainer_prompt
 
-AGENT_NAME = "michi"
+AGENT_NAME = "mickey"
 
 
 async def answer(question: str, explainer: LanguageModel, repo_root: str | None = None) -> AgentReply:
@@ -370,7 +370,7 @@ async def answer(question: str, explainer: LanguageModel, repo_root: str | None 
 **`mazda_team/progress/cli.py`** — manual/no-LLM verification helper:
 
 ```python
-"""Print Michi's deterministic progress snapshot with no LLM call.
+"""Print Mickey's deterministic progress snapshot with no LLM call.
 
     .venv/bin/python -m mazda_team.progress.cli
 """
@@ -392,19 +392,19 @@ if __name__ == "__main__":
     main()
 ```
 
-### 3. `mazda_team/roles.py` — register Michi with Mazda
+### 3. `mazda_team/roles.py` — register Mickey with Mazda
 
-- Add `from .progress.michi import AGENT_NAME as MICHI_AGENT_NAME`.
-- Add `ALL_AGENT_NAMES = sorted(set(ROLES) | {MICHI_AGENT_NAME})`.
+- Add `from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME`.
+- Add `ALL_AGENT_NAMES = sorted(set(ROLES) | {MICKEY_AGENT_NAME})`.
 - Add one entry to each of `ROLE_BLURBS`, `ROLE_SPOKEN_NAMES`,
-  `ROLE_START_TASKS` for `"michi"`, e.g.:
+  `ROLE_START_TASKS` for `"mickey"`, e.g.:
   - blurb: `"tracks finance-report progress and plans next steps; does not write reports or tax forms herself"`
   - spoken name: `"our progress tracker"`
   - start task: `"checking finance-report progress and what's next"`
 - Change the completeness-check loop's `_missing = set(ROLES) - set(_mapping)`
   to `_missing = set(ALL_AGENT_NAMES) - set(_mapping)` (keeps the "every
   agent name has a blurb/spoken-name/start-task" invariant, now including
-  Michi).
+  Mickey).
 - In `delegation_acknowledgment()`, change `if agent_name not in ROLES:` to
   `if agent_name not in ALL_AGENT_NAMES:`.
 - Change `_ROSTER = "\n".join(... for name in ROLES)` to
@@ -421,12 +421,12 @@ if __name__ == "__main__":
 
   If the user is asking about current PROGRESS or PLANNING -- e.g. "where \
   are we", "what's blocking completion", "what should we do next", "is \
-  anything missing or overdue" -- route to michi, not to sheeta or tarita:
+  anything missing or overdue" -- route to mickey, not to sheeta or tarita:
 
-  ROUTE: michi
-  ROUTE: michi | focus on the checking account
+  ROUTE: mickey
+  ROUTE: mickey | focus on the checking account
 
-  michi only reads and reasons about existing reports and data; she never \
+  mickey only reads and reasons about existing reports and data; she never \
   writes a spreadsheet or tax form herself. A progress question about \
   sheeta's or tarita's work still goes to her, not to them, even if the \
   user names one of them.
@@ -443,13 +443,13 @@ from agent_memory.adapters.groq_model import GroqLanguageModel
 from agent_memory.models import AgentReply
 from agent_memory.ports import LanguageModel
 
-from ..progress.michi import AGENT_NAME as MICHI_AGENT_NAME, answer as michi_answer
-from ..progress.narrate import DEFAULT_PROGRESS_QUESTION, MICHI_SYSTEM_PROMPT
+from ..progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME, answer as mickey_answer
+from ..progress.narrate import DEFAULT_PROGRESS_QUESTION, MICKEY_SYSTEM_PROMPT
 from ..specialist_roles import REPO_ROOT, ROLES
 from .tool_agent import run_role
 
 _ROUTE_RE = re.compile(r"ROUTE:\s*([A-Za-z_]+)\s*(?:\|\s*(.*))?", re.DOTALL)
-_ALL_ROUTE_NAMES = sorted(set(ROLES) | {MICHI_AGENT_NAME})
+_ALL_ROUTE_NAMES = sorted(set(ROLES) | {MICKEY_AGENT_NAME})
 
 
 class RoutingModel:
@@ -473,11 +473,11 @@ class RoutingModel:
 
         role_name, extra = match.group(1), (match.group(2) or "").strip()
 
-        if role_name == MICHI_AGENT_NAME:
+        if role_name == MICKEY_AGENT_NAME:
             print(f"\n[Mazda -> {role_name}] checking finance-report progress...")
-            explainer = self._explainer or GroqLanguageModel(system_prompt=MICHI_SYSTEM_PROMPT)
+            explainer = self._explainer or GroqLanguageModel(system_prompt=MICKEY_SYSTEM_PROMPT)
             question = extra or DEFAULT_PROGRESS_QUESTION
-            return await michi_answer(question, explainer=explainer, repo_root=self._repo_root)
+            return await mickey_answer(question, explainer=explainer, repo_root=self._repo_root)
 
         role = ROLES.get(role_name)
         if role is None:
@@ -490,22 +490,22 @@ class RoutingModel:
         # ... unchanged from here (extra -> replace(role, task_prompt=...), run_role(...), etc.)
 ```
 
-Critical detail: the default `GroqLanguageModel(system_prompt=MICHI_SYSTEM_PROMPT)`
-is built **lazily inside `complete()`, only on an actual `michi` route**, not
+Critical detail: the default `GroqLanguageModel(system_prompt=MICKEY_SYSTEM_PROMPT)`
+is built **lazily inside `complete()`, only on an actual `mickey` route**, not
 in `__init__`. Building it eagerly in `__init__` would make constructing a
 `RoutingModel` require `GROQ_API_KEY` even for tests that never exercise the
-michi path (verified above: `OpenAI(api_key=None, ...)` raises immediately).
+mickey path (verified above: `OpenAI(api_key=None, ...)` raises immediately).
 
 `main.py` needs **no change** — it already constructs
 `RoutingModel(RetryingModel(inner_model), model=role_model)`; the two new
 constructor parameters are optional and default to the lazy/real behavior.
 
-### 5. `lancedb_memory/README.md` — document Michi
+### 5. `lancedb_memory/README.md` — document Mickey
 
-In the existing `## mazda_team` section: add a `michi` row to the agent
-table (`| \`michi\` | Tracks finance-report progress by year/month/account and plans next steps; reads existing reports and \`workspace/progress/michi_state.json\`, writes nothing but that state file |`), and one short paragraph after the table:
+In the existing `## mazda_team` section: add a `mickey` row to the agent
+table (`| \`mickey\` | Tracks finance-report progress by year/month/account and plans next steps; reads existing reports and \`workspace/progress/mickey_state.json\`, writes nothing but that state file |`), and one short paragraph after the table:
 
-> Michi's status and completion checks are deterministic Python
+> Mickey's status and completion checks are deterministic Python
 > (`mazda_team/progress/tracker.py`) — an LLM is only used to explain her
 > findings and propose a next-step order (`mazda_team/progress/narrate.py`).
 > She reads finance reports from `workspace/finance_reports/<year>/<month>/<account>.json`,
@@ -610,14 +610,14 @@ explicit `today=date(2025, 6, 15)` (never real "today") for determinism:
   returns a `ProgressSnapshot` whose `.model_dump(mode="json")` equals the
   original snapshot's (this is the "persistent progress summary" guarantee).
 
-**`mazda_team/tests/test_michi_routing.py`** — imports
+**`mazda_team/tests/test_mickey_routing.py`** — imports
 `from tests.fakes import ScriptedModel` (reuse the existing fake, don't
 duplicate it), and `from mazda_team.adapters.routing_model import RoutingModel`.
 Always construct `RoutingModel(inner=..., model="fake-role-model", explainer=..., repo_root=<tmp dir>)`
 so no test needs `GROQ_API_KEY` or a live Claude subprocess:
 
-- `test_progress_question_routes_to_michi_not_tool_agent` — `inner =
-  ScriptedModel(["ROUTE: michi | focus on checking"])`,
+- `test_progress_question_routes_to_mickey_not_tool_agent` — `inner =
+  ScriptedModel(["ROUTE: mickey | focus on checking"])`,
   `explainer = ScriptedModel(["Here is the status."])`, empty tmp
   `repo_root`. `await routing.complete("where are we?")` ->
   `reply.text == "Here is the status."`; `explainer.prompts[0]` contains
@@ -628,31 +628,31 @@ so no test needs `GROQ_API_KEY` or a live Claude subprocess:
 - `test_ordinary_reply_passes_through_and_never_calls_explainer` — `inner =
   ScriptedModel(["just chatting, no route"])`. Reply text equals that string;
   `explainer.prompts == []`.
-- `test_unknown_route_name_lists_michi_too` — `inner = ScriptedModel(["ROUTE: bogus"])` ->
-  reply text contains `"michi"` (fixes the pre-existing error-message list to
-  include Michi alongside `sheeta`/`tarita`).
+- `test_unknown_route_name_lists_mickey_too` — `inner = ScriptedModel(["ROUTE: bogus"])` ->
+  reply text contains `"mickey"` (fixes the pre-existing error-message list to
+  include Mickey alongside `sheeta`/`tarita`).
 - `test_sheeta_route_still_uses_tool_agent_unaffected` — `inner =
   ScriptedModel(["ROUTE: sheeta"])`; monkeypatch
   `mazda_team.adapters.routing_model.run_role` (via `unittest.mock.patch`)
   with a fake async function returning a stub `RoleResult`, so no real Claude
   Agent SDK subprocess is spawned; assert the fake was called with the
-  `sheeta` `AgentRole` and that `explainer.prompts == []` (proves Michi's
+  `sheeta` `AgentRole` and that `explainer.prompts == []` (proves Mickey's
   path was not touched for a sheeta request).
 
 **`mazda_team/tests/test_roles_registration.py`**:
 
-- `test_all_agent_names_includes_michi` —
-  `from mazda_team.roles import ALL_AGENT_NAMES; assert "michi" in ALL_AGENT_NAMES`.
-- `test_import_succeeds_meaning_completeness_dicts_cover_michi` — a bare
+- `test_all_agent_names_includes_mickey` —
+  `from mazda_team.roles import ALL_AGENT_NAMES; assert "mickey" in ALL_AGENT_NAMES`.
+- `test_import_succeeds_meaning_completeness_dicts_cover_mickey` — a bare
   `import mazda_team.roles` succeeding IS the proof (the module-level loop
   raises `RuntimeError` at import time otherwise); additionally assert
-  `"michi" in mazda_team.roles.ROLE_BLURBS` etc. explicitly for a readable
+  `"mickey" in mazda_team.roles.ROLE_BLURBS` etc. explicitly for a readable
   failure message if the invariant ever regresses.
-- `test_delegation_acknowledgment_for_michi` —
-  `delegation_acknowledgment("michi")` returns a string mentioning her
+- `test_delegation_acknowledgment_for_mickey` —
+  `delegation_acknowledgment("mickey")` returns a string mentioning her
   spoken name and doesn't raise.
-- `test_system_prompt_routes_progress_questions_to_michi` — assert
-  `"ROUTE: michi"` appears in `MAZDA_SYSTEM_PROMPT` and `"michi"` appears in
+- `test_system_prompt_routes_progress_questions_to_mickey` — assert
+  `"ROUTE: mickey"` appears in `MAZDA_SYSTEM_PROMPT` and `"mickey"` appears in
   the `Allowed agent names:` line.
 
 ## Verification
@@ -661,13 +661,13 @@ Run from `lancedb_memory/`:
 
 ```bash
 .venv/bin/python -m py_compile mazda_team/progress/__init__.py mazda_team/progress/schema.py \
-  mazda_team/progress/tracker.py mazda_team/progress/narrate.py mazda_team/progress/michi.py \
+  mazda_team/progress/tracker.py mazda_team/progress/narrate.py mazda_team/progress/mickey.py \
   mazda_team/progress/cli.py mazda_team/roles.py mazda_team/adapters/routing_model.py \
   mazda_team/tests/runner.py mazda_team/tests/test_progress_tracker.py \
-  mazda_team/tests/test_michi_routing.py mazda_team/tests/test_roles_registration.py
+  mazda_team/tests/test_mickey_routing.py mazda_team/tests/test_roles_registration.py
 
-# Confirms Michi is a recognized route without needing GROQ_API_KEY or a live DB:
-.venv/bin/python -c "import mazda_team.roles as r; assert 'michi' in r.ALL_AGENT_NAMES; print('ok')"
+# Confirms Mickey is a recognized route without needing GROQ_API_KEY or a live DB:
+.venv/bin/python -c "import mazda_team.roles as r; assert 'mickey' in r.ALL_AGENT_NAMES; print('ok')"
 
 # No-LLM manual look at a fresh (empty) workspace -- expect every entry
 # not_started, honestly, since no report-writer exists yet:
@@ -675,7 +675,7 @@ Run from `lancedb_memory/`:
 
 # The new test files (no pytest, no network, no GROQ_API_KEY needed):
 .venv/bin/python mazda_team/tests/test_progress_tracker.py
-.venv/bin/python mazda_team/tests/test_michi_routing.py
+.venv/bin/python mazda_team/tests/test_mickey_routing.py
 .venv/bin/python mazda_team/tests/test_roles_registration.py
 
 # Confirm nothing else regressed:
@@ -693,7 +693,7 @@ Manual/optional (needs `GROQ_API_KEY`, unset `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE
 ```bash
 .venv/bin/python -m mazda_team.main
 # type: "where are we with the finance reports?"
-# expect a ROUTE: michi turn and a spoken-style answer describing
+# expect a ROUTE: mickey turn and a spoken-style answer describing
 # everything as not started (workspace/finance_reports/ is empty on a fresh checkout)
 ```
 
@@ -702,13 +702,13 @@ Manual/optional (needs `GROQ_API_KEY`, unset `ANTHROPIC_API_KEY`/`ANTHROPIC_BASE
 - Sheeta's and TaRita's own `system_prompt`/`task_prompt` in
   `specialist_roles.py` are **not modified** — they still only produce their
   one sample CSV / sample tax-form JSON. Nothing yet writes into
-  `finance_reports/<year>/<month>/<account>.json`, so a fresh run of Michi
+  `finance_reports/<year>/<month>/<account>.json`, so a fresh run of Mickey
   will honestly report everything as `not_started`/missing. Wiring Sheeta up
   to that schema is a natural follow-up, not part of this task (report
   generation stays with Sheeta/TaRita per the request).
-- `mazda_team/orchestrate.py` is **not changed** — Michi has no
+- `mazda_team/orchestrate.py` is **not changed** — Mickey has no
   `AgentRole`/Claude-tool shape to run through it; she is only reachable via
-  Mazda's `ROUTE: michi`, or directly via `python -m mazda_team.progress.cli`
+  Mazda's `ROUTE: mickey`, or directly via `python -m mazda_team.progress.cli`
   for a no-LLM deterministic check.
 - `EXPECTED_ACCOUNTS` (`checking`, `savings`, `credit_card`) and the
   3-month rolling window are placeholders, configurable via
