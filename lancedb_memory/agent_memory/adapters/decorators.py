@@ -1,6 +1,7 @@
 """Decorators over the ports. Same interface in, same interface out."""
 import asyncio
 
+from ..errors import ModelUnavailable
 from ..models import AgentReply
 from ..ports import Embedder, LanguageModel
 
@@ -18,6 +19,11 @@ class RetryingModel:
         for attempt in range( self._max_retry ):
             try:
                 return await self._inner.complete( prompt )
+            except ModelUnavailable:
+                # Nothing to wait out. Five tries over fifteen seconds cannot
+                # clear a daily token limit, and the provider's own message
+                # already says when it will -- so let it reach the user.
+                raise
             except Exception as oops:
                 last = oops
                 print( f"\nError communicating with the model ( attempt { attempt + 1 }): { oops }" )

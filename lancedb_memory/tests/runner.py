@@ -4,8 +4,8 @@ Lives beside tests/fakes.py because it is the same kind of thing -- shared
 test machinery every composition root's offline tests can use, imported as
 `from tests.runner import main` with lancedb_memory as the cwd.
 
-mazda_team/tests/runner.py is an older, identical copy that predates this
-one; its tests still import their own. New test files should use this.
+It was duplicated as mazda_team/tests/runner.py until that package was
+retired; this is now the only copy.
 """
 import asyncio
 import sys

@@ -11,9 +11,11 @@ Needs GROQ_API_KEY set (see receptionist_team/.env). Swap the model by passing
 """
 import asyncio
 import os
+import re
 
 from openai import OpenAI
 
+from ..errors import ModelUnavailable
 from ..models import AgentReply
 
 DEFAULT_MODEL = "openai/gpt-oss-120b"
@@ -44,6 +46,41 @@ class GroqModelError( RuntimeError ):
     pass
 
 
+# Groq puts the wait in prose: "Please try again in 23m29.616s."
+_RETRY_AFTER_RE = re.compile( r"try again in (?:(\d+)m)?([\d.]+)s" )
+# How long a wait is still worth sitting through inside one turn. Past that,
+# the honest answer is to tell the user when it clears.
+WORTH_WAITING_SECONDS = 10.0
+
+
+def _retry_after_seconds( message: str ) -> float | None:
+    found = _RETRY_AFTER_RE.search( message )
+    if not found:
+        return None
+    minutes, seconds = found.groups()
+    return float( minutes or 0 ) * 60 + float( seconds )
+
+
+def _rate_limit_error( message: str ) -> ModelUnavailable | None:
+    """A 429 we should stop on, rather than retry into the same wall.
+
+    A per-minute limit can clear in a second or two, so that one still goes
+    through the retry loop. A daily token limit cannot, and the provider says
+    so -- we pass that sentence on instead of burning the backoff budget.
+    """
+    if "rate_limit_exceeded" not in message and "429" not in message:
+        return None
+    wait = _retry_after_seconds( message )
+    if wait is not None and wait <= WORTH_WAITING_SECONDS:
+        return None
+    if "per day" in message or "TPD" in message:
+        detail = "The daily Groq token allowance is used up"
+    else:
+        detail = "Groq is rate limiting this model"
+    when = f", and it clears in about { round( wait / 60 ) } minute(s)" if wait else ""
+    return ModelUnavailable( f"{ detail }{ when }.", retry_after=wait )
+
+
 class GroqLanguageModel:
     def __init__(
         self,
@@ -68,6 +105,9 @@ class GroqLanguageModel:
                 ],
             )
         except Exception as oops:
+            stop = _rate_limit_error( str( oops ))
+            if stop is not None:
+                raise stop from oops
             raise GroqModelError( f"Groq API error: { oops }" ) from oops
 
         choice = response.choices[ 0 ]
