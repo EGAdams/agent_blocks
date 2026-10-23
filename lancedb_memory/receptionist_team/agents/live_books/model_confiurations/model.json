@@ -1,0 +1,9 @@
+{
+  "description": "reads real figures out of the live non-profit books, read-only, one question at a time",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/live_finance",
+  "notes": "Drives adws/adw_interface_live_finance.py, whose ReadOnlyBooks Decorator refuses anything but a single SELECT and whose session is opened READ ONLY -- so this agent cannot change a record even if its prompt were ignored. Normally bypassed: Toyota reaches the same ADW through AdwLiveFinanceRunner, with no model in the path, because a figure must not be rephrased. This folder exists for the questions that need looking around first, and so that swapping the runner is one line in profiles.py. Its deliverable is one reported line plus the ADW's own run data, not a written document, so output_path points at the ADW's runtime directory rather than readable_documents/reports. Read is for the --message-out file; no Write/Edit, since this agent changes nothing anywhere."
+}

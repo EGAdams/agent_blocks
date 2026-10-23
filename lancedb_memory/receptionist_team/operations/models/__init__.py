@@ -19,7 +19,12 @@ class WorkView(BaseModel):
     model_config = ConfigDict(extra="allow")
     workspace: str = "toyota"
     assignment: str = "tax_issues"
-    environment: Literal["training"] = "training"
+    # Which records the assignment touches. "training" was the only value
+    # when tax_issues was the only assignment; widened because live_books
+    # and category_spreadsheet read the organization's real books, and a
+    # checkpoint that stamps every turn "training" is how she came to
+    # believe it of all of them.
+    environment: Literal["training", "live"] = "training"
     status: str = "idle"
     message: str = ""
     expense_id: int | None = None

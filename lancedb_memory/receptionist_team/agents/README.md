@@ -100,10 +100,12 @@ commands are steps of a real ADW.
 - **`tools/*/tool.json`** — mostly declarations, not code. Mazda's three are
   still `"kind": "stub"`: `bank_login` needs a credential story first, and
   `web_search` is probably an `allowed_tools` entry rather than a folder.
-  `search_link_opener/tools/` is the exception and the pattern to copy — both
-  of its files are `"kind": "script", "status": "implemented"`, each naming a
-  path that exists (`adws/adw_interface_search_open.py`, and
-  `/home/adamsl/selenium-headless/browser_manager/`). A `tool.json` claiming
+  `search_link_opener/tools/` and `live_books/tools/` are the exceptions and
+  the pattern to copy — their files are `"status": "implemented"`, each naming
+  a thing that exists (`adws/adw_interface_search_open.py` and
+  `/home/adamsl/selenium-headless/browser_manager/`;
+  `adws/adw_interface_live_finance.py` and the live `nonprofit_finance`
+  schema, the one `"kind": "database"` declaration here). A `tool.json` claiming
   `implemented` is a promise the agent's prompt is allowed to rely on, so only
   write it once the thing on the other end runs.
 - **`toyota_mechanic/`** — directories only. Its prompts are still in the

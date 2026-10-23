@@ -25,9 +25,15 @@ from .mazda_roles import (
     MAZDA_SYSTEM_PROMPT,
     ROLE_SPOKEN_NAMES as MAZDA_SPOKEN_NAMES,
 )
+from .adapters.figure_route import FigureQuestionRoute
 from .adapters.status_route import StatusQuestionRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
-from .roles import TOYOTA_CHAT_MODEL, TOYOTA_ROSTER, TOYOTA_SYSTEM_PROMPT
+from .roles import (
+    LIVE_BOOKS_AGENT_NAME,
+    TOYOTA_CHAT_MODEL,
+    TOYOTA_ROSTER,
+    TOYOTA_SYSTEM_PROMPT,
+)
 from .rosters import Roster
 
 
@@ -53,16 +59,29 @@ def _mazda_runner() -> IDelegationRunner:
 
 
 def _toyota_runner() -> IDelegationRunner:
-    """Imported here, not at module scope, on purpose.
+    """Her finance roles run through the Claude SDK; the live books do not.
 
+    Imported here, not at module scope, on purpose:
     adapters/tool_agent_runner.py pulls in finance_team (and through it
     claude_agent_sdk and the rol_finances repo root). Mazda routes to nobody
     real yet, so building her profile must not drag that in -- and tests that
     only check her wiring shouldn't need the SDK installed.
+
+    live_books is mapped to the ADW runner rather than to her agent folder
+    because the answer is a figure out of the real accounting records, and a
+    model in the path is a chance for that figure to come back rephrased.
+    Same deterministic-first argument as Mickey and Mazda's browser workflow.
+    Swapping it for ToolAgentRunner -- for a question that needs looking
+    around first -- is deleting one line of this map; the agents/live_books
+    folder is already written for that case.
     """
+    from .adapters.live_finance_runner import AdwLiveFinanceRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
 
-    return ToolAgentRunner()
+    return RunnerMap(
+        {LIVE_BOOKS_AGENT_NAME: AdwLiveFinanceRunner()},
+        default=ToolAgentRunner(),
+    )
 
 
 @dataclass(frozen=True)
@@ -119,8 +138,10 @@ class ReceptionistProfile:
     serves_peer_memory: bool = False
     # A route taken from the user's own words, before the model gets a say --
     # see delegation.IRouteOverride. None leaves every routing decision to the
-    # model, which is still Toyota's arrangement. Stateless and import-light,
-    # so the instance sits here rather than behind a factory like build_runner.
+    # model; both receptionists now name one, for the same failure in two
+    # places: a question the model answered from recalled conversation when it
+    # should have asked a tool. Stateless and import-light, so the instance
+    # sits here rather than behind a factory like build_runner.
     route_override: IRouteOverride | None = None
 
 
@@ -144,6 +165,12 @@ TOYOTA = ReceptionistProfile(
     operations=True,
     service_port=8767,
     serves_peer_memory=True,
+    # Her prompt tells her to send every question about a real figure to the
+    # books. It is not left to the model to agree, for the same reason Mazda's
+    # status route isn't: with no way to read a real number she answered from
+    # recalled conversation instead and invented plausible amounts, and 66
+    # stored training turns kept handing the habit back to her as history.
+    route_override=FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
 )
 
 MAZDA = ReceptionistProfile(

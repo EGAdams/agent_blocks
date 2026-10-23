@@ -114,12 +114,15 @@ async def test_an_unmarked_prompt_forces_nothing_rather_than_guessing():
     assert route.forced_agent("where do the reports stand?") is None
 
 
-async def test_toyota_has_no_override_and_mazda_does():
-    # Toyota's specialists all really run, and her prompt's routing has held;
-    # the override exists for the one route that must not be left to goodwill.
-    assert TOYOTA.route_override is None
+async def test_both_receptionists_now_carry_an_override():
+    # Toyota's was None until she had a way to read a real figure. Both
+    # overrides exist for the same failure in two places: a question the model
+    # answered from recalled conversation when it should have asked a tool.
+    # Mazda's is pinned here; Toyota's has its own file, test_figure_route.py.
     assert MAZDA.route_override is not None
     assert MAZDA.route_override.forced_agent(_prompt("status update?")) == MICKEY
+    assert TOYOTA.route_override is not None
+    assert MAZDA.route_override.forced_agent(_prompt("good morning")) is None
 
 
 async def test_an_override_naming_an_agent_off_the_roster_is_ignored():

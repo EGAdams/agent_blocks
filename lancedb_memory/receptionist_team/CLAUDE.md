@@ -24,11 +24,14 @@ Source files, by job:
 | `mazda_roles.py` | Mazda's six specialists (five stubs + Mickey) and her rendered prompt |
 | `main.py` | the composition root: `build_receptionist()`, `build_toyota()`, `repl()` |
 | `service.py` / `service_models.py` / `turn_runner.py` | the loopback HTTP sidecar the dashboard talks to |
-| `adapters/` | `routing_model`, `status_route`, `handoff_model`, `tool_agent_runner`, `mickey_runner`, `adw_runner`, `voice_io`, `metrics` |
+| `adapters/` | `routing_model`, `status_route`, `figure_route`, `latest_user`, `handoff_model`, `tool_agent_runner`, `mickey_runner`, `adw_runner`, `live_finance_runner`, `voice_io`, `metrics` |
 | `progress/` | Mickey: `tracker` reads report files, `narrate` prompts, `mickey` composes the two |
 | `operations/` | Toyota-only `WorkflowModel` stack (reports/tax intents, assignment policies) |
 | `memory_desk.py` | the shared-memory recall wiring both receptionists use |
 | `forget.py` | deletes turns the agent got wrong, so recall stops quoting them back |
+| `adapters/figure_route.py` | Toyota's `IRouteOverride`: a question about a real figure always reaches the books |
+| `adapters/live_finance_runner.py` | spawns the Live Finance ADW and repeats its line, with no model in the path |
+| `adapters/latest_user.py` | the one definition of "the last thing the user said", shared by both overrides |
 
 Everything else comes from `agent_memory/` (the engine) and `finance_team/`
 (the roles Toyota delegates to).
@@ -90,6 +93,9 @@ standalone scripts in `tests/`, each run as a module from `..`:
 .venv/bin/python -m receptionist_team.tests.test_status_route
 .venv/bin/python -m receptionist_team.tests.test_adw_browser_runner
 .venv/bin/python -m receptionist_team.tests.test_search_open_adw
+.venv/bin/python -m receptionist_team.tests.test_figure_route
+.venv/bin/python -m receptionist_team.tests.test_live_finance_adw      # one test reaches the real DB
+.venv/bin/python -m receptionist_team.tests.test_live_finance_runner
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 .venv/bin/python -m receptionist_team.agents.cli validate
 ```
@@ -270,6 +276,7 @@ injected runner; it never learns whether anything real is on the other side.
 | `ToolAgentRunner` (`adapters/`) | Toyota | `run_role` through the Claude Agent SDK against `rol_finances` |
 | `MickeyRunner` (`adapters/`) | Mazda's `mickey` | collects the progress snapshot, then one constrained model call |
 | `AdwBrowserRunner` (`adapters/`) | Mazda's `browser_opener` | subprocesses `adws/adw_interface_browser_open.py` and reports the line it wrote |
+| `AdwLiveFinanceRunner` (`adapters/`) | Toyota's `live_books` | subprocesses `adws/adw_interface_live_finance.py` and reports the figure it wrote, verbatim |
 | `ToolAgentRunner` | Toyota's `search_link_opener` | the agent folder below; no dedicated runner, because picking a result link is a judgement |
 | `UnwiredRunner` | Mazda's other five | says plainly the connection isn't built and nothing ran |
 | `RunnerMap` | Mazda | dispatches by agent name over a default |
@@ -392,8 +399,9 @@ raising.
 
 `delegation.IRouteOverride` is consulted by `RoutingModel` **before** the
 inner model is called at all; returning `None` means "no opinion, let the
-model decide", which is still Toyota's whole arrangement
-(`TOYOTA.route_override is None`).
+model decide". **Both receptionists now name one**, for the same failure in
+two places: a question the model answered out of recalled conversation when it
+should have asked a tool.
 
 Mazda's is `adapters/status_route.StatusQuestionRoute("mickey")`. Her prompt has
 always said every status question goes to Mickey, and the 20b often ignored it —
@@ -411,6 +419,75 @@ nothing, rather than treating the whole prompt as the user's words. An override
 naming an agent off the roster is ignored, so a typo falls back to the model
 deciding instead of breaking every turn. `tests/test_status_route.py` pins all
 of it.
+
+Toyota's is `adapters/figure_route.FigureQuestionRoute("live_books")`, and it
+is the other half of the same lesson. Her only data-shaped assignment was
+synthetic -- one practice expense, #900001 -- and `operations/workflow_model`
+injected "synthetic TRAINING environment only" into every single turn. So when
+she was asked what the organization had actually spent, there was no path to a
+real number and she produced a believable one; that reply was stored, recalled,
+and re-asserted until it read like established fact. 66 turns of training talk
+were in her session when this was fixed, and `forget.py --apply` deleted them.
+
+**The memory was the symptom; the cause was that no number was reachable.** A
+prompt rule cannot supply a figure. What fixed it is
+`adws/adw_interface_live_finance.py` -- see below -- plus the route to it not
+depending on the model agreeing to take it.
+
+The override is deliberately generous, which is only safe because of where it
+ends: the ADW has its own matcher over its installed questions, and an
+unmatched one says plainly that it read no figure and names what it CAN be
+asked. A false positive therefore costs one honest "I can't ask the books that
+yet" rather than an invented amount. Its `_BELONGS_ELSEWHERE` veto runs
+*first*, for the opposite risk -- a spreadsheet request belongs to
+`category_spreadsheet`, a specific tax record to a WORK command, report
+freshness to `progress_check`, and routing any of those here would answer a
+narrower question than the one asked.
+
+### The live books are read-only, enforced in code
+
+`adws/adw_interface_live_finance.py` is five phases, no model anywhere in it,
+against the live `nonprofit_finance` MySQL schema. Four things in it are
+load-bearing:
+
+- **`ReadOnlyBooks` is a Decorator over `ILiveBooks`, not a grant.** The MySQL
+  account on this box holds ALL PRIVILEGES, so the database is not what stops
+  a write -- this is. It refuses anything that is not a single `SELECT`/`WITH`,
+  including a read with a write stapled on behind a semicolon.
+  `assert_read_only` is a public classmethod so a test needs no connection.
+- **The session is opened `READ ONLY` and never committed**, as a second line
+  behind the Decorator. Both are deliberate; don't remove either as redundant.
+- **The organization is resolved by `organizations.type = 'NONPROFIT'` each
+  run, never by a pinned `org_id`** -- the same schema also holds two sets of
+  *personal* books, and reporting one of those as the organization's spending
+  would be a real error with real consequences. The column is `type` (a
+  reserved word, backquoted), **not** `org_type`.
+- **An unmatched question answers nothing.** There is no default query: the
+  line names the installed questions and says it read no figure. Same rule as
+  `UnwiredRunner` and as `adw_interface_search_open.py`'s unpickable
+  destination.
+
+The installed questions are a Strategy registry, `install_questions()`, most
+specific first -- `total_spend` deliberately last among the amount questions,
+since "how much did we spend by category" contains "how much did we spend".
+Adding one is a single entry there: no phase changes, no new flag, nothing to
+edit in the receptionist. `--list-questions` prints them and touches no
+database.
+
+Credentials come from `NON_PROFIT_USER`/`NON_PROFIT_PASSWORD`/
+`NON_PROFIT_DB_NAME`/`DB_HOST`/`DB_PORT` in the environment, or from
+`--env-file` (default `/home/adamsl/.config/mazda/finance-db.env`), never from
+a literal, and the environment wins. Note that `finance_team/roles.py` briefs
+`/home/adamsl/planner/.env` for its own DB work and **that file does not
+exist**; the config path above is what works.
+
+`AdwLiveFinanceRunner` reaches it the same way `AdwBrowserRunner` reaches the
+browser ADW: subprocess, `--message-out`, and the written line returned word
+for word. The reply reads a little more like a ledger than like Toyota, and
+that is the right trade -- a figure she has rephrased is a figure nobody can
+check. The `--message-out` file is the contract and outranks the exit code: an
+unmatched question exits 0 with a useful line, and a matched question that
+found no rows exits non-zero with a line worth repeating.
 
 `agent_memory/adapters/lancedb_store.py` gained `forget(ids)` for the same
 episode's aftermath: her own fabrications were stored turns, so recall kept

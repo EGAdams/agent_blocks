@@ -47,7 +47,13 @@ async def test_exact_failed_capability_question_gets_current_capabilities_and_st
     await agent.handle_turn('What do you have the ability to do?')
     prompt = model.prompts[0]
     assert 'CURRENT OPERATIONAL CAPABILITIES' in prompt
-    assert 'synthetic TRAINING' in prompt and 'Walgreens (RM)' in prompt
+    # The capability text used to call the whole environment synthetic, on
+    # every turn, which is most of why she believed it of the real books
+    # too. Now only tax_issues is named as practice data.
+    assert 'Only tax_issues is practice data' in prompt
+    assert 'Walgreens (RM)' in prompt
+    # And she is told, in the same breath, what she CAN read for real.
+    assert 'ROUTE: live_books' in prompt
     assert '900001' in prompt and 'normal expense editor' in prompt
     assert workflows.calls == []  # A capability question never starts work.
 

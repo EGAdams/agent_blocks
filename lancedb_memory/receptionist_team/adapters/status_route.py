@@ -14,12 +14,7 @@ of the answer shouldn't depend on a model choosing well.
 """
 import re
 
-# The composed prompt ends "USER: <message>\nAGENT:" (agent_memory/prompts.py's
-# DEFAULT_TEMPLATE). Recalled turns above are labelled the same way, so take
-# the LAST one -- that is the message being answered now.
-# The leading ".*" is greedy on purpose: it eats every earlier USER: so the
-# capture starts at the last one.
-_LATEST_USER = re.compile(r".*USER:\s*(.*?)\s*\nAGENT:\s*$", re.DOTALL)
+from .latest_user import latest_user_message
 
 # Asking where things stand, in the wordings people actually use.
 _STATUS_QUESTION = re.compile(
@@ -47,12 +42,7 @@ class StatusQuestionRoute:
         return self._agent_name if _STATUS_QUESTION.search(self.question(prompt)) else None
 
     def question(self, prompt: str) -> str:
-        """The latest user message, or the whole prompt if it isn't marked.
-
-        Falling back to the whole prompt would make every turn look like a
-        status question as soon as any recalled turn mentioned status, so the
-        fallback deliberately returns "" instead when the marker is absent --
-        no marker, no forced route, and the model decides as before.
-        """
-        found = _LATEST_USER.search(prompt)
-        return found.group(1) if found else ""
+        """The latest user message. See adapters/latest_user.py for why only
+        the last one, and why a prompt with no marker yields "" rather than
+        the whole text."""
+        return latest_user_message(prompt)

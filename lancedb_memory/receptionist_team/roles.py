@@ -24,6 +24,14 @@ from .extra_roles import EXTRA_ROLES
 ROLES = {**_FINANCE_ROLES, **EXTRA_ROLES}
 
 
+# The agent that reads the real accounting records. Named here rather than
+# spelled as a literal in profiles.py, adapters/ and the tests, because three
+# of them have to agree: the roster entry, the RunnerMap key and the route
+# override's forced agent. A constant makes a rename one edit instead of a
+# silent miss where a forced route names an agent the map has no runner for.
+LIVE_BOOKS_AGENT_NAME = "live_books"
+
+
 ROLE_BLURBS: dict[str, str] = {
     "mapper_cash": "finds vendor patterns in cash purchases",
     "mapper_card": "finds vendor patterns in card purchases",
@@ -72,6 +80,12 @@ ROLE_BLURBS: dict[str, str] = {
         "Windows browser so you can log in by hand; it never types a password "
         "and never claims the site came up when it only opened the search page"
     ),
+    "live_books": (
+        "reads real figures straight out of the organization's live accounting "
+        "records -- totals, month and category breakdowns, top vendors, what is "
+        "missing a receipt -- read-only, and reports only what the query "
+        "returned; it never estimates a number and never changes a record"
+    ),
     "toyota_mechanic": (
         "diagnoses or improves Toyota's OWN Python code in a sandbox; applies "
         "a change automatically only if every test passes"
@@ -107,6 +121,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "agent_creator": "our agent creator",
     "browser_opener": "our browser opener",
     "search_link_opener": "our site finder",
+    "live_books": "the books",
     "toyota_mechanic": "our mechanic",
     "mechanic_translator": "our mechanic's translator",
     "progress_check": "our progress checker",
@@ -129,6 +144,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "agent_creator": "building your new agent",
     "browser_opener": "opening that in your browser",
     "search_link_opener": "finding that site and opening it for you to log in",
+    "live_books": "pulling that figure out of the live books",
     "toyota_mechanic": "looking at my own code",
     "mechanic_translator": "turning that into a precise instruction for my mechanic",
     "progress_check": "checking the status of your latest finance reports",

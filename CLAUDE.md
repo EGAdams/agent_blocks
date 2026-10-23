@@ -40,8 +40,10 @@ The top-level areas are:
   from here — `map_open.py` in particular must keep its two promises: never
   block (detached spawn, exit status unread) and never raise (a bad URL or
   missing launcher is a message, not a traceback). Two of these are reachable
-  from `receptionist_team`: `adw_interface_browser_open.py` (open a link) and
-  `adw_interface_search_open.py` (find the site first, then open it).
+  from `receptionist_team`: `adw_interface_browser_open.py` (open a link),
+  `adw_interface_search_open.py` (find the site first, then open it), and
+  `adw_interface_live_finance.py` (read one figure out of the live
+  `nonprofit_finance` books, read-only, no model in the path).
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
@@ -218,7 +220,8 @@ Delegation goes through a `LanguageModel` Decorator (`RoutingModel`, same
 shape as `decorators.py`'s `RetryingModel`) so the underlying
 `ConversationAgent` never knows it happened, and *how* a route runs is an
 injected Strategy (`IDelegationRunner`: `ToolAgentRunner`, `MickeyRunner`,
-`AdwBrowserRunner`, `UnwiredRunner`, dispatched by `RunnerMap`). Mazda's
+`AdwBrowserRunner`, `AdwLiveFinanceRunner`, `UnwiredRunner`, dispatched by
+`RunnerMap`). Mazda's
 `browser_opener` is the first thing she can actually *do*: `AdwBrowserRunner`
 runs `adws/adw_interface_browser_open.py` as a subprocess and reports its one
 written line verbatim, with no model in the path — the same
@@ -230,8 +233,19 @@ headless Chrome driver (`WebBrowserManager`, from the separate
 result that *is* the site being asked for, trims it to the front door, and
 opens that in the real browser so the user can log in by hand — it never types
 a password, and when it cannot pick a result it opens the search page and says
-so rather than claiming the site came up. Her one route the model doesn't get to
-choose is `delegation.IRouteOverride` / `adapters/status_route.py`. Conversation and routing run on
+so rather than claiming the site came up. Toyota's `live_books` is the third
+of these deterministic workflows and the one that matters most: any question
+about a real figure -- what was spent, by month, by category, top vendors,
+what is missing a receipt -- goes to `AdwLiveFinanceRunner`, which subprocesses
+`adws/adw_interface_live_finance.py` and repeats the figure it wrote word for
+word. Read-only is enforced in code rather than by database grants
+(`ReadOnlyBooks`, a Decorator refusing anything but a single SELECT, plus a
+`READ ONLY` session), because the MySQL account here holds ALL PRIVILEGES; and
+an unmatched question answers nothing rather than falling through to a default
+query. Each receptionist has one route the model doesn't get to choose, through
+`delegation.IRouteOverride`: Mazda's `adapters/status_route.py` and Toyota's
+`adapters/figure_route.py`. Both exist for the same failure -- a question
+answered out of recalled conversation when it should have asked a tool. Conversation and routing run on
 **Groq** (`agent_memory/adapters/groq_model.py`, default
 `openai/gpt-oss-120b`) for both; the Claude Agent SDK is reserved for
 delegated tool work (`--role-model`, default `claude-sonnet-5`). Voice mode

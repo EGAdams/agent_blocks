@@ -1,0 +1,5 @@
+{
+  "kind": "database",
+  "status": "implemented",
+  "description": "The live nonprofit_finance MySQL schema -- the organization's real accounting records (expenses, categories, merchants, organizations, receipt_metadata). Scoped to the organization whose organizations.type is NONPROFIT, resolved per run rather than by a pinned org_id, because the same schema also holds two sets of personal books. Read-only twice over: ReadOnlyBooks refuses any statement that is not a single SELECT, and the session is opened READ ONLY and never committed -- necessary because the MySQL account here holds ALL PRIVILEGES, so grants are not the safeguard. Credentials come from NON_PROFIT_USER/NON_PROFIT_PASSWORD/NON_PROFIT_DB_NAME in the environment or --env-file; never from a literal."
+}

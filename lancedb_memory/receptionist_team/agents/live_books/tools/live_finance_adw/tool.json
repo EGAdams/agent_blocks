@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_live_finance.py -- the five-phase workflow this agent exists to run. Matches the question against its installed ILiveQuestion registry, resolves the organization by organizations.type, runs one read-only SELECT, and has the question read its own rows back as one line. Never invents a figure: an unmatched question reports that no figure was read and names the questions that ARE installed. --list-questions touches no database. Reports through --message-out, which is the contract this agent reads."
+}

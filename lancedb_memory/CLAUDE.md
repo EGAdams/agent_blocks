@@ -19,7 +19,9 @@ one on conflict:
 
 Everything runs through `lancedb_memory/.venv` (Python 3.14, `pydantic`,
 `lancedb`, `pyarrow`, `claude-agent-sdk`, `openai`, `sentence-transformers`,
-plus `python-dotenv`/`pyyaml`/`rich`, which are there only because
+plus `pymysql`, which is there only because
+`adws/adw_interface_live_finance.py` reads the live `nonprofit_finance`
+schema, and `python-dotenv`/`pyyaml`/`rich`, which are there only because
 `sssf_interfaces` loads the SSSF factory's `adw_modules`, and `selenium`,
 which is there only because `adws/adw_interface_search_open.py` reads a
 results page — this venv is the one interpreter that has both it and the
@@ -83,6 +85,9 @@ its `test_*` function from a REPL.
 .venv/bin/python -m receptionist_team.tests.test_status_route
 .venv/bin/python -m receptionist_team.tests.test_adw_browser_runner
 .venv/bin/python -m receptionist_team.tests.test_search_open_adw
+.venv/bin/python -m receptionist_team.tests.test_figure_route
+.venv/bin/python -m receptionist_team.tests.test_live_finance_adw
+.venv/bin/python -m receptionist_team.tests.test_live_finance_runner
 
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 ```
@@ -176,6 +181,7 @@ is on the other side:
 | `MickeyRunner` (`adapters/`) | Mazda's `mickey` | collects the progress snapshot, then one constrained model call |
 | `UnwiredRunner` | Mazda's other five | says plainly that the connection isn't built and nothing ran |
 | `AdwBrowserRunner` (`adapters/`) | Mazda's `browser_opener` | subprocesses `adws/adw_interface_browser_open.py` and reports the line it wrote, verbatim |
+| `AdwLiveFinanceRunner` (`adapters/`) | Toyota's `live_books` | subprocesses `adws/adw_interface_live_finance.py` and reports the figure it wrote, verbatim |
 | `ToolAgentRunner` | Toyota's `search_link_opener` | an agent folder, not a dedicated runner, because picking which result *is* the site is a judgement |
 | `RunnerMap` | Mazda | dispatches by agent name, with one default |
 
@@ -215,6 +221,34 @@ writing the reports is her own job now (it was `"sheeta"`, a retired
 still waiting, and `narrate.py`'s prompt forbids her from claiming she wrote
 anything. `TAX_FORM_AGENT` is still `"tarita"`: a label in the snapshot
 naming an agent outside this package, not something routable.
+
+### Toyota reads the live books, and only reads them
+
+`adws/adw_interface_live_finance.py` is Toyota's one path to a real number:
+five phases, no model anywhere in it, against the live `nonprofit_finance`
+MySQL schema. It exists because a prompt rule cannot supply a figure — her
+only data-shaped assignment was synthetic, so asked what the organization had
+spent she produced a believable amount, which recall then handed back to her
+as history.
+
+Read-only is enforced in **code**, not by grants: the MySQL account on this box
+holds ALL PRIVILEGES, so `ReadOnlyBooks` (a Decorator over `ILiveBooks`)
+refuses anything that is not a single `SELECT`/`WITH`, and the session is
+additionally opened `READ ONLY` and never committed. Both layers are
+deliberate; neither is redundant. The organization is resolved by
+`organizations.type = 'NONPROFIT'` each run rather than by a pinned `org_id`,
+because the same schema also holds two sets of *personal* books. The column is
+`type`, a reserved word, **not** `org_type`.
+
+An unmatched question answers nothing — there is no default query. The
+installed questions are a Strategy registry (`install_questions()`, most
+specific first, `total_spend` last among the amount questions), so adding one
+is a single entry there. `--list-questions` touches no database. Credentials
+come from `NON_PROFIT_*`/`DB_HOST`/`DB_PORT` in the environment or from
+`--env-file` (default `/home/adamsl/.config/mazda/finance-db.env`); the
+environment wins — and note that `finance_team/roles.py` briefs
+`/home/adamsl/planner/.env` for its own DB work, a file that **does not
+exist**. See `receptionist_team/CLAUDE.md` for the rest.
 
 ### The DIP boundary is a greppable import rule
 
@@ -296,14 +330,19 @@ matched with `re.fullmatch`, **not** `search`, so ordinary conversation that
 merely mentions routing can't trigger a delegation. An unknown agent name
 yields a friendly message listing known agents, not a crash.
 
-One route no longer waits for the model to agree. `delegation.IRouteOverride`
-is consulted *before* the inner model is called; Mazda's is
+Two routes no longer wait for the model to agree. `delegation.IRouteOverride`
+is consulted *before* the inner model is called. Mazda's is
 `adapters/status_route.StatusQuestionRoute("mickey")`, because the 20b often
 ignored her prompt's "every status question goes to Mickey" and answered from
 recall instead — re-asserting a year of finance reports that do not exist.
-Toyota's is `None`, which is the old behaviour. See
-`receptionist_team/CLAUDE.md` for the two details that matter (it reads the
-*last* `USER:` line, and forces nothing when the prompt has no marker).
+Toyota's is `adapters/figure_route.FigureQuestionRoute("live_books")`, for the
+same failure over money: with no way to read a real figure she answered from
+recalled conversation and invented plausible amounts, and 66 stored training
+turns kept handing the habit back as history. See
+`receptionist_team/CLAUDE.md` for the details that matter: both read the
+*last* `USER:` line (shared in `adapters/latest_user.py`), both force nothing
+when the prompt has no marker, and Toyota's vetoes requests that belong to a
+more capable agent.
 
 `MemoryStore.forget(ids)` and `receptionist_team/forget.py` exist for the
 aftermath of that episode: a wrong turn is stored history, so recall keeps
