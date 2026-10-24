@@ -287,23 +287,17 @@ class BrowserOpenApplication( LifecycleLogged, IApplication ):
         cfg     = self._config_loader.load( request.config )
         self._config_loader.validate( cfg, REQUIRED_AGENTS )
         run = self._session_factory.create( cfg, request.adw_id )
-
         session_log: ILifecycleLog = ConsoleLifecycleLog( run )
-
-        self._phase_executor.execute( run, RequestCapturePhase( run.engineer, request, session_log ))
-
+        self._phase_executor.execute( run, RequestCapturePhase( run.engineer, request, session_log )) # get input
         base  = MapOpenRequest( url=request.url, dry_run=request.dry_run )
         check = self._phase_executor.execute( run, ValidateUrlPhase( run, base, session_log ))
-
         map_request, source = base, "stored"
         if not check.openable and request.phrase.strip():
-            map_request, check = self._phase_executor.execute(
-                run, DeriveSearchPhase( run, base, request.phrase, session_log ))
+            map_request, check = self._phase_executor.execute( run, DeriveSearchPhase( run, base, request.phrase, session_log ))
             source = "search"
 
-        choice = self._phase_executor.execute( run, SelectLauncherPhase( run, map_request, session_log ))
-        result, message = self._phase_executor.execute(
-            run, LaunchPhase( run, map_request, check, choice, source, session_log ))
+        choice = self._phase_executor.execute(          run, SelectLauncherPhase( run, map_request, session_log ))
+        result, message = self._phase_executor.execute( run, LaunchPhase(         run, map_request, check, choice, source, session_log ))
 
         # The caller may be a menu rather than a terminal. It reads this
         # file, so the operator's line is a contract -- same rule as
@@ -326,7 +320,7 @@ def build_application() -> IApplication:
         config_loader   = SssfConfigLoader(              bootstrap_log          ),
         session_factory = SessionRunFactory(             bootstrap_log          ),
         phase_executor  = ManualContextPhaseExecutor(    bootstrap_log          ),
-        logger          =                                bootstrap_log,          )
+        logger          =                                bootstrap_log,         )
 
 
 if __name__ == "__main__":

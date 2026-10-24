@@ -1,0 +1,1 @@
+implement a change to Toyota's spoken reply style so replies are clearer and shorter, summarize more, and use simpler language aimed at someone new to the system

@@ -1222,3 +1222,133 @@
 [metrics] ts=2026-10-23T17:42:58 stage=tts_total duration_ms=1.2 sentences=3 chars=48
 [metrics] ts=2026-10-23T17:42:58 stage=tts_wait_stall duration_ms=0.0 sentence=0
 [metrics] ts=2026-10-23T17:42:58 stage=tts_total duration_ms=0.6 sentences=1 chars=18
+[metrics] ts=2026-10-23T19:22:06 stage=thinking duration_ms=0.0 chars=50
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.2 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=1.6 sentences=2 chars=73
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=0.7 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=0.6 sentences=1 chars=42
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=0.8 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=1.0 sentences=1 chars=60
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=0.9 sentences=2 chars=44
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=2.2 sentences=2 chars=51
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.3 sentence=1
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.2 sentence=2
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=2.5 sentences=3 chars=48
+[metrics] ts=2026-10-23T19:22:33 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:22:33 stage=tts_total duration_ms=0.8 sentences=1 chars=18
+[metrics] ts=2026-10-23T19:44:03 stage=thinking duration_ms=0.0 chars=50
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=1.0 sentences=2 chars=73
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=0.7 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=0.4 sentences=1 chars=42
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=0.6 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=0.5 sentences=1 chars=60
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=1.0 sentences=2 chars=44
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.2 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=1.1 sentences=2 chars=51
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.1 sentence=2
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=1.6 sentences=3 chars=48
+[metrics] ts=2026-10-23T19:44:30 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:44:30 stage=tts_total duration_ms=0.5 sentences=1 chars=18
+[metrics] ts=2026-10-23T19:51:01 stage=thinking duration_ms=0.0 chars=50
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.2 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=1.1 sentences=2 chars=73
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=0.7 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=0.6 sentences=1 chars=42
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=0.8 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=1.2 sentences=1 chars=60
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=1.2 sentences=2 chars=44
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=0.8 sentences=2 chars=51
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.1 sentence=2
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=2.0 sentences=3 chars=48
+[metrics] ts=2026-10-23T19:51:26 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:51:26 stage=tts_total duration_ms=0.6 sentences=1 chars=18
+[metrics] ts=2026-10-23T19:52:17 stage=thinking duration_ms=0.0 chars=50
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.2 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=1.1 sentences=2 chars=73
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.9 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.5 sentences=1 chars=42
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.7 sentences=2 chars=49
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.4 sentences=1 chars=60
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.6 sentences=2 chars=44
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.6 sentences=2 chars=51
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.1 sentence=2
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=1.4 sentences=3 chars=48
+[metrics] ts=2026-10-23T19:52:43 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-23T19:52:43 stage=tts_total duration_ms=0.5 sentences=1 chars=18
+[metrics] ts=2026-10-24T08:59:32 stage=thinking duration_ms=0.0 chars=50
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.4 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=4.7 sentences=2 chars=73
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.5 sentences=2 chars=49
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.3 sentences=1 chars=42
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.4 sentences=2 chars=49
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=0.9 sentences=1 chars=60
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.2 sentences=2 chars=44
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.1 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.0 sentences=2 chars=51
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.3 sentence=1
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.1 sentence=2
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=1.9 sentences=3 chars=48
+[metrics] ts=2026-10-24T09:00:02 stage=tts_wait_stall duration_ms=0.0 sentence=0
+[metrics] ts=2026-10-24T09:00:02 stage=tts_total duration_ms=0.8 sentences=1 chars=18
