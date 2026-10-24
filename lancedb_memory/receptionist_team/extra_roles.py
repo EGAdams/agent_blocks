@@ -22,7 +22,7 @@ from .agents import AgentRoleFactory, catalog
 # folder -- or a folder missing a prompt or an output_path -- fails loud at
 # import rather than at the moment a user asks for the work.
 EXTRA_ROLE_NAMES = (
-    "spreadsheet_reshaper", "agent_creator", "browser_opener",
+    "spreadsheet_reshaper", "category_spreadsheet", "agent_creator", "browser_opener",
     "search_link_opener", "live_books", "mechanic_translator", "dashboard_expert",
 )
 

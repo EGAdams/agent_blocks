@@ -29,3 +29,9 @@ spa_documentation/
 
 # git worktrees of this same repo live here; never commit them into the outer repo
 .claude/worktrees/
+
+# Spreadsheets written by adws/adw_interface_category_spreadsheet.py. Real
+# figures out of the live nonprofit books, regenerated on demand from the
+# database that is the source of truth -- there is nothing here to review in
+# a diff, and these are somebody's medical and payroll rows.
+adws/adw_data/spreadsheets/

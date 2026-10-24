@@ -31,6 +31,13 @@ ROLES = {**_FINANCE_ROLES, **EXTRA_ROLES}
 # silent miss where a forced route names an agent the map has no runner for.
 LIVE_BOOKS_AGENT_NAME = "live_books"
 
+# The agent that writes a spreadsheet of one category out of those same
+# records. Named here for the same reason as live_books above: the roster
+# entry, the RunnerMap key and the route override's forced agent all have to
+# agree, and a forced route naming an agent the map has no runner for fails
+# as a silent fall-through to the default tool agent rather than as an error.
+CATEGORY_SPREADSHEET_AGENT_NAME = "category_spreadsheet"
+
 
 ROLE_BLURBS: dict[str, str] = {
     "mapper_cash": "finds vendor patterns in cash purchases",

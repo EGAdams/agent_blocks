@@ -1,0 +1,9 @@
+{
+  "description": "writes a spreadsheet of every expense in one named category of the live non-profit books, read-only against the database",
+  "model": null,
+  "max_turns": 12,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/spreadsheets",
+  "notes": "Drives adws/adw_interface_category_spreadsheet.py, which reuses adw_interface_live_finance.py's ReadOnlyBooks Decorator and READ ONLY session rather than keeping a second copy of them -- so this agent cannot change a record even if its prompt were ignored. Normally bypassed: Toyota reaches the same ADW through AdwCategorySpreadsheetRunner, with no model in the path, because the row count, the total and the path must not be rephrased. This folder exists for requests that need looking around first -- an ambiguous category name is the common one -- and so that swapping the runner is one line in profiles.py. No Write or Edit tool: the ADW writes the spreadsheet itself, and output_path is where it puts it, so this agent needs no way to write a file of its own."
+}

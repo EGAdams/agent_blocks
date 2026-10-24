@@ -26,9 +26,12 @@ from .mazda_roles import (
     ROLE_SPOKEN_NAMES as MAZDA_SPOKEN_NAMES,
 )
 from .adapters.figure_route import FigureQuestionRoute
+from .adapters.route_panel import FirstRouteOpinion
+from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
+    CATEGORY_SPREADSHEET_AGENT_NAME,
     LIVE_BOOKS_AGENT_NAME,
     TOYOTA_CHAT_MODEL,
     TOYOTA_ROSTER,
@@ -67,19 +70,24 @@ def _toyota_runner() -> IDelegationRunner:
     real yet, so building her profile must not drag that in -- and tests that
     only check her wiring shouldn't need the SDK installed.
 
-    live_books is mapped to the ADW runner rather than to her agent folder
-    because the answer is a figure out of the real accounting records, and a
-    model in the path is a chance for that figure to come back rephrased.
+    live_books and category_spreadsheet are mapped to ADW runners rather than
+    to their agent folders because both answers are made of real accounting
+    records -- a figure, and a row count plus a total plus a path -- and a
+    model in the path is a chance for any of them to come back rephrased.
     Same deterministic-first argument as Mickey and Mazda's browser workflow.
-    Swapping it for ToolAgentRunner -- for a question that needs looking
+    Swapping either for ToolAgentRunner -- for a request that needs looking
     around first -- is deleting one line of this map; the agents/live_books
-    folder is already written for that case.
+    and agents/category_spreadsheet folders are already written for that case.
     """
+    from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
 
     return RunnerMap(
-        {LIVE_BOOKS_AGENT_NAME: AdwLiveFinanceRunner()},
+        {
+            LIVE_BOOKS_AGENT_NAME: AdwLiveFinanceRunner(),
+            CATEGORY_SPREADSHEET_AGENT_NAME: AdwCategorySpreadsheetRunner(),
+        },
         default=ToolAgentRunner(),
     )
 
@@ -169,11 +177,20 @@ TOYOTA = ReceptionistProfile(
     service_port=8767,
     serves_peer_memory=True,
     # Her prompt tells her to send every question about a real figure to the
-    # books. It is not left to the model to agree, for the same reason Mazda's
-    # status route isn't: with no way to read a real number she answered from
+    # books, and every request for a sheet to the spreadsheet maker. Neither
+    # is left to the model to agree to, for the same reason Mazda's status
+    # route isn't: with no way to read a real number she answered from
     # recalled conversation instead and invented plausible amounts, and 66
     # stored training turns kept handing the habit back to her as history.
-    route_override=FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
+    #
+    # Spreadsheet first, deliberately. "What did we spend on utilities as a
+    # spreadsheet" is word for word a question about money, and both routes
+    # recognize it; the one that produces a file the user can check is the
+    # one that should win. See adapters/route_panel.py.
+    route_override=FirstRouteOpinion([
+        SpreadsheetRequestRoute(CATEGORY_SPREADSHEET_AGENT_NAME),
+        FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
+    ]),
 )
 
 MAZDA = ReceptionistProfile(

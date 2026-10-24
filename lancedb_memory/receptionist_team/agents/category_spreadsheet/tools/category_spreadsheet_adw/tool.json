@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_category_spreadsheet.py -- the workflow this agent exists to run. Resolves the named category to exactly one category on file (a known group name like \"Medical\" first, then id, then exact name, then a single LIKE match), refusing and listing the candidates when a name matches more than one; walks the whole sub-category subtree when asked, however deep; runs one read-only SELECT for every non-LINE_ITEM expense in it; checks the rows for possible duplicates, odd dates, possible mislabels and unassigned categories; and writes the rows, their total, the flags and -- with --compare and --year -- a year-over-year and monthly comparison to an .xlsx or .csv through an ISpreadsheetWriter. Every total is computed from the rows written rather than queried separately, so the sheet cannot disagree with itself. --list-categories lists what is on file with counts. Reports through --message-out, which is the contract this agent reads."
+}
