@@ -35,3 +35,5 @@ spa_documentation/
 # database that is the source of truth -- there is nothing here to review in
 # a diff, and these are somebody's medical and payroll rows.
 adws/adw_data/spreadsheets/
+# Same rows, rendered as HTML by adws/adw_interface_category_web_page.py.
+adws/adw_data/web_pages/
