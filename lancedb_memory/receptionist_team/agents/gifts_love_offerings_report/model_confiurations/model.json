@@ -1,0 +1,9 @@
+{
+  "description": "writes an HTML report of every Gifts & Love Offerings expense in one year of the live non-profit books, with source details per row and duplicate gifts flagged, read-only against the database",
+  "model": null,
+  "max_turns": 12,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/reports",
+  "notes": "Drives adws/adw_gifts_love_offerings_report.py, which reuses adw_interface_category_spreadsheet.py's category resolver and duplicate-detection rule, and that file's own reuse of adw_interface_live_finance.py's ReadOnlyBooks Decorator and READ ONLY session -- so this agent cannot change a record even if its prompt were ignored. No Write or Edit tool: the ADW writes the HTML file itself, and output_path is where it puts it, so this agent needs no way to write a file of its own."
+}

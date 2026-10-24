@@ -1,0 +1,9 @@
+{
+  "description": "prunes aged turns out of the shared LanceDB memory store and reclaims the freed space, without ever clearing a table",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/memory_compact",
+  "notes": "Drives adws/adw_memory_compact.py: survey -> purge -> compact over lancedb_memory/lance_data/*.lance. The survey phase refuses to purge any table where the age cutoff would match every row, so this agent can never clear a table the way agent.clear_context()/'/compact' rotates a session id -- it only prunes rows older than a cutoff and runs LanceDB's own Table.optimize() to reclaim the space. Deliverable is a one-line report at --message-out plus the run's own trace, not a written document, so output_path points at the ADW's runtime data directory. Read is for the --message-out file; no Write/Edit, since this agent changes nothing in the repo."
+}

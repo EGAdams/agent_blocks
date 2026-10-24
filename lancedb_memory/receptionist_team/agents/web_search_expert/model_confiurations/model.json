@@ -1,0 +1,9 @@
+{
+  "description": "translates a user's request into an accurate search query, correcting mishearings, and retrieves real results via SERP API / Google / Brave",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/web_search",
+  "notes": "Drives adws/adw_web_search.py, which does nothing but call a live search provider -- SERP API confirmed working live via SERP_API_KEY, Google Custom Search and Brave sit on the same credential ladder for when GOOGLE_API_KEY/GOOGLE_CSE_ID or BRAVE_API_KEY are added. The query-disambiguation judgement (mishearings like 'Lens' vs 'Lance') happens in this agent's own reasoning before it ever shells out; the ADW's own job past that is purely mechanical. No Write/Edit: it never produces a document, only a reported answer, so output_path is the ADW's runtime data directory rather than readable_documents/reports -- same reasoning as search_link_opener."
+}

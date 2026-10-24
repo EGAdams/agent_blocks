@@ -1181,7 +1181,31 @@ class RequestCapturePhase( LifecycleLogged, IPhase ):
 
 
 class ResolveCategoryPhase( LifecycleLogged, IPhase ):
-    """Turns the typed category into the ids a query may read, or refuses."""
+    """    # Resolve Category Phase
+
+    **Purpose:** Find and verify the requested category.
+
+    ## How It Works
+    1. Read the requested category.
+    2. Find the matching database category.
+    3. Reject unclear matches. Never guess.
+    4. Collect the matching IDs.
+    5. Log the results.
+    6. Return the verified category information.
+
+    ## Dependencies
+    - **resolver:** Finds and verifies categories.
+    - **books:** Provides financial records.
+    - **request:** Contains the user's request.
+    - **logger:** Records phase activity.
+
+    ## Returns
+    **CategoryScope:** Verified category, IDs, and children.
+
+    ## Design
+    - Program to interfaces.
+    - Keep responsibilities separate.
+    - Delegate matching to ICategoryResolver."""
 
     def __init__( self, resolver: ICategoryResolver, books: ILiveBooks,
                   request: SpreadsheetRequest, logger: ILifecycleLog ):
@@ -1193,7 +1217,7 @@ class ResolveCategoryPhase( LifecycleLogged, IPhase ):
     @property
     def params( self ) -> PhaseParams:
         return PhaseParams( name="resolve_category", kind="code", owner="books",
-                            description="Resolve the typed category to exactly one category on file, refusing rather than guessing when the name is ambiguous" )
+            description="Resolve the typed category to exactly one category on file, refusing rather than guessing when the name is ambiguous" )
 
     def act( self, handle: IPhaseHandle ) -> CategoryScope:
         scope = self._resolver.resolve( self._books, self._request )
@@ -1218,7 +1242,7 @@ class QueryPhase( LifecycleLogged, IPhase ):
     @property
     def params( self ) -> PhaseParams:
         return PhaseParams( name="query", kind="code", owner="books",
-                            description="Run the category's single read-only SELECT against the live books and keep every row it returns" )
+            description="Run the category's single read-only SELECT against the live books and keep every row it returns" )
 
     def act( self, handle: IPhaseHandle ) -> list[ dict[ str, Any ]]:
         rows = self._rows.fetch( self._books, self._org, self._category, self._years )
@@ -1285,7 +1309,7 @@ class WriteSheetPhase( LifecycleLogged, IPhase ):
     @property
     def params( self ) -> PhaseParams:
         return PhaseParams( name="write", kind="code", owner="books",
-                            description="Write the queried rows and their total to the spreadsheet file, in the chosen format" )
+                description="Write the queried rows and their total to the spreadsheet file, in the chosen format" )
 
     def act( self, handle: IPhaseHandle ) -> Path:
         written = self._writer.write( self._plan, self._content )
@@ -1554,28 +1578,24 @@ def build_application() -> IApplication:
                                           MonthlyPatternSection( bootstrap_log ),
                                           FlagsSection(          bootstrap_log )],
                                         bootstrap_log ),
-          "csv":  CsvSpreadsheetWriter( expenses, bootstrap_log )},
-        bootstrap_log )
+          "csv":  CsvSpreadsheetWriter( expenses, bootstrap_log )}, bootstrap_log )
     return CategorySpreadsheetApplication(
         argument_parser = ArgparseCategorySpreadsheetArgumentParser(
-                              __doc__, writers.names(), bootstrap_log ),
+                              __doc__, writers.names(), bootstrap_log ),   # type: ignore
         config_loader   = SssfConfigLoader(             bootstrap_log ),
         session_factory = SessionRunFactory(            bootstrap_log ),
         phase_executor  = ManualContextPhaseExecutor(   bootstrap_log ),
-        books           = ReadOnlyBooks( PyMySQLLiveBooks( credentials, bootstrap_log ),
-                                         bootstrap_log ),
-        resolver        = SqlCategoryResolver(          bootstrap_log,
-                              NamedCategoryGroups(      bootstrap_log )),
+        books           = ReadOnlyBooks( PyMySQLLiveBooks( credentials, bootstrap_log ),    bootstrap_log ),
+        resolver        = SqlCategoryResolver(          bootstrap_log, NamedCategoryGroups( bootstrap_log )),
         rows_source     = CategoryExpenseRows(          bootstrap_log ),
         flag_finder     = CompositeFlagFinder([ DuplicateRule(  bootstrap_log ),
                                                 OddDateRule(    bootstrap_log,
                                                                 date.today()),
                                                 MislabelRule(   bootstrap_log, people ),
-                                                UnassignedRule( bootstrap_log )],
-                                              bootstrap_log ),
+                                                UnassignedRule( bootstrap_log )], bootstrap_log ),
         year_comparer   = CategoryYearComparer(         bootstrap_log ),
         writers         = writers,
-        logger          =                               bootstrap_log,            )
+        logger          =                               bootstrap_log,                          )
 
 
 if __name__ == "__main__":

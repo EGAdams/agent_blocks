@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_gifts_love_offerings_report.py -- the workflow this agent exists to run. Resolves 'Gifts & Love Offerings' to its one category on file, refusing and listing candidates when a narrower name is ambiguous; walks its whole subtree of named recipients by default (that is where the actual giving is recorded, not the parent category); runs one read-only SELECT for every non-LINE_ITEM expense in it for the requested year, selecting source-detail columns (source_file, receipt_url, document_url, scanned_statement_url, notes) alongside the usual fields; checks the rows for possible duplicate gifts (same amount, close in date, sharing a word of description); and writes the rows, their total and the flags to a styled HTML page. Reports through --message-out, which is the contract this agent reads."
+}

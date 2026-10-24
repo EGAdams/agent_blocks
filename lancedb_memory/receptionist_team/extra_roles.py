@@ -24,6 +24,7 @@ from .agents import AgentRoleFactory, catalog
 EXTRA_ROLE_NAMES = (
     "spreadsheet_reshaper", "category_spreadsheet", "agent_creator", "browser_opener",
     "search_link_opener", "live_books", "mechanic_translator", "dashboard_expert",
+    "gifts_love_offerings_report", "web_search_expert", "memory_compactor",
 )
 
 _factory = AgentRoleFactory()

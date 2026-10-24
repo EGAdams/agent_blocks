@@ -113,6 +113,24 @@ ROLE_BLURBS: dict[str, str] = {
         "touches rol_finances or a database, and never restarts or deploys "
         "the live dashboard service without asking first"
     ),
+    "gifts_love_offerings_report": (
+        "writes an HTML web page listing every Gifts & Love Offerings "
+        "expense, with its sub-categories, for one year of the real books, "
+        "showing each row's source details and flagging possible "
+        "duplicate gifts; read-only"
+    ),
+    "web_search_expert": (
+        "translates a request into an accurate search query -- correcting "
+        "likely mishearings or typos of a proper noun from context -- and "
+        "runs a real web search via SERP API, Google, or Brave, reporting "
+        "only the results the search actually returned"
+    ),
+    "memory_compactor": (
+        "prunes conversation turns older than a retention window out of the "
+        "shared LanceDB memory store and reclaims the freed space; it never "
+        "drops or clears a whole table, and refuses on its own if a cutoff "
+        "would remove every row"
+    ),
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -133,6 +151,9 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "mechanic_translator": "our mechanic's translator",
     "progress_check": "our progress checker",
     "dashboard_expert": "our dashboard expert",
+    "gifts_love_offerings_report": "our gifts and love offerings reporter",
+    "web_search_expert": "our web search expert",
+    "memory_compactor": "our memory compactor",
 }
 
 # Each phrase follows "tell them to start".
@@ -156,6 +177,9 @@ ROLE_START_TASKS: dict[str, str] = {
     "mechanic_translator": "turning that into a precise instruction for my mechanic",
     "progress_check": "checking the status of your latest finance reports",
     "dashboard_expert": "looking into the dashboard codebase for you",
+    "gifts_love_offerings_report": "building your gifts and love offerings report",
+    "web_search_expert": "searching the web for that",
+    "memory_compactor": "pruning and compacting the shared memory store",
 }
 
 # Toyota's roster: the roles plus the three descriptions, validated as one

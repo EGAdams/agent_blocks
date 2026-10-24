@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_web_search.py -- the three-phase workflow this agent exists to run. Walks a SERP API / Google Custom Search / Brave credential ladder and calls whichever provider has its API key(s) set in the environment, searching for the literal --query text this agent hands it. Never raises: a failed or empty search comes back as a reported outcome via --results-out, which is the contract this agent reads."
+}
