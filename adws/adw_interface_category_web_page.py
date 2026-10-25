@@ -47,6 +47,18 @@ older ones move down. The list is rebuilt from `index.json` beside it rather
 than by editing the old HTML, so a hand-edited or half-written index can
 never lose a link.
 
+THE DASHBOARD MAY BE ON ANOTHER MACHINE
+
+The dashboard serving that list runs on one host (`DEFAULT_DASHBOARD_HOST`);
+`localhost:8765` elsewhere is only a forwarder to it. A run on any other
+machine used to update that machine's list, which nothing displays.
+`DashboardHostLinkIndex` closes the gap: after the local list is updated it
+copies the page to the dashboard host and puts it on top of *that* host's
+list, merged with whatever is already there. On the dashboard host itself
+it does nothing extra. It never fails the run -- the page is already
+written -- but the report line says whether the dashboard got it.
+`--dashboard-host none` turns it off.
+
 A page's default name carries the moment it was written --
 `<category>_<Month>_<day>_hh_mm_ss.html` -- so a second run never
 overwrites the first and every link stays pointing at what it said.
@@ -54,8 +66,9 @@ overwrites the first and every link stays pointing at what it said.
 Usage:
     uv run adws/adw_interface_category_web_page.py "<why this is being run>" \\
         --category "Gifts and Love Offerings" --year 2025 \\
-        [--category-id 123] [--include-children] [--org-type NONPROFIT] \\
+        [--category-id 123] [--no-include-children] [--org-type NONPROFIT] \\
         [--out /path/to/page.html] [--message-out /tmp/line.txt] \\
+        [--dashboard-host user@host | none] \\
         [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 
 Phases: engineer(request) -> code(connect) -> code(resolve_category)
@@ -68,7 +81,11 @@ import argparse
 import html
 import importlib.util
 import json
+import shlex
+import socket
+import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -157,6 +174,11 @@ DEFAULT_OUT_DIR = _HERE / "adw_data" / "web_pages"
 INDEX_PAGE      = "index.html"
 INDEX_MANIFEST  = "index.json"
 
+# Where the dashboard showing ROL Finance -> Reports -> ADW Generated runs,
+# and its copy of DEFAULT_OUT_DIR (relative to that account's home).
+DEFAULT_DASHBOARD_HOST = "adamsl@100.102.209.100"
+DASHBOARD_DIR          = "agent_blocks/adws/adw_data/web_pages"
+
 
 # -- Values (not behavior) ---------------------------------------------------
 
@@ -194,6 +216,13 @@ class PagePlan:
 
 
 @dataclass( frozen=True )
+class PublishedLink:
+    """Where the list now is, and anything the operator should hear about it."""
+    index: Path
+    note:  str = ""
+
+
+@dataclass( frozen=True )
 class PageLink:
     """One entry on the ADW Generated list. `file` is relative to the list."""
     file:      str
@@ -210,9 +239,9 @@ class IPageRenderer( Protocol ):
 
 
 class IPageIndex( Protocol ):
-    """The list of written pages. Puts `page` on top; returns the list's path."""
+    """The list of written pages. Puts `page` on top; says where the list is."""
 
-    def publish( self, page: Path, summary: str ) -> Path: ...
+    def publish( self, page: Path, summary: str ) -> PublishedLink: ...
 
 
 # -- Adapters ----------------------------------------------------------------
@@ -220,27 +249,48 @@ class IPageIndex( Protocol ):
 class HtmlTablePageRenderer( LifecycleLogged ):
     """A single self-contained HTML file: a summary, the table, a TOTAL row.
 
-    No scripts, no external stylesheets, no fonts to fetch -- the page has to
+    No external scripts, stylesheets or fonts to fetch -- the page has to
     open the same way from a file path, an email attachment, or a phone. The
-    TOTAL is computed from the rows on the page (`_total`), never queried
-    apart, for the same reason the spreadsheet's is.
+    one inline script only positions the status pop-up; with scripts off the
+    flagged rows are still yellow. The TOTAL is computed from the rows on the
+    page (`_total`), never queried apart, for the same reason the
+    spreadsheet's is.
     """
 
     # Header labels for the columns `CategoryExpenseRows` returns. A column
     # missing here falls back to its raw name rather than vanishing.
     _LABELS: dict[ str, str ] = {
-        "id": "ID", "date": "Date", "amount": "Amount", "method": "Method",
+        "id": "ID", "date": "Date", "amount": "Amount",
         "category": "Category", "merchant": "Merchant", "description": "Description",
-        "paid_by": "Paid by", "status": "Status", "verified": "Verified",
         "receipt_url": "Receipt",
+    }
+
+    # Queried (the rows source is shared with the spreadsheet) but not shown.
+    # `status` still drives the row highlight and its pop-up.
+    _HIDDEN = frozenset({ "method", "paid_by", "status", "verified" })
+
+    # `expenses.expense_status`, in words. NONE (or empty) means no status.
+    _STATUS_TEXT: dict[ str, str ] = {
+        "NEEDS_VENDOR_KEY":
+            "Needs vendor key: the importer did not recognise this vendor, so the "
+            "expense is waiting for someone to map the vendor and confirm its "
+            "category in the dashboard.",
+        "WAITING_FOR_PAYMENT_COUNTERPART":
+            "Waiting for payment counterpart: this row was recorded from an invoice "
+            "or bill, and the matching bank or card payment has not been linked to it yet.",
+        "COUNTERPART_DOCUMENT_LINKED":
+            "Counterpart document linked: this payment has been matched to its "
+            "invoice or receipt document.",
     }
 
     _STYLE = """
 :root { --bg: #ffffff; --fg: #1d2330; --muted: #5d6676; --line: #dfe3ea;
-        --stripe: #f6f8fb; --head: #eef1f6; --accent: #2f5fa7; }
+        --stripe: #f6f8fb; --head: #eef1f6; --accent: #2f5fa7;
+        --flag: #fff3a3; --flag-hover: #ffe866; --tip-bg: #1d2330; --tip-fg: #ffffff; }
 @media ( prefers-color-scheme: dark ) {
   :root { --bg: #14171d; --fg: #e4e8ef; --muted: #9aa3b2; --line: #2c323d;
-          --stripe: #1a1e26; --head: #222833; --accent: #8db4f0; }
+          --stripe: #1a1e26; --head: #222833; --accent: #8db4f0;
+          --flag: #4a4212; --flag-hover: #5c5216; --tip-bg: #f4f6fa; --tip-fg: #14171d; }
 }
 * { box-sizing: border-box; }
 body { margin: 0; padding: 24px 16px; background: var( --bg ); color: var( --fg );
@@ -257,12 +307,39 @@ table { border-collapse: collapse; width: 100%; }
 th, td { padding: 8px 10px; border-bottom: 1px solid var( --line ); text-align: left; vertical-align: top; }
 thead th { background: var( --head ); position: sticky; top: 0; white-space: nowrap; }
 tbody tr:nth-child( even ) { background: var( --stripe ); }
+tbody tr.flagged { background: var( --flag ); cursor: help; }
+tbody tr.flagged:hover { background: var( --flag-hover ); }
+.flag-key { display: inline-block; width: .9em; height: .9em; border-radius: 3px;
+            background: var( --flag ); border: 1px solid var( --line ); vertical-align: -1px; }
+.tip { position: fixed; z-index: 10; max-width: 340px; padding: 8px 11px; border-radius: 6px;
+       background: var( --tip-bg ); color: var( --tip-fg ); font-size: .85rem;
+       box-shadow: 0 4px 14px rgba( 0, 0, 0, .25 ); pointer-events: none; }
+.tip[hidden] { display: none; }
 td.num, th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
 td.date { white-space: nowrap; }
 tfoot td { font-weight: 700; border-top: 2px solid var( --line ); border-bottom: 0; }
 a { color: var( --accent ); }
 .empty { padding: 24px; color: var( --muted ); }
 footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
+"""
+
+    # Shows a flagged row's `data-status` beside the pointer; hides on leave.
+    _SCRIPT = """
+( () => {
+  const tip = document.getElementById( "tip" );
+  const place = ( e ) => {
+    let x = e.clientX + 14, y = e.clientY + 18;
+    if ( x + tip.offsetWidth > innerWidth - 8 ) x = innerWidth - tip.offsetWidth - 8;
+    if ( y + tip.offsetHeight > innerHeight - 8 ) y = e.clientY - tip.offsetHeight - 12;
+    tip.style.left = Math.max( 8, x ) + "px";
+    tip.style.top  = Math.max( 8, y ) + "px";
+  };
+  for ( const row of document.querySelectorAll( "tr[data-status]" )) {
+    row.addEventListener( "mouseenter", ( e ) => { tip.textContent = row.dataset.status; tip.hidden = false; place( e ); });
+    row.addEventListener( "mousemove", place );
+    row.addEventListener( "mouseleave", () => { tip.hidden = true; });
+  }
+})();
 """
 
     def __init__( self, logger: ILifecycleLog ):
@@ -285,19 +362,36 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
             return ' class="date"'
         return ""
 
+    def _status( self, row: dict[ str, Any ] ) -> str:
+        """The row's status in words, or "" when it has none."""
+        code = str( row.get( "status" ) or "" ).strip()
+        if not code or code.upper() == "NONE":
+            return ""
+        return self._STATUS_TEXT.get( code, f"Status: { code }" )
+
+    def _row_open( self, row: dict[ str, Any ] ) -> str:
+        status = self._status( row )
+        if not status:
+            return "<tr>"
+        return f'<tr class="flagged" data-status="{ html.escape( status, quote=True )}">'
+
     def render( self, plan: PagePlan, rows: list[ dict[ str, Any ]] ) -> Path:
         when    = str( plan.year ) if plan.year is not None else "all years"
         rolled  = ( f" (and { plan.category.children } sub-categories)"
                     if plan.category.children else "" )
         title   = f"{ plan.category.label } -- { when }"
-        columns = plan.columns
+        columns = tuple( c for c in plan.columns if c not in self._HIDDEN )
+        flagged = sum( 1 for row in rows if self._status( row ))
 
         head = "".join( f"<th{ self._class( c )}>{ html.escape( self._LABELS.get( c, c ))}</th>"
                         for c in columns )
         body = "\n".join(
-            "<tr>" + "".join( f"<td{ self._class( c )}>{ self._value( c, row.get( c ))}</td>"
-                              for c in columns ) + "</tr>"
+            self._row_open( row ) + "".join( f"<td{ self._class( c )}>{ self._value( c, row.get( c ))}</td>"
+                                             for c in columns ) + "</tr>"
             for row in rows )
+        key = ( f'<p class="sub"><span class="flag-key"></span> { flagged } '
+                f'row{ "" if flagged == 1 else "s" } with a status -- hover a yellow row to see it.</p>'
+                if flagged else "" )
 
         if rows:
             at     = columns.index( "amount" ) if "amount" in columns else len( columns ) - 1
@@ -331,11 +425,14 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
   <div class="stat"><b>{ len( rows )}</b><span>expenses</span></div>
   <div class="stat"><b>{ html.escape( _money( _total( rows )))}</b><span>total</span></div>
 </div>
+{ key }
 { table }
+<div id="tip" class="tip" role="tooltip" hidden></div>
 <footer>Read-only from the live books. Generated { generated } by
 adw_interface_category_web_page.py, run { html.escape( plan.adw_id )}.
 Category ids: { html.escape( ", ".join( str( i ) for i in plan.category.ids ))}.</footer>
 </main>
+<script>{ self._SCRIPT }</script>
 </body>
 </html>
 """
@@ -419,7 +516,7 @@ a { color: var( --accent ); font-weight: 600; word-break: break-all; }
 </html>
 """
 
-    def publish( self, page: Path, summary: str ) -> Path:
+    def publish( self, page: Path, summary: str ) -> PublishedLink:
         folder   = page.parent
         manifest = folder / INDEX_MANIFEST
         link     = PageLink( file=page.name, summary=summary,
@@ -429,7 +526,79 @@ a { color: var( --accent ); font-weight: 600; word-break: break-all; }
         self._write( manifest, json.dumps([ vars( l ) for l in links ], indent=2 ) + "\n" )
         index = folder / INDEX_PAGE
         self._write( index, self._html( links ))
-        return index
+        return PublishedLink( index=index )
+
+
+class DashboardHostLinkIndex( LifecycleLogged ):
+    """Decorator: publish locally, then onto the dashboard host's list too.
+
+    The remote list is rebuilt the same way the local one is -- its
+    `index.json` is fetched into a scratch folder and handed to `remote_index`
+    (an ordinary `HtmlLinkIndex`), so the format has one owner. The page and
+    the regenerated list are uploaded to a scratch folder on the host and
+    moved into place page first, so the dashboard never lists a link whose
+    page isn't there yet.
+
+    Only pages written into `mirrored_dir` are copied; a `--out` elsewhere is
+    somebody's own file. Every failure becomes the note, never an exception.
+    """
+
+    _SSH_OPTS = [ "-o", "BatchMode=yes", "-o", "ConnectTimeout=8" ]
+
+    def __init__( self, inner: IPageIndex, remote_index: IPageIndex, host: str,
+                  remote_dir: str, mirrored_dir: Path, logger: ILifecycleLog ):
+        LifecycleLogged.__init__( self, logger )
+        self._inner        = inner
+        self._remote_index = remote_index
+        self._host         = host
+        self._remote_dir   = remote_dir
+        self._mirrored_dir = mirrored_dir.resolve()
+
+    def _run( self, argv: list[ str ], stdin: str = "" ) -> str:
+        """stdout of one ssh/scp call; raises RuntimeError with stderr on failure."""
+        try:
+            done = subprocess.run( argv, input=stdin, capture_output=True, text=True, timeout=60 )
+        except ( OSError, subprocess.TimeoutExpired ) as error:
+            raise RuntimeError( str( error ))
+        if done.returncode != 0:
+            raise RuntimeError( done.stderr.strip() or f"exit status { done.returncode }" )
+        return done.stdout
+
+    def _mirror( self, page: Path, summary: str ) -> str:
+        folder   = shlex.quote( self._remote_dir )
+        incoming = f"{ self._remote_dir }/.incoming-{ page.stem }"
+        # One round trip: who the host is, and the list it already shows.
+        reply = self._run([ "ssh", *self._SSH_OPTS, self._host,
+                            f"hostname; mkdir -p { folder } && cat { folder }/{ INDEX_MANIFEST } 2>/dev/null; true" ])
+        remote_name, _, manifest = reply.partition( "\n" )
+        if remote_name.strip().lower() == socket.gethostname().lower():
+            return ""   # this machine is the dashboard host; the local list is the one shown
+
+        with tempfile.TemporaryDirectory( prefix="adw_dashboard_" ) as scratch:
+            staging = Path( scratch )
+            if manifest.strip():
+                ( staging / INDEX_MANIFEST ).write_text( manifest, encoding="utf-8" )
+            listed = self._remote_index.publish( staging / page.name, summary )
+            self._run([ "ssh", *self._SSH_OPTS, self._host, f"mkdir -p { shlex.quote( incoming )}" ])
+            self._run([ "scp", "-q", *self._SSH_OPTS, str( page ), str( staging / INDEX_MANIFEST ),
+                        str( listed.index ), f"{ self._host }:{ incoming }/" ])
+        moves = " && ".join(
+            f"mv -f { shlex.quote( incoming + '/' + name )} { folder }/"
+            for name in ( page.name, INDEX_MANIFEST, INDEX_PAGE ))
+        self._run([ "ssh", *self._SSH_OPTS, self._host,
+                    f"{ moves } && rmdir { shlex.quote( incoming )}" ])
+        return f"Also listed on the dashboard at { self._host } (ROL Finance -> Reports -> ADW Generated)."
+
+    def publish( self, page: Path, summary: str ) -> PublishedLink:
+        local = self._inner.publish( page, summary )
+        if page.resolve().parent != self._mirrored_dir:
+            return local
+        try:
+            note = self._mirror( page, summary )
+        except RuntimeError as error:
+            note = ( f"NOT listed on the dashboard: copying to { self._host } failed "
+                     f"({ error }). The page is only on this machine." )
+        return PublishedLink( index=local.index, note=note )
 
 
 # -- Phases ------------------------------------------------------------------
@@ -493,25 +662,27 @@ class PublishLinkPhase( LifecycleLogged, IPhase ):
         return PhaseParams( name="publish", kind="code", owner="books",
                             description="Add a link to the new page at the top of the ADW Generated list, moving older links down" )
 
-    def act( self, handle: IPhaseHandle ) -> Path:
-        p       = self._plan
-        when    = str( p.year ) if p.year is not None else "all years"
-        summary = ( f"{ p.category.label } -- { when } -- { len( self._rows )} expenses, "
-                    f"{ _money( _total( self._rows ))}" )
-        index   = self._index.publish( self._written, summary )
-        handle.log( index=str( index ), link=self._written.name )
-        return index
+    def act( self, handle: IPhaseHandle ) -> PublishedLink:
+        p         = self._plan
+        when      = str( p.year ) if p.year is not None else "all years"
+        summary   = ( f"{ p.category.label } -- { when } -- { len( self._rows )} expenses, "
+                      f"{ _money( _total( self._rows ))}" )
+        published = self._index.publish( self._written, summary )
+        handle.log( index=str( published.index ), link=self._written.name,
+                    dashboard=published.note or "(local list is the dashboard's)" )
+        return published
 
 
 class ReportPhase( LifecycleLogged, IPhase ):
     """The one line, every part of which is readable back off the page."""
 
     def __init__( self, plan: PagePlan, rows: list[ dict[ str, Any ]],
-                  written: Path, logger: ILifecycleLog ):
+                  written: Path, published: PublishedLink, logger: ILifecycleLog ):
         LifecycleLogged.__init__( self, logger )
-        self._plan    = plan
-        self._rows    = rows
-        self._written = written
+        self._plan      = plan
+        self._rows      = rows
+        self._written   = written
+        self._published = published
 
     @property
     def params( self ) -> PhaseParams:
@@ -529,6 +700,8 @@ class ReportPhase( LifecycleLogged, IPhase ):
             message = ( f"{ p.org }: wrote a page of { len( self._rows )} "
                         f"{ p.category.label }{ rolled } expenses{ when } totalling "
                         f"{ _money( _total( self._rows ))} to { self._written }." )
+        if self._published.note:
+            message = f"{ message } { self._published.note }"
         handle.log( message=message )
         return message
 
@@ -551,8 +724,9 @@ class ArgparseCategoryWebPageArgumentParser( LifecycleLogged, IArgumentParser ):
                              help="the category name, exact or a unique fragment" )
         parser.add_argument( "--category-id", type=int, default=None,
                              help="the category's id, when the name is ambiguous" )
-        parser.add_argument( "--include-children", action="store_true",
-                             help="roll sub-categories of the matched category into the same page" )
+        parser.add_argument( "--include-children", action=argparse.BooleanOptionalAction, default=True,
+                             help="roll sub-categories of the matched category into the same page "
+                                  "(default on; --no-include-children counts the category's own rows only)" )
         parser.add_argument( "--org-type", default="NONPROFIT",
                              help="whose books: the organizations.type to scope to" )
         parser.add_argument( "--year", type=int, default=None,
@@ -561,6 +735,8 @@ class ArgparseCategoryWebPageArgumentParser( LifecycleLogged, IArgumentParser ):
                              help=f"where to write it; default { DEFAULT_OUT_DIR }/<category>_<Month>_<day>_hh_mm_ss.html" )
         parser.add_argument( "--env-file", default=DEFAULT_ENV_FILE,
                              help="file defining NON_PROFIT_USER/PASSWORD/DB_NAME when not exported" )
+        parser.add_argument( "--dashboard-host", default=DEFAULT_DASHBOARD_HOST,
+                             help="ssh target whose dashboard shows ADW Generated; 'none' keeps the page local" )
         parser.add_argument( "--message-out", default="",
                              help="write the operator's one line here, for a non-terminal caller" )
         parser.add_argument( "--config", default="adws/adw_sssf_config/sssf.config.yaml" )
@@ -642,8 +818,8 @@ class CategoryWebPageApplication( LifecycleLogged, IApplication ):
         rows    = self._phase_executor.execute( run, QueryPhase( self._rows_source, self._books, org, category, years, session_log )) # get rows
         plan    = self._plan( request, org, category, run.adw_id ) # where the page goes and what it shows
         written = self._phase_executor.execute( run, RenderPagePhase( self._renderer, plan, rows, session_log ))# An empty category is a true
-        self._phase_executor.execute( run, PublishLinkPhase( self._page_index, plan, rows, written, session_log ))
-        message = self._phase_executor.execute( run, ReportPhase( plan, rows, written, session_log ))           # answer and is accepted as one:
+        published = self._phase_executor.execute( run, PublishLinkPhase( self._page_index, plan, rows, written, session_log ))
+        message = self._phase_executor.execute( run, ReportPhase( plan, rows, written, published, session_log )) # answer and is accepted as one:
         self._say( request, message )                                                                           # the page exists and says so. 
         return run.finish( accepted=written.exists(), reason=message )                                          # What is NOT accepted is 
                                                                                                                 # the file not being there.
@@ -689,6 +865,15 @@ def _env_file( argv: list[ str ]) -> str:
     return known.env_file
 
 
+def _dashboard_host( argv: list[ str ]) -> str:
+    """The --dashboard-host the caller named, read before the index is built --
+    the same peek, for the same reason, as `_env_file`."""
+    peek = argparse.ArgumentParser( add_help=False )
+    peek.add_argument( "--dashboard-host", default=DEFAULT_DASHBOARD_HOST )
+    known, _ = peek.parse_known_args( argv )
+    return known.dashboard_host
+
+
 def build_application( argv: list[ str ]) -> IApplication:
     """Wire the concrete adapters into the application. The one spot that may.
 
@@ -697,6 +882,11 @@ def build_application( argv: list[ str ]) -> IApplication:
     """
     bootstrap_log: ILifecycleLog = PrintLifecycleLog()
     credentials = EnvFileCredentials( _env_file( argv ), bootstrap_log )
+    page_index: IPageIndex = HtmlLinkIndex( bootstrap_log )
+    host = _dashboard_host( argv )
+    if host and host.lower() != "none":
+        page_index = DashboardHostLinkIndex( page_index, HtmlLinkIndex( bootstrap_log ), host,
+                                             DASHBOARD_DIR, DEFAULT_OUT_DIR, bootstrap_log )
     return CategoryWebPageApplication(
         argument_parser = ArgparseCategoryWebPageArgumentParser( __doc__, bootstrap_log ),
         config_loader   = SssfConfigLoader(             bootstrap_log ),
@@ -708,7 +898,7 @@ def build_application( argv: list[ str ]) -> IApplication:
                               NamedCategoryGroups(      bootstrap_log )),
         rows_source     = CategoryExpenseRows(          bootstrap_log ),
         renderer        = HtmlTablePageRenderer(        bootstrap_log ),
-        page_index      = HtmlLinkIndex(                bootstrap_log ),
+        page_index      = page_index,
         logger          =                               bootstrap_log,            )
 
 
