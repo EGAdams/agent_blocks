@@ -143,9 +143,9 @@ class ValidateCommand( LifecycleLogged ):
 
     Checks the part directories *and* the two prompt files, because the
     directories are what a `mkdir` leaves behind and the files are what makes
-    the folder a usable definition -- `toyota_mechanic` has all five
-    directories and no prompts at all, and reporting that as "ok" would be a
-    lie. See toyota_mechanic/README.md for why it is empty on purpose.
+    the folder a usable definition -- a folder with all five directories and
+    no prompts at all (as `toyota_mechanic` was until its migration finished)
+    reporting "ok" would be a lie.
     """
 
     def __init__( self, logger: ILifecycleLog ) -> None:

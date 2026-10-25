@@ -92,9 +92,9 @@ half of it: reply asking for the one thing you are missing, and stop.
        -m receptionist_team.agents.tests.test_agent_catalog
        -m receptionist_team.tests.test_spreadsheet_reshape_role
 
-   `validate` reporting toyota_mechanic as incomplete is expected and is not
-   your failure; every other agent must be ok and your new one must appear in
-   the ROLES list. If any step fails, revert your edits to the three files
+   `validate` reporting another agent as missing only its `tools` folder is
+   expected and is not your failure; your new one must not be missing a prompt
+   and must appear in the ROLES list. If any step fails, revert your edits to the three files
    from step 6, keep the folder and the ADW, and say so plainly.
 
 8. Reply with two or three sentences in plain prose: the agent's name, what it

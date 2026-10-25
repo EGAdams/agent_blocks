@@ -1,6 +1,7 @@
 """Specialist roles Toyota can route to that are NOT in finance_team/roles.py.
 
-That file (and finance_team/mechanic_runner.py) is off-limits to edits, so any
+That file is off-limits to the mechanic (it is in PROTECTED in
+adws/adw_toyota_mechanic_guard.py), so any
 new specialist capability has to be defined here instead and merged into
 receptionist_team.roles.ROLES -- see that module's `ROLES = {**_FINANCE_ROLES,
 **EXTRA_ROLES}`. adapters/routing_model.py reads that merged dict (not
@@ -25,7 +26,11 @@ EXTRA_ROLE_NAMES = (
     "spreadsheet_reshaper", "category_spreadsheet", "agent_creator", "browser_opener",
     "search_link_opener", "live_books", "mechanic_translator", "dashboard_expert",
     "gifts_love_offerings_report", "web_search_expert", "memory_compactor",
+    "toyota_mechanic",
 )
+# mechanic_coder is an agent folder too, and is deliberately NOT listed: it is
+# the coder adws/adw_toyota_mechanic.py runs inside a sandbox, and routed to
+# directly it would edit live code with no sandbox, gate or rollback.
 
 _factory = AgentRoleFactory()
 

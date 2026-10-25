@@ -37,3 +37,7 @@ spa_documentation/
 adws/adw_data/spreadsheets/
 # Same rows, rendered as HTML by adws/adw_interface_category_web_page.py.
 adws/adw_data/web_pages/
+# Toyota's mechanic runs (adws/adw_toyota_mechanic.py): each holds two full
+# copies of her source (sandbox + pristine), backups and the lock. rol_finances
+# committed these by accident when the workflow lived there.
+adws/adw_data/mechanic/

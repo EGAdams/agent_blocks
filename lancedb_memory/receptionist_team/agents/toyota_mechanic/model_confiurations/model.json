@@ -1,0 +1,9 @@
+{
+  "description": "dispatcher for Toyota's mechanic: runs adws/adw_toyota_mechanic.py and relays the outcome line it printed",
+  "model": null,
+  "max_turns": 8,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/mechanic",
+  "notes": "Migrated out of finance_team/roles.py; this folder is now the definition and extra_roles.py loads it. model is null on purpose: like every routed role it runs on Toyota's --role-model. The coder that actually edits code is the separate mechanic_coder folder, whose model is pinned in its own model.json. Both folders are in adws/adw_toyota_mechanic_guard.py's PROTECTED list, so a mechanic run cannot rewrite either."
+}

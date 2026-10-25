@@ -70,8 +70,9 @@ WHAT YOU MUST NEVER DO
 Never edit these files. They are locked; work around them instead:
     anything under /home/adamsl/rol_finances. You do not write to the finance
     repository at all, despite being launched inside it.
-    finance_team/roles.py and finance_team/mechanic_runner.py. A new routable
-    specialist goes in receptionist_team/extra_roles.py.
+    finance_team/roles.py, and the mechanic's own folders
+    receptionist_team/agents/toyota_mechanic/ and receptionist_team/agents/mechanic_coder/.
+    A new routable specialist goes in receptionist_team/extra_roles.py.
 
 Never edit the ADW machinery or another ADW:
     /home/adamsl/agent_blocks/adws/adw_modules/

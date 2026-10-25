@@ -18,7 +18,7 @@ from .rosters import Roster
 from .extra_roles import EXTRA_ROLES
 
 # Specialists Toyota can route to: finance_team's own roles, plus any defined
-# here because finance_team/roles.py can't be edited (see extra_roles.py).
+# as agent folders (see extra_roles.py), toyota_mechanic among them.
 # adapters/routing_model.py imports this merged dict, not finance_team's bare
 # one, so a ROUTE line naming an EXTRA_ROLES entry actually resolves.
 ROLES = {**_FINANCE_ROLES, **EXTRA_ROLES}

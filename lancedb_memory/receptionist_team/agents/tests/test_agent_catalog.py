@@ -9,6 +9,7 @@ This file follows the SSSF bracket-spacing convention because the whole
 agents/ subtree does; the rest of receptionist_team/tests/ does not. Match the
 file you are editing (see ../../CLAUDE.md).
 """
+import tempfile
 from pathlib import Path
 
 from agent_memory.prompts import DEFAULT_TEMPLATE
@@ -116,22 +117,13 @@ async def test_tool_folders_report_themselves_as_stubs():
     assert all( tool.status == "stub" for tool in tools.values())
 
 
-async def test_the_mechanics_prompts_are_still_in_finance_team_on_purpose():
-    # Documented state, not a bug: see agents/toyota_mechanic/README.md.
-    definition = catalog().definition( "toyota_mechanic" )
-    try:
-        definition.system_prompt().raw()
-    except FileNotFoundError:
-        pass
-    else:
-        raise AssertionError(
-            "toyota_mechanic now has a prompt on disk -- finish the migration in "
-            "its README and delete this test"
-        )
-
-
 async def test_a_missing_model_json_loads_as_defaults_rather_than_failing():
-    assert catalog().definition( "toyota_mechanic" ).model_configuration() == ModelConfiguration()
+    # Was toyota_mechanic's folder until its migration finished; a scratch
+    # folder keeps the behaviour pinned without depending on any real agent.
+    with tempfile.TemporaryDirectory() as root:
+        ( Path( root ) / "unconfigured" / "system_prompt_template" ).mkdir( parents=True )
+        definition = build_catalog( root=Path( root )).definition( "unconfigured" )
+        assert definition.model_configuration() == ModelConfiguration()
 
 
 async def test_an_empty_directory_is_a_catalog_with_no_agents():

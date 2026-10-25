@@ -43,9 +43,10 @@ Toyota raises `RuntimeError` at import and does not start at all, so the agent
 is required to run the whole gate before reporting success, and to revert its
 own registration edits (keeping the folder and the ADW) if any step fails.
 
-`cli validate` reporting `toyota_mechanic` as incomplete is expected — see
-`../toyota_mechanic/README.md` — and the prompt says so, so a correct run is
-not mistaken for a failure.
+`cli validate` reporting other agents as missing only a `tools/` folder is
+expected, and the prompt says so, so a correct run is not mistaken for a
+failure. (It used to name `toyota_mechanic`, whose prompts were not on disk
+until 2026-10-24.)
 
 ## Known limits
 

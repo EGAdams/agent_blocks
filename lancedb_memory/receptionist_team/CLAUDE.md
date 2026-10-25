@@ -96,6 +96,7 @@ standalone scripts in `tests/`, each run as a module from `..`:
 .venv/bin/python -m receptionist_team.tests.test_figure_route
 .venv/bin/python -m receptionist_team.tests.test_live_finance_adw      # one test reaches the real DB
 .venv/bin/python -m receptionist_team.tests.test_live_finance_runner
+.venv/bin/python -m receptionist_team.tests.test_toyota_mechanic_guard
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
 .venv/bin/python -m receptionist_team.agents.cli validate
 ```
@@ -645,7 +646,24 @@ documented in the file's own comments:
 `adws/adw_interface_prompt.py`, loaded by file path — rather than restating
 them. `agents/README.md` has the module-by-module responsibility table, the
 placeholder rules, and what is deliberately left as a stub
-(`documentation/`, the `tools/*` declarations, `toyota_mechanic/`).
+(`documentation/`, the `tools/*` declarations).
+
+### Toyota's mechanic lives in two folders and one ADW
+
+`toyota_mechanic` (the dispatcher Toyota routes to) and `mechanic_coder` (the
+sandboxed coder, `claude-sonnet-5` pinned in its `model.json`) are agent
+folders; the workflow and its guard are `adws/adw_toyota_mechanic.py` and
+`adws/adw_toyota_mechanic_guard.py` in agent_blocks. `mechanic_coder` is
+**never** routable. The guard's `PROTECTED` list names both folders and
+`finance_team/roles.py`, so a mechanic run cannot rewrite its own
+instructions; move a folder and you move its `PROTECTED` entry in the same
+commit (`tests/test_toyota_mechanic_guard.py` fails until you do). The sandbox
+mirrors the live layout -- `lancedb_memory/` beside a read-only copy of
+`adws/` -- because several suites find the ADWs at `parents[3] / "adws"`;
+without that and `sssf_interfaces`, the gate could never go green. Until
+2026-10-24 all of this was split across `finance_team/roles.py`,
+`finance_team/mechanic_runner.py` and `/home/adamsl/rol_finances/adws/`.
+See `agents/toyota_mechanic/README.md`.
 
 ### Memory
 

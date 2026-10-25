@@ -108,9 +108,11 @@ commands are steps of a real ADW.
   schema, the one `"kind": "database"` declaration here). A `tool.json` claiming
   `implemented` is a promise the agent's prompt is allowed to rely on, so only
   write it once the thing on the other end runs.
-- **`toyota_mechanic/`** — directories only. Its prompts are still in the
-  locked `finance_team/roles.py`; see that folder's `README.md`. `validate`
-  reports it incomplete, which is the correct signal.
+- **`mechanic_coder/`** — a complete folder that is deliberately *not*
+  routable. It is the coder `adws/adw_toyota_mechanic.py` runs inside a
+  sandbox; listed in `EXTRA_ROLE_NAMES` it would edit live code with no
+  sandbox, gate or rollback. It and `toyota_mechanic/` are the guard's
+  `PROTECTED` folders — see `toyota_mechanic/README.md`.
 
 ## Style
 

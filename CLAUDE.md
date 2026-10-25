@@ -57,6 +57,12 @@ The top-level areas are:
   its total disagreed with the Year Comparison tab beside it). Generated
   sheets land in `adws/adw_data/spreadsheets/`, which is gitignored --
   regenerable, and somebody's real medical and payroll rows.
+  `adw_toyota_mechanic.py` (with its guard, `adw_toyota_mechanic_guard.py`)
+  is Toyota's self-repair workflow, moved here from `rol_finances` on
+  2026-10-24: it edits a sandbox copy of `lancedb_memory/`'s packages and
+  applies only if every suite stays green. Its runs land in the gitignored
+  `adws/adw_data/mechanic/`; see
+  `lancedb_memory/receptionist_team/agents/toyota_mechanic/README.md`.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

@@ -1,0 +1,9 @@
+{
+  "description": "the coding agent behind toyota_mechanic: edits a sandbox copy of Toyota's source, test-first",
+  "model": "claude-sonnet-5",
+  "max_turns": 60,
+  "allowed_tools": [ "Read", "Edit", "Write", "Bash", "Grep", "Glob" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/mechanic",
+  "notes": "NOT routable: it is deliberately absent from extra_roles.py's EXTRA_ROLE_NAMES, because run outside adws/adw_toyota_mechanic.py it would edit live code with no sandbox, gate or rollback. Only that workflow runs it (--coder), and it replaces output_path with the run's own sandbox. Its {{task}} is the task.md the workflow writes per run. model is pinned here rather than inherited from Toyota's --role-model, as it always was (formerly a literal in finance_team/mechanic_runner.py)."
+}
