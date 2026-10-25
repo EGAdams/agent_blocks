@@ -55,9 +55,10 @@ WHAT A ROW IS
 
 `expense_role <> 'LINE_ITEM'` throughout, matching the live-finance questions:
 a PARENT expense and its LINE_ITEMs would otherwise both be counted and the
-total would be double what was actually spent. `--include-children` widens the
-*category* selection (a parent category and everything filed beneath it), not
-the expense roll-up -- two different trees that are easy to confuse.
+total would be double what was actually spent. `--include-children` (on by
+default; `--no-include-children` turns it off) widens the *category* selection
+(a parent category and everything filed beneath it), not the expense roll-up --
+two different trees that are easy to confuse.
 
 WHAT ELSE IS ON THE SHEET
 
@@ -101,7 +102,7 @@ saying so.
 Usage:
     uv run adws/adw_interface_category_spreadsheet.py "<why this is being run>" \\
         --category "Church Electric Bill" [--category-id 123] \\
-        [--include-children] [--year 2025] [--org-type NONPROFIT] \\
+        [--no-include-children] [--year 2025] [--org-type NONPROFIT] \\
         [--format xlsx|csv] [--out /path/to/file.xlsx] \\
         [--list-categories] [--message-out /tmp/line.txt] \\
         [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
@@ -1388,8 +1389,9 @@ class ArgparseCategorySpreadsheetArgumentParser( LifecycleLogged, IArgumentParse
                              help="the category name, exact or a unique fragment" )
         parser.add_argument( "--category-id", type=int, default=None,
                              help="the category's id, when the name is ambiguous" )
-        parser.add_argument( "--include-children", action="store_true",
-                             help="roll sub-categories of the matched category into the same sheet" )
+        parser.add_argument( "--include-children", action=argparse.BooleanOptionalAction, default=True,
+                             help="roll sub-categories of the matched category into the same sheet "
+                                  "(default on; --no-include-children counts the category's own rows only)" )
         parser.add_argument( "--org-type", default="NONPROFIT",
                              help="whose books: the organizations.type to scope to" )
         parser.add_argument( "--year", type=int, default=None,

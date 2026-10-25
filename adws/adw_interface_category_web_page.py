@@ -342,6 +342,12 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
 })();
 """
 
+    # The page's own words, as attributes so a page built on these rows for
+    # another purpose (the duplicate check) can say what *it* is.
+    _KEY_WORDS  = "with a status -- hover a yellow row to see it."
+    _EMPTY_TEXT = "No expenses are filed in this category for {when}."
+    _MADE_BY    = "Read-only from the live books. Generated {generated} by\nadw_interface_category_web_page.py, run {adw_id}."
+
     def __init__( self, logger: ILifecycleLog ):
         LifecycleLogged.__init__( self, logger )
 
@@ -390,7 +396,7 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
                                              for c in columns ) + "</tr>"
             for row in rows )
         key = ( f'<p class="sub"><span class="flag-key"></span> { flagged } '
-                f'row{ "" if flagged == 1 else "s" } with a status -- hover a yellow row to see it.</p>'
+                f'row{ "" if flagged == 1 else "s" } { html.escape( self._KEY_WORDS )}</p>'
                 if flagged else "" )
 
         if rows:
@@ -406,9 +412,11 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
             # A header with no rows is an answer ("nothing is filed here"); a
             # page with no table at all would look like the query never ran.
             table = ( f'<div class="wrap"><table><thead><tr>{ head }</tr></thead></table>'
-                      f'<div class="empty">No expenses are filed in this category for { html.escape( when )}.</div></div>' )
+                      f'<div class="empty">{ html.escape( self._EMPTY_TEXT.format( when=when ))}</div></div>' )
 
         generated = datetime.now().strftime( "%Y-%m-%d %H:%M" )
+        ids       = ( "Category ids: " + html.escape( ", ".join( str( i ) for i in plan.category.ids )) + "."
+                      if plan.category.ids else "" )
         page = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -428,9 +436,8 @@ footer { color: var( --muted ); font-size: .8rem; margin-top: 16px; }
 { key }
 { table }
 <div id="tip" class="tip" role="tooltip" hidden></div>
-<footer>Read-only from the live books. Generated { generated } by
-adw_interface_category_web_page.py, run { html.escape( plan.adw_id )}.
-Category ids: { html.escape( ", ".join( str( i ) for i in plan.category.ids ))}.</footer>
+<footer>{ html.escape( self._MADE_BY.format( generated=generated, adw_id=plan.adw_id ))}
+{ ids }</footer>
 </main>
 <script>{ self._SCRIPT }</script>
 </body>
