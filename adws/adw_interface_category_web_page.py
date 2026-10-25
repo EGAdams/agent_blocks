@@ -38,6 +38,19 @@ URL is only made a link when it is http(s). Descriptions in these books are
 typed by people and pasted from bank exports; a page that rendered one as
 markup would be showing something other than the record.
 
+THE ADW GENERATED LIST
+
+Every page is also linked from `index.html` in the directory it was written
+to -- by default `adw_data/web_pages/`, which the dashboard serves as
+ROL Finance -> Reports -> ADW Generated. The newest link goes on top and the
+older ones move down. The list is rebuilt from `index.json` beside it rather
+than by editing the old HTML, so a hand-edited or half-written index can
+never lose a link.
+
+A page's default name carries the moment it was written --
+`<category>_<Month>_<day>_hh_mm_ss.html` -- so a second run never
+overwrites the first and every link stays pointing at what it said.
+
 Usage:
     uv run adws/adw_interface_category_web_page.py "<why this is being run>" \\
         --category "Gifts and Love Offerings" --year 2025 \\
@@ -46,7 +59,7 @@ Usage:
         [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 
 Phases: engineer(request) -> code(connect) -> code(resolve_category)
-        -> code(query) -> code(render) -> code(report)
+        -> code(query) -> code(render) -> code(publish) -> code(report)
 """
 
 from __future__ import annotations
@@ -54,6 +67,7 @@ from __future__ import annotations
 import argparse
 import html
 import importlib.util
+import json
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -140,6 +154,8 @@ _safe_name            = _sheet_module._safe_name
 _cell                 = _sheet_module._cell
 
 DEFAULT_OUT_DIR = _HERE / "adw_data" / "web_pages"
+INDEX_PAGE      = "index.html"
+INDEX_MANIFEST  = "index.json"
 
 
 # -- Values (not behavior) ---------------------------------------------------
@@ -177,12 +193,26 @@ class PagePlan:
     path:     Path
 
 
+@dataclass( frozen=True )
+class PageLink:
+    """One entry on the ADW Generated list. `file` is relative to the list."""
+    file:      str
+    summary:   str
+    generated: str
+
+
 # -- Roles -------------------------------------------------------------------
 
 class IPageRenderer( Protocol ):
     """One page format. Returns the path it actually wrote."""
 
     def render( self, plan: PagePlan, rows: list[ dict[ str, Any ]] ) -> Path: ...
+
+
+class IPageIndex( Protocol ):
+    """The list of written pages. Puts `page` on top; returns the list's path."""
+
+    def publish( self, page: Path, summary: str ) -> Path: ...
 
 
 # -- Adapters ----------------------------------------------------------------
@@ -314,6 +344,94 @@ Category ids: { html.escape( ", ".join( str( i ) for i in plan.category.ids ))}.
         return plan.path
 
 
+class HtmlLinkIndex( LifecycleLogged ):
+    """`index.html` beside the pages, newest link first, rebuilt from `index.json`.
+
+    The manifest is the record and the HTML is only ever regenerated from it,
+    so the list never depends on parsing a page. Both are written to a temp
+    file and renamed into place: a dashboard reloading mid-write sees the old
+    list or the new one, never half of one.
+    """
+
+    _STYLE = """
+:root { --bg: #ffffff; --fg: #1d2330; --muted: #5d6676; --line: #dfe3ea; --accent: #2f5fa7; }
+@media ( prefers-color-scheme: dark ) {
+  :root { --bg: #14171d; --fg: #e4e8ef; --muted: #9aa3b2; --line: #2c323d; --accent: #8db4f0; }
+}
+body { margin: 0; padding: 24px 16px; background: var( --bg ); color: var( --fg );
+       font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 900px; margin: 0 auto; }
+h1 { font-size: 1.4rem; margin: 0 0 16px; }
+ol { list-style: none; margin: 0; padding: 0; border: 1px solid var( --line ); border-radius: 8px; }
+li { padding: 10px 14px; border-bottom: 1px solid var( --line ); }
+li:last-child { border-bottom: 0; }
+a { color: var( --accent ); font-weight: 600; word-break: break-all; }
+.meta { display: block; color: var( --muted ); font-size: .85rem; }
+.empty { color: var( --muted ); }
+"""
+
+    def __init__( self, logger: ILifecycleLog ):
+        LifecycleLogged.__init__( self, logger )
+
+    def _load( self, manifest: Path ) -> list[ PageLink ]:
+        """The links already listed. A missing or unreadable manifest is an
+        empty list, not a failure -- the page itself was still written."""
+        try:
+            entries = json.loads( manifest.read_text( encoding="utf-8" ))
+        except ( OSError, ValueError ):
+            return []
+        links: list[ PageLink ] = []
+        for e in entries if isinstance( entries, list ) else []:
+            if isinstance( e, dict ) and isinstance( e.get( "file" ), str ):
+                links.append( PageLink( file=e[ "file" ], summary=str( e.get( "summary", "" )),
+                                        generated=str( e.get( "generated", "" ))))
+        return links
+
+    def _write( self, path: Path, text: str ) -> None:
+        tmp = path.with_name( path.name + ".tmp" )
+        tmp.write_text( text, encoding="utf-8" )
+        tmp.replace( path )
+
+    def _html( self, links: list[ PageLink ]) -> str:
+        if links:
+            items = "\n".join(
+                f'<li><a href="{ html.escape( link.file, quote=True )}" target="_blank" rel="noopener">'
+                f"{ html.escape( link.file )}</a>"
+                f'<span class="meta">{ html.escape( link.summary )} &middot; { html.escape( link.generated )}</span></li>'
+                for link in links )
+            listing = f"<ol>\n{ items }\n</ol>"
+        else:
+            listing = '<p class="empty">No ADW-generated reports yet.</p>'
+        return f"""<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ADW Generated</title>
+<style>{ self._STYLE }</style>
+</head>
+<body>
+<main>
+<h1>ADW Generated</h1>
+{ listing }
+</main>
+</body>
+</html>
+"""
+
+    def publish( self, page: Path, summary: str ) -> Path:
+        folder   = page.parent
+        manifest = folder / INDEX_MANIFEST
+        link     = PageLink( file=page.name, summary=summary,
+                             generated=datetime.now().strftime( "%Y-%m-%d %H:%M:%S" ))
+        # A re-published name moves to the top instead of appearing twice.
+        links = [ link ] + [ old for old in self._load( manifest ) if old.file != page.name ]
+        self._write( manifest, json.dumps([ vars( l ) for l in links ], indent=2 ) + "\n" )
+        index = folder / INDEX_PAGE
+        self._write( index, self._html( links ))
+        return index
+
+
 # -- Phases ------------------------------------------------------------------
 
 class RequestCapturePhase( LifecycleLogged, IPhase ):
@@ -357,6 +475,32 @@ class RenderPagePhase( LifecycleLogged, IPhase ):
         handle.log( path=str( written ), rows=len( self._rows ),
                     bytes=written.stat().st_size if written.exists() else 0 )
         return written
+
+
+class PublishLinkPhase( LifecycleLogged, IPhase ):
+    """Puts the page that was just written at the top of the ADW Generated list."""
+
+    def __init__( self, index: IPageIndex, plan: PagePlan, rows: list[ dict[ str, Any ]],
+                  written: Path, logger: ILifecycleLog ):
+        LifecycleLogged.__init__( self, logger )
+        self._index   = index
+        self._plan    = plan
+        self._rows    = rows
+        self._written = written
+
+    @property
+    def params( self ) -> PhaseParams:
+        return PhaseParams( name="publish", kind="code", owner="books",
+                            description="Add a link to the new page at the top of the ADW Generated list, moving older links down" )
+
+    def act( self, handle: IPhaseHandle ) -> Path:
+        p       = self._plan
+        when    = str( p.year ) if p.year is not None else "all years"
+        summary = ( f"{ p.category.label } -- { when } -- { len( self._rows )} expenses, "
+                    f"{ _money( _total( self._rows ))}" )
+        index   = self._index.publish( self._written, summary )
+        handle.log( index=str( index ), link=self._written.name )
+        return index
 
 
 class ReportPhase( LifecycleLogged, IPhase ):
@@ -414,7 +558,7 @@ class ArgparseCategoryWebPageArgumentParser( LifecycleLogged, IArgumentParser ):
         parser.add_argument( "--year", type=int, default=None,
                              help="restrict to one calendar year" )
         parser.add_argument( "--out", dest="out_path", default="",
-                             help=f"where to write it; default { DEFAULT_OUT_DIR }/<category>[-<year>].html" )
+                             help=f"where to write it; default { DEFAULT_OUT_DIR }/<category>_<Month>_<day>_hh_mm_ss.html" )
         parser.add_argument( "--env-file", default=DEFAULT_ENV_FILE,
                              help="file defining NON_PROFIT_USER/PASSWORD/DB_NAME when not exported" )
         parser.add_argument( "--message-out", default="",
@@ -448,6 +592,7 @@ class CategoryWebPageApplication( LifecycleLogged, IApplication ):
                   resolver:        ICategoryResolver,
                   rows_source:     IExpenseRows,
                   renderer:        IPageRenderer,
+                  page_index:      IPageIndex,
                   logger:          ILifecycleLog ):
         LifecycleLogged.__init__( self, logger )
         self._argument_parser = argument_parser
@@ -458,6 +603,7 @@ class CategoryWebPageApplication( LifecycleLogged, IApplication ):
         self._resolver        = resolver
         self._rows_source     = rows_source
         self._renderer        = renderer
+        self._page_index      = page_index
 
     def _say( self, request: PageRequest, message: str ) -> None:
         """The caller may be a receptionist runner reading --message-out, so
@@ -496,6 +642,7 @@ class CategoryWebPageApplication( LifecycleLogged, IApplication ):
         rows    = self._phase_executor.execute( run, QueryPhase( self._rows_source, self._books, org, category, years, session_log )) # get rows
         plan    = self._plan( request, org, category, run.adw_id ) # where the page goes and what it shows
         written = self._phase_executor.execute( run, RenderPagePhase( self._renderer, plan, rows, session_log ))# An empty category is a true
+        self._phase_executor.execute( run, PublishLinkPhase( self._page_index, plan, rows, written, session_log ))
         message = self._phase_executor.execute( run, ReportPhase( plan, rows, written, session_log ))           # answer and is accepted as one:
         self._say( request, message )                                                                           # the page exists and says so. 
         return run.finish( accepted=written.exists(), reason=message )                                          # What is NOT accepted is 
@@ -508,15 +655,22 @@ class CategoryWebPageApplication( LifecycleLogged, IApplication ):
         """Where the page goes and what it shows.
 
         A `--out` without `.html` gets it appended rather than swapped, the
-        same rule the spreadsheet ADW applies to its extensions.
+        same rule the spreadsheet ADW applies to its extensions. The default
+        name is stamped to the second, and a clash within that second gets a
+        counter, so no run overwrites a page an older link points at.
         """
         if request.out_path:
             path = Path( request.out_path ).expanduser()
             if path.suffix.lower() not in ( ".html", ".htm" ):
                 path = path.with_name( path.name + ".html" )
         else:
-            year = f"-{ request.year }" if request.year is not None else ""
-            path = DEFAULT_OUT_DIR / f"{ _safe_name( category.label )}{ year }.html"
+            now  = datetime.now()
+            stem = f"{ _safe_name( category.label )}_{ now:%B}_{ now.day }_{ now:%H_%M_%S}"
+            path = DEFAULT_OUT_DIR / f"{ stem }.html"
+            n = 2
+            while path.exists():
+                path = DEFAULT_OUT_DIR / f"{ stem }_{ n }.html"
+                n += 1
         return PagePlan( org=org.name, category=category, year=request.year,
                          columns=self._rows_source.columns, adw_id=adw_id,
                          path=path.resolve())
@@ -554,6 +708,7 @@ def build_application( argv: list[ str ]) -> IApplication:
                               NamedCategoryGroups(      bootstrap_log )),
         rows_source     = CategoryExpenseRows(          bootstrap_log ),
         renderer        = HtmlTablePageRenderer(        bootstrap_log ),
+        page_index      = HtmlLinkIndex(                bootstrap_log ),
         logger          =                               bootstrap_log,            )
 
 
