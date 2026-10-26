@@ -2,10 +2,13 @@
 import asyncio
 import queue
 import threading
+from time import perf_counter
 from typing import Any, Iterator
 
 from agent_memory.config import Settings
 from agent_memory.errors import ModelUnavailable
+from agent_memory.adapters.turn_telemetry import turn_scope, record_timing
+from .adapters.reply_stream import PublicReplyRelay
 from .main import build_mazda_desk, build_receptionist, build_shared_memory
 from .profiles import TOYOTA, ReceptionistProfile
 from .service_models import MemoryComposeRequest, MemoryRecordRequest, TurnRecord, TurnRequest
@@ -49,6 +52,7 @@ class _TurnRunner:
         handoff_relay: _DelegationRelay | None = None,
         memory_desk=None,
         profile: ReceptionistProfile = TOYOTA,
+        reply_relay: PublicReplyRelay | None = None,
     ) -> None:
         self._agent = agent
         self._cost = cost
@@ -59,6 +63,7 @@ class _TurnRunner:
         self._handoff_relay = handoff_relay or _DelegationRelay()
         self._memory_desk = memory_desk
         self._profile = profile
+        self._reply_relay = reply_relay or PublicReplyRelay()
         self._loop = asyncio.new_event_loop()
         self._lock = asyncio.Lock()
         threading.Thread(
@@ -78,10 +83,11 @@ class _TurnRunner:
         relay = _DelegationRelay()
         work_relay = _DelegationRelay()
         handoff_relay = _DelegationRelay()
+        reply_relay = PublicReplyRelay()
         memory = build_shared_memory(settings)
         agent, cost = build_receptionist(
             profile, settings, role_model, on_delegation=relay, on_work=work_relay,
-            on_handoff=handoff_relay, memory=memory,
+            on_handoff=handoff_relay, memory=memory, on_reply_delta=reply_relay,
         )
         runner: list["_TurnRunner"] = []
         # Only Toyota hosts a guest's memory: the dashboard can still run Mazda
@@ -95,7 +101,7 @@ class _TurnRunner:
         )
         runner.append(cls(
             agent, cost, settings, role_model, relay, work_relay, handoff_relay, desk,
-            profile=profile,
+            profile=profile, reply_relay=reply_relay,
         ))
         return runner[0]
 
@@ -177,48 +183,37 @@ class _TurnRunner:
             yield item
 
     async def _turn(self, request: TurnRequest, outbox: queue.Queue) -> None:
-        """Run one turn, reporting everything through the outbox.
+        """Serialize a turn and record queue time separately from execution."""
+        with turn_scope(request.request_id):
+            queued = perf_counter()
+            async with self._lock:
+                record_timing('queue_wait', perf_counter() - queued)
+                started = perf_counter()
+                ok = await self._run_turn(request, outbox)
+                record_timing('turn', perf_counter() - started, 'ok' if ok else 'error')
 
-        Deliberately raises nothing: a failed turn is an error record, so the
-        caller has exactly one way to learn how the turn ended.
-        """
-        async with self._lock:
-            self._work_relay.bind(lambda work: outbox.put(TurnRecord(kind="work", work=work)))
-            self._handoff_relay.bind(
-                lambda handoff: outbox.put(TurnRecord(kind="handoff", handoff=handoff)))
-            self._relay.bind(
-                lambda sentence: outbox.put(
-                    TurnRecord(kind="acknowledgment", text=sentence)
-                )
-            )
-            try:
-                reply = await self._agent.handle_turn(request.text, request_id=request.request_id)
-                outbox.put(
-                    TurnRecord(kind="reply", text=reply.text, cost_usd=reply.cost_usd)
-                )
-                outbox.put(
-                    TurnRecord(
-                        kind="result",
-                        session=self._settings.session_id,
-                        cost_usd=round(self._cost.total_cost_usd, 6),
-                    )
-                )
-            except Exception as exc:
-                print(f"[{self._profile.name}-service] turn failed: "
-                      f"{type(exc).__name__}: {exc}")
-                # ModelUnavailable's message is already written for a person
-                # ("the daily Groq token allowance is used up, and it clears in
-                # about 23 minute(s)"), so the class name in front of it is
-                # just noise in the browser. The log above keeps it.
-                outbox.put(TurnRecord(
-                    kind="error",
-                    text=str(exc) if isinstance(exc, ModelUnavailable)
-                    else f"{type(exc).__name__}: {exc}",
-                ))
-            finally:
-                self._work_relay.unbind()
-                self._handoff_relay.unbind()
-                self._relay.unbind()
-                outbox.put(_DONE)
-
-
+    async def _run_turn(self, request: TurnRequest, outbox: queue.Queue) -> bool:
+        self._reply_relay.bind(lambda text: outbox.put(TurnRecord(kind='delta', text=text)))
+        self._work_relay.bind(lambda work: outbox.put(TurnRecord(kind="work", work=work)))
+        self._handoff_relay.bind(
+            lambda handoff: outbox.put(TurnRecord(kind="handoff", handoff=handoff)))
+        self._relay.bind(
+            lambda sentence: outbox.put(TurnRecord(kind="acknowledgment", text=sentence)))
+        try:
+            reply = await self._agent.handle_turn(request.text, request_id=request.request_id)
+            outbox.put(TurnRecord(kind="reply", text=reply.text, cost_usd=reply.cost_usd,
+                                  streamed=self._reply_relay.delivered))
+            outbox.put(TurnRecord(kind="result", session=self._settings.session_id,
+                                  cost_usd=round(self._cost.total_cost_usd, 6)))
+            return True
+        except Exception as exc:
+            print(f"[{self._profile.name}-service] turn failed: {type(exc).__name__}: {exc}", flush=True)
+            outbox.put(TurnRecord(kind="error", text=str(exc) if isinstance(exc, ModelUnavailable)
+                                 else f"{type(exc).__name__}: {exc}"))
+            return False
+        finally:
+            self._work_relay.unbind()
+            self._handoff_relay.unbind()
+            self._relay.unbind()
+            self._reply_relay.unbind()
+            outbox.put(_DONE)

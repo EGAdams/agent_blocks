@@ -153,14 +153,21 @@ exhausted model can be moved to the other one and keep working. That is not a
 fix, only a second bucket; both were spent in one day on 2026-10-23.
 
 **Neither limit ends the turn any more.** `main.py`'s `build_chat_model()`
-builds `FallbackModel( RetryingModel( groq ), [ RetryingModel( openai )])`
+builds `FallbackModel(groq, [openai])` with timing decorators
 (`agent_memory/adapters/decorators.py`,
-`agent_memory/adapters/openai_model.py`), so a spent daily budget falls
+`agent_memory/adapters/openai_model.py`), so every Groq 429, including a short
+per-minute limit, falls
 through to OpenAI's `gpt-5-mini` instead of reaching the user as a 429. The
 backup is built **only when a key is present** -- without one
-`build_chat_model` returns the bare retry-wrapped Groq model and the machine
+`build_chat_model` returns the timed Groq model and the machine
 behaves exactly as it did before, because no fallback has to mean a quieter
 day rather than a broken startup.
+
+Both SDK clients disable automatic retries. Groq's HTTP timeout is 8 seconds;
+OpenAI's is 20 seconds. There is no outer five-attempt retry loop in this
+composition. A supported-effort correction is attempted once only for an
+explicit reasoning_effort rejection, never for quota/auth/network failures.
+See `LATENCY.md` for streaming, prompt extraction, and timing diagnostics.
 
 The key goes in `receptionist_team/.env` as **`RECEPTIONIST_OPENAI_API_KEY`**,
 not `OPENAI_API_KEY`, and `openai_model.resolve_api_key()` checks that name

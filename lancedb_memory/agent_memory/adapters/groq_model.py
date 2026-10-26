@@ -12,11 +12,13 @@ Needs GROQ_API_KEY set (see receptionist_team/.env). Swap the model by passing
 import asyncio
 import os
 import re
+from collections.abc import Callable
 
 from openai import OpenAI
 
-from ..errors import ModelUnavailable
+from ..errors import ModelUnavailable, PartialResponseError
 from ..models import AgentReply
+from .chat_stream import complete_chat
 
 DEFAULT_MODEL = "openai/gpt-oss-120b"
 # Both gpt-oss sizes draw on one 8000-tokens-per-minute bucket, so the smaller
@@ -55,11 +57,6 @@ class GroqModelError( RuntimeError ):
 
 # Groq puts the wait in prose: "Please try again in 23m29.616s."
 _RETRY_AFTER_RE = re.compile( r"try again in (?:(\d+)m)?([\d.]+)s" )
-# How long a wait is still worth sitting through inside one turn. Past that,
-# the honest answer is to tell the user when it clears.
-WORTH_WAITING_SECONDS = 10.0
-
-
 def _retry_after_seconds( message: str ) -> float | None:
     found = _RETRY_AFTER_RE.search( message )
     if not found:
@@ -69,11 +66,7 @@ def _retry_after_seconds( message: str ) -> float | None:
 
 
 def _rate_limit_error( message: str ) -> ModelUnavailable | None:
-    """A 429 we should stop on, rather than retry into the same wall.
-
-    A per-minute limit can clear in a second or two, so that one still goes
-    through the retry loop. A daily token limit cannot, and the provider says
-    so -- we pass that sentence on instead of burning the backoff budget.
+    """Every 429 is a handoff signal, including short per-minute limits.
 
     The daily cap is 200000 tokens per model per day, counted separately for
     each model (the 8000-per-minute bucket is the shared one), in a rolling
@@ -85,8 +78,6 @@ def _rate_limit_error( message: str ) -> ModelUnavailable | None:
     if "rate_limit_exceeded" not in message and "429" not in message:
         return None
     wait = _retry_after_seconds( message )
-    if wait is not None and wait <= WORTH_WAITING_SECONDS:
-        return None
     daily = "per day" in message or "TPD" in message
     if daily:
         detail = "This model's daily Groq token budget is used up"
@@ -112,35 +103,33 @@ class GroqLanguageModel:
         self,
         model: str = DEFAULT_MODEL,
         system_prompt: str = DEFAULT_SYSTEM_PROMPT,
+        on_delta: Callable[[ str ], None] | None = None,
     ) -> None:
         self._client = OpenAI(
             api_key=os.environ.get( "GROQ_API_KEY" ),
             base_url="https://api.groq.com/openai/v1",
+            max_retries=0,
+            timeout=8.0,
         )
         self._model = model
         self._system_prompt = system_prompt
+        self._on_delta = on_delta
 
     async def complete( self, prompt: str ) -> AgentReply:
         try:
-            response = await asyncio.to_thread(
-                self._client.chat.completions.create,
-                model=self._model,
-                messages=[
+            return await asyncio.to_thread(
+                complete_chat, self._client, {
+                "model": self._model,
+                "messages": [
                     { "role": "system", "content": self._system_prompt },
                     { "role": "user", "content": prompt },
-                ],
+                ]}, self._on_delta,
             )
+        except PartialResponseError:
+            raise
         except Exception as oops:
-            stop = _rate_limit_error( str( oops ))
+            detail = f"429 { oops }" if getattr( oops, "status_code", None ) == 429 else str( oops )
+            stop = _rate_limit_error( detail )
             if stop is not None:
                 raise stop from oops
             raise GroqModelError( f"Groq API error: { oops }" ) from oops
-
-        choice = response.choices[ 0 ]
-        usage = response.usage
-
-        return AgentReply(
-            text=( choice.message.content or "" ).strip(),
-            input_tokens=usage.prompt_tokens if usage else None,
-            output_tokens=usage.completion_tokens if usage else None,
-        )

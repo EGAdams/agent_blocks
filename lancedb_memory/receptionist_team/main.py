@@ -44,7 +44,6 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
-from agent_memory.adapters.decorators import RetryingModel
 from agent_memory.adapters.embedding_profiles import build_embedder
 from agent_memory.adapters.decorators import FallbackModel
 from agent_memory.adapters.groq_model import GroqLanguageModel
@@ -64,7 +63,8 @@ from agent_memory.observers import (
     CostObserver,
     NexusArchiveObserver,
 )
-from agent_memory.ports import Embedder, LanguageModel
+from agent_memory.ports import Embedder, LanguageModel, MemoryStore
+from agent_memory.adapters.turn_telemetry import TimedEmbedder, TimedModel, TimedRecall, TimedStore
 from agent_memory.prompts import RecallOnlyComposer, TemplatePromptComposer
 from agent_memory.recall import (
     PeerSessionRecall,
@@ -76,6 +76,7 @@ from agent_memory.recall import (
 from .agents import catalog as agent_catalog
 from .adapters.handoff_model import AgentHandoffModel
 from .adapters.metrics import Stopwatch
+from .adapters.workflow_timing import TimedWorkflows
 from .adapters.routing_model import RoutingModel
 from .adapters.voice_io import AcknowledgmentSpeaker, DashboardVoiceIO, VoiceUnavailableError
 from .memory_desk import MemoryDesk
@@ -115,7 +116,7 @@ def _load_dotenv() -> None:
 MAZDA_SESSION = "mazda"
 
 
-def build_shared_memory(settings: Settings) -> tuple[Embedder, LanceDBMemoryStore]:
+def build_shared_memory(settings: Settings) -> tuple[Embedder, MemoryStore]:
     """One embedder and one LanceDB table, shared by Toyota and Mazda's desk."""
     embedder, profile_table_name = build_embedder(settings.embedding_profile)
     store = LanceDBMemoryStore(
@@ -123,12 +124,12 @@ def build_shared_memory(settings: Settings) -> tuple[Embedder, LanceDBMemoryStor
         table_name=settings.table_name or profile_table_name,
         dimensions=embedder.dimensions,
     )
-    return embedder, store
+    return TimedEmbedder(embedder), TimedStore(store)
 
 
 def build_mazda_desk(
     embedder: Embedder,
-    store: LanceDBMemoryStore,
+    store: MemoryStore,
     toyota_session: Callable[[], str],
 ) -> MemoryDesk:
     """Recall for Mazda's turns: her own recorded turns plus Toyota's current ones.
@@ -152,6 +153,7 @@ def build_chat_model(
     profile: ReceptionistProfile,
     settings: Settings,
     fallback_model: str | None,
+    on_reply_delta: Callable[[str], None] | None = None,
 ) -> LanguageModel:
     """Her conversational model, with a paid backup behind the free one.
 
@@ -171,9 +173,8 @@ def build_chat_model(
     already a LanguageModel and runs free on the local subscription, just ~8s
     a turn against Groq's ~2s because of the CLI subprocess spawn.
     """
-    groq = RetryingModel(
-        GroqLanguageModel(model=settings.model, system_prompt=profile.system_prompt)
-    )
+    groq = TimedModel(GroqLanguageModel(model=settings.model, system_prompt=profile.system_prompt,
+                                      on_delta=on_reply_delta), 'provider_groq')
     wanted = fallback_model or os.environ.get("OPENAI_FALLBACK_MODEL") or DEFAULT_FALLBACK_MODEL
     key = resolve_fallback_key()
     if not key:
@@ -189,7 +190,7 @@ def build_chat_model(
     try:
         # Handed over explicitly so nothing else in this process can reach it.
         backup = OpenAILanguageModel(
-            model=wanted, system_prompt=profile.system_prompt, api_key=key
+            model=wanted, system_prompt=profile.system_prompt, api_key=key, on_delta=on_reply_delta
         )
     except Exception as exc:
         # A key that is present but unusable must not take the receptionist
@@ -203,7 +204,7 @@ def build_chat_model(
         flush=True,
     )
     return FallbackModel(
-        groq, [RetryingModel(backup)], names=[f"Groq {settings.model}", f"OpenAI {wanted}"]
+        groq, [TimedModel(backup, 'provider_openai')], names=[f"Groq {settings.model}", f"OpenAI {wanted}"]
     )
 
 
@@ -214,8 +215,9 @@ def build_receptionist(
     on_delegation: Callable[[str], None] | None = None,
     on_work: Callable[[dict], None] | None = None,
     on_handoff: Callable[[dict], None] | None = None,
-    memory: tuple[Embedder, LanceDBMemoryStore] | None = None,
+    memory: tuple[Embedder, MemoryStore] | None = None,
     fallback_model: str | None = None,
+    on_reply_delta: Callable[[str], None] | None = None,
 ) -> tuple[RequestConversation, CostObserver]:
     """One engine, one profile. Toyota and Mazda differ only in the profile.
 
@@ -247,17 +249,17 @@ def build_receptionist(
 
     cost = CostObserver()
     # Her own conversational replies go to Groq, then to OpenAI if Groq's
-    # daily budget is spent -- see build_chat_model. RoutingModel still sees
+    # rate limit is reached -- see build_chat_model. RoutingModel still sees
     # the whole reply before deciding on a ROUTE directive, whichever backend
     # wrote it; a delegated role runs on whatever the profile's runner uses
     # (Claude, for Toyota's finance roles), since that needs real tool use
     # against the DB/receipts, not just chat.
-    inner_model = build_chat_model(profile, settings, fallback_model)
+    inner_model = build_chat_model(profile, settings, fallback_model, on_reply_delta)
     # on_delegation stays None for the REPL (RoutingModel just prints); the
     # sidecar passes a sink so the acknowledgment reaches the browser's
     # speaker while the delegated role is still running. See service.py.
     model = RoutingModel(
-        # Already retry-wrapped per backend inside build_chat_model.
+        # One bounded attempt per backend; any Groq limit immediately hands off.
         inner_model,
         model=role_model,
         roster=profile.roster,
@@ -271,7 +273,7 @@ def build_receptionist(
         # OPEN_AGENT: mazda -> the browser opens her window (handoff_model.py).
         model = AgentHandoffModel(model, on_handoff=on_handoff)
     if profile.operations:
-        model = WorkflowModel(model, DashboardWorkflows(os.getenv('TOYOTA_DASHBOARD_URL', 'http://127.0.0.1:8765')),
+        model = WorkflowModel(model, TimedWorkflows(DashboardWorkflows(os.getenv('TOYOTA_DASHBOARD_URL', 'http://127.0.0.1:8765'))),
                               context, InstalledPolicies({'tax_issues': TaxIssuesPolicy(), 'reports': ReportsPolicy()}),
                               CallbackWorkObserver(on_work))
 
@@ -279,7 +281,7 @@ def build_receptionist(
         session_id=settings.session_id,
         embedder=embedder,
         store=store,
-        recall=recall,
+        recall=TimedRecall(recall),
         # Her turn template is agents/<name>/user_prompt_template/user_prompt.md,
         # not prompt_template_path -- one folder per agent holds both halves of
         # her prompt. The file is byte-identical to
@@ -287,7 +289,7 @@ def build_receptionist(
         # agents/tests/test_agent_catalog.py), so this is the same prompt as
         # before, now stated where it can be edited without touching Python.
         composer=TemplatePromptComposer(agent_catalog().definition(profile.name).user_prompt().raw()),
-        model=model,
+        model=TimedModel(model, 'conversation_model'),
         clock=SystemClock(),
         observer=CompositeObserver([ConsoleObserver(), cost, NexusArchiveObserver(settings.nexus_dir)]),
     )
@@ -303,7 +305,7 @@ def build_toyota(
     on_delegation: Callable[[str], None] | None = None,
     on_work: Callable[[dict], None] | None = None,
     on_handoff: Callable[[dict], None] | None = None,
-    memory: tuple[Embedder, LanceDBMemoryStore] | None = None,
+    memory: tuple[Embedder, MemoryStore] | None = None,
     fallback_model: str | None = None,
 ) -> tuple[RequestConversation, CostObserver]:
     """Toyota, specifically. Kept as a named function because turn_runner.py

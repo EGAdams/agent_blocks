@@ -41,16 +41,16 @@ class _AlwaysRateLimited:
 async def test_a_daily_limit_says_when_it_clears_instead_of_retrying():
     stop = _rate_limit_error( _TPD )
     assert stop is not None
-    assert "daily Groq token allowance is used up" in str( stop )
+    assert "daily Groq token budget is used up" in str( stop )
     # 23m29s, so the user hears "about 23 minute(s)" rather than a bare failure.
     assert "23 minute" in str( stop )
     assert stop.retry_after is not None and 1400 < stop.retry_after < 1420
 
 
-async def test_a_wait_of_seconds_is_still_worth_retrying():
-    # A per-minute limit really does clear while we sleep; that one belongs in
-    # the retry loop, which is why this is a wait threshold and not "all 429s".
-    assert _rate_limit_error( _PER_MINUTE ) is None
+async def test_a_per_minute_limit_also_hands_off_without_sleeping():
+    stop = _rate_limit_error( _PER_MINUTE )
+    assert stop is not None
+    assert stop.retry_after == 3.2
 
 
 async def test_an_ordinary_failure_is_not_mistaken_for_a_limit():
