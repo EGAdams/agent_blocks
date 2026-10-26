@@ -19,7 +19,8 @@ WHAT IT LOOKS FOR
 * Warnings -- an expense with no category, one missing its amount or
   description, a date that cannot be right, a row whose description names
   one person and whose category another, and a bookkeeping status that is
-  still open (needs a vendor key, waiting for its payment). A catch-all
+  still open (waiting for its payment). A missing vendor key is not a
+  warning -- the expense is already categorized by now. A catch-all
   category such as "Other" is a fine place to file an expense and is not
   a warning.
 
@@ -406,9 +407,11 @@ class OpenStatusRule( LifecycleLogged ):
     """A bookkeeping status that means the row is not finished yet.
 
     COUNTERPART_DOCUMENT_LINKED is a finished state, so it is not a warning.
+    Neither is NEEDS_VENDOR_KEY: by the time an expense reaches this check it
+    is already categorized, and a missing vendor key no longer matters.
     """
 
-    _OPEN = frozenset({ "NEEDS_VENDOR_KEY", "WAITING_FOR_PAYMENT_COUNTERPART" })
+    _OPEN = frozenset({ "WAITING_FOR_PAYMENT_COUNTERPART" })
 
     def __init__( self, logger: ILifecycleLog ):
         LifecycleLogged.__init__( self, logger )
