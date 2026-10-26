@@ -740,6 +740,8 @@ class DuplicateRule( LifecycleLogged ):
                     break   # ordered by date, so nothing later can be nearer
                 if _amount( first ) != _amount( second ):
                     continue
+                if not self._may_be_one_payment( first, second ):
+                    continue
                 same_day = _on( first ) == _on( second )
                 shared   = _words( first.get( "description", "" )) & \
                            _words( second.get( "description", "" ))
@@ -750,6 +752,10 @@ class DuplicateRule( LifecycleLogged ):
         return [ _flag( r, self.kind,
                         f"Same amount near the same date as expense #{ partner[ int( r[ 'id' ])]}" )
                  for r in ordered if int( r[ "id" ]) in partner ]
+
+    def _may_be_one_payment( self, first: dict[ str, Any ], second: dict[ str, Any ] ) -> bool:
+        """Hook for a subclass that can rule a pair out. Here, every pair stays in."""
+        return True
 
 
 class OddDateRule( LifecycleLogged ):

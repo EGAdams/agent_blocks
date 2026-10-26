@@ -14,7 +14,8 @@ a concrete class.
 WHAT IT LOOKS FOR
 
 * Possible duplicates -- the same amount near the same date (the spreadsheet
-  ADW's `DuplicateRule`, imported, not copied).
+  ADW's `DuplicateRule`, imported, not copied), except two checks with
+  different check numbers, which are two checks and never flagged.
 * Warnings -- an expense with no category or a catch-all one ("Other"), one
   missing its amount or description, a date that cannot be right, a row whose
   description names one person and whose category another, and a bookkeeping
@@ -399,6 +400,24 @@ class MissingValueRule( LifecycleLogged ):
         return found
 
 
+class DistinctCheckNumberDuplicateRule( DuplicateRule ):
+    """The spreadsheet ADW's duplicate rule, less pairs with different check numbers.
+
+    Two checks with two numbers are two pieces of paper, so the pair is not
+    a possible duplicate at all -- it is dropped, not explained away in the
+    pop-up. A pair where either description has no check number stays in.
+    """
+
+    def _may_be_one_payment( self, first: dict[ str, Any ], second: dict[ str, Any ] ) -> bool:
+        mine   = self._check_number( first.get( "description" ))
+        theirs = self._check_number( second.get( "description" ))
+        return not ( mine and theirs and mine != theirs )
+
+    def _check_number( self, text: Any ) -> str:
+        found = re.search( r"\bcheck\s*#?\s*(\d+)", str( text or "" ), re.IGNORECASE )
+        return found.group( 1 ) if found else ""
+
+
 class OpenStatusRule( LifecycleLogged ):
     """A bookkeeping status that means the row is not finished yet.
 
@@ -449,29 +468,19 @@ class PlainWordsExplainer( LifecycleLogged ):
     def __init__( self, logger: ILifecycleLog ):
         LifecycleLogged.__init__( self, logger )
 
-    def _partner( self, detail: str, this: dict[ str, Any ],
+    def _partner( self, detail: str,
                   rows_by_id: dict[ int, dict[ str, Any ]] ) -> str:
         found = re.search( r"#(\d+)", detail )
         other = rows_by_id.get( int( found.group( 1 ))) if found else None
         if other is None:
             return detail
-        said = ( f"{ detail }: { other.get( 'date' )}, { _money( other.get( 'amount' ))}, "
+        return ( f"{ detail }: { other.get( 'date' )}, { _money( other.get( 'amount' ))}, "
                  f"\"{ other.get( 'description' ) or '(no description)' }\"" )
-        mine   = self._check_number( this.get( "description" ))
-        theirs = self._check_number( other.get( "description" ))
-        if mine and theirs and mine != theirs:
-            said += f" -- but the check numbers differ ({ mine } and { theirs }), so these may be two real checks"
-        return said
-
-    def _check_number( self, text: Any ) -> str:
-        found = re.search( r"\bcheck\s*#?\s*(\d+)", str( text or "" ), re.IGNORECASE )
-        return found.group( 1 ) if found else ""
 
     def explain( self, flags: Sequence[ Flag ], rows_by_id: dict[ int, dict[ str, Any ]] ) -> str:
         lines: list[ str ] = []
         for flag in flags:
-            this   = rows_by_id.get( flag.expense_id, {})
-            detail = ( self._partner( flag.detail, this, rows_by_id )
+            detail = ( self._partner( flag.detail, rows_by_id )
                        if flag.kind == "Possible duplicate" else flag.detail )
             lines.append( f"{ flag.kind }: { detail }. { self._WHY.get( flag.kind, '' )}".strip())
         return "\n".join( lines )
@@ -766,7 +775,7 @@ def build_application( argv: list[ str ]) -> IApplication:
         phase_executor  = ManualContextPhaseExecutor(   bootstrap_log ),
         locator         = ManifestReportLocator(        DEFAULT_OUT_DIR, bootstrap_log ),
         reader          = HtmlReportReader(             bootstrap_log ),
-        finder          = CompositeFlagFinder([ DuplicateRule(        bootstrap_log ),
+        finder          = CompositeFlagFinder([ DistinctCheckNumberDuplicateRule( bootstrap_log ),
                                                 MissingValueRule(     bootstrap_log ),
                                                 UncategorizedRule(    bootstrap_log ),
                                                 CatchAllCategoryRule( bootstrap_log ),
