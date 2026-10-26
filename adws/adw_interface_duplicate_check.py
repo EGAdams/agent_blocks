@@ -16,10 +16,12 @@ WHAT IT LOOKS FOR
 * Possible duplicates -- the same amount near the same date (the spreadsheet
   ADW's `DuplicateRule`, imported, not copied), except two checks with
   different check numbers, which are two checks and never flagged.
-* Warnings -- an expense with no category or a catch-all one ("Other"), one
-  missing its amount or description, a date that cannot be right, a row whose
-  description names one person and whose category another, and a bookkeeping
-  status that is still open (needs a vendor key, waiting for its payment).
+* Warnings -- an expense with no category, one missing its amount or
+  description, a date that cannot be right, a row whose description names
+  one person and whose category another, and a bookkeeping status that is
+  still open (needs a vendor key, waiting for its payment). A catch-all
+  category such as "Other" is a fine place to file an expense and is not
+  a warning.
 
 Every row on the page is yellow, and hovering it pops up why that expense may
 be a problem; the pop-up closes when the pointer leaves the row. "May" is the
@@ -354,24 +356,6 @@ class UncategorizedRule( LifecycleLogged ):
                  if str( row.get( "category" ) or "" ).strip().casefold() in ( "", "(uncategorized)", "uncategorized" )]
 
 
-class CatchAllCategoryRule( LifecycleLogged ):
-    """A category whose name says only that it is none of the others."""
-
-    _NAMES = frozenset({ "other", "misc", "miscellaneous", "general" })
-
-    def __init__( self, logger: ILifecycleLog ):
-        LifecycleLogged.__init__( self, logger )
-
-    @property
-    def kind( self ) -> str:
-        return "Vague category"
-
-    def check( self, rows: list[ dict[ str, Any ]] ) -> list[ Flag ]:
-        return [ _flag( row, self.kind, f"Filed under \"{ row.get( 'category' )}\"" )
-                 for row in rows
-                 if str( row.get( "category" ) or "" ).strip().casefold() in self._NAMES ]
-
-
 class MissingValueRule( LifecycleLogged ):
     """An amount that is missing or zero, or a blank description.
 
@@ -457,8 +441,6 @@ class PlainWordsExplainer( LifecycleLogged ):
             "Nobody has been named as owning this expense yet.",
         "Uncategorized":
             "An uncategorized expense is left out of every category total, so the tax forms will not account for it.",
-        "Vague category":
-            "A catch-all category does not say who received the money, which a giving record or tax form needs.",
         "Missing value":
             "A row missing its amount or description cannot be matched to a bank statement or receipt.",
         "Open status":
@@ -778,7 +760,6 @@ def build_application( argv: list[ str ]) -> IApplication:
         finder          = CompositeFlagFinder([ DistinctCheckNumberDuplicateRule( bootstrap_log ),
                                                 MissingValueRule(     bootstrap_log ),
                                                 UncategorizedRule(    bootstrap_log ),
-                                                CatchAllCategoryRule( bootstrap_log ),
                                                 OddDateRule(          bootstrap_log, date.today()),
                                                 MislabelRule(         bootstrap_log, InitialsPersonReader( bootstrap_log )),
                                                 UnassignedRule(       bootstrap_log ),
