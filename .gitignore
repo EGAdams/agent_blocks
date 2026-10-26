@@ -41,3 +41,16 @@ adws/adw_data/web_pages/
 # copies of her source (sandbox + pristine), backups and the lock. rol_finances
 # committed these by accident when the workflow lived there.
 adws/adw_data/mechanic/
+
+# LanceDB table data: manifests, transactions and .lance data files are
+# rewritten every conversation and are not reviewable in a diff.
+lancedb_memory/lance_data/**/_transactions/
+lancedb_memory/lance_data/**/_versions/
+lancedb_memory/lance_data/**/data/
+
+# The write-only per-turn archive behind NexusArchiveObserver.
+lancedb_memory/nexus/
+
+# Diagnostic probe output from latency/timing investigations -- regenerated
+# on demand, not reviewable in a diff.
+lancedb_memory/receptionist_team/workspace/diagnostics/
