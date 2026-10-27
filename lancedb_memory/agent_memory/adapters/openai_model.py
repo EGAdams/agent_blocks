@@ -22,11 +22,13 @@ machine -- the embedder cannot see a variable it does not read.
 import asyncio
 import os
 import re
+from collections.abc import Callable
 
 from openai import OpenAI
 
-from ..errors import ModelUnavailable
+from ..errors import ModelUnavailable, PartialResponseError
 from ..models import AgentReply
+from .chat_stream import complete_chat
 
 DEFAULT_MODEL = "gpt-5-mini"
 # gpt-5-mini and not gpt-5.4-mini: three times cheaper ($0.25/$2.00 against
@@ -137,6 +139,7 @@ class OpenAILanguageModel:
         system_prompt: str = "",
         reasoning_effort: str | None = DEFAULT_REASONING_EFFORT,
         api_key: str | None = None,
+        on_delta: Callable[[ str ], None] | None = None,
     ) -> None:
         key = api_key or resolve_api_key()
         if not key:
@@ -148,10 +151,11 @@ class OpenAILanguageModel:
                 "OpenAILanguageModel has nothing to talk to."
             )
         # Explicit, not ambient. See the module docstring.
-        self._client = OpenAI( api_key=key )
+        self._client = OpenAI( api_key=key, max_retries=0, timeout=20.0 )
         self._model = model
         self._system_prompt = system_prompt
         self._reasoning_effort = reasoning_effort
+        self._on_delta = on_delta
 
     async def complete( self, prompt: str ) -> AgentReply:
         request = {
@@ -168,6 +172,8 @@ class OpenAILanguageModel:
 
         try:
             response = await self._create( request )
+        except PartialResponseError:
+            raise
         except Exception as oops:
             retried = await self._retry_without_refused_effort( request, str( oops ))
             if retried is not None:
@@ -178,18 +184,11 @@ class OpenAILanguageModel:
                     raise stop from oops
                 raise OpenAIModelError( f"OpenAI API error: { oops }" ) from oops
 
-        choice = response.choices[ 0 ]
-        usage = response.usage
-
-        return AgentReply(
-            text=( choice.message.content or "" ).strip(),
-            input_tokens=usage.prompt_tokens if usage else None,
-            output_tokens=usage.completion_tokens if usage else None,
-        )
+        return response
 
     async def _create( self, request: dict ):
         return await asyncio.to_thread(
-            self._client.chat.completions.create, **request
+            complete_chat, self._client, request, self._on_delta
         )
 
     async def _retry_without_refused_effort( self, request: dict, message: str ):
@@ -202,6 +201,8 @@ class OpenAILanguageModel:
         """
         if "reasoning_effort" not in request:
             return None
+        if "reasoning_effort" not in message or "support" not in message.lower():
+            return None  # Quota/auth/network failures cannot be repaired by changing effort.
         better = _cheapest_supported_effort( message )
         if better == request.get( "reasoning_effort" ):
             return None
@@ -222,5 +223,10 @@ class OpenAILanguageModel:
         )
         try:
             return await self._create( request )
-        except Exception:
-            return None
+        except PartialResponseError:
+            raise
+        except Exception as error:
+            stop = _refusal( str( error ))
+            if stop is not None:
+                raise stop from error
+            raise OpenAIModelError( f"OpenAI API error: { error }" ) from error

@@ -43,16 +43,21 @@ class TurnRecord(BaseModel):
 
     kind=acknowledgment  spoken immediately, before a slow delegation starts
     kind=reply           Toyota's answer
+    kind=delta           incremental public text; controls remain private
     kind=result          terminal; no more records for this turn
     kind=error           terminal; the turn failed and said why
     kind=work            an installed workflow operation for the browser
     kind=handoff         open another agent's window (see adapters/handoff_model.py)
+
+    A reply with streamed=True is the complete persisted snapshot. Consumers
+    that displayed delta records must not append that snapshot a second time.
     """
 
     model_config = ConfigDict(extra="forbid")
 
-    kind: Literal["acknowledgment", "reply", "result", "error", "work", "handoff"]
+    kind: Literal["acknowledgment", "delta", "reply", "result", "error", "work", "handoff"]
     text: str = ""
+    streamed: bool = False
     cost_usd: float | None = None
     session: str | None = None
     work: dict | None = None

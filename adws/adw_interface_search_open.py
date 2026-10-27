@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
+# requires-python = ">=3.12"
 # dependencies = ["pydantic", "python-dotenv", "pyyaml", "rich", "selenium"]
 # ///
 """ADW Interface Search Open -- search the web headlessly, find the result link
