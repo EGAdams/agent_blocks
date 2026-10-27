@@ -729,13 +729,13 @@ class DuplicateRule( LifecycleLogged ):
     def kind( self ) -> str:
         return "Possible duplicate"
 
-    def check( self, rows: list[ dict[ str, Any ]] ) -> list[ Flag ]:
-        ordered = sorted(( r for r in rows if _on( r ) is not None ),
-                         key=lambda r: ( _on( r ), int( r.get( "id" ) or 0 )))
+    def check( self, rows: list[ dict[ str, Any ]] ) -> list[ Flag ]:               # This is the main
+        ordered = sorted(( r for r in rows if _on( r ) is not None ),               # engine of the whole 
+                         key=lambda r: ( _on( r ), int( r.get( "id" ) or 0 )))      # Duplicate System.
         partner: dict[ int, int ] = {}
         for index, first in enumerate( ordered ):
             for second in ordered[ index + 1 : ]:
-                if ( _on( second ) - _on( first )).days > DUPLICATE_WINDOW_DAYS:
+                if ( _on( second ) - _on( first )).days > DUPLICATE_WINDOW_DAYS:    # 3 days
                     break   # ordered by date, so nothing later can be nearer
                 if _amount( first ) != _amount( second ):
                     continue
