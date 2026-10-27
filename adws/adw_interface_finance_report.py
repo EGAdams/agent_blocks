@@ -34,7 +34,7 @@ PUBLISHING
 The finished page is copied into `adw_data/web_pages/` as
 `ROL_2025_Finance_Report_<Month>_<day>_<HH_MM_SS>.html` -- stamped to the
 second so an older link never changes under somebody -- and listed with its
-received / spent / left over figures, through the category page ADW's own
+available-to-spend / spent / cash figures, through the category page ADW's own
 `HtmlLinkIndex` and `DashboardHostLinkIndex`, imported by file location.
 
 Note that steps 1 and 3 rewrite tracked files in `rol_finances`
@@ -169,7 +169,7 @@ class ReportFigures:
     """The headline numbers the page's summary strip shows."""
     received: str
     spent:    str
-    left:     str
+    available: str
     cash:     str
 
 
@@ -243,8 +243,8 @@ class LibreOfficeRecalcStep( LifecycleLogged ):
             raise RuntimeError( f"{ workbook } is not there." )
         if shutil.which( self._soffice ) is None:
             raise RuntimeError( f"LibreOffice ({ self._soffice }) is not installed here." )
-        with tempfile.TemporaryDirectory( prefix="adw_finance_report_" ) as scratch:
-            folder  = Path( scratch )
+        folder = Path( tempfile.mkdtemp( prefix="adw_finance_report_" ))
+        try:
             profile = ( folder / "profile" ).as_uri()
             try:
                 done = subprocess.run(
@@ -258,6 +258,8 @@ class LibreOfficeRecalcStep( LifecycleLogged ):
                 said = ( done.stderr.strip() or done.stdout.strip() or f"exit status { done.returncode }" )
                 raise RuntimeError( f"LibreOffice did not recalculate the workbook: { said }" )
             shutil.move( str( converted ), str( self._repo / VIEW ))
+        finally:
+            shutil.rmtree( folder, ignore_errors=True )
         return StepResult( output=str( self._repo / VIEW ))
 
 
@@ -279,7 +281,7 @@ class SummaryStripFigureReader( LifecycleLogged ):
             return html.unescape( found.group( 1 )).strip() if found else "?"
 
         return ReportFigures( received=tile( "Received" ), spent=tile( "Spent" ),
-                              left=tile( "Left over" ), cash=tile( "Cash 12/31/25" ))
+                              available=tile( "Available to spend" ), cash=tile( "Cash 12/31/25" ))
 
 
 # -- Phases ------------------------------------------------------------------
@@ -367,7 +369,7 @@ class PublishReportPhase( LifecycleLogged, IPhase ):
     def act( self, handle: IPhaseHandle ) -> PublishedLink:
         f         = self._figures
         summary   = ( f"ROL 2025 Finance Report -- rebuilt from the expenses database -- "
-                      f"received { f.received }, spent { f.spent }, left over { f.left }, cash 12/31/25 { f.cash }" )
+                      f"available to spend { f.available }, spent { f.spent }, cash 12/31/25 { f.cash }" )
         published = self._index.publish( self._page, summary )
         handle.log( index=str( published.index ), link=self._page.name,
                     dashboard=published.note or "(local list is the dashboard's)" )
@@ -390,8 +392,8 @@ class FinanceReportPhase( LifecycleLogged, IPhase ):
 
     def act( self, handle: IPhaseHandle ) -> str:
         f       = self._figures
-        message = ( f"ROL 2025 Finance Report rebuilt: received { f.received }, spent { f.spent }, "
-                    f"left over { f.left }, cash on hand 12/31/25 { f.cash }. Page: { self._page }." )
+        message = ( f"ROL 2025 Finance Report rebuilt: received { f.received }, available to spend { f.available }, "
+                    f"spent { f.spent }, cash on hand 12/31/25 { f.cash }. Page: { self._page }." )
         if self._published.note:
             message = f"{ message } { self._published.note }"
         handle.log( message=message )
