@@ -88,9 +88,21 @@ its `test_*` function from a REPL.
 .venv/bin/python -m receptionist_team.tests.test_figure_route
 .venv/bin/python -m receptionist_team.tests.test_live_finance_adw
 .venv/bin/python -m receptionist_team.tests.test_live_finance_runner
+.venv/bin/python -m receptionist_team.tests.test_post_office_runner
 
 .venv/bin/python -m receptionist_team.agents.tests.test_agent_catalog
+
+.venv/bin/python -m agent_comms.tests.test_post_office   # the post office; no model, no network
+.venv/bin/python -m agent_comms.tests.test_operations    # every operation has its adws/adw_op_*.py
 ```
+
+`agent_comms/` is the post office every agent's work goes through -- Toyota,
+Sydney, Sonnet, Opus and the mechanic. Read `agent_comms/README.md` first.
+Its rules: `factory.py` is the only module naming concretes; agents are
+cards in `agents.json`, not code; operations are one responsibility each and
+each one is also an ADW (`adws/adw_op_<name>.py`, via `adws/post_office_adw.py`).
+Runtime data lands in the gitignored `adws/adw_data/post_office/`
+(`AGENT_POST_OFFICE_ROOT` overrides it -- use that for scratch runs).
 
 `tests/*.py` self-bootstrap via `sys.path.insert(...parent)`, so they also work
 when invoked by path. `tests/runner.py` is a ~30-line async harness that

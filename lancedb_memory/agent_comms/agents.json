@@ -1,0 +1,94 @@
+{
+  "_comment": "The post office's registry. One entry per agent; adding an agent is one entry here (and an executor factory if its runtime is new). Names may not contain underscores: they separate filename fields, as in Swarm-Forge. See README.md.",
+  "repositories": {
+    "letta-code dashboard": "/home/adamsl/letta-code/dashboard",
+    "the dashboard": "/home/adamsl/letta-code/dashboard",
+    "letta-code": "/home/adamsl/letta-code",
+    "agent blocks": "/home/adamsl/agent_blocks",
+    "agent_blocks": "/home/adamsl/agent_blocks",
+    "rol_finances": "/home/adamsl/rol_finances",
+    "rol finances": "/home/adamsl/rol_finances",
+    "swarm-forge": "/home/adamsl/swarm-forge",
+    "swarmforge": "/home/adamsl/swarm-forge"
+  },
+  "agents": [
+    {
+      "name": "toyota",
+      "display_name": "Toyota",
+      "runtime": "sidecar",
+      "settings": { "url": "http://127.0.0.1:8767", "aliases": [ "front desk", "front-desk receptionist", "the receptionist" ] },
+      "capabilities": [
+        { "task_type": "ask",     "description": "a question about the books, answered from the live finance records", "default_wait_seconds": 180 },
+        { "task_type": "message", "description": "a message to the finance front desk", "default_wait_seconds": 180 }
+      ]
+    },
+    {
+      "name": "sydney",
+      "display_name": "Sydney",
+      "runtime": "sidecar",
+      "settings": { "url": "http://127.0.0.1:8769", "aliases": [ "the builder", "second receptionist" ] },
+      "capabilities": [
+        { "task_type": "ask",     "description": "a question about the code, agents or workflows", "default_wait_seconds": 180 },
+        { "task_type": "message", "description": "a message to the build desk", "default_wait_seconds": 180 }
+      ]
+    },
+    {
+      "name": "sonnet",
+      "display_name": "Sonnet",
+      "runtime": "claude_sdk",
+      "settings": { "model": "claude-sonnet-5", "tools": [ "Bash", "Read", "Write", "Edit", "Glob", "Grep" ],
+                    "workdir": "/home/adamsl/agent_blocks", "max_turns": 80, "aliases": [ "the sonnet guy", "sonet" ] },
+      "capabilities": [
+        { "task_type": "build",   "description": "implement a change in a repository and run its tests", "writes": true, "idempotent": false,
+          "synonyms": [ "implement", "code", "fix" ] },
+        { "task_type": "plan",    "description": "read the code and write a plan; changes no source", "synonyms": [ "design" ] },
+        { "task_type": "review",  "description": "review code and run its tests; changes no source" },
+        { "task_type": "ask",     "description": "answer a question from the code and history", "default_wait_seconds": 300 },
+        { "task_type": "message", "description": "respond to a message", "default_wait_seconds": 300 }
+      ]
+    },
+    {
+      "name": "opus",
+      "display_name": "Opus",
+      "runtime": "claude_sdk",
+      "settings": { "model": "claude-opus-5-5", "tools": [ "Bash", "Read", "Write", "Edit", "Glob", "Grep" ],
+                    "workdir": "/home/adamsl/agent_blocks", "max_turns": 120, "aliases": [ "the boss model" ] },
+      "capabilities": [
+        { "task_type": "build",   "description": "implement a change in a repository and run its tests", "writes": true, "idempotent": false,
+          "synonyms": [ "implement", "code", "fix" ] },
+        { "task_type": "plan",    "description": "read the code and write a plan; changes no source", "synonyms": [ "design" ] },
+        { "task_type": "review",  "description": "review code and run its tests; changes no source" },
+        { "task_type": "ask",     "description": "answer a hard question from the code and history", "default_wait_seconds": 600 },
+        { "task_type": "message", "description": "respond to a message", "default_wait_seconds": 300 }
+      ]
+    },
+    {
+      "name": "mechanic",
+      "display_name": "the mechanic",
+      "runtime": "mechanic",
+      "settings": { "aliases": [ "agent mechanic", "toyota mechanic", "toyota's mechanic", "mechanic" ] },
+      "capabilities": [
+        { "task_type": "diagnose", "description": "gather everything known about a failed task: request, attempts, error, performer, failed ADW phase, similar earlier cases",
+          "default_wait_seconds": 60, "synonyms": [ "debug", "inspect" ] },
+        { "task_type": "repair",   "description": "repair the receptionists' own Python in a sandbox; applied only if every suite stays green",
+          "writes": true, "idempotent": false, "synonyms": [ "fix", "build" ] }
+      ]
+    },
+    {
+      "name": "hello-world",
+      "display_name": "Hello World",
+      "runtime": "hello_world",
+      "capabilities": [
+        { "task_type": "hello", "description": "says Hello World; proves a path end to end", "default_wait_seconds": 60,
+          "synonyms": [ "ask", "message" ] }
+      ]
+    },
+    {
+      "name": "post-office",
+      "display_name": "the post office",
+      "runtime": "none",
+      "accepts_from": [],
+      "capabilities": []
+    }
+  ]
+}

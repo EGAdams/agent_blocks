@@ -54,3 +54,6 @@ lancedb_memory/nexus/
 # Diagnostic probe output from latency/timing investigations -- regenerated
 # on demand, not reviewable in a diff.
 lancedb_memory/receptionist_team/workspace/diagnostics/
+
+# agent_comms post office runtime: mailboxes, event log, mechanic cases, worker logs
+adws/adw_data/post_office/

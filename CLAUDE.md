@@ -280,7 +280,12 @@ reuses the dashboard's existing HTTP speech pipeline (`POST /api/voice` /
 `POST /api/tts` on `localhost:8765`) rather than reimplementing STT/TTS, and
 fails closed to typed I/O if the dashboard or mic is unavailable; only the TTS
 voice (`en-GB-SoniaNeural` vs. Mazda's `en-US-AriaNeural`) and the `nexus/`
-subdirectory differ. Run with `.venv/bin/python -m receptionist_team.main`
+subdirectory differ. Work for another agent -- a build for Sonnet, a plan for Opus, a diagnosis for
+the mechanic, a message to the other receptionist -- goes through
+`lancedb_memory/agent_comms/`, a post office of durable file mailboxes
+(Swarm-Forge's inbox design, in Python) whose operations are each also an
+ADW, `adws/adw_op_<name>.py`; see `lancedb_memory/agent_comms/README.md`.
+Run with `.venv/bin/python -m receptionist_team.main`
 from `lancedb_memory/` (`--agent mazda`, `--voice`, `--role-model <model>`
 also supported).
 
