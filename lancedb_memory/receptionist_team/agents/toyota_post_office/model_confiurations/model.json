@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's door to the team post office (lancedb_memory/agent_comms): sends work or a message to Sonnet, Opus, the mechanic or another receptionist, waits for quick answers, and reports the status of tasks already sent",
+  "model": null,
+  "max_turns": 4,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/post_office",
+  "notes": "Normally no model runs here: Toyota's profile maps this name to receptionist_team/adapters/post_office_runner.PostOfficeRunner(sender='toyota'), which runs agent_comms' delegate_task / task_status / cancel_task operations directly. The prompts below describe the job for the roster and the catalog. The post office's registry (agent_comms/agents.json) is the authority on what each recipient can do; nothing here restricts it."
+}

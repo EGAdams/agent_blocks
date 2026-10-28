@@ -96,6 +96,7 @@ standalone scripts in `tests/`, each run as a module from `..`:
 .venv/bin/python -m receptionist_team.tests.test_service_turns
 .venv/bin/python -m receptionist_team.tests.test_mazda_profile
 .venv/bin/python -m receptionist_team.tests.test_sydney_profile
+.venv/bin/python -m receptionist_team.tests.test_post_office_runner
 .venv/bin/python -m receptionist_team.tests.test_delegation_acknowledgment
 .venv/bin/python -m receptionist_team.tests.test_mickey_routing
 .venv/bin/python -m receptionist_team.tests.test_progress_tracker
@@ -276,6 +277,20 @@ the mechanic, translator, browser or agent creator. Sydney has
 restarts only `toyota-receptionist`; restart `sydney-receptionist` (port 8769)
 after a mechanic change that concerns her. `ReceptionistProfile.extra_peers`
 lets Toyota recall both Mazda and Sydney; see `main.build_recall()`.
+
+### Work for another agent goes through the post office
+
+`sydney_post_office` and `toyota_post_office` are routes run by
+`adapters/post_office_runner.PostOfficeRunner`, which hands the user's words
+to `agent_comms`'s `delegate_task` / `task_status` / `cancel_task` operations
+and speaks the line they return -- no model decides anything there. Builds
+and plans are asynchronous ("I've sent that to Sonnet as task 3151efb2"); the
+answer is kept on the board for a later "what's the status". A model can't
+skip it: `adapters/post_office_route.PostOfficeRoute` is an `IRouteOverride`
+that forces the route when the latest message names Sonnet or Opus with a
+work verb. It exists because `ask_sonnet` was the only door to Sonnet and is
+a read-only question-answerer -- a build request sent there was refused and
+never reached Sonnet. `ask_sonnet` / `ask_opus` still take questions.
 
 ### A profile is the unit of "a receptionist"
 

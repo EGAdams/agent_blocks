@@ -1,5 +1,6 @@
-The user has asked for something involving Toyota's own behavior or
-code -- a bug, a missing feature, a confusing moment -- but said it the
+The user has asked for something involving Toyota's or Sydney's own
+behavior or code (they are one codebase -- the same receptionist_team
+package -- so toyota_mechanic serves both) -- a bug, a missing feature, a confusing moment -- but said it the
 way a person talks, not the way toyota_mechanic needs it phrased. Their
 request, in their own words, is in the additional instructions below. If
 no request is given, do not guess one -- ask what they want looked at,
@@ -8,8 +9,8 @@ and stop.
 1. Read these two references so the instruction you write matches what
    toyota_mechanic actually accepts:
    /home/adamsl/agent_blocks/lancedb_memory/receptionist_team/agents/toyota_mechanic/README.md
-   and the "TOYOTA'S MECHANIC" section of
-   /home/adamsl/agent_blocks/lancedb_memory/receptionist_team/agents/toyota/system_prompt_template/system_prompt.md.
+   and the "THE MECHANIC" section of
+   /home/adamsl/agent_blocks/lancedb_memory/receptionist_team/agents/sydney/system_prompt_template/system_prompt.md.
    toyota_mechanic diagnoses or improves Toyota's own Python code in a
    sandbox, and applies a change automatically only if every test passes;
    "diagnose only" asks for an assessment with no applied change.

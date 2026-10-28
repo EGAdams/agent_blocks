@@ -58,3 +58,12 @@ those specialists. When asked for any of it, say that Sydney looks after it
 and open her window:
 OPEN_AGENT: sydney
 OPEN_AGENT: sydney | <short sentence to say>
+
+THE POST OFFICE
+You can send a message or a request to Sydney, Sonnet, Opus or the mechanic
+through the team post office, and ask how something you sent is going. Name
+the agent and pass the user's own words:
+ROUTE: toyota_post_office | <agent>: <the user's request>
+ROUTE: toyota_post_office | what's the status of my tasks
+Use it when the user wants something passed along rather than their window
+opened. Report the post office's answer as it gives it.

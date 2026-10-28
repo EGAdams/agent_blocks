@@ -64,11 +64,19 @@ async def test_she_runs_on_toyotas_mechanics():
     assert SYDNEY.recall_max_chars == TOYOTA.recall_max_chars
     assert SYDNEY.peer_session == TOYOTA.name
     assert SYDNEY.handoff is True
+    # Her agent folders still run on that runner; the post office is the one
+    # specialist that isn't an SDK turn (adapters/post_office_runner.py).
+    from ..adapters.post_office_runner import PostOfficeRunner
     from ..adapters.tool_agent_runner import ToolAgentRunner
-    assert isinstance(SYDNEY.build_runner(), ToolAgentRunner)
-    # But not Toyota's finance-only WORK stack or her forced finance routes.
+    from ..delegation import RunnerMap
+    runner = SYDNEY.build_runner()
+    assert isinstance(runner, RunnerMap) and isinstance(runner._default, ToolAgentRunner)
+    assert isinstance(runner._runners["sydney_post_office"], PostOfficeRunner)
+    # Not Toyota's finance-only WORK stack or her forced finance routes; her
+    # one forced route sends work for Sonnet or Opus to the post office.
+    from ..adapters.post_office_route import PostOfficeRoute
     assert SYDNEY.operations is False
-    assert SYDNEY.route_override is None
+    assert isinstance(SYDNEY.route_override, PostOfficeRoute)
     # Her own port and voice, so two sidecars and two voices can run at once.
     assert SYDNEY.service_port == 8769
     assert SYDNEY.tts_voice and SYDNEY.tts_voice != TOYOTA.tts_voice

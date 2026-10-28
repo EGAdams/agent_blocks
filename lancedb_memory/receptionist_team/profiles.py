@@ -27,6 +27,7 @@ from .mazda_roles import (
     ROLE_SPOKEN_NAMES as MAZDA_SPOKEN_NAMES,
 )
 from .adapters.figure_route import FigureQuestionRoute
+from .adapters.post_office_route import PostOfficeRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
@@ -84,12 +85,14 @@ def _toyota_runner() -> IDelegationRunner:
     """
     from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
+    from .adapters.post_office_runner import PostOfficeRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
 
     return RunnerMap(
         {
             LIVE_BOOKS_AGENT_NAME: AdwLiveFinanceRunner(),
             CATEGORY_SPREADSHEET_AGENT_NAME: AdwCategorySpreadsheetRunner(),
+            "toyota_post_office": PostOfficeRunner("toyota"),
         },
         default=ToolAgentRunner(),
     )
@@ -102,9 +105,16 @@ def _sydney_runner() -> IDelegationRunner:
     clone, so a delegation runs exactly the way it does for Toyota. Imported
     inside the function for the same reason as _toyota_runner's.
     """
+    from .adapters.post_office_runner import PostOfficeRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
 
-    return ToolAgentRunner()
+    # The post office is the one specialist that isn't an SDK turn: it sends
+    # the request to the agent it names (agent_comms), with no model deciding
+    # whether the request deserves sending.
+    return RunnerMap(
+        {"sydney_post_office": PostOfficeRunner("sydney")},
+        default=ToolAgentRunner(),
+    )
 
 
 @dataclass(frozen=True)
@@ -214,6 +224,9 @@ TOYOTA = ReceptionistProfile(
         TaxProgressPageRoute("tax_progress_page"),
         SpreadsheetRequestRoute(CATEGORY_SPREADSHEET_AGENT_NAME),
         FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
+        # Last: work she is asked to pass to Sonnet or Opus goes through the
+        # post office rather than being refused or answered from memory.
+        PostOfficeRoute("toyota_post_office"),
     ]),
 )
 
@@ -268,8 +281,10 @@ SYDNEY = ReceptionistProfile(
     # Every control line Sydney can emit is stated in her own system prompt.
     operations=False,
     service_port=8769,
-    # No route override: her forced routes would all be Toyota's (figures,
-    # spreadsheets, tax progress), and those are answered by handing off.
+    # One forced route: work addressed to Sonnet or Opus always reaches the
+    # post office. Her finance routes are Toyota's and answered by handing off.
+    # See adapters/post_office_route.py for the refusal that made it necessary.
+    route_override=PostOfficeRoute("sydney_post_office"),
 )
 
 PROFILES: dict[str, ReceptionistProfile] = {

@@ -139,6 +139,15 @@ ROLE_BLURBS: dict[str, str] = {
     "ask_opus": "one question to Opus, the deep model",
     "ask_sonnet": "one question to Sonnet, the quick model",
     "tax_progress_page": "builds the 2025 tax progress page onto ADW Generated",
+    "sydney_post_office": (
+        "sends real work -- build, plan, review, fix -- or a message to Sonnet, "
+        "Opus, the mechanic or Toyota through the team post office, and reports "
+        "the status of work already sent"
+    ),
+    "toyota_post_office": (
+        "sends a message or a request to Sydney, Sonnet, Opus or the mechanic "
+        "through the team post office, and reports the status of what was sent"
+    ),
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -166,6 +175,8 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "ask_opus": "Opus",
     "ask_sonnet": "Sonnet",
     "tax_progress_page": "our tax progress page builder",
+    "sydney_post_office": "the post office",
+    "toyota_post_office": "the post office",
 }
 
 # Each phrase follows "tell them to start".
@@ -196,6 +207,8 @@ ROLE_START_TASKS: dict[str, str] = {
     "ask_opus": "thinking about your question",
     "ask_sonnet": "thinking about your question",
     "tax_progress_page": "building your tax progress page",
+    "sydney_post_office": "sending that on",
+    "toyota_post_office": "sending that on",
 }
 
 # Toyota is the finance desk. Every finance_team role is hers automatically,
@@ -207,7 +220,7 @@ ROLE_START_TASKS: dict[str, str] = {
 # default and a new FINANCE agent is one more name below.
 TOYOTA_EXTRA_ROLE_NAMES = (
     "category_spreadsheet", "spreadsheet_reshaper", "live_books",
-    "gifts_love_offerings_report", "tax_progress_page",
+    "gifts_love_offerings_report", "tax_progress_page", "toyota_post_office",
 )
 TOYOTA_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES)
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(

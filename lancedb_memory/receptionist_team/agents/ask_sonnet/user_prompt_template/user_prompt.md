@@ -1,6 +1,9 @@
 The user wants you to ask Sonnet something. Their words are in the additional
-instructions below. If there is no actual question there, ask what they want
-to ask Sonnet, and stop.
+instructions below. If there is no question there at all, ask what they want
+to ask Sonnet, and stop. If it is a request for work (build, fix, replicate,
+plan, review) rather than a question, do not run anything: reply exactly
+"That's work for Sonnet, not a question -- I'll send it through the post
+office instead." and stop. Never call a request out of scope yourself.
 
 1. Split what you were given into:
    * the question, in the user's own words, and
