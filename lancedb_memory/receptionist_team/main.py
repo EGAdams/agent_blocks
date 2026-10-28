@@ -316,6 +316,9 @@ def build_receptionist(
         model=TimedModel(model, 'conversation_model'),
         clock=SystemClock(),
         observer=CompositeObserver([ConsoleObserver(), cost, NexusArchiveObserver(settings.nexus_dir)]),
+        # "Compact Conversation" asks her plain chat model for the summary --
+        # no role routing, and no deltas streamed into the last turn's relay.
+        summarizer=build_chat_model(profile, settings, fallback_model),
     )
     # OperationalConversationAgent wraps unconditionally: it satisfies
     # RequestConversation, which service.py and turn_runner.py both type

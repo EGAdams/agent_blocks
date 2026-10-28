@@ -122,6 +122,40 @@ async def test_current_turn_is_not_its_own_context():
     assert len( recalled ) == 2, f"turn 2 should see exactly turn 1's pair, got { len( recalled )}"
 
 
+async def test_compact_starts_the_next_session_from_a_model_summary():
+    model = ScriptedModel( [ "Noted.", "The user's favourite colour is teal.", "Teal." ])
+    agent, _, observer = build_agent( model )
+
+    await agent.handle_turn( "my favourite colour is teal" )
+    result = await agent.compact()
+
+    assert result.session_id == "s1--ctx1", result.session_id
+    assert result.turns_before == 2, result.turns_before
+    assert "my favourite colour is teal" in model.prompts[ 1 ], "the summarizer must see the turns"
+    await agent.handle_turn( "what is my favourite colour?" )
+    recalled = observer.calls[ 1 ][ 2 ]
+    assert [ t.message for t in recalled ] == [
+        "[Summary of our earlier conversation] The user's favourite colour is teal." ], \
+        "after a compact, recall must see only the summary"
+
+
+async def test_failed_compact_keeps_the_session():
+    class _Broken:
+        async def complete( self, prompt ):
+            raise RuntimeError( "groq 429" )
+
+    agent, _, _ = build_agent( ScriptedModel( [ "ok" ]))
+    agent._summarizer = _Broken()
+    await agent.handle_turn( "hello" )
+    try:
+        await agent.compact()
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError( "a failed summary must raise" )
+    assert agent._session_id == "s1", "a failed compact must not rotate the session"
+
+
 async def main():
     tests = [ value for name, value in sorted( globals().items()) if name.startswith( "test_" )]
     failures = 0

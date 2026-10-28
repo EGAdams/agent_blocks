@@ -74,10 +74,11 @@ class _ReceptionistHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         route = self._route()
         if route == "/compact":
-            # The dashboard's "compact conversation" button: rotate the warm
-            # agent onto a fresh session id. A plain JSON reply, not NDJSON --
-            # this isn't a turn, so it never touches Groq or finance_team.
-            self._json(200, self.server.runner.clear_context())
+            # The dashboard's "Compact Conversation" button: her model
+            # summarizes the session and the warm agent moves onto a fresh
+            # session seeded with that summary. A plain JSON reply, not NDJSON
+            # -- this isn't a turn, so it never touches finance_team.
+            self._json(200, self.server.runner.compact())
             return
         if route in ("/memory/compose", "/memory/record"):
             # Shared LanceDB memory for a guest whose turns run elsewhere --

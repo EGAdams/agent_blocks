@@ -2,13 +2,14 @@
 from contextlib import AbstractContextManager
 from typing import Protocol
 
-from agent_memory.models import AgentReply
+from agent_memory.models import AgentReply, CompactResult
 from ..models import ConversationRequest, WorkIntent, WorkReply, WorkView
 
 
 class ConversationTurns(Protocol):
     async def handle_turn(self, user_message: str) -> AgentReply: ...
     def clear_context(self) -> str: ...
+    async def compact(self) -> CompactResult: ...
 
 
 class AssignmentPolicy(Protocol):

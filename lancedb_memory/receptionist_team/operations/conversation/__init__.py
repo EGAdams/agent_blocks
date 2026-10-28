@@ -1,5 +1,5 @@
 """Request-scoping Decorator; every turn uses the normal memory engine."""
-from agent_memory.models import AgentReply
+from agent_memory.models import AgentReply, CompactResult
 
 from ..interfaces import ConversationTurns, TurnContext
 from ..models import ConversationRequest
@@ -15,3 +15,6 @@ class OperationalConversationAgent:
 
     def clear_context(self) -> str:
         return self.inner.clear_context()
+
+    async def compact(self) -> CompactResult:
+        return await self.inner.compact()

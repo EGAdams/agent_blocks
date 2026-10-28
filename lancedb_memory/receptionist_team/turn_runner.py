@@ -167,6 +167,26 @@ class _TurnRunner:
             self._settings = self._settings.model_copy(update={"session_id": new_session})
             return {"ok": True, "session": new_session}
 
+    def compact(self) -> dict[str, Any]:
+        """The dashboard's "Compact Conversation" button: her model summarizes
+        the session, and the next turn starts from that summary.
+
+        Same lock as a turn, for the same reason as clear_context(). Fails
+        closed: if the summary can't be written the session is unchanged.
+        """
+        future = asyncio.run_coroutine_threadsafe(self._compact(), self._loop)
+        return future.result()
+
+    async def _compact(self) -> dict[str, Any]:
+        async with self._lock:
+            try:
+                result = await self._agent.compact()
+            except Exception as exc:
+                return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+            self._settings = self._settings.model_copy(update={"session_id": result.session_id})
+            return {"ok": True, "session": result.session_id, "summary": result.summary,
+                    "turns_before": result.turns_before}
+
     def stream(self, request: TurnRequest) -> Iterator[TurnRecord]:
         """Yield this turn's records as they happen, on the caller's thread.
 

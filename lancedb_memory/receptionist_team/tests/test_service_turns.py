@@ -17,7 +17,7 @@ import asyncio
 from pydantic import ValidationError
 
 from agent_memory.config import Settings
-from agent_memory.models import AgentReply
+from agent_memory.models import AgentReply, CompactResult
 
 from ..service import _DelegationRelay, _TurnRunner
 from ..service_models import (
@@ -48,6 +48,11 @@ class _ScriptedAgent:
     def clear_context(self):
         self.cleared += 1
         return f"toyota-test--ctx{self.cleared}"
+
+    async def compact(self):
+        if self._fail is not None:
+            raise self._fail
+        return CompactResult(session_id=self.clear_context(), summary="They said hello.", turns_before=2)
 
     async def handle_turn(self, text, request_id=None):
         self.seen.append(text)
@@ -162,6 +167,28 @@ async def test_clear_context_rotates_session_and_calls_the_agent():
 
     after = _drain(runner, "hello again")
     assert after[-1].session == "toyota-test--ctx1"
+
+
+async def test_compact_reports_the_summary_and_new_session():
+    """The dashboard's "Compact Conversation" button: the reply carries the
+    summary, and /health moves to the session that starts from it."""
+    agent = _ScriptedAgent(reply="Hi.")
+    runner = _runner(agent)
+    _drain(runner, "hello")
+
+    result = runner.compact()
+    assert result == {"ok": True, "session": "toyota-test--ctx1",
+                      "summary": "They said hello.", "turns_before": 2}, result
+    assert runner.health()["session"] == "toyota-test--ctx1"
+
+
+async def test_failed_compact_answers_not_ok_and_keeps_the_session():
+    agent = _ScriptedAgent(reply="Hi.", fail=RuntimeError("groq 429"))
+    runner = _runner(agent)
+
+    result = runner.compact()
+    assert result["ok"] is False and "groq 429" in result["error"], result
+    assert runner.health()["session"] == "toyota-test"
 
 
 async def test_handoff_arrives_before_the_reply():
