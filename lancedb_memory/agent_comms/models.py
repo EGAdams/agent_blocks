@@ -187,3 +187,27 @@ class Diagnosis( BaseModel ):
 def _sentence( text: str | None ) -> str:
     text = ( text or "no error recorded" ).strip()
     return text if text.endswith(( ".", "!", "?" )) else text + "."
+
+
+class Alert( BaseModel ):
+    """One failure the caller has to hear about: who asked, who failed, and why.
+
+    Raised the moment a task fails, held until somebody acknowledges it, so a
+    failure can never again sit unread in a reply nobody opens.
+    """
+
+    model_config = ConfigDict( extra="forbid" )
+
+    id:         str                          # the failed task's id: one alert per failure
+    agent:      str                          # who must be told: the task's sender
+    task_id:    str
+    recipient:  str                          # who was asked to do the work
+    task_type:  str
+    error:      str
+    attempts:   int = 0
+    raised_at:  datetime = Field( default_factory=utc_now )
+
+    def spoken( self ) -> str:
+        return ( f"Task { self.task_id.split( '_' )[ 1 ] if '_' in self.task_id else self.task_id } "
+                 f"failed: the { self.task_type } I sent to { self.recipient } did not run. "
+                 f"{ _sentence( self.error[ :300 ])}" )

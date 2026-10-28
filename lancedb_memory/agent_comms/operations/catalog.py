@@ -11,6 +11,7 @@ from ..factory import PostOfficeKit
 from .base import IOperation, OperationSequence
 from .cancel_task import CancelTask
 from .capture_response import CaptureResponse
+from .check_alerts import CheckAlerts
 from .create_message import CreateMessage
 from .discover_agents import DiscoverAgents
 from .execute_task import ExecuteTask
@@ -45,6 +46,7 @@ def operations( kit: PostOfficeKit ) -> dict[ str, IOperation ]:
         RetryTask( kit.board, kit.dispatcher ),
         RequestMechanic( kit.dispatcher ),
         CancelTask( kit.canceller ),
+        CheckAlerts( kit.alerts, kit.sweeper ),
     ]
     catalog = { op.name: op for op in single }
     catalog[ "delegate_task" ] = delegate_task( catalog )

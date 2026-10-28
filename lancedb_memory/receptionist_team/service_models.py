@@ -97,3 +97,11 @@ class MemoryRecordRequest(BaseModel):
     session: MemorySession
     user: str = Field(min_length=1, max_length=MAX_TURN_CHARS)
     agent: str = Field(default="", max_length=MAX_TURN_CHARS * 4)
+
+
+class AlertAckRequest(BaseModel):
+    """Mark failure alerts as heard. ids=None acknowledges every pending one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ids: list[str] | None = Field(default=None, max_length=200)

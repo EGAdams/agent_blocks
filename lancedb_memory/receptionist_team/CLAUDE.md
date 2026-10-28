@@ -292,6 +292,12 @@ work verb. It exists because `ask_sonnet` was the only door to Sonnet and is
 a read-only question-answerer -- a build request sent there was refused and
 never reached Sonnet. `ask_sonnet` / `ask_opus` still take questions.
 
+A task she sent that fails is never silent: `profile.build_alerts` gives
+Toyota and Sydney an `IAlertInbox` (`adapters/post_office_alerts.py`), her next
+turn speaks it before answering, and `GET /alerts` / `POST /alerts/ack` let
+the dashboard show it on any tab. Mazda has none (she sends nothing). See
+`agent_comms/README.md`, "Failures are never silent".
+
 ### A profile is the unit of "a receptionist"
 
 `ReceptionistProfile` (frozen dataclass, pure data — role config, not a wire

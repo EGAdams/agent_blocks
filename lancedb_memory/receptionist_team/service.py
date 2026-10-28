@@ -50,7 +50,7 @@ from agent_memory.config import Settings
 
 from .main import _load_dotenv
 from .profiles import PROFILES, TOYOTA, ReceptionistProfile, profile as named_profile
-from .service_models import MAX_TURN_CHARS, MemoryComposeRequest, MemoryRecordRequest, TurnRequest
+from .service_models import MAX_TURN_CHARS, AlertAckRequest, MemoryComposeRequest, MemoryRecordRequest, TurnRequest
 from .turn_runner import _DelegationRelay, _TurnRunner
 
 # Kept for the callers that imported it before Mazda had a sidecar of her own;
@@ -59,8 +59,8 @@ from .turn_runner import _DelegationRelay, _TurnRunner
 DEFAULT_PORT = TOYOTA.service_port
 
 class _ReceptionistHandler(BaseHTTPRequestHandler):
-    """GET /health, POST /turn, POST /compact, POST /memory/compose,
-    POST /memory/record. Nothing else, and no static files."""
+    """GET /health, GET /alerts, POST /turn, POST /compact, POST /alerts/ack,
+    POST /memory/compose, POST /memory/record. Nothing else, and no static files."""
 
     server_version = "Receptionist/1.1"
     protocol_version = "HTTP/1.0"
@@ -68,6 +68,11 @@ class _ReceptionistHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if self._route() == "/health":
             self._json(200, self.server.runner.health())
+            return
+        if self._route() == "/alerts":
+            # Failed tasks she sent through the post office, for the dashboard
+            # to show, speak and notify at once (see alert_inbox.py).
+            self._json(200, self.server.runner.alerts())
             return
         self._json(404, {"ok": False, "error": "not found"})
 
@@ -79,6 +84,12 @@ class _ReceptionistHandler(BaseHTTPRequestHandler):
             # session seeded with that summary. A plain JSON reply, not NDJSON
             # -- this isn't a turn, so it never touches finance_team.
             self._json(200, self.server.runner.compact())
+            return
+        if route == "/alerts/ack":
+            request = self._read(AlertAckRequest, 64 * 1024)
+            if request is None:
+                return
+            self._json(200, self.server.runner.acknowledge_alerts(request.ids))
             return
         if route in ("/memory/compose", "/memory/record"):
             # Shared LanceDB memory for a guest whose turns run elsewhere --

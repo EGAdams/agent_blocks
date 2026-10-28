@@ -18,6 +18,7 @@ function.
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from .alert_inbox import IAlertInbox
 from .delegation import IDelegationRunner, IRouteOverride, RunnerMap, UnwiredRunner
 from .mazda_roles import (
     BROWSER_AGENT_NAME as MAZDA_BROWSER_AGENT,
@@ -181,6 +182,16 @@ class ReceptionistProfile:
     # should have asked a tool. Stateless and import-light, so the instance
     # sits here rather than behind a factory like build_runner.
     route_override: IRouteOverride | None = None
+    # Where she hears about tasks she sent that failed -- see alert_inbox.py.
+    # None for a receptionist who sends nothing through the post office.
+    build_alerts: Callable[[], IAlertInbox] | None = None
+
+
+def _post_office_alerts(agent: str) -> Callable[[], IAlertInbox]:
+    def build() -> IAlertInbox:
+        from .adapters.post_office_alerts import PostOfficeAlerts
+        return PostOfficeAlerts(agent)
+    return build
 
 
 TOYOTA = ReceptionistProfile(
@@ -228,6 +239,7 @@ TOYOTA = ReceptionistProfile(
         # post office rather than being refused or answered from memory.
         PostOfficeRoute("toyota_post_office"),
     ]),
+    build_alerts=_post_office_alerts("toyota"),
 )
 
 MAZDA = ReceptionistProfile(
@@ -285,6 +297,7 @@ SYDNEY = ReceptionistProfile(
     # post office. Her finance routes are Toyota's and answered by handing off.
     # See adapters/post_office_route.py for the refusal that made it necessary.
     route_override=PostOfficeRoute("sydney_post_office"),
+    build_alerts=_post_office_alerts("sydney"),
 )
 
 PROFILES: dict[str, ReceptionistProfile] = {

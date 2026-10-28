@@ -13,7 +13,8 @@ from __future__ import annotations
 from datetime import timedelta
 
 from .models import Envelope, MessageKind, TaskEvent, TaskResult, TaskStatus, utc_now
-from .ports import IEventPublisher, IMessageTransport, IRetryPolicy, ITaskExecutor
+from .adapters.liveness import NoLiveness
+from .ports import IEventPublisher, IMessageTransport, IRetryPolicy, ITaskExecutor, ITaskLiveness
 
 
 class IdempotentRetries:
@@ -35,8 +36,10 @@ class AgentWorker:
                   transport: IMessageTransport,
                   executor:  ITaskExecutor,
                   events:    IEventPublisher,
-                  retries:   IRetryPolicy ) -> None:
+                  retries:   IRetryPolicy,
+                  liveness:  ITaskLiveness | None = None ) -> None:
         self._agent     = agent
+        self._liveness  = liveness or NoLiveness()
         self._transport = transport
         self._executor  = executor
         self._events    = events
@@ -66,11 +69,15 @@ class AgentWorker:
 
         Idempotent work goes back in the queue; anything else is failed and
         reported, never silently re-run -- it may already have changed files.
+        A task whose worker still holds its liveness lock is left alone,
+        however old it is: a long build is not a dead one.
         """
         cutoff    = utc_now() - timedelta( seconds=older_than_seconds )
         recovered = []
         for stale in self._transport.box( self._agent, "in_process" ):
             if stale.kind is not MessageKind.REQUEST or ( stale.dequeued_at and stale.dequeued_at > cutoff ):
+                continue
+            if self._liveness.is_alive( stale.id ):
                 continue
             result = TaskResult( ok=False, performer=self._executor.performer,
                                  text="interrupted: the worker stopped before the task finished" )
@@ -90,7 +97,8 @@ class AgentWorker:
 
     async def _execute( self, envelope: Envelope ) -> TaskResult:
         try:
-            return await self._executor.execute( envelope )
+            with self._liveness.hold( envelope.id ):
+                return await self._executor.execute( envelope )
         except Exception as exc:   # noqa: BLE001 -- a crash is a failed task, not a dead worker
             return TaskResult( ok=False, performer=self._executor.performer,
                                text=f"{ type( exc ).__name__ }: { exc }" )

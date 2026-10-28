@@ -207,12 +207,42 @@ model-backed `IMessageRouter` given to `RouteRequest`, or
 `kit.overrides["sonnet"] = <any ITaskExecutor>`. The ADW and the
 receptionists don't change (tested).
 
+## Failures are never silent
+
+A task that fails used to leave its failure reply unread in the sender's
+inbox. Now every `task.failed` also raises an `Alert` on an `IAlertBoard`
+(`FileAlertBoard`, `alerts/<agent>/{pending,acknowledged}/`) for the caller --
+the sender, or `sydney` when the sender was the post office itself (a mechanic
+errand). Three things put it in front of the user:
+
+* the receptionist's next turn starts with "Before I answer, something went
+  wrong. ..." (`receptionist_team/turn_runner._announce_alerts`);
+* her sidecar's `GET /alerts`, which the dashboard polls every 10s on every
+  tab: red card, spoken once, browser notification, "Got it" acks it;
+* `adw_op_check_alerts.py --agent <name> [--acknowledge]`.
+
+Two failure kinds that used to be invisible are caught too:
+
+* **Unrecoverable errors fail at attempt 1** (`alerts.UnrecoverableErrors`,
+  an `IRetryPolicy` decorator): auth, "does not support this model", "version
+  ... or newer is required", 4xx other than 408/429. Retrying them only hid
+  the failure for three attempts.
+* **A worker killed mid-task** (e.g. its receptionist's unit restarted) left the
+  task in `in_process` forever. Workers now hold an flock per task
+  (`ITaskLiveness`, `FileLockLiveness`), and `StalledTaskSweeper` -- run on
+  every `check_alerts`, so every `/alerts` poll -- hands dead tasks to
+  `AgentWorker.recover()`: requeued and the agent woken if retryable, failed
+  (and so alerted) if not. Workers are also launched outside the unit's
+  cgroup (`outside_unit_prefix()`: `systemd-run --user --scope`), so a
+  restart no longer kills them.
+
 ## Runtime data
 
 `adws/adw_data/post_office/` (gitignored; `AGENT_POST_OFFICE_ROOT` overrides):
 `mailboxes/<agent>/inbox/{new,in_process,completed,failed,cancelled}`,
 `mailboxes/<agent>/sent`, `events.jsonl`, `mechanic_cases.jsonl`,
-`reports/<task>.md` (workers' long answers), `worker_logs/<agent>.log`.
+`reports/<task>.md` (workers' long answers), `worker_logs/<agent>.log`,
+`alerts/<agent>/{pending,acknowledged}/`, `running/<task>.lock`.
 
 ## Tests
 
@@ -220,7 +250,9 @@ receptionists don't change (tested).
 cd lancedb_memory
 .venv/bin/python -m agent_comms.tests.test_post_office      # 17: the eight required behaviours and more
 .venv/bin/python -m agent_comms.tests.test_operations        # 5: operations, composites, one real ADW run
+.venv/bin/python -m agent_comms.tests.test_alerts            # 8: alerts, unrecoverable errors, sweeper
 .venv/bin/python -m receptionist_team.tests.test_post_office_runner   # 4: Sydney/Toyota wiring
+.venv/bin/python -m receptionist_team.tests.test_failure_alerts       # 6: spoken on the next turn, /alerts
 ```
 
 ## Known limits

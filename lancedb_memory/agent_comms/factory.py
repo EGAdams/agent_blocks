@@ -17,11 +17,14 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from .adapters.alert_board import FileAlertBoard
 from .adapters.event_log import FanOutPublisher, JsonlEventLog
 from .adapters.file_mailbox import FileMailboxTransport
 from .adapters.json_registry import JsonAgentRegistry
 from .adapters.keyword_router import KeywordRouter
-from .adapters.launchers import DetachedWorkerLauncher, SystemClock
+from .adapters.launchers import DetachedWorkerLauncher, SystemClock, outside_unit_prefix
+from .adapters.liveness import FileLockLiveness
+from .alerts import CallerAlertForwarder, StalledTaskSweeper, UnrecoverableErrors
 from .board import MailboxTaskBoard, TaskCanceller
 from .executors.basic import ByTaskType, HelloWorldExecutor, ObservedExecutor
 from .executors.claude_sdk import ClaudeSdkExecutor
@@ -30,7 +33,7 @@ from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
 from .models import AgentCard
 from .ports import (
-    IAgentDiagnostic, IAgentRegistry, IClock, ICaseHistory, IEventLog, IEventPublisher, IMessageRouter,
+    IAgentDiagnostic, IAgentRegistry, IAlertBoard, ITaskLiveness, IClock, ICaseHistory, IEventLog, IEventPublisher, IMessageRouter,
     IMessageTransport, IRequestReply, IRequestValidator, ITaskBoard, ITaskDispatcher, ITaskExecutor, IWorkerLauncher,
 )
 from .post_office import PostOffice
@@ -81,6 +84,8 @@ class PostOfficeKit:
     cases:      ICaseHistory
     executors:  RuntimeExecutorFactory
     launcher:   IWorkerLauncher
+    alerts:     IAlertBoard
+    liveness:   ITaskLiveness
     overrides:  dict[ str, ITaskExecutor ] = field( default_factory=dict )
 
     def worker_for( self, agent: str ) -> AgentWorker:
@@ -88,7 +93,13 @@ class PostOfficeKit:
         if card is None:
             raise LookupError( f"no agent called { agent }" )
         executor = self.overrides.get( agent ) or self.executors.executor_for( card )
-        return AgentWorker( agent, self.transport, executor, self.events, IdempotentRetries())
+        return AgentWorker( agent, self.transport, executor, self.events,
+                            UnrecoverableErrors( IdempotentRetries()), self.liveness )
+
+    def sweeper( self, grace_seconds: float = 60.0 ) -> StalledTaskSweeper:
+        """Settles tasks whose worker died mid-run, for every agent."""
+        return StalledTaskSweeper( self.registry, self.transport, self.liveness, self.worker_for,
+                                   self.launcher, grace_seconds )
 
 
 def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path ) -> dict[ str, ExecutorBuilder ]:
@@ -134,10 +145,14 @@ def build_post_office( root: Path | None = None,
     venv       = WORKSPACE / "lancedb_memory" / ".venv" / "bin" / "python"
     launcher   = launcher or DetachedWorkerLauncher( WORKER_ADW, cwd=WORKSPACE, log_dir=root / "worker_logs",
                                                      python=str( venv ) if venv.exists() else None,
-                                                     skip=frozenset({ "post-office" }))
+                                                     skip=frozenset({ "post-office" }),
+                                                     prefix=outside_unit_prefix())
     validator  = ValidationChain([ RegisteredParties( registry ), AcceptsSender( registry ),
                                    HasCapability( registry ), NoLoopBack( transport )])
     dispatcher = PostOffice( registry, validator, transport, events, launcher, replies )
+    alerts     = FileAlertBoard( root / "alerts" )
+    # Before the mechanic: the caller hears first, whatever the mechanic does.
+    events.subscribe( CallerAlertForwarder( alerts, transport, registry ))
     if forward_failures_to_mechanic:
         events.subscribe( FailureForwarder( dispatcher ))
     executors = RuntimeExecutorFactory(
@@ -147,4 +162,5 @@ def build_post_office( root: Path | None = None,
         router=KeywordRouter( registry, repositories=registry.repositories ), validator=validator, dispatcher=dispatcher, replies=replies,
         board=MailboxTaskBoard( transport ), canceller=TaskCanceller( transport, events ),
         diagnostic=diagnostic, cases=cases, executors=executors, launcher=launcher,
+        alerts=alerts, liveness=FileLockLiveness( root / "running" ),
     )

@@ -9,6 +9,7 @@ from agent_memory.config import Settings
 from agent_memory.errors import ModelUnavailable
 from agent_memory.adapters.turn_telemetry import turn_scope, record_timing
 from .adapters.reply_stream import PublicReplyRelay
+from .alert_inbox import IAlertInbox, NoAlerts
 from .main import build_mazda_desk, build_receptionist, build_shared_memory
 from .profiles import TOYOTA, ReceptionistProfile
 from .service_models import MemoryComposeRequest, MemoryRecordRequest, TurnRecord, TurnRequest
@@ -53,6 +54,7 @@ class _TurnRunner:
         memory_desk=None,
         profile: ReceptionistProfile = TOYOTA,
         reply_relay: PublicReplyRelay | None = None,
+        alerts: IAlertInbox | None = None,
     ) -> None:
         self._agent = agent
         self._cost = cost
@@ -64,6 +66,7 @@ class _TurnRunner:
         self._memory_desk = memory_desk
         self._profile = profile
         self._reply_relay = reply_relay or PublicReplyRelay()
+        self._alerts = alerts or NoAlerts()
         self._loop = asyncio.new_event_loop()
         self._lock = asyncio.Lock()
         threading.Thread(
@@ -102,6 +105,7 @@ class _TurnRunner:
         runner.append(cls(
             agent, cost, settings, role_model, relay, work_relay, handoff_relay, desk,
             profile=profile, reply_relay=reply_relay,
+            alerts=profile.build_alerts() if profile.build_alerts else None,
         ))
         return runner[0]
 
@@ -149,6 +153,41 @@ class _TurnRunner:
             "total_cost_usd": round(self._cost.total_cost_usd, 6),
             "shared_memory": self._memory_desk is not None,
         }
+
+    def alerts(self) -> dict[str, Any]:
+        """Failed tasks she sent and hasn't told anyone about. Never raises:
+        a broken alert board must not take her /alerts down with it silently,
+        so it answers ok=False with the reason instead."""
+        try:
+            return {"ok": True, "agent": self._profile.name, "alerts": self._alerts.pending()}
+        except Exception as exc:
+            return {"ok": False, "agent": self._profile.name, "alerts": [],
+                    "error": f"{type(exc).__name__}: {exc}"}
+
+    def acknowledge_alerts(self, alert_ids: list[str] | None) -> dict[str, Any]:
+        try:
+            return {"ok": True, "acknowledged": self._alerts.acknowledge(alert_ids)}
+        except Exception as exc:
+            return {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
+
+    def _announce_alerts(self, outbox: queue.Queue) -> None:
+        """Say any failure out loud before this turn's answer, then mark it heard.
+
+        An acknowledgment record is spoken the moment it arrives, so the user
+        hears it even if her reply is about something else. Failing to read
+        the board is announced too -- it is the one place a silent failure
+        would otherwise hide.
+        """
+        state = self.alerts()
+        if not state["ok"]:
+            outbox.put(TurnRecord(kind="acknowledgment",
+                                  text=f"I can't read my failure alerts right now: {state['error']}"))
+            return
+        if not state["alerts"]:
+            return
+        lines = " ".join(alert["spoken"] for alert in state["alerts"])
+        outbox.put(TurnRecord(kind="acknowledgment", text=f"Before I answer, something went wrong. {lines}"))
+        self.acknowledge_alerts([alert["id"] for alert in state["alerts"]])
 
     def clear_context(self) -> dict[str, Any]:
         """The dashboard's "compact conversation" button.
@@ -220,6 +259,7 @@ class _TurnRunner:
         self._relay.bind(
             lambda sentence: outbox.put(TurnRecord(kind="acknowledgment", text=sentence)))
         try:
+            await asyncio.to_thread(self._announce_alerts, outbox)
             reply = await self._agent.handle_turn(request.text, request_id=request.request_id)
             outbox.put(TurnRecord(kind="reply", text=reply.text, cost_usd=reply.cost_usd,
                                   streamed=self._reply_relay.delivered))

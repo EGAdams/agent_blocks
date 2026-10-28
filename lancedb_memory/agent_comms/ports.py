@@ -9,9 +9,10 @@ the mechanic needs `IAgentDiagnostic`, never the event log's layout.
 """
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
 from typing import Protocol
 
-from .models import AgentCard, Diagnosis, Envelope, SendReceipt, TaskEvent, TaskRequest, TaskResult
+from .models import AgentCard, Alert, Diagnosis, Envelope, SendReceipt, TaskEvent, TaskRequest, TaskResult
 
 
 # -- Discovery ---------------------------------------------------------------
@@ -162,3 +163,27 @@ class ICaseHistory( Protocol ):
     def record( self, diagnosis: Diagnosis, correction: str = "" ) -> str: ...
 
     def similar( self, error: str ) -> list[ str ]: ...
+
+
+# -- Alerts ------------------------------------------------------------------
+
+class IAlertBoard( Protocol ):
+    """Failures waiting for the agent who asked for the work, until acknowledged."""
+
+    def raise_alert( self, alert: Alert ) -> None: ...
+
+    def pending( self, agent: str ) -> list[ Alert ]: ...
+
+    def acknowledge( self, agent: str, alert_ids: list[ str ] | None = None ) -> int:
+        """None acknowledges everything pending; returns how many were."""
+        ...
+
+
+class ITaskLiveness( Protocol ):
+    """Whether a claimed task still has a living worker behind it."""
+
+    def hold( self, task_id: str ) -> AbstractContextManager[ None ]:
+        """Held by the worker for as long as it executes the task."""
+        ...
+
+    def is_alive( self, task_id: str ) -> bool: ...

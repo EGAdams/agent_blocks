@@ -285,6 +285,8 @@ the mechanic, a message to the other receptionist -- goes through
 `lancedb_memory/agent_comms/`, a post office of durable file mailboxes
 (Swarm-Forge's inbox design, in Python) whose operations are each also an
 ADW, `adws/adw_op_<name>.py`; see `lancedb_memory/agent_comms/README.md`.
+A failed task is never silent: it raises an alert for the caller, spoken on
+her next turn and shown on every dashboard tab (`GET /alerts` on her sidecar).
 Run with `.venv/bin/python -m receptionist_team.main`
 from `lancedb_memory/` (`--agent mazda`, `--voice`, `--role-model <model>`
 also supported).
