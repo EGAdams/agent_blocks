@@ -237,8 +237,12 @@ async def test_the_turn_context_advertises_every_agent_toyota_can_route_to():
     # is registered in roles.py but missing here gets denied no matter what
     # Toyota's system prompt says -- which is exactly how browser_opener was
     # invisible to her after it was created.
-    for name in ('browser_opener', 'spreadsheet_reshaper', 'agent_creator'):
+    for name in ('live_books', 'spreadsheet_reshaper', 'category_spreadsheet'):
         assert f'ROUTE: {name}' in prompt, name
+    # The non-financial routes are Sydney's now; Toyota is told to open her.
+    for name in ('browser_opener', 'agent_creator', 'toyota_mechanic'):
+        assert f'ROUTE: {name}' not in prompt, name
+    assert 'OPEN_AGENT: sydney' in prompt
     assert 'browse arbitrary websites' not in prompt
 
 
@@ -252,12 +256,12 @@ async def test_every_control_line_in_the_capability_text_survives_on_one_line():
     individual names.
     """
     from receptionist_team.operations.workflow_model import CAPABILITIES
-    routes = ('live_books', 'toyota_mechanic', 'mechanic_translator',
-              'category_spreadsheet', 'spreadsheet_reshaper', 'agent_creator',
-              'browser_opener', 'tax_progress_page')
+    routes = ('live_books', 'category_spreadsheet', 'spreadsheet_reshaper',
+              'tax_progress_page')
     for name in routes:
         assert f'ROUTE: {name} |' in CAPABILITIES, name
     assert 'OPEN_AGENT: mazda' in CAPABILITIES
+    assert 'OPEN_AGENT: sydney' in CAPABILITIES
 
 
 async def test_live_mode_has_no_practice_data_and_routes_tax_progress_to_the_page():

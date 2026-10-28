@@ -4,12 +4,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Scope
 
-**Two receptionists, one engine.** **Toyota** is the conversational front door
-to `finance_team`'s headless roles; **Mazda** is a document-verification
-receptionist whose specialists are Letta agents this package can't reach yet.
-They are not two packages — they are two `ReceptionistProfile` values in
-`profiles.py`, both assembled by `main.py`'s `build_receptionist()` and both
-selected at the command line with `--agent {toyota,mazda}`. (`mazda_team/` used
+**Three receptionists, one engine.** **Toyota** is the finance front desk:
+`finance_team`'s headless roles plus the finance agent folders; **Sydney** is
+Toyota's clone (same model, memory, routing, runner, handoff and sidecar) for
+everything that is not finance — planning, building, testing and deploying
+code, creating agents, summoning the mechanic for both of them, the browser and
+web search, the ADW guide; **Mazda** is a document-verification receptionist
+whose specialists are Letta agents this package can't reach yet. They are not
+three packages — they are three `ReceptionistProfile` values in `profiles.py`,
+all assembled by `main.py`'s `build_receptionist()` and selected at the
+command line with `--agent {toyota,mazda,sydney}`. (`mazda_team/` used
 to be a separate package; it was retired, and re-creating it would undo the
 point.)
 
@@ -22,6 +26,8 @@ Source files, by job:
 | `delegation.py` | `IDelegationRunner`, `IRouteOverride`, `UnwiredRunner`, `RunnerMap` — *how* a route runs, and the one route the model doesn't get to choose |
 | `roles.py` / `extra_roles.py` | Toyota's roster wording, blurbs, spoken names, extra `AgentRole`s |
 | `mazda_roles.py` | Mazda's six specialists (five stubs + Mickey) and her rendered prompt |
+| `sydney_roles.py` | Sydney's roster (her desk's share of `roles.ROLES`) and her rendered prompt |
+| `role_desks.py` | `IRoleAssignment` — which desk owns a role; both Toyota's and Sydney's rosters ask `roles.ROLE_ASSIGNMENT`, never each other's lists |
 | `main.py` | the composition root: `build_receptionist()`, `build_toyota()`, `repl()` |
 | `service.py` / `service_models.py` / `turn_runner.py` | the loopback HTTP sidecar the dashboard talks to |
 | `adapters/` | `routing_model`, `status_route`, `figure_route`, `latest_user`, `handoff_model`, `tool_agent_runner`, `mickey_runner`, `adw_runner`, `live_finance_runner`, `voice_io`, `metrics` |
@@ -68,6 +74,8 @@ cd ..
 .venv/bin/python -m receptionist_team.main                     # Toyota, typed chat
 .venv/bin/python -m receptionist_team.main --voice             # mic in / spoken out
 .venv/bin/python -m receptionist_team.main --agent mazda        # Mazda, same engine
+.venv/bin/python -m receptionist_team.main --agent sydney       # Sydney, Toyota's clone
+.venv/bin/python -m receptionist_team.service --agent sydney    # her sidecar, :8769
 .venv/bin/python -m receptionist_team.main --agent mazda --voice
 .venv/bin/python -m receptionist_team.main --session toyota --embedding-profile sentence
 .venv/bin/python -m receptionist_team.main --role-model claude-haiku-4-5-20251001
@@ -87,6 +95,7 @@ standalone scripts in `tests/`, each run as a module from `..`:
 ```bash
 .venv/bin/python -m receptionist_team.tests.test_service_turns
 .venv/bin/python -m receptionist_team.tests.test_mazda_profile
+.venv/bin/python -m receptionist_team.tests.test_sydney_profile
 .venv/bin/python -m receptionist_team.tests.test_delegation_acknowledgment
 .venv/bin/python -m receptionist_team.tests.test_mickey_routing
 .venv/bin/python -m receptionist_team.tests.test_progress_tracker
@@ -250,6 +259,23 @@ not in `routing_model.py` on purpose: that is what lets Mazda reuse the same
 `RoutingModel` without pulling the Claude SDK and the `rol_finances` repo root
 in behind her. `roles.py` imports `finance_team.roles.ROLES` for names only,
 nothing SDK- or DB-shaped.
+
+### Toyota and Sydney split one roster
+
+`roles.ROLES` is still every routable role. `roles.ROLE_ASSIGNMENT`
+(`role_desks.NamedRolesOrDefault`) puts `finance_team`'s roles plus
+`TOYOTA_EXTRA_ROLE_NAMES` on Toyota's desk and **everything else on Sydney's**,
+so a new agent folder lands with Sydney unless it is named as finance. A ROUTE
+line naming the other desk's specialist gets the unknown-agent reply; instead
+each sends the user across with `OPEN_AGENT: sydney` / `OPEN_AGENT: toyota`
+(`adapters/handoff_model.HANDOFF_AGENTS`, which the dashboard's
+`AGENT_WINDOWS` must mirror). Toyota's per-turn `CAPABILITIES` no longer lists
+the mechanic, translator, browser or agent creator. Sydney has
+`operations=False`, so every control line she can emit is in her own
+`system_prompt.md`. The mechanic serves both (one codebase) but its ADW
+restarts only `toyota-receptionist`; restart `sydney-receptionist` (port 8769)
+after a mechanic change that concerns her. `ReceptionistProfile.extra_peers`
+lets Toyota recall both Mazda and Sydney; see `main.build_recall()`.
 
 ### A profile is the unit of "a receptionist"
 

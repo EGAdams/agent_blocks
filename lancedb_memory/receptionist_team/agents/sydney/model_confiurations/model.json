@@ -1,0 +1,9 @@
+{
+  "description": "the builder's front desk: planning, building, testing and deploying code, new agents, and the mechanic for both receptionists",
+  "model": "openai/gpt-oss-120b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": null,
+  "notes": "A clone of Toyota: served by Groq, not Claude, on the same model, the same shared LanceDB table and the same RoutingModel/ToolAgentRunner -- see sydney_roles.SYDNEY_CHAT_MODEL and profiles.SYDNEY. --model on receptionist_team.main overrides this; the model field here is the documented default, not a second source of truth. max_turns 1 and no tools because she is text-only chat: delegated work runs as its own agent folder."
+}

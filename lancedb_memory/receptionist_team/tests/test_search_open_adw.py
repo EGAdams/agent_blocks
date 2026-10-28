@@ -28,7 +28,8 @@ if str(ADWS_DIR) not in sys.path:
 
 import adw_interface_search_open as adw  # noqa: E402
 
-from ..roles import ROLE_BLURBS, ROLE_SPOKEN_NAMES, ROLE_START_TASKS, TOYOTA_ROSTER
+from ..roles import ROLE_BLURBS, ROLE_SPOKEN_NAMES, ROLE_START_TASKS
+from ..sydney_roles import SYDNEY_ROSTER
 
 
 AGENT_NAME = "search_link_opener"
@@ -286,28 +287,28 @@ async def test_bing_leads_the_ladder_because_it_is_the_one_that_answers():
     assert [b.name for b in adw.BACKENDS] == ["bing", "duckduckgo", "google"]
 
 
-# -- Toyota's side of it -----------------------------------------------------
+# -- Sydney's side of it (the browser agents moved off Toyota's desk) --------
 
-async def test_toyota_can_route_to_it_and_has_words_for_it():
-    assert TOYOTA_ROSTER.has(AGENT_NAME)
-    assert AGENT_NAME in TOYOTA_ROSTER.allowed_agents()
+async def test_sydney_can_route_to_it_and_has_words_for_it():
+    assert SYDNEY_ROSTER.has(AGENT_NAME)
+    assert AGENT_NAME in SYDNEY_ROSTER.allowed_agents()
     for mapping in (ROLE_BLURBS, ROLE_SPOKEN_NAMES, ROLE_START_TASKS):
         assert mapping[AGENT_NAME]
     # The acknowledgment is spoken before the work starts, so it has to read
     # as a sentence rather than as a role name.
-    assert "site finder" in TOYOTA_ROSTER.acknowledgment(AGENT_NAME)
+    assert "site finder" in SYDNEY_ROSTER.acknowledgment(AGENT_NAME)
 
 
 async def test_her_prompt_sends_a_named_site_here_and_a_known_address_elsewhere():
-    prompt = TOYOTA_ROSTER.roster_text()
+    prompt = SYDNEY_ROSTER.roster_text()
     assert AGENT_NAME in prompt and "browser_opener" in prompt
-    from ..roles import TOYOTA_SYSTEM_PROMPT
+    from ..sydney_roles import SYDNEY_SYSTEM_PROMPT
 
-    assert f"ROUTE: {AGENT_NAME}" in TOYOTA_SYSTEM_PROMPT
+    assert f"ROUTE: {AGENT_NAME}" in SYDNEY_SYSTEM_PROMPT
     # The two browser agents are only useful if she can tell them apart, and
     # the thing she must know about is where the headless driver lives.
-    assert "/home/adamsl/selenium-headless/" in TOYOTA_SYSTEM_PROMPT
-    assert "browser_manager" in TOYOTA_SYSTEM_PROMPT
+    assert "/home/adamsl/selenium-headless/" in SYDNEY_SYSTEM_PROMPT
+    assert "browser_manager" in SYDNEY_SYSTEM_PROMPT
 
 
 # -- the real workflow, spawned once -----------------------------------------

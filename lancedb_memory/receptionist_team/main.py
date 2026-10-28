@@ -1,6 +1,6 @@
 # unset ANTHROPIC_API_KEY
 # unset ANTHROPIC_BASE_URL
-"""The receptionists -- Toyota and Mazda, one engine, two profiles.
+"""The receptionists -- Toyota, Mazda and Sydney, one engine, three profiles.
 
 Conversational front door for a team of headless specialist agents: the same
 LanceDB-memory conversational engine as agent_memory/main.py (this is the
@@ -17,6 +17,7 @@ session, nexus subdirectory, peer recall, TTS voice, which decorators apply).
     .venv/bin/python -m receptionist_team.main                    # Toyota, typed chat
     .venv/bin/python -m receptionist_team.main --voice             # mic in / spoken out
     .venv/bin/python -m receptionist_team.main --agent mazda       # Mazda, typed chat
+    .venv/bin/python -m receptionist_team.main --agent sydney      # Sydney, typed chat
     .venv/bin/python -m receptionist_team.main --role-model claude-haiku-4-5-20251001
 
 Voice reuses the dashboard's already-built pipeline (whisper/Groq STT via
@@ -63,7 +64,7 @@ from agent_memory.observers import (
     CostObserver,
     NexusArchiveObserver,
 )
-from agent_memory.ports import Embedder, LanguageModel, MemoryStore
+from agent_memory.ports import Embedder, LanguageModel, MemoryStore, RecallStrategy
 from agent_memory.adapters.turn_telemetry import TimedEmbedder, TimedModel, TimedRecall, TimedStore
 from agent_memory.prompts import RecallOnlyComposer, TemplatePromptComposer
 from agent_memory.recall import (
@@ -219,6 +220,36 @@ def build_chat_model(
     )
 
 
+def build_recall(profile: ReceptionistProfile, settings: Settings, store: MemoryStore) -> RecallStrategy:
+    """Her recall chain: similarity, a recency floor, every peer, then a budget.
+
+    Separate from build_receptionist so the peer wiring can be tested against
+    a real table without building a chat model.
+    """
+    similarity = SimilarityRecall(
+        store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall
+    )
+    recall = RecencyFloorRecall(similarity, store, floor=settings.recall_recency_floor)
+    if profile.peer_session is not None:
+        # What the user said to the other receptionist is this one's to
+        # remember too -- they share one LanceDB table.
+        recall = PeerSessionRecall(
+            recall,
+            store,
+            peer_session=lambda: profile.peer_session,
+            label=profile.peer_label or f"with {profile.peer_session}",
+        )
+    for peer, label in profile.extra_peers:
+        recall = PeerSessionRecall(recall, store, peer_session=lambda peer=peer: peer, label=label)
+    # Her profile may ask for a tighter budget than the shared default --
+    # Groq's ceiling is per-minute, so one turn's size is what decides
+    # whether the next turn goes through. See ReceptionistProfile.
+    recall = TokenBudgetedRecall(
+        recall, max_chars=profile.recall_max_chars or settings.recall_max_chars
+    )
+    return recall
+
+
 def build_receptionist(
     profile: ReceptionistProfile,
     settings: Settings,
@@ -238,25 +269,7 @@ def build_receptionist(
     only module here allowed to name concrete implementations.
     """
     embedder, store = memory or build_shared_memory(settings)
-    similarity = SimilarityRecall(
-        store, limit=settings.recall_limit, session_scoped=settings.session_scoped_recall
-    )
-    recall = RecencyFloorRecall(similarity, store, floor=settings.recall_recency_floor)
-    if profile.peer_session is not None:
-        # What the user said to the other receptionist is this one's to
-        # remember too -- they share one LanceDB table.
-        recall = PeerSessionRecall(
-            recall,
-            store,
-            peer_session=lambda: profile.peer_session,
-            label=profile.peer_label or f"with {profile.peer_session}",
-        )
-    # Her profile may ask for a tighter budget than the shared default --
-    # Groq's ceiling is per-minute, so one turn's size is what decides
-    # whether the next turn goes through. See ReceptionistProfile.
-    recall = TokenBudgetedRecall(
-        recall, max_chars=profile.recall_max_chars or settings.recall_max_chars
-    )
+    recall = build_recall(profile, settings, store)
 
     cost = CostObserver()
     # Her own conversational replies go to Groq, then to OpenAI if Groq's

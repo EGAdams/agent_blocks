@@ -1,4 +1,4 @@
-Build a new agent for Toyota's team. What capability it must have is in the
+Build a new agent for the receptionists' team. What capability it must have is in the
 additional instructions below, in the user's own words. If those words do not
 say what the agent should DO in one sentence, do not guess and do not build
 half of it: reply asking for the one thing you are missing, and stop.
@@ -73,11 +73,16 @@ half of it: reply asking for the one thing you are missing, and stop.
 
    extra_roles.py, adding the name to EXTRA_ROLE_NAMES.
    roles.py, adding one entry to each of ROLE_BLURBS, ROLE_SPOKEN_NAMES and
-   ROLE_START_TASKS. All three, or Toyota raises at import. The blurb is what
+   ROLE_START_TASKS. All three, or the receptionists raise at import. A new
+   agent lands on Sydney's roster by default. Only if its job is the
+   organization's finances, also add its name to TOYOTA_EXTRA_ROLE_NAMES in
+   roles.py, which puts it on Toyota's desk through ROLE_ASSIGNMENT instead. The blurb is what
    the model routes on, the spoken name is what the user hears, and the start
    task follows the words "tell them to start".
-   agents/toyota/system_prompt_template/system_prompt.md, adding a short
-   section with one or two literal `ROUTE: <name> | ...` examples. Do not
+   the owning receptionist's system prompt --
+   agents/sydney/system_prompt_template/system_prompt.md, or
+   agents/toyota/system_prompt_template/system_prompt.md for a finance
+   agent -- adding a short section with one or two literal `ROUTE: <name> | ...` examples. Do not
    hand-edit the roster or the allowed-names list in that file; both are
    generated from ROLES.
 
@@ -99,5 +104,6 @@ half of it: reply asking for the one thing you are missing, and stop.
 
 8. Reply with two or three sentences in plain prose: the agent's name, what it
    does, whether you built an ADW and what it is called, and that the gate
-   passed. Mention that Toyota picks up the new agent when she next restarts.
+   passed. Mention which receptionist owns it and that she picks it up when she next
+   restarts.
    No Markdown, no bullets, no file listings.

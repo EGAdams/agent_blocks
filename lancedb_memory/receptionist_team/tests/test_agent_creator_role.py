@@ -9,6 +9,7 @@ that the role resolves at dispatch, that its prompts still carry the
 absolute-path and verification-gate instructions that make it safe (both are
 load-bearing, see agents/agent_creator/README.md), and that Toyota knows to
 route a "build me an agent" request here rather than to the mechanic.
+Sydney owns agent creation now; Toyota is the finance desk and hands it off.
 
     cd lancedb_memory
     .venv/bin/python -m receptionist_team.tests.test_agent_creator_role
@@ -17,13 +18,8 @@ from agent_memory.models import AgentReply
 
 from ..adapters import routing_model as routing_model_module
 from ..adapters import tool_agent_runner as tool_agent_runner_module
-from ..roles import (
-    ROLE_BLURBS,
-    ROLES,
-    TOYOTA_ROSTER,
-    TOYOTA_SYSTEM_PROMPT,
-    delegation_acknowledgment,
-)
+from ..roles import ROLE_BLURBS, ROLES, TOYOTA_ROSTER
+from ..sydney_roles import SYDNEY_ROSTER, SYDNEY_SYSTEM_PROMPT, delegation_acknowledgment
 
 
 async def test_the_role_exists_with_the_tools_it_needs_to_write_code():
@@ -67,11 +63,13 @@ async def test_it_is_told_not_to_touch_the_locked_and_protected_files():
     assert "adw_modules" in prompt
 
 
-async def test_toyota_knows_to_route_a_new_agent_request_here():
-    assert "ROUTE: agent_creator" in TOYOTA_SYSTEM_PROMPT
+async def test_sydney_knows_to_route_a_new_agent_request_here():
+    assert "ROUTE: agent_creator" in SYDNEY_SYSTEM_PROMPT
     assert "agent_creator" in ROLE_BLURBS
     # Building a new teammate is not the mechanic changing an existing one.
-    assert "toyota_mechanic" in TOYOTA_SYSTEM_PROMPT
+    assert "toyota_mechanic" in SYDNEY_SYSTEM_PROMPT
+    # And it is no longer Toyota's to do.
+    assert not TOYOTA_ROSTER.has("agent_creator")
     # The user hears the spoken name, never the technical one.
     assert "agent_creator" not in delegation_acknowledgment("agent_creator")
     assert "our agent creator" in delegation_acknowledgment("agent_creator")
@@ -110,7 +108,7 @@ async def test_routing_model_resolves_the_agent_creator_by_name():
         model = routing_model_module.RoutingModel(
             _FakeRouteOnceModel("ROUTE: agent_creator | create an agent that opens a browser"),
             model="fake-role-model",
-            roster=TOYOTA_ROSTER,
+            roster=SYDNEY_ROSTER,
             runner=tool_agent_runner_module.ToolAgentRunner(),
         )
         reply = await model.complete("I need an agent that can open a browser")

@@ -1,7 +1,8 @@
 """The mechanic: a routed role whose only job is to run one ADW."""
 from pathlib import Path
 
-from ..roles import ROLE_BLURBS, ROLE_SPOKEN_NAMES, ROLES, TOYOTA_SYSTEM_PROMPT
+from ..roles import ROLE_BLURBS, ROLE_SPOKEN_NAMES, ROLES, TOYOTA_ROSTER, TOYOTA_SYSTEM_PROMPT
+from ..sydney_roles import SYDNEY_ROSTER, SYDNEY_SYSTEM_PROMPT
 from ..agents import catalog
 
 AGENT_BLOCKS = Path(__file__).resolve().parents[3]
@@ -41,9 +42,14 @@ async def test_the_coder_is_a_folder_but_never_routable():
     assert catalog().definition('mechanic_coder').model_configuration().model
 
 
-async def test_toyota_knows_to_route_self_repair_to_the_mechanic():
+async def test_sydney_summons_the_mechanic_for_both_receptionists():
     assert 'toyota_mechanic' in ROLE_BLURBS and 'toyota_mechanic' in ROLE_SPOKEN_NAMES
-    assert 'ROUTE: toyota_mechanic' in TOYOTA_SYSTEM_PROMPT
+    assert SYDNEY_ROSTER.has('toyota_mechanic') and SYDNEY_ROSTER.has('mechanic_translator')
+    assert 'ROUTE: toyota_mechanic' in SYDNEY_SYSTEM_PROMPT
+    # Toyota no longer routes there herself: she opens Sydney's window.
+    assert not TOYOTA_ROSTER.has('toyota_mechanic')
+    assert 'ROUTE: toyota_mechanic' not in TOYOTA_SYSTEM_PROMPT
+    assert 'OPEN_AGENT: sydney' in TOYOTA_SYSTEM_PROMPT
 
 
 if __name__ == '__main__':

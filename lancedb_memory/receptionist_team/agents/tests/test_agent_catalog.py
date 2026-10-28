@@ -42,18 +42,35 @@ async def test_an_unknown_agent_names_the_ones_that_exist():
 async def test_toyotas_system_prompt_is_the_folder_rendered_with_the_roster():
     # The import-time render in roles.py is the real consumer; this asserts the
     # template on disk is what produces it.
-    from ...roles import ROLES, TOYOTA_SYSTEM_PROMPT
+    from ...roles import TOYOTA_ROLES, TOYOTA_SYSTEM_PROMPT
 
     template = catalog().definition( "toyota" ).system_prompt()
     assert set( template.placeholders()) == { "roster", "allowed_agents" }
     assert "{{" not in TOYOTA_SYSTEM_PROMPT
     # Every routable role is named in the rendered roster and allow-list.
-    for name in ROLES:
+    for name in TOYOTA_ROLES:
         assert name in TOYOTA_SYSTEM_PROMPT
     # Behaviour the prompt has always promised, now sourced from the folder.
     assert "ROUTE: <agent_name>" in TOYOTA_SYSTEM_PROMPT
     assert "OPEN_AGENT: mazda" in TOYOTA_SYSTEM_PROMPT
-    assert "ROUTE: toyota_mechanic" in TOYOTA_SYSTEM_PROMPT
+    # The mechanic is Sydney's to summon now, for both of them.
+    assert "OPEN_AGENT: sydney" in TOYOTA_SYSTEM_PROMPT
+
+
+async def test_sydneys_system_prompt_is_her_folder_rendered_with_the_rest_of_the_roster():
+    from ...roles import ROLES, TOYOTA_ROLES
+    from ...sydney_roles import SYDNEY_ROLES, SYDNEY_SYSTEM_PROMPT
+
+    template = catalog().definition( "sydney" ).system_prompt()
+    assert set( template.placeholders()) == { "roster", "allowed_agents" }
+    assert "{{" not in SYDNEY_SYSTEM_PROMPT
+    # The two rosters split ROLES between them with nothing left over.
+    assert set( SYDNEY_ROLES ) | set( TOYOTA_ROLES ) == set( ROLES )
+    assert not set( SYDNEY_ROLES ) & set( TOYOTA_ROLES )
+    for name in SYDNEY_ROLES:
+        assert f"ROUTE: { name }" in SYDNEY_SYSTEM_PROMPT, name
+    assert "OPEN_AGENT: toyota" in SYDNEY_SYSTEM_PROMPT
+    assert catalog().definition( "sydney" ).user_prompt().raw() == DEFAULT_TEMPLATE
 
 
 async def test_toyotas_user_prompt_file_is_byte_identical_to_the_engine_default():

@@ -1,6 +1,6 @@
-"""ReceptionistProfile -- everything that differs between two receptionists.
+"""ReceptionistProfile -- everything that differs between the receptionists.
 
-Toyota and Mazda are the same engine. What varies between them is a short
+Toyota, Mazda and Sydney are the same engine. What varies between them is a short
 list of values: which agents/ folder holds their prompts, which roster they
 can route to, how a delegation actually runs, which session and nexus
 subdirectory their memory uses, whose turns they recall as a peer, which TTS
@@ -11,8 +11,9 @@ So that list is a frozen dataclass and main.py's build_receptionist() reads
 it. Role config, not a wire contract -- same reasoning as finance_team's
 AgentRole, so a dataclass rather than a pydantic BaseModel.
 
-Adding a third receptionist is one more PROFILES entry plus her agents/
-folder; it is not another build_*() function.
+Sydney was the third receptionist, and she was exactly one more PROFILES
+entry plus her agents/ folder; a fourth is the same, not another build_*()
+function.
 """
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -39,6 +40,7 @@ from .roles import (
     TOYOTA_SYSTEM_PROMPT,
 )
 from .rosters import Roster
+from .sydney_roles import SYDNEY_CHAT_MODEL, SYDNEY_ROSTER, SYDNEY_SYSTEM_PROMPT
 
 
 def _mazda_runner() -> IDelegationRunner:
@@ -93,6 +95,18 @@ def _toyota_runner() -> IDelegationRunner:
     )
 
 
+def _sydney_runner() -> IDelegationRunner:
+    """Every one of her specialists is an agent folder run through the Claude SDK.
+
+    Same runner Toyota falls back to for her own agent folders -- Sydney is a
+    clone, so a delegation runs exactly the way it does for Toyota. Imported
+    inside the function for the same reason as _toyota_runner's.
+    """
+    from .adapters.tool_agent_runner import ToolAgentRunner
+
+    return ToolAgentRunner()
+
+
 @dataclass(frozen=True)
 class ReceptionistProfile:
     """One receptionist's identity and wiring choices. Pure data."""
@@ -109,6 +123,10 @@ class ReceptionistProfile:
     # LanceDB table, so each can hear what the user told the other.
     peer_session: str | None = None
     peer_label: str | None = None
+    # Further (session, label) peers, recalled the same way and in this order.
+    # Toyota hears both Mazda and Sydney; each extra peer is one more
+    # PeerSessionRecall wrapped around the first, so each labels only its own.
+    extra_peers: tuple[tuple[str, str], ...] = ()
     # Her conversational/routing model, served by Groq. A plain string rather
     # than an import from adapters/groq_model.py, so reading a profile never
     # drags the openai client in -- same reasoning as the deferred runner
@@ -165,6 +183,9 @@ TOYOTA = ReceptionistProfile(
     build_runner=_toyota_runner,
     peer_session="mazda",
     peer_label="with Mazda",
+    # Sydney does the non-financial work now, so what the user asked her is
+    # still Toyota's to remember.
+    extra_peers=(("sydney", "with Sydney"),),
     # The 120b, same as Mazda -- see roles.TOYOTA_CHAT_MODEL.
     chat_model=TOYOTA_CHAT_MODEL,
     # Tighter than the 12000 default: her routing prompt and the per-turn
@@ -222,7 +243,38 @@ MAZDA = ReceptionistProfile(
     route_override=StatusQuestionRoute(MICKEY_AGENT_NAME),
 )
 
-PROFILES: dict[str, ReceptionistProfile] = {TOYOTA.name: TOYOTA, MAZDA.name: MAZDA}
+SYDNEY = ReceptionistProfile(
+    name="sydney",
+    display_name="Sydney",
+    default_session="sydney",
+    nexus_subdir="sydney",
+    system_prompt=SYDNEY_SYSTEM_PROMPT,
+    # The complement of Toyota's finance roster: code, agents, the mechanic,
+    # the browser and web search, ADWs. See sydney_roles.py.
+    roster=SYDNEY_ROSTER,
+    build_runner=_sydney_runner,
+    # A clone of Toyota, so she hears what the user told Toyota, out of the
+    # same shared LanceDB table.
+    peer_session="toyota",
+    peer_label="with Toyota",
+    chat_model=SYDNEY_CHAT_MODEL,
+    # Same per-minute arithmetic as Toyota's: her prompt is about the same
+    # size, so the same recall budget keeps one turn under Groq's ceiling.
+    recall_max_chars=6000,
+    tts_voice="en-AU-NatashaNeural",
+    # OPEN_AGENT: toyota hands money questions back to the front desk.
+    handoff=True,
+    # No WorkflowModel: its capability block is Toyota's finance WORK stack.
+    # Every control line Sydney can emit is stated in her own system prompt.
+    operations=False,
+    service_port=8769,
+    # No route override: her forced routes would all be Toyota's (figures,
+    # spreadsheets, tax progress), and those are answered by handing off.
+)
+
+PROFILES: dict[str, ReceptionistProfile] = {
+    TOYOTA.name: TOYOTA, MAZDA.name: MAZDA, SYDNEY.name: SYDNEY,
+}
 
 # Two receptionists sharing a port would mean the dashboard silently talking to
 # whichever sidecar won the bind. Fail at import instead.

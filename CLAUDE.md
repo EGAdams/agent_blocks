@@ -29,9 +29,10 @@ The top-level areas are:
   successor on the Claude Agent SDK with Protocol-based ports. Also home to
   two further composition roots built on the same conventions: `finance_team/`
   (a 6-agent vendor-pattern/receipt-audit team) and `receptionist_team/`
-  (**two** receptionists over one engine — Toyota, who delegates to
-  `finance_team`, and Mazda, a document-verification receptionist — selected
-  with `--agent`). A third, `mazda_team/`, was retired into that profile and
+  (**three** receptionists over one engine — Toyota, the finance desk who
+  delegates to `finance_team`; Sydney, Toyota's clone for all non-financial
+  work: code, new agents, the mechanic for both, browser/web search, ADWs; and
+  Mazda, a document-verification receptionist — selected with `--agent`). A third, `mazda_team/`, was retired into that profile and
   no longer exists.
 - `adws/` — AI Developer Workflows in "interface style": PEP 723 `uv run`
   scripts whose phases are objects implementing the SSSF `IPhase` roles, with

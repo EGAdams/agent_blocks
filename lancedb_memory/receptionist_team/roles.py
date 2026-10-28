@@ -14,6 +14,7 @@ f-string it replaced (tests/test_agent_catalog.py pins that).
 from finance_team.roles import ROLES as _FINANCE_ROLES
 
 from .agents import catalog
+from .role_desks import IRoleAssignment, NamedRolesOrDefault, roles_for
 from .rosters import Roster
 from .extra_roles import EXTRA_ROLES
 
@@ -197,13 +198,30 @@ ROLE_START_TASKS: dict[str, str] = {
     "tax_progress_page": "building your tax progress page",
 }
 
-# Toyota's roster: the roles plus the three descriptions, validated as one
+# Toyota is the finance desk. Every finance_team role is hers automatically,
+# plus the agent-folder specialists below, whose whole job is the books.
+# Everything else in ROLES -- building, testing and deploying code, agent
+# creation, the mechanic, the browser and web search, the ADW guide -- sits on
+# Sydney's desk. Both rosters ask ROLE_ASSIGNMENT rather than each other's
+# lists (see role_desks.py), so a new agent folder lands on Sydney's desk by
+# default and a new FINANCE agent is one more name below.
+TOYOTA_EXTRA_ROLE_NAMES = (
+    "category_spreadsheet", "spreadsheet_reshaper", "live_books",
+    "gifts_love_offerings_report", "tax_progress_page",
+)
+TOYOTA_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES)
+ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
+    TOYOTA_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
+)
+TOYOTA_ROLES = roles_for("toyota", ROLES, ROLE_ASSIGNMENT)
+
+# Toyota's roster: her roles plus the three descriptions, validated as one
 # object. Roster.__post_init__ raises at import if any agent is missing a
 # blurb, spoken name or start task -- the same fail-loud check the three
-# hand-written dict loops here used to do, now shared with Mazda.
+# hand-written dict loops here used to do, now shared with Mazda and Sydney.
 TOYOTA_ROSTER = Roster(
     owner="Toyota",
-    roles=ROLES,
+    roles=TOYOTA_ROLES,
     blurbs=ROLE_BLURBS,
     spoken_names=ROLE_SPOKEN_NAMES,
     start_tasks=ROLE_START_TASKS,

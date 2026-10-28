@@ -48,7 +48,7 @@ async def test_each_receptionist_has_her_own_loopback_port():
     # talking to whichever one won the bind. profiles.py asserts this at
     # import; this is the test that says why it matters.
     ports = sorted(p.service_port for p in PROFILES.values())
-    assert ports == [8767, 8768], ports
+    assert ports == [8767, 8768, 8769], ports
     assert len(set(ports)) == len(ports)
     # 8765 is the dashboard itself and 8766 is thought_bridge.py on this box.
     assert 8765 not in ports and 8766 not in ports
