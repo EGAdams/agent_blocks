@@ -1,0 +1,9 @@
+{
+  "description": "starts, stops, restarts, reloads, enables, disables or checks one named systemd service; never deletes a file",
+  "model": null,
+  "max_turns": 10,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/system_mechanic",
+  "notes": "Drives adws/adw_system_mechanic.py, which only ever shells out to `systemctl` (optionally through `sudo -n`) with a verb from its own ALLOWED_ACTIONS allowlist -- no rm/unlink/shutil anywhere in that file, so file deletion is structurally unreachable rather than merely discouraged. Its deliverable is the service's changed (or confirmed) state plus a one-line report, not a written document, so output_path points at the ADW's own runtime data directory rather than readable_documents/reports. Read is for the --message-out file; no Write/Edit, since this agent changes nothing in the repo."
+}

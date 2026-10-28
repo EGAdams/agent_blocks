@@ -28,6 +28,7 @@ EXTRA_ROLE_NAMES = (
     "gifts_love_offerings_report", "web_search_expert", "memory_compactor",
     "toyota_mechanic", "adw_guide", "ask_opus", "ask_sonnet", "tax_progress_page",
     "sydney_post_office", "toyota_post_office",
+    "system_mechanic",
 )
 # mechanic_coder is an agent folder too, and is deliberately NOT listed: it is
 # the coder adws/adw_toyota_mechanic.py runs inside a sandbox, and routed to

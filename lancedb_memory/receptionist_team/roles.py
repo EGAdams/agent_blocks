@@ -148,6 +148,11 @@ ROLE_BLURBS: dict[str, str] = {
         "sends a message or a request to Sydney, Sonnet, Opus or the mechanic "
         "through the team post office, and reports the status of what was sent"
     ),
+    "system_mechanic": (
+        "starts, stops, restarts, reloads, enables, disables, or checks the "
+        "status of one named systemd service on this box; it never deletes "
+        "a file"
+    ),
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -177,6 +182,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "tax_progress_page": "our tax progress page builder",
     "sydney_post_office": "the post office",
     "toyota_post_office": "the post office",
+    "system_mechanic": "our system mechanic",
 }
 
 # Each phrase follows "tell them to start".
@@ -209,6 +215,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "tax_progress_page": "building your tax progress page",
     "sydney_post_office": "sending that on",
     "toyota_post_office": "sending that on",
+    "system_mechanic": "taking care of that service",
 }
 
 # Toyota is the finance desk. Every finance_team role is hers automatically,
