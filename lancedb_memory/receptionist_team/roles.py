@@ -131,6 +131,13 @@ ROLE_BLURBS: dict[str, str] = {
         "drops or clears a whole table, and refuses on its own if a cutoff "
         "would remove every row"
     ),
+    "adw_guide": (
+        "explains which ADW workflow fits a job and how to start it; "
+        "read-only, never runs one"
+    ),
+    "ask_opus": "one question to Opus, the deep model",
+    "ask_sonnet": "one question to Sonnet, the quick model",
+    "tax_progress_page": "builds the 2025 tax progress page onto ADW Generated",
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -154,6 +161,10 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "gifts_love_offerings_report": "our gifts and love offerings reporter",
     "web_search_expert": "our web search expert",
     "memory_compactor": "our memory compactor",
+    "adw_guide": "our workflow guide",
+    "ask_opus": "Opus",
+    "ask_sonnet": "Sonnet",
+    "tax_progress_page": "our tax progress page builder",
 }
 
 # Each phrase follows "tell them to start".
@@ -180,6 +191,10 @@ ROLE_START_TASKS: dict[str, str] = {
     "gifts_love_offerings_report": "building your gifts and love offerings report",
     "web_search_expert": "searching the web for that",
     "memory_compactor": "pruning and compacting the shared memory store",
+    "adw_guide": "looking up that workflow for you",
+    "ask_opus": "thinking about your question",
+    "ask_sonnet": "thinking about your question",
+    "tax_progress_page": "building your tax progress page",
 }
 
 # Toyota's roster: the roles plus the three descriptions, validated as one

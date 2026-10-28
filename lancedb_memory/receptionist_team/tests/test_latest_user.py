@@ -7,7 +7,7 @@ from ..adapters.latest_user import latest_user_message
 from ..profiles import TOYOTA
 from ..roles import LIVE_BOOKS_AGENT_NAME, CATEGORY_SPREADSHEET_AGENT_NAME
 from ..roles import TOYOTA_SYSTEM_PROMPT
-from ..operations.workflow_model import CAPABILITIES
+from ..operations.workflow_model import LIVE_CAPABILITIES
 from ..operations.workflow_model import WorkflowModel
 from ..operations.request_context import ScopedTurnContext
 from ..operations.models import ConversationRequest, WorkView
@@ -27,6 +27,8 @@ def workflow_prompt(text):
 async def test_workflow_suffix_preserves_the_actual_message_and_forced_routes():
     for text, target in [('how much did we spend in 2025', LIVE_BOOKS_AGENT_NAME),
                          ('make a spreadsheet of medical expenses', CATEGORY_SPREADSHEET_AGENT_NAME),
+                         ('Toyota, build us the current tax progress', 'tax_progress_page'),
+                         ("what's the status of our taxes", 'tax_progress_page'),
                          ('hello', None)]:
         prompt = workflow_prompt(text)
         assert latest_user_message(prompt) == text
@@ -53,7 +55,8 @@ async def test_a_large_nonmatching_prompt_cannot_block_the_event_loop():
 
 async def test_instructions_fit_the_conversational_prompt_budget():
     # The old repeated instructions used nearly 20 KB before any history.
-    assert len(TOYOTA_SYSTEM_PROMPT) + len(CAPABILITIES) < 12500
+    # Measured on live mode, the variant main.py installs unless TOYOTA_PRACTICE=1.
+    assert len(TOYOTA_SYSTEM_PROMPT) + len(LIVE_CAPABILITIES) < 12500
 
 
 async def test_real_workflow_and_routing_stack_bypasses_the_model_for_a_figure():

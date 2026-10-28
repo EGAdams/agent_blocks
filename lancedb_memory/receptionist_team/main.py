@@ -149,6 +149,17 @@ def build_mazda_desk(
     return MemoryDesk(embedder, store, recall, RecallOnlyComposer(), SystemClock())
 
 
+def practice_policies() -> InstalledPolicies:
+    """Toyota's WORK assignments: none (live mode) unless TOYOTA_PRACTICE=1.
+
+    tax_issues and reports run against the practice database (#900001), so
+    installing them by default kept her in training on the real tax work.
+    """
+    if os.getenv('TOYOTA_PRACTICE') == '1':
+        return InstalledPolicies({'tax_issues': TaxIssuesPolicy(), 'reports': ReportsPolicy()})
+    return InstalledPolicies({})
+
+
 def build_chat_model(
     profile: ReceptionistProfile,
     settings: Settings,
@@ -274,7 +285,7 @@ def build_receptionist(
         model = AgentHandoffModel(model, on_handoff=on_handoff)
     if profile.operations:
         model = WorkflowModel(model, TimedWorkflows(DashboardWorkflows(os.getenv('TOYOTA_DASHBOARD_URL', 'http://127.0.0.1:8765'))),
-                              context, InstalledPolicies({'tax_issues': TaxIssuesPolicy(), 'reports': ReportsPolicy()}),
+                              context, practice_policies(),
                               CallbackWorkObserver(on_work))
 
     agent = ConversationAgent(

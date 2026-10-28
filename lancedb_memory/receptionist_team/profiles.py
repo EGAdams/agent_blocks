@@ -29,6 +29,7 @@ from .adapters.figure_route import FigureQuestionRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
+from .adapters.tax_progress_route import TaxProgressPageRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
     CATEGORY_SPREADSHEET_AGENT_NAME,
@@ -186,8 +187,10 @@ TOYOTA = ReceptionistProfile(
     # Spreadsheet first, deliberately. "What did we spend on utilities as a
     # spreadsheet" is word for word a question about money, and both routes
     # recognize it; the one that produces a file the user can check is the
-    # one that should win. See adapters/route_panel.py.
+    # one that should win. See adapters/route_panel.py. Tax progress goes
+    # ahead of both: it builds the page (adapters/tax_progress_route.py).
     route_override=FirstRouteOpinion([
+        TaxProgressPageRoute("tax_progress_page"),
         SpreadsheetRequestRoute(CATEGORY_SPREADSHEET_AGENT_NAME),
         FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
     ]),

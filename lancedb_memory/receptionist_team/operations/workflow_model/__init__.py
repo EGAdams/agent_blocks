@@ -12,7 +12,7 @@ from ..interfaces import AssignmentPolicies, TurnContext, Workflows, WorkObserve
 from ..models import WorkIntent
 
 
-from .capabilities import CAPABILITIES, INSTALLED_FIELD
+from .capabilities import CAPABILITIES, LIVE_CAPABILITIES, capabilities_text
 
 class WorkflowModel:
     def __init__(self, inner: LanguageModel, workflows: Workflows, context: TurnContext,
@@ -22,14 +22,19 @@ class WorkflowModel:
 
     async def complete(self, prompt: str) -> AgentReply:
         request = self.context.current()
-        try:
-            state = await self.workflows.state()
-        except OSError:
-            state = None
-        context = state.model_dump_json(exclude={'history', 'run_ids', 'command'}) if state else 'Workflow service unavailable; no operations can run.'
+        installed = self.policies.installed()
+        if installed:
+            try:
+                state = await self.workflows.state()
+            except OSError:
+                state = None
+            context = state.model_dump_json(exclude={'history', 'run_ids', 'command'}) if state else 'Workflow service unavailable; no operations can run.'
+        else:
+            # Live mode: the practice checkpoint (#900001) is never shown.
+            state, context = None, 'None; no practice assignments are installed.'
         # The actual latest message follows recalled history. Old capability
         # answers and instructions cannot masquerade as today's user request.
-        capabilities = CAPABILITIES.replace(INSTALLED_FIELD, ', '.join(self.policies.installed()))
+        capabilities = capabilities_text(installed)
         reply = await self.inner.complete(
             f'{prompt}\n\n{capabilities}\nCURRENT CHECKPOINT: {context}\n'
             f'PENDING BROWSER OPERATION: {state.command.get("action") if state and state.command else "none"}\n'
@@ -40,6 +45,8 @@ class WorkflowModel:
                 return reply.model_copy(update={'text': "I couldn't validate that operation. No workflow was started or changed."})
             return reply
         try:
+            if not installed:
+                raise ValueError('No practice assignments are installed, so no workflow was started or changed.')
             if state is None:
                 raise OSError('Workflow unavailable')
             requested = WorkIntent.model_validate_json(match[1])

@@ -1,0 +1,9 @@
+{
+  "description": "builds the current 2025 tax progress page through rol_finances adws/adw_tax_progress_page.py, puts it on top of ADW Generated on the live dashboard, and relays the line it writes",
+  "model": null,
+  "max_turns": 4,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/rol_finances/adws/adw_data/sessions",
+  "notes": "Dispatcher only: the workflow is code, read-only (no AI, no database or answer writes). It publishes Barnes_2025_Tax_Progress_<time>.html to agent_blocks/adws/adw_data/web_pages (served by the dashboard at /adw_generated/, newest first, from disk -- no dashboard restart) and copies it to the dashboard host when run elsewhere."
+}

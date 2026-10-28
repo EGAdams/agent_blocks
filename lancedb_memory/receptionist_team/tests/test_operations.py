@@ -254,10 +254,34 @@ async def test_every_control_line_in_the_capability_text_survives_on_one_line():
     from receptionist_team.operations.workflow_model import CAPABILITIES
     routes = ('live_books', 'toyota_mechanic', 'mechanic_translator',
               'category_spreadsheet', 'spreadsheet_reshaper', 'agent_creator',
-              'browser_opener')
+              'browser_opener', 'tax_progress_page')
     for name in routes:
         assert f'ROUTE: {name} |' in CAPABILITIES, name
     assert 'OPEN_AGENT: mazda' in CAPABILITIES
+
+
+async def test_live_mode_has_no_practice_data_and_routes_tax_progress_to_the_page():
+    agent, model, workflows, _, _, _ = build(['WORK: {"action":"start"}'], policies=InstalledPolicies({}))
+    reply = await agent.handle_turn('Toyota, build us the current tax progress')
+    prompt = model.prompts[0]
+    assert '900001' not in prompt and 'Only tax_issues is practice data' not in prompt and 'Walgreens (RM)' not in prompt
+    assert 'ROUTE: tax_progress_page |' in prompt and 'Never emit WORK:' in prompt
+    assert 'No practice assignments are installed' in reply.text
+    assert workflows.calls == []
+
+
+async def test_toyota_starts_out_of_training_unless_practice_is_asked_for():
+    import os
+    from receptionist_team.main import practice_policies
+    saved = os.environ.pop('TOYOTA_PRACTICE', None)
+    try:
+        assert practice_policies().installed() == ()
+        os.environ['TOYOTA_PRACTICE'] = '1'
+        assert practice_policies().installed() == ('reports', 'tax_issues')
+    finally:
+        os.environ.pop('TOYOTA_PRACTICE', None)
+        if saved is not None:
+            os.environ['TOYOTA_PRACTICE'] = saved
 
 
 if __name__ == '__main__':

@@ -11,8 +11,7 @@ from ..interfaces import AssignmentPolicy
 
 class InstalledPolicies:
     def __init__(self, policies: dict[str, AssignmentPolicy]):
-        if not policies:
-            raise ValueError("At least one assignment policy must be installed.")
+        # Empty is live mode: Toyota out of training, with no WORK assignments.
         self.policies = dict(policies)
 
     def installed(self) -> tuple[str, ...]:
@@ -24,6 +23,6 @@ class InstalledPolicies:
             # Name what is installed: a bare refusal leaves the user guessing which
             # words would have worked, and the model re-guessing on the next turn.
             raise ValueError(
-                "That assignment is not installed. Installed: " + ", ".join(self.installed())
+                "That assignment is not installed. Installed: " + (", ".join(self.installed()) or "none")
             )
         return policy

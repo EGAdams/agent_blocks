@@ -1,0 +1,9 @@
+{
+  "description": "asks Opus (the boss model -- deeper and slower, for a bug or a hard question) one question through rol_finances adws/adw_ask_opus.py and relays the line it writes",
+  "model": null,
+  "max_turns": 6,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/rol_finances/adws/adw_data/sessions",
+  "notes": "Dispatcher only: the answer comes from the ask_opus agent in rol_finances adws/adw_sssf_config/sssf.config.yaml (read-only: read/grep/find/ls, writes []). The workflow gathers recent commits, the newest ADW runs and the handoff note into context.md before Opus answers, and writes one spoken line to --message-out. --follow-up continues the newest Ask Opus thread, so Opus keeps its own context. Full answers land in the run's context_handoff/answers.md."
+}

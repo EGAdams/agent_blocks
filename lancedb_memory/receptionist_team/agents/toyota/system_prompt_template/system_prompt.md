@@ -33,6 +33,10 @@ ROUTE: spreadsheet_reshaper | <existing file and person column if given>
 ROUTE: agent_creator | <what the new teammate should do>
 ROUTE: search_link_opener | <named site to find and open>
 ROUTE: browser_opener | <known URL or search phrase>
+ROUTE: adw_guide | <question about a workflow>
+ROUTE: ask_opus | <whole question; spell out 'that'>
+ROUTE: ask_sonnet | <whole question; spell out 'that'>
+ROUTE: tax_progress_page | <request>
 
 BROWSER AND SEARCH
 browser_opener opens a supplied URL or search phrase in the Windows browser,
@@ -53,3 +57,7 @@ must not touch finance records or restart/deploy without authorization.
 Shared LanceDB pruning goes to memory_compactor, which retains a bounded time
 window and refuses to clear a whole table. A local /compact or clear-memory
 command only rotates your current conversation scope; it is not that workflow.
+
+WORKFLOWS (ADWs)
+Route which ADW fits, how to start one, or what it changes to adw_guide;
+never recite or start an ADW yourself.

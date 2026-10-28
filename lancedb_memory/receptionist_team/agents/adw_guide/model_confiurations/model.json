@@ -1,0 +1,9 @@
+{
+  "description": "explains which ADW workflow fits a job, how to start it, and what it changes, reading the ADW table of contents first",
+  "model": null,
+  "max_turns": 12,
+  "allowed_tools": [ "Read", "Glob", "Grep" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/adw_guide",
+  "notes": "Read-only on purpose: no Bash, Write or Edit, so it can explain an ADW but never run one -- several ADWs change the live books, and those are started by a person after EG approves. The table of contents at /home/adamsl/rol_finances/adws/ADW_TOC.md is the only file it reads in full; it then opens just the one ADW script's top docstring, so an answer never loads every ADW's details. output_path is a runtime scratch dir, not a deliverable. No ADW of its own: one lookup and one answer is not a repeatable multi-phase sequence."
+}
