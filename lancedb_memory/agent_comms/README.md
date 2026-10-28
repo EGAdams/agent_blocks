@@ -75,6 +75,7 @@ flowchart LR
     F --> CS[ClaudeSdkExecutor<br/>Sonnet / Opus]
     F --> SC[SidecarTurnExecutor<br/>Toyota / Sydney]
     F --> ME[ByTaskType: DiagnosisExecutor + AdwSubprocessExecutor<br/>the mechanic]
+    F --> BR[AdwSubprocessExecutor<br/>the browser recorder]
     EV --> LOG[(JsonlEventLog)]
     EV --> FF[FailureForwarder] -- "diagnose" --> PO
     ME --> DG[IAgentDiagnostic<br/>MailboxDiagnostic] --> LOG
@@ -150,8 +151,15 @@ builder in `default_builders`.
 | Sonnet | `claude_sdk`, `claude-sonnet-5`, Bash/Read/Write/Edit/Glob/Grep | build (not idempotent), plan, review, ask, message | `ClaudeSdkExecutor` over `finance_team`'s `run_role` (auth unchanged: subscription OAuth, `env=` backstop intact) |
 | Opus | `claude_sdk`, `claude-opus-5-5`, same tools | same | same |
 | the mechanic | `mechanic` | diagnose (code-only facts + case history), repair (`adws/adw_toyota_mechanic.py`, sandboxed, gated) | `ByTaskType` |
+| the browser recorder (`browser-recorder`) | `adw` → `uv run --quiet adws/adw_browser_agent_request.py <request> --verdict` | playback (not idempotent; `message`/`ask` answer to it): run a saved browser playback by name, or "list playbacks" | `AdwSubprocessExecutor`; its reply is the ADW's closing `DONE:`/`REFUSED:` line. Agent-safe: no approvals and no secrets, so a consequential or secret step blocks and says so. See `adws/browser_workflows/DESIGN.md` |
 
-`hello-world` is a sixth, trivial agent that proves a path end to end;
+`adw` is the generic runtime the browser card uses: any ADW that takes the
+request as its first argument and ends on a `DONE:`/`REFUSED:` line is one
+card naming `script`, optional `command` (the interpreter prefix, e.g.
+`[ "uv", "run", "--quiet" ]` for a PEP 723 script), `extra_args` and
+`timeout_seconds` -- no code.
+
+`hello-world` is a further trivial agent that proves a path end to end;
 `post-office` is the sender identity `FailureForwarder` uses.
 
 Guarantees that matter:

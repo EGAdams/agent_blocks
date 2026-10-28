@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Browser Recorder</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <h1>Browser Recorder</h1>
+  <p id="status" role="status">…</p>
+  <div id="idle" hidden>
+    <button id="start" type="button">Start recording this tab</button>
+  </div>
+  <div id="recording" hidden>
+    <button id="stop" type="button" class="danger">Stop recording</button>
+  </div>
+  <form id="saving" hidden>
+    <label for="name">Save As?</label>
+    <input id="name" name="playback_name" autocomplete="off" required placeholder="Playback name">
+    <div class="row">
+      <button id="save" type="submit">Save</button>
+      <button id="discard" type="button" class="quiet">Discard</button>
+    </div>
+  </form>
+  <p class="note">Passwords and other secret fields are never recorded.</p>
+  <script type="module" src="popup.js"></script>
+</body>
+</html>

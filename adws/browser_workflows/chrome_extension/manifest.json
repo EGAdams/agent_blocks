@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Browser Recorder (agent_blocks)",
+  "version": "0.1.0",
+  "description": "Records clicks, text entries and navigation in one tab you choose, for replay by browser_workflows. Never records passwords or other secrets.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA60WidpZOjuAwrRXNn+mvBNxDY8UnPZYDRusnRr9uQcKvx6hVaPVt5PDYyx/P2ZbuI0LUvDmhv3jjuNccfXxdGQfsP0Aafoa6dYUCQQNNecwtObqnII0sLvcXaAe1zDMayMX1ao4+cYc0OdDxtbAka+c7Wcshdhc3jcpNTKmSU6bsDuWD7F5nw6bVkhNKm6ydVrhzetm3NFoObzRiUF67IEnhsCIK+4QI5dEGFsnW5wJWN3oI6uVAUvYhU/s8HPyGEwFcJTXSvtYFvAAYV0HuZyJk+TjxMUZqepa1QxmtZItGjGyHVDFtLWEPdpWfTehvfwL+C8rvdETze+q2GKT2pwIDAQAB",
+  "minimum_chrome_version": "116",
+  "background": { "service_worker": "sw/main.js", "type": "module" },
+  "permissions": [ "scripting", "storage", "tabs", "webNavigation", "alarms" ],
+  "host_permissions": [ "<all_urls>" ],
+  "action": { "default_popup": "popup/popup.html", "default_title": "Browser Recorder" },
+  "web_accessible_resources": []
+}

@@ -1,0 +1,7 @@
+{
+  "_comment": "Which fields are never recorded. Read by the extension's content script AND by Python (normalizing/sensitivity.py), so the two sides cannot disagree. A match on any rule means the value is dropped; playback asks a person for it.",
+  "input_types": [ "password", "email", "tel" ],
+  "autocomplete_tokens": [ "current-password", "new-password", "one-time-code", "username", "email", "tel", "bday", "street-address", "postal-code" ],
+  "autocomplete_prefixes": [ "cc-", "tel-", "bday-", "address-" ],
+  "hint_pattern": "pass|pwd|\\bpin\\b|ssn|social|secret|token|otp|cvv|cvc|card.?num|account.?num|acct|routing|security.?code|answer|user.?name|user.?id|login.?id|e-?mail|phone|birth|\\bdob\\b|tax.?id|\\bein\\b"
+}

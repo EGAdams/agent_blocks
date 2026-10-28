@@ -32,6 +32,18 @@ The system interpreter is PEP 668 externally-managed, so **always invoke
 `pyproject.toml`, or lockfile anywhere in the workspace — dependencies were
 installed ad hoc, so `pip list` in the venv is the only manifest.
 
+Restored on 2026-10-28 with Python 3.14.7. To recreate or top up this same
+environment (the recorder also needs `aiohttp`, tests need `pytest`):
+
+```bash
+# From the repository root; create only if .venv is missing.
+uv venv --python 3.14 lancedb_memory/.venv
+uv pip install --python lancedb_memory/.venv/bin/python pydantic lancedb pyarrow claude-agent-sdk openai pymysql python-dotenv pyyaml rich selenium aiohttp pytest
+# Large install: obtain user approval first. CPU wheels avoid CUDA downloads.
+uv pip install --python lancedb_memory/.venv/bin/python torch --index-url https://download.pytorch.org/whl/cpu
+uv pip install --python lancedb_memory/.venv/bin/python sentence-transformers --index https://download.pytorch.org/whl/cpu --index-strategy first-index
+```
+
 `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` must be **unset** so the Agent SDK
 uses local Claude Code subscription auth instead of metered API billing. Both
 Claude adapters additionally pass `env={ "ANTHROPIC_API_KEY": "",

@@ -58,12 +58,44 @@ The top-level areas are:
   its total disagreed with the Year Comparison tab beside it). Generated
   sheets land in `adws/adw_data/spreadsheets/`, which is gitignored --
   regenerable, and somebody's real medical and payroll rows.
+  `adw_interface_browser_debug_open.py` and `adw_interface_browser_click.py`
+  are a pair for pages a person types into by hand: the first opens Windows
+  Chrome with a DevTools debug port and its own profile, and the second
+  attaches selenium-headless's `WebBrowserManager` to that port (an injected
+  `debugger_address` driver) to press one named button, such as Fifth Third's
+  "Log In". Their single-purpose parts live in `adws/browser_session/`, every
+  one written against an `I`-prefixed Protocol in `browser_session/interfaces/`
+  (say "interface", never "port", for these), with generic ADW plumbing (log
+  and message-sink factories) in `adws/adw_plumbing/`; the buttons they know
+  are data in `browser_session/site_targets.py`, and a new way of finding one
+  is a `LocatorRegistry.register()` call, not an edit. A
+  window opened any other way has no debug port and can't be steered. The
+  session is released and never quit, because it's the user's window.
   `adw_toyota_mechanic.py` (with its guard, `adw_toyota_mechanic_guard.py`)
   is Toyota's self-repair workflow, moved here from `rol_finances` on
   2026-10-24: it edits a sandbox copy of `lancedb_memory/`'s packages and
   applies only if every suite stays green. Its runs land in the gitignored
   `adws/adw_data/mechanic/`; see
   `lancedb_memory/receptionist_team/agents/toyota_mechanic/README.md`.
+  `adws/browser_workflows/` is the click recorder and playback engine
+  (read its `DESIGN.md` first). An MV3 extension (`chrome_extension/`,
+  loaded unpacked from `%LOCALAPPDATA%\adw-browser-recorder` via
+  `adw_browser_install_extension.py`) records the selected tab. It sends
+  each action to a loopback recorder service (`adw_browser_recorder_service.py`,
+  port 8781, Origin-pinned to the extension), which normalises the actions,
+  strips secrets, and saves them as named playbacks in the gitignored
+  `adws/adw_data/browser_workflows/click_workspace_sequences.db`. Playback
+  attaches to the debug Chrome through the same `browser_session` pieces
+  as the "Log In" click. Each operation is one thin `adw_browser_<op>.py`
+  over the shared harness `browser_workflow_adw.py`, and
+  `execute_saved_playback` composes three of them.
+  `browser_workspace_menu.py` is the Smart Menu, which `rol_finances`' menu
+  mounts under "Browser Automation Workspace". Agents reach playback through
+  the post office's `browser-recorder` card. Agents get no approvals and no secrets,
+  so a consequential or password step blocks rather than runs. Tests:
+  `cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp
+  pytest -q browser_workflows/tests`. Prefix `BW_E2E=1` and add `--with
+  selenium` to run the real-Chrome record/replay test.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

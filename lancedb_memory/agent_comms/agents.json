@@ -75,6 +75,19 @@
       ]
     },
     {
+      "name": "browser-recorder",
+      "display_name": "the browser recorder",
+      "runtime": "adw",
+      "settings": { "script": "adws/adw_browser_agent_request.py", "command": [ "uv", "run", "--quiet" ],
+                    "extra_args": [ "--verdict" ], "sender_flag": "--actor", "timeout_seconds": 900,
+                    "aliases": [ "browser playback", "click recorder", "playback agent" ] },
+      "capabilities": [
+        { "task_type": "playback", "description": "run a saved browser playback by name in the debug Chrome, agent-safe: a consequential or secret step blocks and says so; 'list playbacks' names them",
+          "idempotent": false, "default_wait_seconds": 300,
+          "synonyms": [ "replay", "message", "ask", "build", "plan", "review" ] }
+      ]
+    },
+    {
       "name": "hello-world",
       "display_name": "Hello World",
       "runtime": "hello_world",

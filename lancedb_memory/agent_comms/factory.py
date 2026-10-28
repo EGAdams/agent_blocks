@@ -13,6 +13,7 @@ one entry in agents.json and no code at all.
 from __future__ import annotations
 
 import os
+import shlex
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -115,11 +116,23 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
 
     def mechanic( card: AgentCard ) -> ITaskExecutor:
         repair = AdwSubprocessExecutor( MECHANIC_ADW, cwd=WORKSPACE,
-                                        python=str( WORKSPACE / "lancedb_memory" / ".venv" / "bin" / "python" ))
+                                        command=[ str( WORKSPACE / "lancedb_memory" / ".venv" / "bin" / "python" )])
         return ByTaskType({ "diagnose": DiagnosisExecutor( diagnostic, cases ), "repair": repair })
+
+    def adw( card: AgentCard ) -> ITaskExecutor:
+        """Any ADW that takes the request as its first argument and ends on a
+        DONE:/REFUSED: line; the card says which script and how to run it."""
+        s       = card.settings
+        command = s.get( "command" )
+        command = shlex.split( command ) if isinstance( command, str ) else [ str( c ) for c in command or []]
+        return AdwSubprocessExecutor( WORKSPACE / str( s[ "script" ]), cwd=WORKSPACE,
+                                      extra_args=[ str( a ) for a in s.get( "extra_args", [])],
+                                      command=command or None, timeout_seconds=float( s.get( "timeout_seconds", 3600.0 )),
+                                      diagnose_flag=s.get( "diagnose_flag" ), sender_flag=s.get( "sender_flag" ))
 
     return {
         "claude_sdk":  claude_sdk,
+        "adw":         adw,
         "sidecar":     sidecar,
         "mechanic":    mechanic,
         "hello_world": lambda card: HelloWorldExecutor(),

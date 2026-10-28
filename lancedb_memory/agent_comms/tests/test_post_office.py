@@ -378,6 +378,69 @@ def test_router_reads_addressees_and_verbs() -> None:
         h.close()
 
 
+def test_browser_playback_reaches_the_recorder_adw_and_reports_its_verdict() -> None:
+    """The `browser-recorder` card runs on the generic `adw` runtime: the request goes
+    in as the first argument, and the ADW's closing DONE:/REFUSED: line is
+    the reply. A stand-in script plays the ADW, so nothing opens Chrome."""
+    from agent_comms.factory import default_builders
+    h = Harness()
+    try:
+        request = h.kit.router.route( "toyota", "have the browser recorder run the pay bill playback" )
+        assert request.recipient == "browser-recorder", request
+        # A bare "browser" is not the recorder's name: this is still Sonnet's work.
+        assert h.kit.router.route( "toyota", "the browser click ADW is broken, have Sonnet fix it" ).recipient == "sonnet"
+        # A playback named with a build verb ("create") is still a playback.
+        create = h.kit.dispatcher.send( h.kit.router.route( "toyota", "browser recorder: run create invoice" ))
+        assert create.accepted, create
+        script = h.dir / "fake_agent_request.py"
+        script.write_text( "import sys\nprint( 'lifecycle noise' )\n"
+                           "print( 'REFUSED: step 4 needs approval' if 'pay' in sys.argv[ 1 ] else 'DONE: ran it' )\n"
+                           "print( 'more noise' )\n" )
+        card  = h.kit.registry.card( "browser-recorder" ).model_copy( deep=True )
+        card.settings.update({ "script": str( script ), "command": f"{ sys.executable } -I", "extra_args": []})
+        runner = default_builders( h.kit.diagnostic, h.kit.cases, h.dir / "reports" )[ "adw" ]( card )
+        h.kit.overrides[ "browser-recorder" ] = runner
+        sent = h.kit.dispatcher.send( request )
+        h.work( "browser-recorder" )
+        task = h.kit.board.task( sent.task_id )
+        assert task.task_type == "playback", task                            # the card's own name for the work
+        assert task.status == TaskStatus.FAILED and "step 4 needs approval" in ( task.error or "" ), task
+        assert runner._argv( task )[ -2: ] == [ "--actor", "toyota" ]                     # who asked, not the post office
+    finally:
+        h.close()
+
+
+def test_a_timed_out_adw_is_ended_with_its_whole_process_group() -> None:
+    """Behind `uv run` the ADW is a grandchild; the timeout must end it too."""
+    from agent_comms.executors.mechanic import AdwSubprocessExecutor
+    from agent_comms.models import Envelope
+    import os, time
+    d = Path( tempfile.mkdtemp( prefix="adw_timeout_" ))
+    try:
+        pid_file = d / "child.pid"
+        script   = d / "slow.py"
+        script.write_text( "import subprocess, sys\n"
+                           "child = subprocess.Popen([ sys.executable, '-c', "
+                           f"\"import os, signal, time; signal.signal( signal.SIGTERM, signal.SIG_IGN ); "
+                           f"open( { str( pid_file )!r }, 'w' ).write( str( os.getpid() )); time.sleep( 60 )\" ], "
+                           "stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL )\n"
+                           "child.wait()\n" )
+        runner = AdwSubprocessExecutor( script, cwd=d, timeout_seconds=1.0 )
+        result = asyncio.run( runner.execute( Envelope( id="t1", correlation_id="t1", kind=MessageKind.REQUEST, sender="toyota", recipient="browser-recorder",
+                                                        task_type="playback", text="run it" )))
+        assert not result.ok and "did not finish" in result.text, result
+        child = int( pid_file.read_text())
+        time.sleep( 0.2 )
+        try:
+            os.kill( child, 0 )
+            alive = open( f"/proc/{ child }/stat" ).read().split()[ 2 ] != "Z"
+        except ProcessLookupError:
+            alive = False
+        assert not alive, "the grandchild outlived the timeout"
+    finally:
+        shutil.rmtree( d, ignore_errors=True )
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 
 if __name__ == "__main__":
