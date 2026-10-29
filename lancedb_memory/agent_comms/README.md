@@ -152,6 +152,7 @@ builder in `default_builders`.
 | Opus | `claude_sdk`, `claude-opus-5-5`, same tools | same | same |
 | the mechanic | `mechanic` | diagnose (code-only facts + case history), repair (`adws/adw_toyota_mechanic.py`, sandboxed, gated) | `ByTaskType` |
 | the browser recorder (`browser-recorder`) | `adw` → `uv run --quiet adws/adw_browser_agent_request.py <request> --verdict` | playback (not idempotent; `message`/`ask` answer to it): run a saved browser playback by name, or "list playbacks" | `AdwSubprocessExecutor`; its reply is the ADW's closing `DONE:`/`REFUSED:` line. Agent-safe: no approvals and no secrets, so a consequential or secret step blocks and says so. See `adws/browser_workflows/DESIGN.md` |
+| the statement specialist (`statement-specialist`) | `adw` → `uv run --quiet adws/adw_browser_statement_request.py <request> --verdict` | statement (idempotent): "get the October 2025 Chase statement" runs that bank's templated playback for that month; "which banks" names them | `AdwSubprocessExecutor`, same agent gates as the recorder. Banks are data (`browser_workflows/statements/sources.py`); see DESIGN.md "Templated playbacks" |
 
 `adw` is the generic runtime the browser card uses: any ADW that takes the
 request as its first argument and ends on a `DONE:`/`REFUSED:` line is one

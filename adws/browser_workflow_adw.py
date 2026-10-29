@@ -22,7 +22,7 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 _HERE = Path( __file__ ).resolve().parent
 sys.path.insert( 0, str( _HERE ))
@@ -34,7 +34,7 @@ from sssf_roles import ( IPhase, IPhaseHandle, ILifecycleLog, LifecycleLogged, M
 from adw_modules.data_types import PhaseParams
 from agent_comms.operations.base import IOperation, OperationOutcome
 
-from browser_workflows.kit import WorkflowKit
+from browser_workflows.kit import TRANSPORTS, WorkflowKit
 from browser_workflows.operations.catalog import operations
 from browser_workflows.presenting.terminal import TerminalConsole
 
@@ -88,8 +88,13 @@ class BrowserOperationPhase( LifecycleLogged, IPhase ):
         return outcome
 
 
-def run_browser_operation( name: str, description: str, argv: list[ str ], flags: list[ Flag ]) -> int:
-    parsed = _parser( description, flags ).parse_args( argv )
+#: Builds the operation table a script runs from: the kit and console it is given.
+CatalogFactory = Callable[[ WorkflowKit, TerminalConsole ], dict[ str, IOperation ]]
+
+
+def run_browser_operation( name: str, description: str, argv: list[ str ], flags: list[ Flag ],
+                           catalog: CatalogFactory = operations, default_transport: str = "selenium" ) -> int:
+    parsed = _parser( description, flags, default_transport ).parse_args( argv )
     args   = { f.key: getattr( parsed, f.key ) for f in flags if getattr( parsed, f.key ) is not None }
     log: ILifecycleLog = PrintLifecycleLog()
     loader   = SssfConfigLoader( log )
@@ -97,7 +102,7 @@ def run_browser_operation( name: str, description: str, argv: list[ str ], flags
     loader.validate( cfg, [])
     run      = SessionRunFactory( log ).create( cfg, parsed.adw_id )
     executor = ManualContextPhaseExecutor( log )
-    op       = operations( WorkflowKit(), TerminalConsole())[ name ]
+    op       = catalog( WorkflowKit( transport=parsed.transport ), TerminalConsole())[ name ]
 
     def as_phase( step: IOperation, step_args: dict[ str, Any ]) -> OperationOutcome:
         return executor.execute( run, BrowserOperationPhase( step, step_args, log ))
@@ -125,7 +130,7 @@ def _hidden( op: IOperation ) -> tuple[ str, ... ]:
 _TYPES = { "str": str, "float": float, "int": int, "json": json.loads }
 
 
-def _parser( description: str, flags: list[ Flag ]) -> argparse.ArgumentParser:
+def _parser( description: str, flags: list[ Flag ], default_transport: str ) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser( description=description, formatter_class=argparse.RawDescriptionHelpFormatter )
     for f in flags:
         option = f.option or "--" + f.key.replace( "_", "-" )
@@ -133,6 +138,8 @@ def _parser( description: str, flags: list[ Flag ]) -> argparse.ArgumentParser:
             parser.add_argument( option, dest=f.key, action="store_true", default=None, help=f.help )
         else:
             parser.add_argument( option, dest=f.key, required=f.required, help=f.help, type=_TYPES[ f.kind ])
+    parser.add_argument( "--transport", choices=TRANSPORTS, default=default_transport,
+                         help="attach over selenium (chromedriver) or cdp (DevTools protocol, no driver)" )
     parser.add_argument( "--message-out", default="", help="write the operator's one line here" )
     parser.add_argument( "--json-out", default="", help="write the whole outcome here as JSON" )
     parser.add_argument( "--verdict", action="store_true", help="end on a DONE:/REFUSED: line, for the post office" )

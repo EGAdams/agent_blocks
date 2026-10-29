@@ -1,11 +1,13 @@
 """Finding a recorded element on today's page.
 
-Three Strategies (css, text, label) behind a registry, a resolver that asks
+Four Strategies (css, text, label, text_pattern) behind a registry, a resolver that asks
 each candidate in rank order and takes the first that finds exactly one
 usable element, and a waiter that keeps asking until a deadline. A candidate
 that finds two elements is refused, not guessed between.
 """
 from __future__ import annotations
+
+import re
 
 from browser_session.interfaces.system import IClock
 
@@ -39,6 +41,20 @@ class TextStrategy:
     def matches( self, query: IElementQuery, candidate: LocatorCandidate ) -> list[ IWorkflowElement ]:
         wanted = _norm( candidate.value )
         hits   = [ e for e in query.find( candidate.tag or TEXT_SCOPE ) if _norm( e.text ) == wanted ]
+        if len( hits ) > 1:
+            tagged = [ e for e in hits if e.tag_name.lower() in ( "a", "button", "input" )]
+            hits   = tagged or hits
+        return hits
+
+
+class TextPatternStrategy:
+    """Text with `*` standing for any run of characters, as a templated
+    playback writes "Oct *, 2025 Opens menu to save document". Whole text
+    only, so "Oct *" never matches "Not Oct 10"; two matches are refused."""
+
+    def matches( self, query: IElementQuery, candidate: LocatorCandidate ) -> list[ IWorkflowElement ]:
+        pattern = re.compile( ".*".join( re.escape( part ) for part in _norm( candidate.value ).split( "*" )))
+        hits    = [ e for e in query.find( candidate.tag or TEXT_SCOPE ) if pattern.fullmatch( _norm( e.text ))]
         if len( hits ) > 1:
             tagged = [ e for e in hits if e.tag_name.lower() in ( "a", "button", "input" )]
             hits   = tagged or hits
@@ -79,6 +95,7 @@ def default_strategy_registry() -> ILocatorStrategyRegistry:
     registry.register( "css", CssStrategy )
     registry.register( "text", TextStrategy )
     registry.register( "label", LabelStrategy )
+    registry.register( "text_pattern", TextPatternStrategy )
     return registry
 
 

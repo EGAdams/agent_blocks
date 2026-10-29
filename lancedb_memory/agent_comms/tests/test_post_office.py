@@ -410,6 +410,24 @@ def test_browser_playback_reaches_the_recorder_adw_and_reports_its_verdict() -> 
         h.close()
 
 
+def test_a_bank_statement_request_reaches_the_statement_specialist() -> None:
+    """Toyota naming a bank's statement reaches the `statement-specialist` card,
+    whose ADW reads the month and runs that bank's templated playback."""
+    h = Harness()
+    try:
+        for said in ( "get the October 2025 Chase statement", "ask the statement specialist for last month's chase statement" ):
+            routed = h.kit.router.route( "toyota", said )
+            assert routed.recipient == "statement-specialist", ( said, routed )
+            sent = h.kit.dispatcher.send( routed )
+            assert sent.accepted, sent
+            assert h.kit.board.task( sent.task_id ).task_type == "statement"
+        card = h.kit.registry.card( "statement-specialist" )
+        assert card.settings[ "script" ] == "adws/adw_browser_statement_request.py"
+        assert h.kit.router.route( "toyota", "have the browser recorder run the pay bill playback" ).recipient == "browser-recorder"
+    finally:
+        h.close()
+
+
 def test_a_timed_out_adw_is_ended_with_its_whole_process_group() -> None:
     """Behind `uv run` the ADW is a grandchild; the timeout must end it too."""
     from agent_comms.executors.mechanic import AdwSubprocessExecutor

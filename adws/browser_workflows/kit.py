@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import cached_property
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from browser_session.detach_policies import StopDriverServiceDetach
 from browser_session.endpoint_probe import DevToolsEndpointProbe
@@ -19,7 +20,7 @@ from browser_session.system_clock import SystemClock
 
 from .editing.editor import RepositoryRecordingEditor
 from .extension_identity import extension_origin
-from .interfaces.browser import IBrowserAttachment, IBrowserLease
+from .interfaces.browser import IBrowserAttachment, IBrowserLease, IBrowserSessionProvider
 from .interfaces.editing import IRecordingEditor
 from .interfaces.locating import IElementResolver
 from .interfaces.playback import ( IApprovalGate, IConditionWaiter, IExecutionObserver, IPlaybackControl,
@@ -62,16 +63,32 @@ from .storage.recordings import SqliteRecordingRepository
 from .storage.repairs import SqliteLocatorRepairStore
 from .storage.runs import SqlitePlaybackRunLog
 from .storage.sessions import SqliteRecordingSessionStore
+from .statements.catalog import NameStatementCatalog
+from .statements.sources import ALL_SOURCES
 from .structured_log import IStructuredLog, JsonLinesLog
+from .interfaces.templating import ( IParameterSource, IPeriodParser, IPeriodVocabulary, IPlaybackParameterizer,
+                                     IRecordingBinder, IStatementCatalog )
+from .templating.binder import PlaceholderRecordingBinder
+from .templating.parameterizer import RuleChainParameterizer, default_parameterize_rules
+from .templating.period import CalendarPeriodVocabulary, PeriodParameterSource, WordPeriodParser
 
 DATA_DIR     = DEFAULT_DB_PATH.parent
+if TYPE_CHECKING:
+    from cdp_browser.interfaces import ITargetChooser
+
 DEFAULT_PORT = 8781
+TRANSPORTS   = ( "selenium", "cdp" )
 
 
 class WorkflowKit:
     def __init__( self, db_path: Path = DEFAULT_DB_PATH, port: int = DEFAULT_PORT,
-                  extension_origins: set[ str ] | None = None, log_path: Path | None = None ) -> None:
+                  extension_origins: set[ str ] | None = None, log_path: Path | None = None,
+                  transport: str = "selenium", cdp_chooser: "ITargetChooser | None" = None ) -> None:
+        if transport not in TRANSPORTS:
+            raise ValueError( f"transport must be one of { ', '.join( TRANSPORTS )}, not { transport!r}" )
         self._db_path  = Path( db_path )
+        self.transport = transport
+        self._chooser  = cdp_chooser
         self.port      = port
         self._origins  = extension_origins if extension_origins is not None else { extension_origin()}
         self._log_path = Path( log_path ) if log_path else self._db_path.parent / "logs" / "recorder.jsonl"
@@ -130,11 +147,19 @@ class WorkflowKit:
     def download_directory( self ) -> str:
         return NativeDownloadDirectory( self._db_path.parent / "download_directory.txt" ).resolve()
 
+    def browser_provider( self ) -> IBrowserSessionProvider:
+        """How a run attaches to the user's debug Chrome. "selenium": through
+        selenium-headless's WebBrowserManager, released by stopping chromedriver.
+        "cdp": the DevTools protocol spoken directly, released by closing the
+        socket, on the tab `cdp_chooser` picks (the most recent one if none). Neither ever quits the browser."""
+        if self.transport == "cdp":
+            from cdp_browser.provider import default_cdp_provider
+            return default_cdp_provider( self._chooser )
+        return ManagerBrowserSessionProvider( SeleniumAttachedDriverFactory(),
+                                              SeleniumHeadlessManagerFactory(), StopDriverServiceDetach())
+
     def browser_lease( self ) -> IBrowserLease:
-        """Attaches to the user's debug Chrome through selenium-headless's
-        WebBrowserManager; released by stopping chromedriver, never by quitting."""
-        return BrowserLease( ManagerBrowserSessionProvider( SeleniumAttachedDriverFactory(),
-                                                            SeleniumHeadlessManagerFactory(), StopDriverServiceDetach()))
+        return BrowserLease( self.browser_provider())
 
     def resolver( self ) -> IElementResolver:
         return RankedElementResolver( default_strategy_registry())
@@ -190,3 +215,23 @@ class WorkflowKit:
 
     def matcher( self ) -> IPlaybackMatcher:
         return WordPlaybackMatcher()
+
+    # -- templates and statements ------------------------------------------------
+
+    def binder( self ) -> IRecordingBinder:
+        return PlaceholderRecordingBinder()
+
+    def period_parser( self ) -> IPeriodParser:
+        return WordPeriodParser()
+
+    def period_vocabulary( self ) -> IPeriodVocabulary:
+        return CalendarPeriodVocabulary()
+
+    def parameter_source( self ) -> IParameterSource:
+        return PeriodParameterSource( self.period_parser(), self.period_vocabulary())
+
+    def parameterizer( self ) -> IPlaybackParameterizer:
+        return RuleChainParameterizer( default_parameterize_rules())
+
+    def statement_catalog( self ) -> IStatementCatalog:
+        return NameStatementCatalog( ALL_SOURCES )

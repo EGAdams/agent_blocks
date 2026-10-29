@@ -16,12 +16,13 @@ ADWS_DIR = Path( __file__ ).resolve().parents[ 2 ]
 
 
 class SubprocessAdwRunner:
-    def __init__( self, command: list[ str ] | None = None, adws_dir: Path = ADWS_DIR ) -> None:
+    def __init__( self, command: list[ str ] | None = None, adws_dir: Path = ADWS_DIR, prefix: str = "adw_browser_" ) -> None:
         self._command  = command or [ "uv", "run", "--quiet" ]
         self._adws_dir = adws_dir
+        self._prefix   = prefix
 
     def run( self, adw: str, args: list[ str ]) -> tuple[ bool, str ]:
-        script = self._adws_dir / f"adw_browser_{ adw }.py"
+        script = self._adws_dir / f"{ self._prefix }{ adw }.py"
         with tempfile.TemporaryDirectory() as scratch:
             line_file = Path( scratch ) / "line.txt"
             try:

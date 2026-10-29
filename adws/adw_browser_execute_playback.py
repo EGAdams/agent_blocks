@@ -22,6 +22,8 @@ FLAGS = [
     Flag( "name", "the saved playback's name", required=True ),
     Flag( "from_step", "start at this step (resume)", kind="int" ),
     Flag( "actor", "who asked (default user)" ),
+    Flag( "period", "fill a templated playback's month, e.g. \"October 2025\"" ),
+    Flag( "params", "fill a templated playback's blanks by name, a JSON object", kind="json" ),
     *ENDPOINT_FLAGS,
     *GATE_FLAGS,
 ]

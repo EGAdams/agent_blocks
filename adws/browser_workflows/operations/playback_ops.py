@@ -7,6 +7,7 @@ from typing import Any, Callable
 from ..interfaces.browser import IBrowserAttachment, IBrowserLease
 from ..interfaces.playback import IApprovalGate, IPlaybackControl, IPlaybackExecutor, IRepairApplier, ISecretSource
 from ..interfaces.storage import ILocatorRepairStore, IPlaybackRepository, IPlaybackRunLog
+from ..interfaces.templating import IParameterSource, IRecordingBinder
 from .common import Operation, OperationOutcome, endpoint, ok, refused
 from .gates import FlagGateChooser
 
@@ -15,21 +16,30 @@ CONTROL     = ( "pause", "resume", "stop" )
 
 
 class ExecutePlayback( Operation ):
+    """A templated playback's blanks are filled from --period / --params
+    before the browser is touched; one left empty refuses the run."""
     name        = "execute_playback"
     description = "Replay a saved playback in the debug Chrome, step by step"
 
     def __init__( self, attachment: IBrowserAttachment, executor_for: ExecutorFor, gates: FlagGateChooser,
-                  repository: IPlaybackRepository, download_directory: Callable[[], str ]) -> None:
+                  repository: IPlaybackRepository, download_directory: Callable[[], str ],
+                  binder: IRecordingBinder, parameters: IParameterSource ) -> None:
         self._attachment   = attachment
         self._executor_for = executor_for
         self._gates        = gates
         self._repository   = repository
         self._downloads    = download_directory
+        self._binder       = binder
+        self._parameters   = parameters
 
     def perform( self, args: dict[ str, Any ]) -> OperationOutcome:
         recording = self._repository.by_name( str( args.get( "name" ) or "" ))
         if recording is None:
             return refused( f"no playback called { args.get( 'name' )!r}" )
+        values    = self._parameters.values( args )
+        blanks    = self._binder.placeholders( recording )
+        recording = self._binder.bind( recording, values )
+        filled    = ", ".join( f"{ n }={ values[ n ]}" for n in blanks )
         directory = self._downloads()
         lease = self._attachment.open( endpoint( args ))
         try:
@@ -39,7 +49,8 @@ class ExecutePlayback( Operation ):
                                                        int( args.get( "from_step" ) or 1 ))
         finally:
             lease.release()
-        line = f"'{ recording.name }' run { run_id }: { state } -- { message }; download folder: { directory }"
+        named = f"'{ recording.name }'" + ( f" ({ filled })" if filled else "" )
+        line  = f"{ named } run { run_id }: { state } -- { message }; download folder: { directory }"
         return ( ok if state == "completed" else refused )( line, run_id=run_id, state=state, download_directory=directory )
 
 

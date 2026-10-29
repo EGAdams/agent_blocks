@@ -18,7 +18,7 @@ def utc_now() -> str:
 
 # -- Locating ----------------------------------------------------------------
 
-LocatorStrategyName = Literal[ "css", "text", "label" ]
+LocatorStrategyName = Literal[ "css", "text", "label", "text_pattern" ]
 
 
 class LocatorCandidate( BaseModel ):
@@ -236,3 +236,33 @@ class RepairProposal( BaseModel ):
     verified:  bool = False
     applied:   bool = False
     reason:    str = ""
+
+
+# -- Templating ----------------------------------------------------------------
+
+class Period( BaseModel ):
+    """A calendar month: what "the October 2025 statement" names."""
+    model_config = ConfigDict( frozen=True )
+
+    year:  int
+    month: int = Field( ge=1, le=12 )
+
+
+class TemplateChange( BaseModel ):
+    """One step's locators before and after parameterising, and why."""
+    position: int
+    before:   list[ LocatorCandidate ]
+    after:    list[ LocatorCandidate ]
+    notes:    list[ str ] = Field( default_factory=list )
+
+
+class StatementSource( BaseModel ):
+    """One bank's statements: the words that name it and the templated
+    playback that fetches a month of them. Data; see statements/sources.py."""
+    model_config = ConfigDict( extra="forbid" )
+
+    key:      str
+    title:    str
+    names:    list[ str ]
+    playback: str
+    document: str = "statement"

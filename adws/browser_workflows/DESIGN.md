@@ -261,3 +261,62 @@ with `--interactive`. A failed playback is a failed task like any other: the
 caller is alerted and `FailureForwarder` sends it to the mechanic. The card is
 `idempotent: false`, so it is never retried, because a half-run playback
 replayed from the top could submit a form twice.
+
+## Templated playbacks and the statement specialist
+
+A recording is one example ("download the September 2025 statement"). A
+*template* is the same steps with the example's month and year replaced by
+`{placeholders}`, so one recording can fetch any month.
+
+**Making one** — `adw_browser_parameterize_playback.py --name <recording>
+[--example "September 2025"] --new-name <template> --yes`. Without `--yes`
+it only shows the proposal. With `--yes` it saves a *duplicate*, and the
+original recording is never changed. `RuleChainParameterizer` runs
+`IParameterizeRule`s in order:
+
+1. `ExampleValueRule`: the example's month name, abbreviation and year in
+   text, label or text-pattern locators become `{month_name}`, `{month_abbr}`
+   and `{year}`, matched only at word boundaries.
+2. `DayWildcardRule`: `{month_abbr} 12` becomes `{month_abbr} *`. The
+   locator becomes a `text_pattern`, because the posting day changes from
+   month to month.
+3. `PinnedLocatorRule`: on a templated step, a locator with no placeholder
+   would still find September, so it is dropped. Elsewhere, css ids that
+   look generated (`row3`, `12-4`) are dropped as long as another locator
+   remains.
+
+**Running one** — `execute_playback --name <template> --period "October 2025"`
+(or `--params '{"year": "2025", ...}'`). `PeriodParameterSource` uses
+`WordPeriodParser` to read the period and `CalendarPeriodVocabulary` to turn
+it into year, yy, month, month_2, month_name and month_abbr.
+`PlaceholderRecordingBinder` fills the url, the values and the locators
+*before the browser is opened*, and a missing value refuses with the names
+it needs. `text_pattern` (`TextPatternStrategy`) is a whole-text match in
+which `*` stands for anything, so "Oct * 2025" cannot match "Sep 12, 2025".
+
+**The statement specialist** — the post office's `statement-specialist`
+card (`adw` runtime, `adw_browser_statement_request.py`). It is one card for
+every bank, and a bank is data: a `StatementSource` in
+`statements/sources.py` names the bank, what people call it, and its
+template playback. `NameStatementCatalog` finds the bank only when exactly
+one is named. The ADW then runs the template with the parsed period, under
+the same agent gates as `browser-recorder` (no approvals, no secrets). A
+month that hasn't posted yet fails at the row step and says so. To add a
+bank:
+
+1. Record one month.
+2. Parameterize it.
+3. Add one `StatementSource` to `ALL_SOURCES`.
+
+Chase is the first: `chase_statement_by_month` was made from
+`download_sept_2025_statement`.
+
+Known limits:
+
+- The Smart Menu's *Choose Playback* doesn't ask for a period yet, so a
+  template run from there refuses with "needs year, month_abbr".
+- Chase's year dropdown is found by its label "View:: 2026", which changes
+  with the current year. The css fallback `#header-filterstyledselect-0`
+  carries it.
+- A locator repair approved during a bound run could pin one month into the
+  template. Check a repair's proposal before approving it.

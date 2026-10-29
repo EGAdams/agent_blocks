@@ -88,6 +88,19 @@
       ]
     },
     {
+      "name": "statement-specialist",
+      "display_name": "the statement specialist",
+      "runtime": "adw",
+      "settings": { "script": "adws/adw_browser_statement_request.py", "command": [ "uv", "run", "--quiet" ],
+                    "extra_args": [ "--verdict" ], "sender_flag": "--actor", "timeout_seconds": 900,
+                    "aliases": [ "bank statement", "chase statement", "statement download", "statements specialist" ] },
+      "capabilities": [
+        { "task_type": "statement", "description": "download one month's bank statement PDF (Chase so far) in the debug Chrome, e.g. 'get the October 2025 Chase statement'; agent-safe: a login or consequential step blocks and says so; 'which banks' names them",
+          "idempotent": true, "default_wait_seconds": 300,
+          "synonyms": [ "playback", "replay", "message", "ask", "build", "plan", "review" ] }
+      ]
+    },
+    {
       "name": "hello-world",
       "display_name": "Hello World",
       "runtime": "hello_world",

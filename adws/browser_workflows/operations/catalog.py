@@ -17,6 +17,8 @@ from .gates import FlagGateChooser
 from .install_ops import INSTALL_FOLDER, InstallExtension
 from .library_ops import AgentRequest, EditPlayback, ListRecordings, LoadRecording, ValidateRecording
 from .playback_ops import ControlPlayback, ExecutePlayback, PlaybackHistory, RepairLocator
+from .statement_ops import StatementRequest
+from .template_ops import ParameterizePlayback
 from .recording_ops import ( CaptureClick, CaptureText, DiscardRecording, NormalizeEvent, RecorderStatus,
                              SaveRecording, StartRecording, StopRecording )
 
@@ -27,7 +29,8 @@ def operations( kit: WorkflowKit, console: IConsole ) -> dict[ str, object ]:
     repository = kit.repository()
     client     = kit.recorder_client()
     adhoc      = lambda approvals, secrets: kit.step_runner( approvals, secrets, repairs=False )
-    playback   = ExecutePlayback( attachment, kit.playback_executor, gates, repository, kit.download_directory )
+    playback   = ExecutePlayback( attachment, kit.playback_executor, gates, repository, kit.download_directory,
+                                  kit.binder(), kit.parameter_source())
     found      = [
         RecorderStatus( client ), StartRecording( client, kit.service_launcher()), StopRecording( client ),
         SaveRecording( client ), DiscardRecording( client ), CaptureClick( client ), CaptureText( client ),
@@ -43,6 +46,9 @@ def operations( kit: WorkflowKit, console: IConsole ) -> dict[ str, object ]:
         ListRecordings( repository ), LoadRecording( repository, kit.editor()),
         ValidateRecording( repository, kit.validator()), EditPlayback( repository, kit.editor()),
         AgentRequest( repository, kit.matcher(), playback ),
+        ParameterizePlayback( repository, kit.editor(), kit.parameterizer(), kit.period_parser(),
+                              kit.period_vocabulary(), kit.binder()),
+        StatementRequest( kit.statement_catalog(), kit.period_parser(), kit.period_vocabulary(), repository, playback ),
         InstallExtension( WindowsLocalAppDataProfile( INSTALL_FOLDER )),
     ]
     catalog = { op.name: op for op in found }
