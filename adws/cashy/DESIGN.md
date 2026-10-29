@@ -207,7 +207,7 @@ drives.
 
 ```bash
 cd /home/adamsl/agent_blocks
-uv run adws/adw_interface_browser_debug_open.py "cashy" --url about:blank   # Windows debug Chrome, port 9222
+uv run adws/adw_interface_browser_debug_open.py "cashy" --url https://www.google.com/   # Windows debug Chrome, port 9222 (http/https only)
 uv run --quiet adws/adw_cashy_chat.py                                        # talk to her
 uv run --quiet adws/cashy_menu.py                                            # the Smart Menu
 uv run --quiet adws/adw_cashy_request.py "status" --actor toyota --verdict   # what the post office runs

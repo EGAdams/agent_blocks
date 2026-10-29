@@ -8,8 +8,10 @@ passed on as it was. The person's everyday Chrome is never touched.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -21,22 +23,38 @@ from .interfaces.desk import IDebugChromeProbe
 DEBUG_OPEN_ADW = Path( __file__ ).resolve().parent.parent / "adw_interface_browser_debug_open.py"
 
 
+#: The ADW opens http(s) only. Cashy navigates to the bank's own page next.
+START_PAGE = "https://www.google.com/"
+
+
 class AdwDebugChromeLauncher:
-    def __init__( self, port: int = 9222, script: Path = DEBUG_OPEN_ADW, timeout: float = 90 ) -> None:
+    def __init__( self, port: int = 9222, script: Path = DEBUG_OPEN_ADW, timeout: float = 90,
+                  start_page: str = START_PAGE ) -> None:
         self._port    = port
         self._script  = script
         self._timeout = timeout
+        self._start   = start_page
 
     def launch( self ) -> str:
-        command = [ sys.executable, str( self._script ), "Cashy needs the debug Chrome",
-                    "--url", "about:blank", "--port", str( self._port )]
+        """The ADW's own one-line message (--message-out), not its log."""
+        handle, message_file = tempfile.mkstemp( prefix="cashy-debug-open-", suffix=".txt" )
+        Path( message_file ).unlink( missing_ok=True )
+        command = [ sys.executable, str( self._script ), "Cashy needs the debug Chrome", "--url", self._start,
+                    "--port", str( self._port ), "--message-out", message_file ]
         try:
             done = subprocess.run( command, capture_output=True, text=True, timeout=self._timeout,
                                    cwd=str( self._script.parent.parent ))
         except ( OSError, subprocess.TimeoutExpired ) as exc:
             return f"couldn't start the debug Chrome: { exc }"
-        lines = [ l for l in ( done.stdout + done.stderr ).splitlines() if l.strip()]
-        return lines[ -1 ][ :300 ] if lines else f"debug-open exited { done.returncode }"
+        finally:
+            os.close( handle )
+        try:
+            message = Path( message_file ).read_text().strip()
+        except OSError:
+            message = ""
+        finally:
+            Path( message_file ).unlink( missing_ok=True )
+        return message[ :300 ] or f"debug-open exited { done.returncode }"
 
 
 class LaunchingConnection:
