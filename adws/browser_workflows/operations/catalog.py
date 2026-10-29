@@ -27,7 +27,7 @@ def operations( kit: WorkflowKit, console: IConsole ) -> dict[ str, object ]:
     repository = kit.repository()
     client     = kit.recorder_client()
     adhoc      = lambda approvals, secrets: kit.step_runner( approvals, secrets, repairs=False )
-    playback   = ExecutePlayback( attachment, kit.playback_executor, gates, repository )
+    playback   = ExecutePlayback( attachment, kit.playback_executor, gates, repository, kit.download_directory )
     found      = [
         RecorderStatus( client ), StartRecording( client, kit.service_launcher()), StopRecording( client ),
         SaveRecording( client ), DiscardRecording( client ), CaptureClick( client ), CaptureText( client ),

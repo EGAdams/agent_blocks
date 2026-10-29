@@ -39,6 +39,7 @@ from .playback.attachment import ProbedBrowserAttachment
 from .playback.commands import default_command_factory
 from .playback.conditions import PollingConditionWaiter, default_condition_checks
 from .playback.control import FilePlaybackControl
+from .playback.download_directory import NativeDownloadDirectory
 from .playback.executor import SequentialPlaybackExecutor
 from .playback.executors import CommandActionExecutor, RetryingExecutor, SecretFillingExecutor
 from .playback.lease import BrowserLease
@@ -125,6 +126,9 @@ class WorkflowKit:
 
     def clock( self ) -> IClock:
         return SystemClock()
+
+    def download_directory( self ) -> str:
+        return NativeDownloadDirectory( self._db_path.parent / "download_directory.txt" ).resolve()
 
     def browser_lease( self ) -> IBrowserLease:
         """Attaches to the user's debug Chrome through selenium-headless's

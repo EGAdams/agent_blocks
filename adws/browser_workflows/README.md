@@ -60,6 +60,31 @@ leave Chrome on the page where it stopped and add `--from-step N` to the
 command above, replacing `N` with that step number. Playback ignores matches
 with zero width or height and keeps waiting or tries the recorded fallbacks.
 
+## Downloading statements
+
+Windows **Save As** is outside the website: its filename field and buttons
+cannot be recorded. Record the website's **Download** click, then finish
+the dialog manually if it appears while recording. Save the recording as usual.
+
+Playback configures Chrome to save website downloads directly, without that
+dialog, to `%USERPROFILE%\Downloads\BrowserRecorder`. The result prints the
+download folder. Existing recordings already containing the website's download
+click can be retried; no extension reload is needed. Cancel an already open
+Save As dialog before retrying. Opening a PDF preview or choosing **Print / Save
+as PDF** is a different operation; record the website's download link instead.
+
+The folder can be set in the local, gitignored file
+`adws/adw_data/browser_workflows/download_directory.txt` (one absolute path),
+or overridden with `BROWSER_WORKFLOW_DOWNLOAD_DIR`. For Windows Chrome, use
+a Windows path such as `C:\Users\rbarn\Downloads\BrowserRecorder`, even
+when the menu runs in WSL. A local Linux Chrome defaults to
+`~/Downloads/BrowserRecorder`. Chrome's download setting remains in effect in
+the debug browser until Chrome resets it or is restarted.
+
+Check the resulting file in that folder. A completed playback means its
+recorded steps succeeded; it does not yet verify the downloaded PDF's contents
+or wait for a download to finish.
+
 Agents can request `browser recorder: list playbacks` or
 `browser recorder: run My workflow` through the post office. Agent runs block
 at steps needing approval or a secret; use the interactive menu for those.

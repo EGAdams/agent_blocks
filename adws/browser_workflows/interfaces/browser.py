@@ -84,8 +84,14 @@ class ITabs( Protocol ):
     def focus( self, handle: str ) -> None: ...
 
 
+class IDownloadSettings( Protocol ):
+    def configure_downloads( self, directory: str ) -> None:
+        """Save website downloads directly to a native path, without Save As."""
+        ...
+
+
 class IBrowserAdapter( IElementQuery, IPageState, IPageNavigator, IFormControls,
-                       IPageInspector, ITabs, Protocol ):
+                       IPageInspector, ITabs, IDownloadSettings, Protocol ):
     """One attached browser, all its roles. A caller that needs one role asks for that one."""
 
     def release( self ) -> None:

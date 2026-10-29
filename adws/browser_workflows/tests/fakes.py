@@ -70,6 +70,7 @@ class FakeBrowser:
         self.released = False
         self.find_calls = 0
         self.body = ""
+        self.download_directory = ""
 
     def add( self, *elements: FakeElement ) -> "FakeBrowser":
         self.elements.extend( elements )
@@ -119,6 +120,9 @@ class FakeBrowser:
 
     def focus( self, handle: str ) -> None:
         pass
+
+    def configure_downloads( self, directory: str ) -> None:
+        self.download_directory = directory
 
     def release( self ) -> None:
         self.released = True

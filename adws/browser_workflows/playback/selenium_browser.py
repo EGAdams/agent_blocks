@@ -66,6 +66,8 @@ class IScriptingDriver( Protocol ):
 
     def save_screenshot( self, path: str ) -> bool: ...
 
+    def execute_cdp_cmd( self, cmd: str, cmd_args: dict[ str, Any ]) -> dict[ str, Any ]: ...
+
 
 class SeleniumWorkflowBrowser:
     def __init__( self, manager: IBrowserManager, detach: IDetachPolicy ) -> None:
@@ -142,6 +144,15 @@ class SeleniumWorkflowBrowser:
 
     def focus( self, handle: str ) -> None:
         self._driver.switch_to.window( handle )
+
+    def configure_downloads( self, directory: str ) -> None:
+        # Browser domain covers downloads from newly opened tabs as well.
+        # Chrome creates the folder and keeps the server's suggested names.
+        try:
+            self._driver.execute_cdp_cmd( "Browser.setDownloadBehavior",
+                                          { "behavior": "allow", "downloadPath": directory })
+        except Exception as exc:
+            raise BrowserWorkflowError( f"cannot configure downloads to { directory }: { exc }" ) from exc
 
     def release( self ) -> None:
         self._detach.detach( self._driver )

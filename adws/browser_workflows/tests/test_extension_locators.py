@@ -6,6 +6,9 @@ Run with BW_E2E=1; uses the cached Chrome for Testing.
 from __future__ import annotations
 
 import os
+import http.server
+import threading
+import time
 
 import pytest
 
@@ -26,6 +29,7 @@ def driver():
     options.binary_location = str( CHROME )
     options.add_argument( "--headless=new" )
     options.add_argument( "--disable-gpu" )
+    options.add_experimental_option( "prefs", { "download.prompt_for_download": True })
     driver = webdriver.Chrome( options=options, service=Service( str( DRIVER )))
     try:
         yield driver
@@ -97,3 +101,71 @@ def test_recorded_zero_size_icon_replays_through_its_visible_text_link( driver, 
     assert result.status == "ok", result.message
     assert result.strategy.startswith( "text:" )
     assert driver.execute_script( "return window.menuClicks" ) == 1
+
+
+@pytest.mark.parametrize( "new_tab", [ False, True ])
+def test_playback_saves_pdf_without_a_dialog_even_when_chrome_is_set_to_prompt( driver, tmp_path, new_tab ):
+    from types import SimpleNamespace
+    from selenium.webdriver.common.by import By
+
+    from browser_workflows.kit import WorkflowKit
+    from browser_workflows.operations.catalog import operations
+    from browser_workflows.models import LocatorCandidate, RecordedAction
+    from browser_workflows.playback.lease import FixedBrowserLease
+    from browser_workflows.playback.selenium_browser import SeleniumWorkflowBrowser
+    from .fakes import ScriptedConsole
+
+    pdf = b"%PDF-1.4\n% Local download regression fixture\n%%EOF\n"
+
+    class Handler( http.server.BaseHTTPRequestHandler ):
+        def do_GET( self ):
+            self.send_response( 200 )
+            if self.path == "/statement":
+                self.send_header( "Content-Type", "application/pdf" )
+                self.send_header( "Content-Disposition", 'attachment; filename="statement.pdf"' )
+                content = pdf
+            else:
+                self.send_header( "Content-Type", "text/html" )
+                target = "target='_blank'" if new_tab else ""
+                content = f"<a id='download' href='/statement' { target }>Download statement</a>".encode()
+            self.send_header( "Content-Length", str( len( content )))
+            self.end_headers()
+            self.wfile.write( content )
+
+        def log_message( self, *args ):
+            pass
+
+    server = http.server.ThreadingHTTPServer(( "127.0.0.1", 0 ), Handler )
+    threading.Thread( target=server.serve_forever, daemon=True ).start()
+
+    class Manager:
+        def find_elements( self, css ):
+            return driver.find_elements( By.CSS_SELECTOR, css )
+
+    Manager.driver = driver
+    browser = SeleniumWorkflowBrowser( Manager(), None )
+
+    class Kit( WorkflowKit ):
+        def attachment( self ):
+            return SimpleNamespace( open=lambda endpoint: FixedBrowserLease( browser ))
+
+        def download_directory( self ):
+            return str( tmp_path / "downloads" )
+
+    try:
+        kit = Kit( db_path=tmp_path / "db.sqlite" )
+        kit.repository().create( "Download statement", [
+            RecordedAction( action_type="navigate", url=f"http://127.0.0.1:{ server.server_port }/" ),
+            RecordedAction( action_type="click", locators=[ LocatorCandidate( strategy="css", value="#download" )]),
+        ])
+        result = operations( kit, ScriptedConsole())[ "execute_saved_playback" ].run({ "name": "Download statement" })
+        assert result.ok, result.line
+        downloaded = tmp_path / "downloads" / "statement.pdf"
+        deadline = time.monotonic() + 10
+        while not downloaded.exists() and time.monotonic() < deadline:
+            time.sleep( 0.1 )
+        assert downloaded.read_bytes() == pdf
+        assert result.data[ "download_directory" ] == str( downloaded.parent )
+    finally:
+        server.shutdown()
+        server.server_close()

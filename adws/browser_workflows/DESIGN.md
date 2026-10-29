@@ -193,6 +193,14 @@ sequenceDiagram
 
 ## Sequence: playback
 
+`ExecutePlayback` configures `Browser.setDownloadBehavior` with `allow` and
+an absolute native download folder before any recorded steps. This covers new
+tabs as well as the current tab and avoids operating-system Save As dialogs,
+which the extension cannot capture. The default folder is Downloads/BrowserRecorder;
+a local `download_directory.txt` or `BROWSER_WORKFLOW_DOWNLOAD_DIR` can override it.
+Download configuration errors stop playback before clicks. This currently
+configures delivery only; run completion does not verify file completion/content.
+
 ```mermaid
 sequenceDiagram
     participant C as Menu / ADW / agent

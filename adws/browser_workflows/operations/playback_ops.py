@@ -19,25 +19,28 @@ class ExecutePlayback( Operation ):
     description = "Replay a saved playback in the debug Chrome, step by step"
 
     def __init__( self, attachment: IBrowserAttachment, executor_for: ExecutorFor, gates: FlagGateChooser,
-                  repository: IPlaybackRepository ) -> None:
+                  repository: IPlaybackRepository, download_directory: Callable[[], str ]) -> None:
         self._attachment   = attachment
         self._executor_for = executor_for
         self._gates        = gates
         self._repository   = repository
+        self._downloads    = download_directory
 
     def perform( self, args: dict[ str, Any ]) -> OperationOutcome:
         recording = self._repository.by_name( str( args.get( "name" ) or "" ))
         if recording is None:
             return refused( f"no playback called { args.get( 'name' )!r}" )
+        directory = self._downloads()
         lease = self._attachment.open( endpoint( args ))
         try:
+            lease.current().configure_downloads( directory )
             executor = self._executor_for( lease, *self._gates.gates( args ))
             run_id, state, message = executor.execute( recording, str( args.get( "actor" ) or "user" ),
                                                        int( args.get( "from_step" ) or 1 ))
         finally:
             lease.release()
-        line = f"'{ recording.name }' run { run_id }: { state } -- { message }"
-        return ( ok if state == "completed" else refused )( line, run_id=run_id, state=state )
+        line = f"'{ recording.name }' run { run_id }: { state } -- { message }; download folder: { directory }"
+        return ( ok if state == "completed" else refused )( line, run_id=run_id, state=state, download_directory=directory )
 
 
 class ControlPlayback( Operation ):

@@ -44,6 +44,9 @@ class PageKit( WorkflowKit ):
     def clock( self ):
         return self._clock
 
+    def download_directory( self ):
+        return str( self._db_path.parent / "downloads" )
+
 
 @pytest.fixture
 def bank( tmp_path ):
@@ -111,6 +114,38 @@ def test_composed_execute_saved_playback_loads_validates_then_runs( bank ):
     out = seq.run({ "name": "Pay Bill", "approve": "4" })
     assert [ name for name, _ in seq.trail ] == [ "load_recording", "validate_recording", "execute_playback" ]
     assert not out.ok and "step 3 blocked" in out.line        # --approve covers the click, not the PIN
+
+
+def test_download_folder_is_configured_before_any_playback_navigation( bank ):
+    kit, page, _ = bank
+    navigate = page.navigate
+
+    def navigate_after_setup( url ):
+        assert page.download_directory == kit.download_directory()
+        navigate( url )
+
+    page.navigate = navigate_after_setup
+    out = catalog( kit )[ "execute_playback" ].run({ "name": "Pay Bill" })
+    assert "download folder:" in out.line
+    assert out.data[ "download_directory" ] == kit.download_directory()
+
+
+def test_failed_download_setup_releases_the_browser_and_runs_nothing( bank ):
+    from browser_workflows.errors import BrowserWorkflowError
+
+    kit, page, _ = bank
+    released = []
+    lease = FixedBrowserLease( page )
+    lease.release = lambda: released.append( True )
+    kit.fake.open = lambda endpoint: lease
+
+    def broken( directory ):
+        raise BrowserWorkflowError( "cannot configure downloads" )
+
+    page.configure_downloads = broken
+    out = catalog( kit )[ "execute_playback" ].run({ "name": "Pay Bill" })
+    assert not out.ok and "cannot configure downloads" in out.line
+    assert released == [ True ] and page.visits == [] and kit.run_log().recent() == []
 
 
 def test_ad_hoc_click_on_pay_needs_yes( bank ):
