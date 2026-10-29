@@ -223,7 +223,7 @@ sequenceDiagram
 
 1. The step's other recorded locators are tried in rank order (deterministic).
 2. If none works, `diagnose_failure` stores url, title, a screenshot, what each
-   locator found (nothing, too many, hidden, disabled), and the page's visible
+   locator found (nothing, too many, hidden, zero size, disabled), and the page's visible
    interactive elements ranked by similarity to what was recorded.
 3. `adw_browser_repair_locator.py --run-id R` proposes the best similar element,
    or takes `--css` from the mechanic or a person. It verifies the proposal on

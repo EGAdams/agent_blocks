@@ -61,6 +61,47 @@ def test_text_and_label_strategies():
     assert found.attrs[ "id" ] == "m"
 
 
+@pytest.mark.parametrize( "dimension", [ "width", "height" ])
+def test_zero_size_matches_are_skipped_for_a_recorded_fallback( dimension ):
+    icon = FakeElement( "a", ( "#icon", ))
+    icon.rect[ dimension ] = 0
+    link = FakeElement( "a", ( "#link", ))
+    page = FakeBrowser().add( icon, link )
+    element, res = resolver().resolve( page, [ L( strategy="css", value="#icon", rank=10 ),
+                                               L( strategy="css", value="#link", rank=50 )])
+    assert element is link
+    assert [ a.outcome for a in res.attempts ] == [ "zero_size", "found" ]
+
+
+def test_text_match_uses_the_sized_link_instead_of_its_zero_size_icon():
+    caption = "Sep 12, 2025 Opens menu to save document"
+    icon = FakeElement( "a", text=caption )
+    icon.rect = { "width": 0.0, "height": 0.0 }
+    link = FakeElement( "a", text=caption )
+    page = FakeBrowser().add( icon, link )
+    element, res = resolver().resolve( page, [ L( strategy="text", value=caption )])
+    assert element is link and res.found
+    page.add( FakeElement( "a", text=caption ))
+    element, res = resolver().resolve( page, [ L( strategy="text", value=caption )])
+    assert element is None and res.attempts[ 0 ].outcome == "ambiguous"
+
+
+def test_element_waiter_waits_for_a_nonzero_box():
+    clock = FakeClock()
+    late = FakeElement( "a", ( "#late", ))
+    late.rect[ "width" ] = 0
+    page = FakeBrowser().add( late )
+    original = page.find
+
+    def find( css ):
+        if page.find_calls >= 3:
+            late.rect[ "width" ] = 20
+        return original( css )
+    page.find = find
+    element, _ = PollingElementWaiter( resolver(), clock ).wait_for( page, [ L( strategy="css", value="#late" )], 5 )
+    assert element is late and 0 < clock.slept < 5
+
+
 def test_element_waiter_polls_until_the_element_appears():
     clock = FakeClock()
     late  = FakeElement( "button", ( "#go", ), displayed=False )

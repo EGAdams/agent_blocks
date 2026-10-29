@@ -182,7 +182,7 @@ StepStatus = Literal[ "ok", "failed", "blocked", "skipped" ]
 class LocatorAttempt( BaseModel ):
     """What one recorded locator found."""
     label:   str
-    outcome: Literal[ "found", "none", "ambiguous", "hidden", "disabled", "error" ]
+    outcome: Literal[ "found", "none", "ambiguous", "hidden", "zero_size", "disabled", "error" ]
     count:   int = 0
 
 

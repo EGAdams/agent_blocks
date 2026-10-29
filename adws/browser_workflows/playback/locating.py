@@ -111,11 +111,21 @@ def _judge( elements: list[ IWorkflowElement ]) -> tuple[ str, IWorkflowElement 
     shown = [ e for e in elements if safely( e.is_displayed )]
     if not shown:
         return "hidden", None
+    # Selenium may call a zero-size icon displayed because its descendants
+    # paint outside its box. WebDriver still cannot click that element.
+    shown = [ e for e in shown if safely( lambda: _has_size( e ))]
+    if not shown:
+        return "zero_size", None
     if len( shown ) > 1:
         return "ambiguous", None
     if not safely( shown[ 0 ].is_enabled ):
         return "disabled", None
     return "found", shown[ 0 ]
+
+
+def _has_size( element: IWorkflowElement ) -> bool:
+    rect = element.rect
+    return rect[ "width" ] > 0 and rect[ "height" ] > 0
 
 
 def safely( check ) -> bool:

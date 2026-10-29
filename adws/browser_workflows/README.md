@@ -55,6 +55,11 @@ To replay a saved workflow directly:
 uv run --quiet adws/adw_browser_execute_saved_playback.py --name "My workflow" --interactive
 ```
 
+After a failed run, **View History** shows the failing step. To resume there,
+leave Chrome on the page where it stopped and add `--from-step N` to the
+command above, replacing `N` with that step number. Playback ignores matches
+with zero width or height and keeps waiting or tries the recorded fallbacks.
+
 Agents can request `browser recorder: list playbacks` or
 `browser recorder: run My workflow` through the post office. Agent runs block
 at steps needing approval or a secret; use the interactive menu for those.

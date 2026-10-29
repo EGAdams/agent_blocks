@@ -28,6 +28,7 @@ class FakeElement:
                   displayed: bool = True, enabled: bool = True, selected: bool = False, page=None ) -> None:
         self.tag_name, self.selectors, self.text = tag, set( selectors ), text
         self.attrs, self.displayed, self.enabled, self.selected = attrs or {}, displayed, enabled, selected
+        self.rect = { "width": 20.0, "height": 20.0 }
         self.typed: list[ str ] = []
         self.clicks = 0
         self.page = page
