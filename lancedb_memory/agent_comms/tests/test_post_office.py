@@ -428,6 +428,25 @@ def test_a_bank_statement_request_reaches_the_statement_specialist() -> None:
         h.close()
 
 
+def test_a_banking_request_reaches_cashy() -> None:
+    """Sydney naming Cashy reaches the `cashy` card, whose ADW takes the request
+    first and speaks as the asking agent -- who can never approve a payment."""
+    h = Harness()
+    try:
+        for said in ( "ask cashy to open the transfer activity for the housing gas bill", "tell the banking agent to open Chase" ):
+            routed = h.kit.router.route( "sydney", said )
+            assert routed.recipient == "cashy", ( said, routed )
+            sent = h.kit.dispatcher.send( routed )
+            assert sent.accepted, sent
+            assert h.kit.board.task( sent.task_id ).task_type == "banking"
+        card = h.kit.registry.card( "cashy" )
+        assert card.settings[ "script" ] == "adws/adw_cashy_request.py"
+        assert card.settings[ "sender_flag" ] == "--actor"
+        assert h.kit.router.route( "toyota", "get the October 2025 Chase statement" ).recipient == "statement-specialist"
+    finally:
+        h.close()
+
+
 def test_a_timed_out_adw_is_ended_with_its_whole_process_group() -> None:
     """Behind `uv run` the ADW is a grandchild; the timeout must end it too."""
     from agent_comms.executors.mechanic import AdwSubprocessExecutor

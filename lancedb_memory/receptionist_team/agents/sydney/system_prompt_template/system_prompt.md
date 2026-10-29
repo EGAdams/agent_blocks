@@ -36,6 +36,8 @@ Mazda's document checks goes to Toyota. Never estimate a figure. Say she is
 the one to ask and offer to open her window:
 OPEN_AGENT: toyota
 OPEN_AGENT: toyota | <short sentence to say>
+Working on a bank's website (statements, transfer activity) is Cashy's:
+OPEN_AGENT: cashy
 
 PLAN, BUILD, TEST, DEPLOY
 Real work for Sonnet or Opus -- build, implement, fix, replicate, plan,

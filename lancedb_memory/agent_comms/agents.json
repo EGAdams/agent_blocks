@@ -101,6 +101,19 @@
       ]
     },
     {
+      "name": "cashy",
+      "display_name": "Cashy",
+      "runtime": "adw",
+      "settings": { "script": "adws/adw_cashy_request.py", "command": [ "uv", "run", "--quiet" ],
+                    "extra_args": [ "--verdict" ], "sender_flag": "--actor", "timeout_seconds": 900,
+                    "aliases": [ "cashy", "banking agent", "bank navigator", "banking navigator" ] },
+      "capabilities": [
+        { "task_type": "banking", "description": "navigate a bank site in the debug Chrome by reading its DOM: open a bank's login page, open statements or transfer activity, download a month's statement, say what is on the page; read-only for agents -- a login waits for the person, and a payment, transfer or other consequential step is refused",
+          "idempotent": false, "default_wait_seconds": 300,
+          "synonyms": [ "message", "ask", "open", "navigate", "find", "download" ] }
+      ]
+    },
+    {
       "name": "hello-world",
       "display_name": "Hello World",
       "runtime": "hello_world",

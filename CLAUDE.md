@@ -91,11 +91,32 @@ The top-level areas are:
   `execute_saved_playback` composes three of them.
   `browser_workspace_menu.py` is the Smart Menu, which `rol_finances`' menu
   mounts under "Browser Automation Workspace". Agents reach playback through
-  the post office's `browser-recorder` card. Agents get no approvals and no secrets,
+  the post office's `browser-recorder` card. A recording can be turned into a
+  `{placeholder}` template (`adw_browser_parameterize_playback.py`) and run for
+  another month with `--period`; the post office's `statement-specialist` card
+  (`adw_browser_statement_request.py`) uses that to fetch "the October 2025 Chase
+  statement", with each bank one `StatementSource` entry in
+  `browser_workflows/statements/sources.py`. Agents get no approvals and no secrets,
   so a consequential or password step blocks rather than runs. Tests:
   `cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp
   pytest -q browser_workflows/tests`. Prefix `BW_E2E=1` and add `--with
   selenium` to run the real-Chrome record/replay test.
+  `adws/cashy/` is Cashy, the banking navigation agent (read its
+  `DESIGN.md` first). She reads the debug Chrome's DOM over `adws/cdp_browser/`
+  (DevTools protocol, no screenshots, no Selenium or Playwright), waits for
+  the person to sign in, and turns a guided route into a versioned playback
+  in the same SQLite database, with a LanceDB pointer to it. `cashy/kit.py`
+  is her only composition root; each operation is one thin `adw_cashy_<op>.py`,
+  `adw_cashy_chat.py` is her REPL, `cashy_menu.py` is her Smart Menu
+  (mounted in `rol_finances`' menu), and `adw_cashy_request.py` is the post
+  office's `cashy` card, where an agent actor can never approve a
+  consequential step. `adw_cashy_service.py` (unit `cashy-agent`,
+  loopback :8770) is her dashboard sidecar, speaking receptionist_team's
+  turn contract, so the dashboard lists her in Agent Management and talks to
+  her through Toyota's `ReceptionistDesk`; when the debug Chrome isn't up, it
+  starts it (`cashy/launching.py`). Tests: add `--with lancedb --with pyarrow cashy/tests`
+  to the command above; `CDP_TEST_PORT=<port>` of a headless Chrome runs the
+  live acceptance conversation against `cashy/tests/fake_bank.py`.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

@@ -1,0 +1,22 @@
+[Unit]
+Description=Cashy banking agent sidecar (adws/adw_cashy_service.py, port 8770)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks
+# lancedb_memory's venv has everything her PEP 723 header names, so a start
+# never waits on uv resolving packages.
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python adws/adw_cashy_service.py --port 8770 --chrome-port 9222
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+# Windows interop on PATH, as for Sydney's unit: opening the debug Chrome goes
+# through cmd.exe / powershell.exe by name, and systemd --user doesn't inherit it.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/mnt/c/Windows/system32:/mnt/c/Windows:/mnt/c/Windows/System32/Wbem:/mnt/c/Windows/System32/WindowsPowerShell/v1.0
+StandardOutput=append:/tmp/cashy_agent.log
+StandardError=append:/tmp/cashy_agent.log
+
+[Install]
+WantedBy=default.target

@@ -30,6 +30,7 @@ with numbers unchanged and completed work distinct from missing information.
 The operational capabilities define WORK operations and these control lines:
 OPEN_AGENT: mazda
 OPEN_AGENT: sydney
+OPEN_AGENT: cashy
 ROUTE: live_books | <the exact question>
 ROUTE: category_spreadsheet | <one category and year if given>
 ROUTE: spreadsheet_reshaper | <existing file and person column if given>
@@ -47,7 +48,8 @@ receipt_scanner and expense_reconciler check receipts against expenses.
 gifts_love_offerings_report builds that year's gifts page. Current report
 progress or freshness goes to progress_check, which reads existing reports
 without running analysis. Document verification of bank statements is Mazda's;
-open her window with OPEN_AGENT: mazda.
+open her window with OPEN_AGENT: mazda. Working on a bank's website -- opening
+the bank, statements, transfer activity -- is Cashy's; open hers with OPEN_AGENT: cashy.
 
 EVERYTHING ELSE IS SYDNEY'S
 Sydney handles all non-financial work: planning, building, testing and

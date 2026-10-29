@@ -16,7 +16,7 @@ from agent_memory.ports import LanguageModel
 # Toyota opens Mazda's or Sydney's; Sydney opens Toyota's (the front desk, "/").
 # The dashboard's AGENT_WINDOWS (js/implementation/agent-window-handoff.js)
 # must name every key here, or the browser ignores the hand-off.
-HANDOFF_AGENTS: dict[str, str] = {"mazda": "Mazda", "sydney": "Sydney", "toyota": "Toyota"}
+HANDOFF_AGENTS: dict[str, str] = {"cashy": "Cashy", "mazda": "Mazda", "sydney": "Sydney", "toyota": "Toyota"}
 
 # Whole reply only (re.fullmatch), like _ROUTE_RE: conversation may mention it.
 _OPEN_AGENT_RE = re.compile(r"OPEN_AGENT:\s*([A-Za-z_]+)\s*(?:\|\s*(.*))?", re.DOTALL)
