@@ -144,8 +144,11 @@ def _get_json(url: str, headers: dict[str, str] | None = None) -> dict:
     for _ in range(SEARCH_ATTEMPTS):
         try:
             request = urllib.request.Request(url, headers=headers or {})
-            with urllib.request.urlopen(request, timeout=SEARCH_TIMEOUT) as response:  # noqa: S310
+            response = urllib.request.urlopen(request, timeout=SEARCH_TIMEOUT)  # noqa: S310
+            try:
                 return json.load(response)
+            finally:
+                response.close()
         except Exception as error:  # noqa: BLE001 - a failed call must become a message, not a crash
             last_error = error
     raise RuntimeError(str(last_error))

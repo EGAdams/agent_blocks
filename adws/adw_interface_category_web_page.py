@@ -82,6 +82,7 @@ import html
 import importlib.util
 import json
 import shlex
+import shutil
 import socket
 import subprocess
 import sys
@@ -581,7 +582,8 @@ class DashboardHostLinkIndex( LifecycleLogged ):
         if remote_name.strip().lower() == socket.gethostname().lower():
             return ""   # this machine is the dashboard host; the local list is the one shown
 
-        with tempfile.TemporaryDirectory( prefix="adw_dashboard_" ) as scratch:
+        scratch = tempfile.mkdtemp( prefix="adw_dashboard_" )
+        try:
             staging = Path( scratch )
             if manifest.strip():
                 ( staging / INDEX_MANIFEST ).write_text( manifest, encoding="utf-8" )
@@ -589,6 +591,8 @@ class DashboardHostLinkIndex( LifecycleLogged ):
             self._run([ "ssh", *self._SSH_OPTS, self._host, f"mkdir -p { shlex.quote( incoming )}" ])
             self._run([ "scp", "-q", *self._SSH_OPTS, str( page ), str( staging / INDEX_MANIFEST ),
                         str( listed.index ), f"{ self._host }:{ incoming }/" ])
+        finally:
+            shutil.rmtree( scratch, ignore_errors=True )
         moves = " && ".join(
             f"mv -f { shlex.quote( incoming + '/' + name )} { folder }/"
             for name in ( page.name, INDEX_MANIFEST, INDEX_PAGE ))

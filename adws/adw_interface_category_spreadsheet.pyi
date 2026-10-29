@@ -1039,10 +1039,13 @@ class CsvSpreadsheetWriter( LifecycleLogged ):
         import csv
 
         plan.path.parent.mkdir( parents=True, exist_ok=True )
-        with plan.path.open( "w", newline="", encoding="utf-8" ) as handle:
+        handle = plan.path.open( "w", newline="", encoding="utf-8" )
+        try:
             writer = csv.writer( handle )
             for line in self._section.rows( plan, content ):
                 writer.writerow( line )
+        finally:
+            handle.close()
         return plan.path
 
 

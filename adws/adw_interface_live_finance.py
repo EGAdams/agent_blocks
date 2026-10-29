@@ -272,17 +272,23 @@ class PyMySQLLiveBooks( LifecycleLogged ):
             settings = self._credentials.settings()
             self._connection = pymysql.connect( **settings, cursorclass=DictCursor,
                                                 autocommit=False, connect_timeout=10 )
-            with self._connection.cursor() as cursor:
+            cursor = self._connection.cursor()
+            try:
                 # Belt to the Decorator's suspenders: past this point the
                 # server will reject a write regardless of what was sent.
                 cursor.execute( "SET SESSION TRANSACTION ISOLATION LEVEL "
                                 "REPEATABLE READ, READ ONLY" )
+            finally:
+                cursor.close()
         return self._connection
 
     def fetch( self, sql: str, params: Sequence[ Any ] = () ) -> list[ dict[ str, Any ]]:
-        with self._connect().cursor() as cursor:
+        cursor = self._connect().cursor()
+        try:
             cursor.execute( sql, tuple( params ))
             return list( cursor.fetchall())
+        finally:
+            cursor.close()
 
     def close( self ) -> None:
         if self._connection is not None:
