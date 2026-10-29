@@ -31,6 +31,12 @@ This Chrome uses its own profile; sign in there if your workflow needs it.
 4. Select **Stop Recording**, then give it a name at **Save As?**.
 5. Select **Choose Playback** and pick that name to run it again.
 
+If saving fails, the captured events stay in the local database; keep the
+Save As prompt open. Background clicks from older extension versions are
+recovered when saving with the updated recorder service. After updating the
+extension files, reload the extension and refresh the website before starting
+your next recording.
+
 Use **Edit Saved Playback** to inspect or change steps and **View History**
 to inspect results. Playback asks for secrets and approval when needed;
 passwords are not saved. Other recorded field values are stored locally.

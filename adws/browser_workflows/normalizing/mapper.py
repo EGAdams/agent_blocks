@@ -1,7 +1,7 @@
 """IEventMapper: one raw event to one playback action, before any tidying."""
 from __future__ import annotations
 
-from ..models import RawBrowserEvent, RecordedAction
+from ..models import LocatorCandidate, RawBrowserEvent, RecordedAction
 
 
 def element_key( event: RawBrowserEvent ) -> str:
@@ -14,6 +14,13 @@ def element_key( event: RawBrowserEvent ) -> str:
 
 class RawEventMapper:
     def map( self, event: RawBrowserEvent ) -> RecordedAction | None:
+        # Older extension versions stopped the CSS path at body and captured
+        # background clicks without a locator. Recover those staged events
+        # without changing the raw recording or guessing for other elements.
+        if event.kind == "click" and event.tag == "body" and not event.locators:
+            event = event.model_copy( update={ "locators": [
+                LocatorCandidate( strategy="css", value="body", source="css_path", rank=90 )
+            ]})
         meta = { "element_key": element_key( event ), "tag": event.tag, "input_type": event.input_type,
                  "text": event.text[ :120 ], "field_hints": dict( event.field_hints ), "title": event.title }
         common = { "url": event.url, "locators": list( event.locators ), "metadata": meta }

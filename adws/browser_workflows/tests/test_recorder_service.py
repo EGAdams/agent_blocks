@@ -59,6 +59,36 @@ def test_restart_resumes_an_unsaved_session_as_saving( tmp_path ):
     assert session.state == "saving"
 
 
+def test_restart_can_save_a_legacy_background_click_without_changing_raw_events( tmp_path ):
+    port = free_port()
+    kit = WorkflowKit( db_path=tmp_path / "db.sqlite", port=port )
+    store = kit.session_store()
+    store.open( RecordingSessionInfo( id="legacy", state="saving", start_url="https://example.test/form" ))
+    store.append( "legacy", RawBrowserEvent( kind="navigation", url="https://example.test/form", transition_type="typed" ))
+    store.append( "legacy", RawBrowserEvent( kind="click", url="https://example.test/form", tag="body" ))
+    before = [ e.model_dump() for e in store.events( "legacy" )]
+
+    async def save() -> None:
+        runner = web.AppRunner( kit.app())
+        await runner.setup()
+        await web.TCPSite( runner, "127.0.0.1", port ).start()
+        try:
+            async with aiohttp.ClientSession() as http:
+                r = await http.post( f"http://127.0.0.1:{ port }/recording/save", json={ "name": "Background" })
+                assert r.status == 200, await r.text()
+                assert ( await r.json())[ "state" ] == "idle"
+        finally:
+            await runner.cleanup()
+
+    asyncio.run( save())
+    recording = kit.repository().by_name( "Background" )
+    assert [ s.action_type for s in recording.steps ] == [ "navigate", "click" ]
+    step = recording.steps[ 1 ]
+    assert [( l.strategy, l.value ) for l in step.locators ] == [( "css", "body" )]
+    assert step.metadata[ "element_key" ] == "css:body"
+    assert [ e.model_dump() for e in store.events( "legacy" )] == before
+
+
 # -- guard -------------------------------------------------------------------
 
 @pytest.mark.parametrize( "host,origin,ctype,body,ok", [

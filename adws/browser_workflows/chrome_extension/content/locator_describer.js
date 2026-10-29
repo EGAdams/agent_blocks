@@ -26,6 +26,7 @@
     }
 
     function cssPath( el ) {
+        if ( el === document.body ) return "body";
         const parts = [];
         for ( let node = el; node && node.nodeType === 1 && node !== document.body; node = node.parentElement ) {
             if ( node.id && !looksGenerated( node.id ) ) {

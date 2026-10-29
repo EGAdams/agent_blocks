@@ -74,6 +74,13 @@ def test_consequential_clicks( text, expected ):
 
 # -- normalising -------------------------------------------------------------
 
+def test_background_recovery_preserves_existing_locators_and_does_not_guess_other_elements():
+    mapper = RawEventMapper()
+    targeted = ev( "click", tag="body", locators=[ css( "#page" )])
+    assert mapper.map( targeted ).locators == targeted.locators
+    assert mapper.map( ev( "click", tag="button" )).locators == []
+
+
 def test_one_text_entry_per_field_and_focus_clicks_dropped( normalizer ):
     field = [ css( "#memo" )]
     actions = normalizer.normalize([
