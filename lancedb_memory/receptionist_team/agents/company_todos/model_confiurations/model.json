@@ -1,0 +1,9 @@
+{
+  "description": "keeps the company to-do list: add an item, read it back, check one off",
+  "model": null,
+  "max_turns": 6,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/home/adamsl/company_todos",
+  "notes": "Drives adws/adw_interface_company_todos.py. Normally bypassed: Toyota reaches the same ADW through CompanyTodoRunner, with no model in the path, and CompanyTodoRoute forces the route for any message naming the to-do list. The list is ~/company_todos/todos.jsonl (COMPANY_TODOS_HOME overrides), append-only, outside the repository. No Write/Edit: the ADW is the only writer."
+}

@@ -60,3 +60,10 @@ adws/adw_data/post_office/
 
 # browser_workflows: saved recordings (field values), failure screenshots, run logs
 adws/adw_data/browser_workflows/
+
+# Runtime state written by the bridge worker, the printer agent and Cashy:
+# print-job registry, write-access task records and patches, event logs.
+adws/adw_data/printer/
+adws/adw_data/bridge_write/
+adws/adw_data/cashy/
+lancedb_memory/agent_bridge_worker/*.bak

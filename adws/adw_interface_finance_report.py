@@ -171,6 +171,7 @@ class ReportFigures:
     spent:    str
     available: str
     cash:     str
+    available_label: str = "available to spend"
 
 
 # -- Roles -------------------------------------------------------------------
@@ -280,8 +281,13 @@ class SummaryStripFigureReader( LifecycleLogged ):
             found = re.search( rf"<small>{ re.escape( label )}</small><b>([^<]*)</b>", text )
             return html.unescape( found.group( 1 )).strip() if found else "?"
 
+        # The current report calls this tile "Left over". Preserve its label
+        # as well as its value; do not describe surplus as available cash.
+        left_over = tile( "Left over" )
         return ReportFigures( received=tile( "Received" ), spent=tile( "Spent" ),
-                              available=tile( "Available to spend" ), cash=tile( "Cash 12/31/25" ))
+                              available=left_over if left_over != "?" else tile( "Available to spend" ),
+                              cash=tile( "Cash 12/31/25" ),
+                              available_label="left over" if left_over != "?" else "available to spend" )
 
 
 # -- Phases ------------------------------------------------------------------
@@ -369,7 +375,7 @@ class PublishReportPhase( LifecycleLogged, IPhase ):
     def act( self, handle: IPhaseHandle ) -> PublishedLink:
         f         = self._figures
         summary   = ( f"ROL 2025 Finance Report -- rebuilt from the expenses database -- "
-                      f"available to spend { f.available }, spent { f.spent }, cash 12/31/25 { f.cash }" )
+                      f"{ f.available_label } { f.available }, spent { f.spent }, cash 12/31/25 { f.cash }" )
         published = self._index.publish( self._page, summary )
         handle.log( index=str( published.index ), link=self._page.name,
                     dashboard=published.note or "(local list is the dashboard's)" )
@@ -392,7 +398,7 @@ class FinanceReportPhase( LifecycleLogged, IPhase ):
 
     def act( self, handle: IPhaseHandle ) -> str:
         f       = self._figures
-        message = ( f"ROL 2025 Finance Report rebuilt: received { f.received }, available to spend { f.available }, "
+        message = ( f"ROL 2025 Finance Report rebuilt: received { f.received }, { f.available_label } { f.available }, "
                     f"spent { f.spent }, cash on hand 12/31/25 { f.cash }. Page: { self._page }." )
         if self._published.note:
             message = f"{ message } { self._published.note }"

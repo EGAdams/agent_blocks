@@ -33,6 +33,34 @@
       ]
     },
     {
+      "name": "yolanda",
+      "display_name": "Yolanda",
+      "runtime": "sidecar",
+      "settings": {
+        "url": "http://127.0.0.1:8771",
+        "aliases": [
+          "email specialist",
+          "e-mail specialist",
+          "email desk"
+        ]
+      },
+      "capabilities": [
+        {
+          "task_type": "ask",
+          "description": "Read or search email through the configured provider",
+          "default_wait_seconds": 180,
+          "idempotent": false
+        },
+        {
+          "task_type": "message",
+          "description": "Handle an email task, including explicit draft/send/reply requests",
+          "idempotent": false,
+          "writes": true,
+          "default_wait_seconds": 180
+        }
+      ]
+    },
+    {
       "name": "sonnet",
       "display_name": "Sonnet",
       "runtime": "claude_sdk",
@@ -125,6 +153,47 @@
     {
       "name": "post-office",
       "display_name": "the post office",
+      "runtime": "none",
+      "accepts_from": [],
+      "capabilities": []
+    },
+    {
+      "name": "codex",
+      "display_name": "Codex",
+      "runtime": "codex_cli",
+      "settings": { "workdir": "/home/adamsl/agent_blocks", "binary": "/usr/local/bin/codex", "timeout_seconds": 900, "model": "gpt-5.6-luna", "jail": "bwrap", "codex_home": "/home/adamsl/.codex-bridge", "read_roots": [ "/home/adamsl/letta-code", "/home/adamsl/digi" ] },
+      "accepts_from": [ "chatgpt-bridge" ],
+      "capabilities": [
+        { "task_type": "explain",       "description": "read-only: explain how part of a workspace works, from the code", "writes": false, "idempotent": true },
+        { "task_type": "inspect",       "description": "read-only: look at files in a workspace and report what is there", "writes": false, "idempotent": true },
+        { "task_type": "search_memory", "description": "read-only: search repo docs, agent notes and ADW logs for a topic", "writes": false, "idempotent": true }
+      ]
+    },
+    {
+      "name": "codex-writer",
+      "display_name": "Codex (write-enabled)",
+      "runtime": "codex_cli_write",
+      "settings": {
+        "workdir": "/home/adamsl/bridge_workspaces", "write_roots": [ "/home/adamsl/letta-code", "/home/adamsl/digi" ],
+        "binary": "/usr/local/bin/codex",
+        "timeout_seconds": 900,
+        "model": "gpt-5.6-luna",
+        "jail": "bwrap",
+        "codex_home": "/home/adamsl/.codex-bridge"
+      },
+      "accepts_from": [ "chatgpt-bridge" ],
+      "capabilities": [
+        {
+          "task_type": "implement",
+          "description": "scoped write: create or edit files in one registered bridge workspace (bridge_sandbox, letta_code or digi) (codex --sandbox workspace-write, jailed to that workspace)",
+          "writes": true,
+          "idempotent": false
+        }
+      ]
+    },
+    {
+      "name": "chatgpt-bridge",
+      "display_name": "the ChatGPT bridge worker",
       "runtime": "none",
       "accepts_from": [],
       "capabilities": []

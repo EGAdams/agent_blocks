@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from enum import Enum
+from pathlib import Path
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -211,3 +212,16 @@ class Alert( BaseModel ):
         return ( f"Task { self.task_id.split( '_' )[ 1 ] if '_' in self.task_id else self.task_id } "
                  f"failed: the { self.task_type } I sent to { self.recipient } did not run. "
                  f"{ _sentence( self.error[ :300 ])}" )
+
+
+class Masks( BaseModel ):
+    """What a jail hides inside a workspace it otherwise shows read-only."""
+
+    model_config = ConfigDict( extra="forbid" )
+
+    dirs:  list[ Path ] = Field( default_factory=list )   # each becomes an empty, read-only directory
+    files: list[ Path ] = Field( default_factory=list )   # each becomes an empty file
+
+
+class JailUnavailable( RuntimeError ):
+    """The jail could not be built. The task fails; it never runs unjailed."""

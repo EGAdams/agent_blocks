@@ -1,0 +1,9 @@
+{
+  "description": "Refresh and publish the ROL 2025 nonprofit finance report",
+  "model": null,
+  "max_turns": 4,
+  "allowed_tools": ["Bash", "Read"],
+  "permission_mode": "bypassPermissions",
+  "output_path": "adws/adw_data/web_pages",
+  "notes": "Normally runs through FinanceReportRunner with no model in the execution path. Database access is read-only; generated workbook and HTML files are refreshed."
+}

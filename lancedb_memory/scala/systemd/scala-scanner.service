@@ -1,0 +1,18 @@
+[Unit]
+Description=Scala scanner clerk (files non-finance scans into scanned_documents)
+After=dashboard-server.service
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks/lancedb_memory
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python -m scala.watch
+Restart=on-failure
+RestartSec=10
+Environment=PYTHONUNBUFFERED=1
+# ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL are deliberately NOT set: Haiku runs
+# through claude_agent_sdk on the local Claude Code subscription (OAuth).
+StandardOutput=append:/tmp/scala_scanner.log
+StandardError=append:/tmp/scala_scanner.log
+
+[Install]
+WantedBy=default.target

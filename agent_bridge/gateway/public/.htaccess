@@ -1,0 +1,14 @@
+# Agent Bridge front controller. Every request goes to index.php.
+Options -Indexes
+RewriteEngine On
+# Apache drops Authorization before PHP sees it unless it is passed through.
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+# OAuth discovery documents (RFC 8414, RFC 9728) are the only dot-paths served.
+RewriteRule ^\.well-known/oauth-(protected-resource|authorization-server) index.php [L]
+RewriteRule ^\. - [F,L]
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^ index.php [QSA,L]
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>

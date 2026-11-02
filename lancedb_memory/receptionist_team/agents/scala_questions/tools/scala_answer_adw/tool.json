@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_scala_answer.py -- read_answer -> file_and_remember -> report. Reads a question number (#7, question 7) and a folder (bills_511/water, 'a documents folder called insurance') out of EG's sentence, files the inbox scan there (folder made if new, fenced to one level under bills_511/ or documents_511/), takes it out of the inbox, writes a lesson Haiku reads on later scans, and checks the to-do off. With no folder it files nothing and lists what Scala is waiting on."
+}

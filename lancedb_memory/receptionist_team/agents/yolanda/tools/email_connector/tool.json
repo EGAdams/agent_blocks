@@ -1,0 +1,5 @@
+{
+  "kind": "mcp",
+  "status": "implemented",
+  "description": "Claude's existing authenticated email connector; Gmail by default. Only Yolanda's email runner gets connector access."
+}

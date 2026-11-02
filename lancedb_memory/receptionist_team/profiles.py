@@ -28,14 +28,18 @@ from .mazda_roles import (
     ROLE_SPOKEN_NAMES as MAZDA_SPOKEN_NAMES,
 )
 from .adapters.figure_route import FigureQuestionRoute
+from .adapters.finance_report_route import FinanceReportRoute
 from .adapters.post_office_route import PostOfficeRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
 from .adapters.tax_progress_route import TaxProgressPageRoute
+from .adapters.scala_route import ScalaAnswerRoute
+from .adapters.todo_route import CompanyTodoRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
     CATEGORY_SPREADSHEET_AGENT_NAME,
+    COMPANY_TODOS_AGENT_NAME,
     LIVE_BOOKS_AGENT_NAME,
     TOYOTA_CHAT_MODEL,
     TOYOTA_ROSTER,
@@ -43,6 +47,11 @@ from .roles import (
 )
 from .rosters import Roster
 from .sydney_roles import SYDNEY_CHAT_MODEL, SYDNEY_ROSTER, SYDNEY_SYSTEM_PROMPT
+from .yolanda_roles import YOLANDA_ROSTER, YOLANDA_SYSTEM_PROMPT
+from .liz_roles import LIZ_ROSTER, LIZ_SYSTEM_PROMPT
+from .adapters.email_route import EmailRequestRoute
+from .adapters.city_tax_route import CityTaxDeskRoute
+from .adapters.email_desk_route import EmailDeskRoute
 
 
 def _mazda_runner() -> IDelegationRunner:
@@ -85,8 +94,10 @@ def _toyota_runner() -> IDelegationRunner:
     and agents/category_spreadsheet folders are already written for that case.
     """
     from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
+    from .adapters.company_todo_runner import CompanyTodoRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
     from .adapters.post_office_runner import PostOfficeRunner
+    from .adapters.scala_answer_runner import ScalaAnswerRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
 
     return RunnerMap(
@@ -94,28 +105,35 @@ def _toyota_runner() -> IDelegationRunner:
             LIVE_BOOKS_AGENT_NAME: AdwLiveFinanceRunner(),
             CATEGORY_SPREADSHEET_AGENT_NAME: AdwCategorySpreadsheetRunner(),
             "toyota_post_office": PostOfficeRunner("toyota"),
+            COMPANY_TODOS_AGENT_NAME: CompanyTodoRunner(),
+            "scala_questions": ScalaAnswerRunner(),
         },
         default=ToolAgentRunner(),
     )
 
 
 def _sydney_runner() -> IDelegationRunner:
-    """Every one of her specialists is an agent folder run through the Claude SDK.
-
-    Same runner Toyota falls back to for her own agent folders -- Sydney is a
-    clone, so a delegation runs exactly the way it does for Toyota. Imported
-    inside the function for the same reason as _toyota_runner's.
-    """
+    """Wire deterministic workflows and the post office, with SDK roles as fallback."""
     from .adapters.post_office_runner import PostOfficeRunner
     from .adapters.tool_agent_runner import ToolAgentRunner
+    from .adapters.finance_report_runner import FinanceReportRunner
 
-    # The post office is the one specialist that isn't an SDK turn: it sends
-    # the request to the agent it names (agent_comms), with no model deciding
-    # whether the request deserves sending.
+    # Neither dispatch nor report publication needs a model in its path.
     return RunnerMap(
-        {"sydney_post_office": PostOfficeRunner("sydney")},
+        {"sydney_post_office": PostOfficeRunner("sydney"),
+         "finance_report": FinanceReportRunner()},
         default=ToolAgentRunner(),
     )
+
+
+def _yolanda_runner() -> IDelegationRunner:
+    from .adapters.email_connector_runner import EmailConnectorRunner
+    return EmailConnectorRunner()
+
+
+def _liz_runner() -> IDelegationRunner:
+    from .adapters.city_tax_runner import LizDeskRunner
+    return LizDeskRunner()
 
 
 @dataclass(frozen=True)
@@ -232,12 +250,19 @@ TOYOTA = ReceptionistProfile(
     # one that should win. See adapters/route_panel.py. Tax progress goes
     # ahead of both: it builds the page (adapters/tax_progress_route.py).
     route_override=FirstRouteOpinion([
+        # Scala's filing questions are to-do items, so an answer to one can
+        # name the list; what was asked for is a filing (adapters/scala_route.py).
+        ScalaAnswerRoute("scala_questions"),
+        # Then: anything said to the to-do list is about the list, even when
+        # the item itself is a figure question (adapters/todo_route.py).
+        CompanyTodoRoute(COMPANY_TODOS_AGENT_NAME),
         TaxProgressPageRoute("tax_progress_page"),
         SpreadsheetRequestRoute(CATEGORY_SPREADSHEET_AGENT_NAME),
         FigureQuestionRoute(LIVE_BOOKS_AGENT_NAME),
         # Last: work she is asked to pass to Sonnet or Opus goes through the
         # post office rather than being refused or answered from memory.
         PostOfficeRoute("toyota_post_office"),
+        EmailDeskRoute("toyota_post_office"),
     ]),
     build_alerts=_post_office_alerts("toyota"),
 )
@@ -293,15 +318,40 @@ SYDNEY = ReceptionistProfile(
     # Every control line Sydney can emit is stated in her own system prompt.
     operations=False,
     service_port=8769,
-    # One forced route: work addressed to Sonnet or Opus always reaches the
-    # post office. Her finance routes are Toyota's and answered by handing off.
-    # See adapters/post_office_route.py for the refusal that made it necessary.
-    route_override=PostOfficeRoute("sydney_post_office"),
+    # Report generation is a runnable ADW, not a window handoff.
+    route_override=FirstRouteOpinion([
+        PostOfficeRoute("sydney_post_office"),
+        FinanceReportRoute(),
+        EmailDeskRoute("sydney_post_office"),
+    ]),
     build_alerts=_post_office_alerts("sydney"),
 )
 
+YOLANDA = ReceptionistProfile(
+    name="yolanda", display_name="Yolanda",
+    default_session="yolanda", nexus_subdir="yolanda",
+    system_prompt=YOLANDA_SYSTEM_PROMPT, roster=YOLANDA_ROSTER,
+    build_runner=_yolanda_runner, chat_model=TOYOTA_CHAT_MODEL,
+    recall_max_chars=6000, tts_voice="en-US-JennyNeural",
+    service_port=8771, route_override=EmailRequestRoute(),
+    build_alerts=_post_office_alerts("yolanda"),
+)
+
+# Liz: Toyota's engine for the Grand Rapids city return. No peer recall -- the
+# family's tax figures stay in her own session -- and her desk route sends
+# every city-tax sentence to adws/adw_liz_ask.py without the model.
+LIZ = ReceptionistProfile(
+    name="liz", display_name="Liz",
+    default_session="liz", nexus_subdir="liz",
+    system_prompt=LIZ_SYSTEM_PROMPT, roster=LIZ_ROSTER,
+    build_runner=_liz_runner, chat_model=TOYOTA_CHAT_MODEL,
+    recall_max_chars=6000, tts_voice="en-US-MichelleNeural",
+    service_port=8772, route_override=CityTaxDeskRoute(),
+    build_alerts=_post_office_alerts("liz"),
+)
+
 PROFILES: dict[str, ReceptionistProfile] = {
-    TOYOTA.name: TOYOTA, MAZDA.name: MAZDA, SYDNEY.name: SYDNEY,
+    TOYOTA.name: TOYOTA, MAZDA.name: MAZDA, SYDNEY.name: SYDNEY, YOLANDA.name: YOLANDA, LIZ.name: LIZ,
 }
 
 # Two receptionists sharing a port would mean the dashboard silently talking to

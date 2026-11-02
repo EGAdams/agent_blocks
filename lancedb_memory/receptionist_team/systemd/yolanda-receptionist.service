@@ -1,0 +1,20 @@
+[Unit]
+Description=Yolanda email specialist (receptionist_team, port 8771)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks/lancedb_memory
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python -m receptionist_team.service --agent yolanda --port 8771
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=YOLANDA_CLAUDE_BIN=/usr/local/bin/claude
+Environment=PATH=/home/adamsl/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Reuse Claude's connected Gmail login. No API key or copied OAuth token.
+StandardOutput=append:/tmp/yolanda_receptionist.log
+StandardError=append:/tmp/yolanda_receptionist.log
+
+[Install]
+WantedBy=default.target

@@ -12,7 +12,9 @@ from __future__ import annotations
 from contextlib import AbstractContextManager
 from typing import Protocol
 
-from .models import AgentCard, Alert, Diagnosis, Envelope, SendReceipt, TaskEvent, TaskRequest, TaskResult
+from pathlib import Path
+
+from .models import AgentCard, Alert, Diagnosis, Envelope, Masks, SendReceipt, TaskEvent, TaskRequest, TaskResult
 
 
 # -- Discovery ---------------------------------------------------------------
@@ -187,3 +189,20 @@ class ITaskLiveness( Protocol ):
         ...
 
     def is_alive( self, task_id: str ) -> bool: ...
+
+
+# -- Jails -------------------------------------------------------------------
+
+class IPrivatePaths( Protocol ):
+    """What inside a workspace an outside agent must not read."""
+
+    def masks( self, root: Path ) -> Masks: ...
+
+
+class ICommandJail( Protocol ):
+    """Wraps a command so it sees `root` read-only, minus private paths, and writes only `writable`.
+
+    Raises JailUnavailable rather than return a command that would run unjailed.
+    """
+
+    def wrap( self, argv: list[ str ], root: Path, cwd: Path, writable: list[ Path ]) -> list[ str ]: ...

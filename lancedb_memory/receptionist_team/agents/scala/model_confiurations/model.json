@@ -1,0 +1,9 @@
+{
+  "description": "files non-finance scans (household bills, probate letters, other documents) into scanned_documents; the Haiku fallback when OCR rules are under 0.90",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "allowed_tools": [ "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/mnt/c/Users/NewUser/scanned_documents",
+  "notes": "Driven by adws/adw_interface_scala_file_scan.py (scala.haiku.HaikuClassifier renders user_prompt.md with image_path, folders, ocr_text). Read only: the ADW is the only thing that copies files, and it fences new folders to bills_511/ and documents_511/. Not a Toyota route yet. The watcher is lancedb_memory/scala/watch.py, systemd unit scala-scanner.service."
+}

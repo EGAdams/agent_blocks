@@ -40,7 +40,11 @@ class SidecarTurnExecutor:
                  f"{ envelope.text }" )
 
     def _turn( self, envelope: Envelope ) -> TaskResult:
-        body = json.dumps({ "text": self.turn_text( envelope )[ :4000 ]}).encode( "utf-8" )
+        text = self.turn_text( envelope )
+        if len( text ) > 4000:
+            return TaskResult( ok=False, performer=self.performer,
+                               text=f"The request for { self._display_name } exceeds the 4000-character sidecar limit. It was not submitted; shorten it instead of truncating its content." )
+        body = json.dumps({ "text": text }).encode( "utf-8" )
         request = urllib.request.Request( f"{ self._url }/turn", data=body, method="POST",
                                           headers={ "Content-Type": "application/json" })
         try:

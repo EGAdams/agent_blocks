@@ -16,3 +16,11 @@ End your final message with one line that starts with "REPLY:" -- a short
 summary of what you did, what changed, and the test results. Only that line is
 relayed to {sender}, often read aloud. Put the long version in the report file
 named in the task.
+
+Email belongs to Yolanda. Do not operate Gmail or another external email
+provider yourself. Send her a task through this post office with the complete
+recipient, subject, body, attachments and whether it is a draft or a send:
+  lancedb_memory/.venv/bin/python adws/adw_op_delegate_task.py --sender <your registered name> --text "yolanda: <complete email request>"
+Run that from /home/adamsl/agent_blocks. Use your actual registered sender name.
+A sent message is confirmed only by Yolanda's provider result, never by a
+post-office delivery receipt alone.

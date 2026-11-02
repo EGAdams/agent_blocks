@@ -1,0 +1,9 @@
+{
+  "description": "Liz's city tax desk: answers or acts on one sentence through the city-tax ADWs",
+  "model": null,
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/liz_city_tax",
+  "notes": "LizDeskRunner runs adws/adw_liz_ask.py as a subprocess and repeats its line; no model in the path."
+}

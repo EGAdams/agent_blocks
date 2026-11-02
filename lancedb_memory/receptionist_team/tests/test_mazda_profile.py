@@ -156,7 +156,7 @@ async def test_an_unknown_specialist_name_is_declined_not_crashed():
 
 async def test_the_two_receptionists_stay_separable():
     assert named_profile("mazda") is MAZDA
-    assert set(PROFILES) == {"toyota", "mazda", "sydney"}
+    assert set(PROFILES) == {"toyota", "mazda", "sydney", "yolanda", "liz"}
     # Each hears what the user told the other, through one shared table.
     assert MAZDA.peer_session == TOYOTA.name
     assert TOYOTA.peer_session == MAZDA.name

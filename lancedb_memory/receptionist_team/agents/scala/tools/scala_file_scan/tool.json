@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_scala_file_scan.py -- check_seen -> check_mazda -> read_text -> classify -> file -> report. Leaves receipts/statements to Mazda, OCRs the page with tesseract, files by pattern rules at >= 0.90 or else asks Haiku, copies (never moves) into C:\\Users\\NewUser\\scanned_documents\\<folder>, and records one line in ~/scala/ledger.jsonl."
+}

@@ -1,0 +1,11 @@
+{
+  "description": "Operate the configured email connector through Claude's existing login",
+  "model": null,
+  "max_turns": 16,
+  "allowed_tools": [
+    "ToolSearch"
+  ],
+  "permission_mode": "default",
+  "output_path": "adws/adw_data/yolanda",
+  "notes": "EmailConnectorRunner scopes tool calls to the configured Claude connector. Gmail is the default; authentication stays in Claude's existing credential store."
+}

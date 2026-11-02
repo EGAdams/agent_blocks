@@ -74,9 +74,9 @@ async def test_she_runs_on_toyotas_mechanics():
     assert isinstance(runner._runners["sydney_post_office"], PostOfficeRunner)
     # Not Toyota's finance-only WORK stack or her forced finance routes; her
     # one forced route sends work for Sonnet or Opus to the post office.
-    from ..adapters.post_office_route import PostOfficeRoute
+    from ..adapters.route_panel import FirstRouteOpinion
     assert SYDNEY.operations is False
-    assert isinstance(SYDNEY.route_override, PostOfficeRoute)
+    assert isinstance(SYDNEY.route_override, FirstRouteOpinion)
     # Her own port and voice, so two sidecars and two voices can run at once.
     assert SYDNEY.service_port == 8769
     assert SYDNEY.tts_voice and SYDNEY.tts_voice != TOYOTA.tts_voice

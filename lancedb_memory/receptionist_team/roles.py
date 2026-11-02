@@ -39,8 +39,12 @@ LIVE_BOOKS_AGENT_NAME = "live_books"
 # as a silent fall-through to the default tool agent rather than as an error.
 CATEGORY_SPREADSHEET_AGENT_NAME = "category_spreadsheet"
 
+# The company to-do list. Same three-must-agree reason as the two above.
+COMPANY_TODOS_AGENT_NAME = "company_todos"
+
 
 ROLE_BLURBS: dict[str, str] = {
+    "finance_report": "refreshes the River of Life 2025 nonprofit finance report from the live books and publishes it to ADW Generated",
     "mapper_cash": "finds vendor patterns in cash purchases",
     "mapper_card": "finds vendor patterns in card purchases",
     "mapper_bank": (
@@ -87,6 +91,15 @@ ROLE_BLURBS: dict[str, str] = {
         "headless browser, and opens the result that IS that site in the real "
         "Windows browser so you can log in by hand; it never types a password "
         "and never claims the site came up when it only opened the search page"
+    ),
+    "scala_questions": (
+        "passes EG's answer to one of Scala's filing questions to Scala, who files "
+        "the waiting scan in the named folder and remembers it; it never files "
+        "a scan in a folder EG did not name"
+    ),
+    "company_todos": (
+        "keeps the company to-do list: adds an item, reads the list back, "
+        "or checks an item off; it never invents, removes or rewords an item"
     ),
     "live_books": (
         "reads real figures straight out of the organization's live accounting "
@@ -156,6 +169,7 @@ ROLE_BLURBS: dict[str, str] = {
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
+    "finance_report": "our finance report workflow",
     "mapper_cash": "our cash purchase analyst",
     "mapper_card": "our card purchase analyst",
     "mapper_bank": "our bank payment analyst",
@@ -169,6 +183,8 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "browser_opener": "our browser opener",
     "search_link_opener": "our site finder",
     "live_books": "the books",
+    "company_todos": "our to-do keeper",
+    "scala_questions": "Scala",
     "toyota_mechanic": "our mechanic",
     "mechanic_translator": "our mechanic's translator",
     "progress_check": "our progress checker",
@@ -187,6 +203,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
 
 # Each phrase follows "tell them to start".
 ROLE_START_TASKS: dict[str, str] = {
+    "finance_report": "refreshing and publishing your 2025 finance report",
     "mapper_cash": "checking vendor patterns in your cash purchases",
     "mapper_card": "checking vendor patterns in your card purchases",
     "mapper_bank": "checking vendor patterns in your bank payments",
@@ -202,6 +219,8 @@ ROLE_START_TASKS: dict[str, str] = {
     "browser_opener": "opening that in your browser",
     "search_link_opener": "finding that site and opening it for you to log in",
     "live_books": "pulling that figure out of the live books",
+    "company_todos": "on the company to-do list",
+    "scala_questions": "checking on that scan",
     "toyota_mechanic": "looking at my own code",
     "mechanic_translator": "turning that into a precise instruction for my mechanic",
     "progress_check": "checking the status of your latest finance reports",
@@ -228,6 +247,7 @@ ROLE_START_TASKS: dict[str, str] = {
 TOYOTA_EXTRA_ROLE_NAMES = (
     "category_spreadsheet", "spreadsheet_reshaper", "live_books",
     "gifts_love_offerings_report", "tax_progress_page", "toyota_post_office",
+    "company_todos", "scala_questions",
 )
 TOYOTA_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES)
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(

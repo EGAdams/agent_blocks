@@ -1,0 +1,9 @@
+{
+  "description": "The city tax front desk: Grand Rapids 2025 return for Robert and Rosemary Barnes, by voice or text",
+  "model": "openai/gpt-oss-120b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": null,
+  "notes": "Conversationalist on Toyota's engine. Every figure comes from city_tax_desk (adws/adw_liz_ask.py); her route sends desk sentences there without the model."
+}

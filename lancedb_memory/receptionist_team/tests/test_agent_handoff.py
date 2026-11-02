@@ -45,6 +45,20 @@ async def test_no_sink_means_no_window():
     assert "dashboard" in reply.text, reply.text
 
 
+async def test_explanation_before_final_directive_still_opens_the_window():
+    seen = []
+    reply = await _model("Toyota handles this.\n\nOPEN_AGENT: toyota | Could you create the finance report?", seen.append).complete("p")
+    assert seen == [{"agent": "toyota", "name": "Toyota"}]
+    assert "Could you" not in reply.text and "Opening Toyota" in reply.text
+
+
+async def test_request_in_spoken_slot_is_not_echoed_as_if_forwarded():
+    seen = []
+    reply = await _model("OPEN_AGENT: toyota | Please generate a fresh report and tell Sydney.", seen.append).complete("p")
+    assert seen == [{"agent": "toyota", "name": "Toyota"}]
+    assert "generate" not in reply.text and "Opening Toyota" in reply.text
+
+
 if __name__ == "__main__":
     from tests.runner import main
 

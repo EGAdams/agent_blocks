@@ -1,0 +1,5 @@
+{
+  "kind": "service",
+  "status": "implemented",
+  "description": "lancedb_memory/scala/watch.py (systemd --user scala-scanner.service) -- polls rol_finances/tools/receipt_scanning_tools/incoming_scans every 5s and runs the file-scan ADW on each scan once it is 20s old. Starts from a watermark of 'now', so old scans are not re-filed."
+}

@@ -1,0 +1,8 @@
+{
+  "description": "The email front desk: operates the configured email system for the team",
+  "model": "openai/gpt-oss-120b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": null
+}

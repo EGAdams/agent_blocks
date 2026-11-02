@@ -351,6 +351,16 @@ def _envelope():
                      text="hi", correlation_id="t1" )
 
 
+def test_long_email_tasks_are_refused_without_silently_truncating_the_body() -> None:
+    from unittest.mock import patch
+    sidecar = SidecarTurnExecutor( "Yolanda", "http://127.0.0.1:8771" )
+    envelope = _envelope().model_copy( update={ "recipient": "yolanda", "text": "x" * 4001 } )
+    with patch( "urllib.request.build_opener" ) as opener:
+        result = asyncio.run( sidecar.execute( envelope ))
+    assert not result.ok and "not submitted" in result.text
+    opener.assert_not_called()
+
+
 def test_only_the_workers_reply_line_is_relayed() -> None:
     from agent_comms.executors.claude_sdk import reply_line
     assert reply_line( "Looking around.Now writing the report.\nREPLY: Built it; tests pass." ) == "Built it; tests pass."
@@ -374,6 +384,26 @@ def test_router_reads_addressees_and_verbs() -> None:
         assert r.route( "sydney", "sonnet: build it in /no/such/dir" ).context == {}
         fix = h.kit.dispatcher.send( r.route( "sydney", "mechanic: fix Toyota's sentence splitter" ))
         assert h.kit.board.task( fix.task_id ).task_type == "repair"           # the card's own name for the work
+    finally:
+        h.close()
+
+
+def test_inferred_work_for_a_conversational_desk_is_delivered_as_a_message() -> None:
+    h = Harness()
+    try:
+        for sender, recipient in [("sydney", "toyota"), ("toyota", "sydney")]:
+            text = f"{recipient}: create the latest finance report from the database and put it on ADW Generated"
+            request = h.kit.router.route( sender, text )
+            assert request.task_type == "message", request
+            receipt = h.kit.dispatcher.send( request )
+            assert receipt.accepted, receipt
+            assert h.kit.board.task( receipt.task_id ).text == text.split(": ", 1)[1]
+        # Explicit task types keep their meaning; unsupported work is refused.
+        explicit = h.kit.router.route( "sydney", "to=toyota type=build | create the report" )
+        assert explicit.task_type == "build"
+        assert not h.kit.dispatcher.send( explicit ).accepted
+        assert h.kit.router.route( "sydney", "sonnet: create the report" ).task_type == "build"
+        assert h.kit.router.route( "sydney", "mechanic: plan a party" ).task_type == "plan"
     finally:
         h.close()
 

@@ -1,0 +1,11 @@
+{
+  "write_root": "/home/adamsl/bridge_workspaces",
+  "extra_write_paths": [ "/home/adamsl/letta-code", "/home/adamsl/digi" ],
+  "workspaces": {
+    "agent_blocks":   { "path": "/home/adamsl/agent_blocks", "writes": false },
+    "letta_code":     { "path": "/home/adamsl/letta-code", "writes": true },
+    "digi":           { "path": "/home/adamsl/digi", "writes": true },
+    "bridge_sandbox": { "path": "/home/adamsl/bridge_workspaces/bridge_sandbox", "writes": true,
+                        "checks": [[ "python3", "-m", "unittest", "discover", "-s", "tests", "-q" ]] }
+  }
+}

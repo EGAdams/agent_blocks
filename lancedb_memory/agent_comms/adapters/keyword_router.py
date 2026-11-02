@@ -65,17 +65,28 @@ class KeywordRouter:
             name  = self._resolve( pairs.get( "to", "" ))
             if name:
                 body = flags.group( "rest" ).strip()
-                return self._request( sender, name, body, pairs.get( "type" ) or self.task_type( body ))
+                return self._request( sender, name, body, pairs.get( "type" ) or self._inferred_type( name, body ))
         prefix = _EXPLICIT_PREFIX.match( text )
         if prefix:
             name = self._resolve( prefix.group( "name" ))
             if name and name != sender:
                 body = prefix.group( "rest" ).strip()
-                return self._request( sender, name, body, self.task_type( body ))
+                return self._request( sender, name, body, self._inferred_type( name, body ))
         name = self._first_named( sender, text )
         if name is None:
             return None
-        return self._request( sender, name, text, self.task_type( text ))
+        return self._request( sender, name, text, self._inferred_type( name, text ))
+
+    def _inferred_type( self, recipient: str, text: str ) -> str:
+        inferred = self.task_type( text )
+        card = self._registry.card( recipient )
+        # A conversational desk receives instructions as messages; "create"
+        # in the payload does not turn it into a code worker. Explicit type=
+        # requests still go through capability validation unchanged.
+        if card and card.capability( inferred ) is None and card.capability( "message" ) and \
+           all( c.task_type in { "ask", "message" } for c in card.capabilities ):
+            return "message"
+        return inferred
 
     def task_type( self, text: str ) -> str:
         for task_type, pattern in _VERBS:

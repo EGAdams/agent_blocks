@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_company_todos.py -- read_request -> apply_change -> report. Reads the user's sentence as add / list / done with pattern rules (lancedb_memory/company_todos/requests.py), applies it to the append-only list, and writes one line to --message-out. An unclear request, a 'don't', or a check-off matching more than one item changes nothing and says so."
+}

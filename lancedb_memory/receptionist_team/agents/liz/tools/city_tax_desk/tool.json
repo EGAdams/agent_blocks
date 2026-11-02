@@ -1,0 +1,5 @@
+{
+  "kind": "adw",
+  "status": "implemented",
+  "description": "Liz's city tax desk: adws/adw_liz_ask.py answers or runs one small city-tax ADW per sentence."
+}

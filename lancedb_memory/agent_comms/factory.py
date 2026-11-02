@@ -29,6 +29,8 @@ from .alerts import CallerAlertForwarder, StalledTaskSweeper, UnrecoverableError
 from .board import MailboxTaskBoard, TaskCanceller
 from .executors.basic import ByTaskType, HelloWorldExecutor, ObservedExecutor
 from .executors.claude_sdk import ClaudeSdkExecutor
+from .executors.codex_cli import CodexCliExecutor
+from .executors.jail import BwrapJail, WorkspacePrivatePaths
 from .executors.mechanic import AdwSubprocessExecutor, DiagnosisExecutor
 from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
@@ -130,8 +132,52 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
                                       command=command or None, timeout_seconds=float( s.get( "timeout_seconds", 3600.0 )),
                                       diagnose_flag=s.get( "diagnose_flag" ), sender_flag=s.get( "sender_flag" ))
 
+    def codex_cli( card: AgentCard ) -> ITaskExecutor:
+        """Codex CLI, read-only sandbox fixed in the executor; the card picks where, how long, and the jail."""
+        s    = card.settings
+        home = codex_home( s.get( "codex_home" ))
+        return CodexCliExecutor( Path( str( s.get( "workdir", WORKSPACE ))), binary=str( s.get( "binary", "codex" )),
+                                 timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
+                                 model=s.get( "model" ), jail=codex_jail( s.get( "jail" ), home ),
+                                 secret_files=[ home / "auth.json" ],
+                                 read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])])
+
+    def codex_cli_write( card: AgentCard ) -> ITaskExecutor:
+        """Codex CLI with `--sandbox workspace-write`, jailed to the one workspace it is given.
+
+        Only for cards whose capabilities say `writes: true`. The jail is
+        required: a card that names none is refused here rather than run unconfined.
+        """
+        s    = card.settings
+        home = codex_home( s.get( "codex_home" ))
+        jail = codex_jail( s.get( "jail" ), home, root_writable=True )
+        if jail is None:
+            raise ValueError( f"{ card.name }: a write-enabled codex card must name a jail" )
+        return CodexCliExecutor( Path( str( s[ "workdir" ])), binary=str( s.get( "binary", "codex" )),
+                                 timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
+                                 model=s.get( "model" ), jail=jail, secret_files=[ home / "auth.json" ],
+                                 sandbox="workspace-write",
+                                 write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])])
+
+    def codex_home( value: object ) -> Path:
+        """The bridge's own CODEX_HOME: its own login, none of EG's Codex history."""
+        home = Path( str( value or Path.home() / ".codex-bridge" )).expanduser()
+        if home.resolve() == ( Path.home() / ".codex" ).resolve():
+            raise ValueError( "the codex card must not use ~/.codex; it holds EG's own Codex history" )
+        return home
+
+    def codex_jail( name: object, home: Path, root_writable: bool = False ) -> BwrapJail | None:
+        if name is None:
+            return None
+        if name != "bwrap":
+            raise ValueError( f"unknown jail { name !r} on the codex card; the only one is 'bwrap'" )
+        return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ], env={ "CODEX_HOME": str( home )},
+                          required=[ home / "auth.json" ], root_writable=root_writable )
+
     return {
         "claude_sdk":  claude_sdk,
+        "codex_cli":   codex_cli,
+        "codex_cli_write": codex_cli_write,
         "adw":         adw,
         "sidecar":     sidecar,
         "mechanic":    mechanic,

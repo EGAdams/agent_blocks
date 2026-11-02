@@ -1,0 +1,5 @@
+{
+  "kind": "script",
+  "status": "implemented",
+  "description": "adws/adw_interface_finance_report.py refreshes the 2025 workbook from the live books, recalculates it with LibreOffice, and publishes the resulting HTML to ADW Generated. Returns the actual result through --message-out. No email is sent."
+}

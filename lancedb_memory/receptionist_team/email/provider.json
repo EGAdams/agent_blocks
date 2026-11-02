@@ -1,0 +1,5 @@
+{
+  "provider": "gmail",
+  "connector": "claude_ai_Gmail",
+  "model": "sonnet"
+}

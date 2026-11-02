@@ -1,0 +1,9 @@
+{
+  "description": "passes EG's answer to one of Scala's filing questions to Scala: files the inbox scan in the named folder and remembers it",
+  "model": null,
+  "max_turns": 6,
+  "allowed_tools": [ "Bash", "Read" ],
+  "permission_mode": "bypassPermissions",
+  "output_path": "/mnt/c/Users/NewUser/scanned_documents",
+  "notes": "Drives adws/adw_interface_scala_answer.py. Normally bypassed: Toyota reaches the same ADW through ScalaAnswerRunner, with no model in the path, and ScalaAnswerRoute forces the route for any message naming Scala or a bills_511/ or documents_511/ folder. Questions, lessons and the ledger are in ~/scala/ (SCALA_HOME overrides). No Write/Edit: the ADW is the only writer."
+}

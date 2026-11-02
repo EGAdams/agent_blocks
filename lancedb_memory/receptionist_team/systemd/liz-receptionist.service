@@ -1,0 +1,18 @@
+[Unit]
+Description=Liz city tax specialist (receptionist_team --agent liz, port 8772)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks/lancedb_memory
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python -m receptionist_team.service --agent liz --port 8772
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+Environment=PATH=/home/adamsl/.local/bin:/snap/bin:/usr/local/bin:/usr/bin:/bin
+StandardOutput=append:/tmp/liz_receptionist.log
+StandardError=append:/tmp/liz_receptionist.log
+
+[Install]
+WantedBy=default.target
