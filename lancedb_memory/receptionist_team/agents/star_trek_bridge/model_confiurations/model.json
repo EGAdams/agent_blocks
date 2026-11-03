@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's read-only door to the Star Trek Bridge gateway (bridge.americansjewelry.com): sends one read-only request to any Bridge agent that offers a read-only operation (codex on agent_blocks by default), lists the Bridge's agents live, and reads back a task's status or result",
+  "model": null,
+  "max_turns": 4,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/star_trek_bridge",
+  "notes": "Normally no model runs here: Toyota's profile maps this name to receptionist_team/adapters/bridge_runner.BridgeDelegationRunner, which calls the gateway's client API (receptionist_team/bridge_client) directly. bridge_client/policy.py allows only inspect, explain and search_memory, checked against the Bridge's live GET /agents answer; implement, print, scan and workspace_write are never requested. See receptionist_team/bridge_client/README.md."
+}

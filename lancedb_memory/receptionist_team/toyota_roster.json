@@ -1,0 +1,25 @@
+{
+  "owner": "Toyota",
+  "enabled": [
+    "mapper_cash",
+    "mapper_card",
+    "mapper_bank",
+    "mapper_other",
+    "synthesizer",
+    "receipt_scanner",
+    "expense_reconciler",
+    "progress_check",
+    "category_spreadsheet",
+    "spreadsheet_reshaper",
+    "live_books",
+    "gifts_love_offerings_report",
+    "tax_progress_page",
+    "toyota_post_office",
+    "company_todos",
+    "scala_questions",
+    "agent_creator",
+    "toyota_mechanic",
+    "star_trek_bridge"
+  ],
+  "disabled": {}
+}

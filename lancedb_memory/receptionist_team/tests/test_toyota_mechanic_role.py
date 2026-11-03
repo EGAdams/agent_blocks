@@ -46,9 +46,9 @@ async def test_sydney_summons_the_mechanic_for_both_receptionists():
     assert 'toyota_mechanic' in ROLE_BLURBS and 'toyota_mechanic' in ROLE_SPOKEN_NAMES
     assert SYDNEY_ROSTER.has('toyota_mechanic') and SYDNEY_ROSTER.has('mechanic_translator')
     assert 'ROUTE: toyota_mechanic' in SYDNEY_SYSTEM_PROMPT
-    # Toyota no longer routes there herself: she opens Sydney's window.
-    assert not TOYOTA_ROSTER.has('toyota_mechanic')
-    assert 'ROUTE: toyota_mechanic' not in TOYOTA_SYSTEM_PROMPT
+    # Toyota's explicit roster routes there too, and her prompt says how.
+    assert TOYOTA_ROSTER.has('toyota_mechanic')
+    assert 'ROUTE: toyota_mechanic' in TOYOTA_SYSTEM_PROMPT
     assert 'OPEN_AGENT: sydney' in TOYOTA_SYSTEM_PROMPT
 
 

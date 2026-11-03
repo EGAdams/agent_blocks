@@ -68,8 +68,8 @@ async def test_sydney_knows_to_route_a_new_agent_request_here():
     assert "agent_creator" in ROLE_BLURBS
     # Building a new teammate is not the mechanic changing an existing one.
     assert "toyota_mechanic" in SYDNEY_SYSTEM_PROMPT
-    # And it is no longer Toyota's to do.
-    assert not TOYOTA_ROSTER.has("agent_creator")
+    # Toyota's explicit roster carries it too (toyota_roster.json).
+    assert TOYOTA_ROSTER.has("agent_creator")
     # The user hears the spoken name, never the technical one.
     assert "agent_creator" not in delegation_acknowledgment("agent_creator")
     assert "our agent creator" in delegation_acknowledgment("agent_creator")

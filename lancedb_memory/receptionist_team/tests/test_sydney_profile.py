@@ -2,8 +2,9 @@
 
 What has to hold for the clone to be a clone: the same chat model, recall
 budget, runner, handoff decorator and shared LanceDB table as Toyota. What has
-to hold for the split to be a split: every routable role belongs to exactly
-one of them, a ROUTE line naming the other's specialist is refused rather
+to hold for the split to be a split: every routable role sits on exactly one
+desk (Toyota's explicit roster may also name agent_creator and toyota_mechanic
+from Sydney's desk, and nothing else of hers), a ROUTE line naming the other's specialist is refused rather
 than run, and each points the user at the other with OPEN_AGENT.
 
 Offline. The recall test uses a real LanceDB table in a tmpdir with the hash
@@ -84,8 +85,9 @@ async def test_she_runs_on_toyotas_mechanics():
 
 async def test_both_rosters_come_from_the_one_role_assignment():
     from ..role_desks import NamedRolesOrDefault, roles_for
-    from ..roles import ROLE_ASSIGNMENT
-    assert TOYOTA_ROLES == roles_for("toyota", ROLES, ROLE_ASSIGNMENT)
+    from ..roles import ROLE_ASSIGNMENT, TOYOTA_MEMBERSHIP
+    # Toyota's roster is her explicit config, not her desk's share of ROLES.
+    assert TOYOTA_ROLES == TOYOTA_MEMBERSHIP.select(ROLES)
     assert SYDNEY_ROLES == roles_for("sydney", ROLES, ROLE_ASSIGNMENT)
     # An agent nobody named lands on Sydney's desk: creating agents is her job.
     assert ROLE_ASSIGNMENT.owner_of("a_brand_new_agent") == "sydney"
@@ -96,32 +98,44 @@ async def test_both_rosters_come_from_the_one_role_assignment():
 
 
 async def test_every_role_belongs_to_exactly_one_of_them():
-    assert set(SYDNEY_ROLES) | set(TOYOTA_ROLES) == set(ROLES)
-    assert not set(SYDNEY_ROLES) & set(TOYOTA_ROLES)
-    for name in ("toyota_mechanic", "mechanic_translator", "agent_creator",
-                 "browser_opener", "search_link_opener", "dashboard_expert",
-                 "web_search_expert", "memory_compactor", "adw_guide",
-                 "ask_opus", "ask_sonnet"):
+    from ..roles import ROLE_ASSIGNMENT, TOYOTA_DESK_ROLE_NAMES
+    # Desks still split ROLES with nothing left over.
+    assert set(SYDNEY_ROLES) | set(TOYOTA_DESK_ROLE_NAMES) == set(ROLES)
+    assert not set(SYDNEY_ROLES) & set(TOYOTA_DESK_ROLE_NAMES)
+    # Toyota's roster borrows exactly two of Sydney's: creation and the mechanic.
+    assert set(SYDNEY_ROLES) & set(TOYOTA_ROLES) == {"agent_creator", "toyota_mechanic"}
+    for name in ("mechanic_translator", "browser_opener", "search_link_opener",
+                 "dashboard_expert", "web_search_expert", "memory_compactor",
+                 "adw_guide", "ask_opus", "ask_sonnet"):
         assert SYDNEY_ROSTER.has(name), name
         assert not TOYOTA_ROSTER.has(name), name
+    for name in ("toyota_mechanic", "agent_creator"):
+        assert SYDNEY_ROSTER.has(name) and TOYOTA_ROSTER.has(name), name
     for name in ("live_books", "category_spreadsheet", "spreadsheet_reshaper",
-                 "tax_progress_page", "progress_check", "synthesizer"):
+                 "tax_progress_page", "star_trek_bridge"):
         assert TOYOTA_ROSTER.has(name), name
         assert not SYDNEY_ROSTER.has(name), name
+    # The finance routes Toyota always had stay on her desk and roster, off Sydney's.
+    for name in ("progress_check", "synthesizer", "mapper_cash", "receipt_scanner"):
+        assert name in ROLES and ROLE_ASSIGNMENT.owner_of(name) == "toyota", name
+        assert TOYOTA_ROSTER.has(name) and not SYDNEY_ROSTER.has(name), name
     # The mechanic dispatcher is routable; its coder never is.
     assert "mechanic_coder" not in SYDNEY_ROLES
 
 
-async def test_sydney_runs_the_mechanic_and_toyota_refuses_to():
+async def test_both_desks_run_the_mechanic_and_toyota_keeps_her_finance_routes():
     model, runner = _routing(SYDNEY_ROSTER, "ROUTE: toyota_mechanic | diagnose only: Toyota answers slowly")
     reply = await model.complete("USER: Toyota is slow, ask the mechanic\nAGENT:")
     assert runner.calls == ["toyota_mechanic"], runner.calls
     assert "ran toyota_mechanic" in reply.text
 
-    model, runner = _routing(TOYOTA_ROSTER, "ROUTE: toyota_mechanic | fix yourself")
-    reply = await model.complete("USER: fix yourself\nAGENT:")
-    assert runner.calls == [], runner.calls
-    assert "don't have an agent" in reply.text
+    model, runner = _routing(TOYOTA_ROSTER, "ROUTE: toyota_mechanic | diagnose only: you are slow")
+    reply = await model.complete("USER: ask the mechanic why you are slow\nAGENT:")
+    assert runner.calls == ["toyota_mechanic"], runner.calls
+
+    model, runner = _routing(TOYOTA_ROSTER, "ROUTE: synthesizer")
+    reply = await model.complete("USER: synthesize the vendor patterns\nAGENT:")
+    assert runner.calls == ["synthesizer"], runner.calls
 
 
 async def test_sydney_refuses_a_finance_route():

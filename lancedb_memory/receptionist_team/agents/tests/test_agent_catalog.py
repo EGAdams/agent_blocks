@@ -58,15 +58,16 @@ async def test_toyotas_system_prompt_is_the_folder_rendered_with_the_roster():
 
 
 async def test_sydneys_system_prompt_is_her_folder_rendered_with_the_rest_of_the_roster():
-    from ...roles import ROLES, TOYOTA_ROLES
+    from ...roles import ROLES, TOYOTA_DESK_ROLE_NAMES
     from ...sydney_roles import SYDNEY_ROLES, SYDNEY_SYSTEM_PROMPT
 
     template = catalog().definition( "sydney" ).system_prompt()
     assert set( template.placeholders()) == { "roster", "allowed_agents" }
     assert "{{" not in SYDNEY_SYSTEM_PROMPT
-    # The two rosters split ROLES between them with nothing left over.
-    assert set( SYDNEY_ROLES ) | set( TOYOTA_ROLES ) == set( ROLES )
-    assert not set( SYDNEY_ROLES ) & set( TOYOTA_ROLES )
+    # The two desks split ROLES between them with nothing left over. (Toyota's
+    # roster is explicit config and may borrow from Sydney's desk.)
+    assert set( SYDNEY_ROLES ) | set( TOYOTA_DESK_ROLE_NAMES ) == set( ROLES )
+    assert not set( SYDNEY_ROLES ) & set( TOYOTA_DESK_ROLE_NAMES )
     for name in SYDNEY_ROLES:
         assert f"ROUTE: { name }" in SYDNEY_SYSTEM_PROMPT, name
     assert "OPEN_AGENT: toyota" in SYDNEY_SYSTEM_PROMPT

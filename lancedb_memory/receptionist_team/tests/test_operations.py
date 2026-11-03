@@ -237,10 +237,11 @@ async def test_the_turn_context_advertises_every_agent_toyota_can_route_to():
     # is registered in roles.py but missing here gets denied no matter what
     # Toyota's system prompt says -- which is exactly how browser_opener was
     # invisible to her after it was created.
-    for name in ('live_books', 'spreadsheet_reshaper', 'category_spreadsheet'):
+    for name in ('live_books', 'spreadsheet_reshaper', 'category_spreadsheet',
+                 'agent_creator', 'toyota_mechanic', 'star_trek_bridge'):
         assert f'ROUTE: {name}' in prompt, name
-    # The non-financial routes are Sydney's now; Toyota is told to open her.
-    for name in ('browser_opener', 'agent_creator', 'toyota_mechanic'):
+    # The other non-financial routes are Sydney's; Toyota is told to open her.
+    for name in ('browser_opener', 'mechanic_translator', 'search_link_opener'):
         assert f'ROUTE: {name}' not in prompt, name
     assert 'OPEN_AGENT: sydney' in prompt
     assert 'browse arbitrary websites' not in prompt

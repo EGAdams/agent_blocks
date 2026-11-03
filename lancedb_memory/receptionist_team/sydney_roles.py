@@ -9,9 +9,10 @@ both receptionists, the browser and web search, the ADW guide, and the
 second-opinion models.
 
 Her roster is whatever roles.ROLE_ASSIGNMENT (an IRoleAssignment, see
-role_desks.py) puts on the "sydney" desk. She never reads Toyota's list: both
-rosters ask the same assignment, so they cannot overlap, and an agent folder
-registered in extra_roles.py lands here unless it is named as a finance agent.
+role_desks.py) puts on the "sydney" desk. She never reads Toyota's list, and
+an agent folder registered in extra_roles.py lands here unless it is named as
+a finance agent. Toyota's roster is explicit config (toyota_roster.json) and
+also names agent_creator and toyota_mechanic, which stay on this desk too.
 The blurbs, spoken names and start tasks are roles.py's own dicts -- one wording per
 agent, whoever routes to it.
 

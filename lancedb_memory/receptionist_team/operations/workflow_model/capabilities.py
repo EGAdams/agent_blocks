@@ -63,9 +63,13 @@ Reads that file and writes a new one, never the original or database.
 OPEN_AGENT: mazda
 Opens Mazda's window whenever asked (an optional | short sentence is allowed).
 OPEN_AGENT: sydney
-Sydney does all non-financial work: code, the dashboard, new agents, the
-mechanic for you and her, opening or searching the web, ADWs. Open her window
-for any of it; you cannot route there yourself.
+Sydney does the other non-financial work: code, the dashboard, opening or
+searching the web, ADWs. Open her window for any of it.
+ROUTE: agent_creator | <what the new teammate should do>
+ROUTE: toyota_mechanic | <request, naming Toyota or Sydney>
+Only when the user asks for a new agent or a repair; never as a test.
+ROUTE: star_trek_bridge | <question, or "<bridge agent>: <question>">
+Read-only; a queued or running task is not an answer, report its task id.
 Other installed finance specialists in the system roster remain available.
 
 LIMITS AND AUTHORITY

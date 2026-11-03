@@ -57,9 +57,9 @@ async def test_acknowledgment_reaches_the_sink_before_the_role_runs():
     tool_agent_runner_module.run_role = fake_run_role
     try:
         routing = _toyota_routing(
-            "ROUTE: receipt_scanner", lambda s: order.append(("ack", s))
+            "ROUTE: gifts_love_offerings_report", lambda s: order.append(("ack", s))
         )
-        await routing.complete("audit the receipts")
+        await routing.complete("build the gifts page")
     finally:
         tool_agent_runner_module.run_role = original
 
@@ -108,8 +108,8 @@ async def test_broken_sink_does_not_lose_the_delegated_work():
     original = tool_agent_runner_module.run_role
     tool_agent_runner_module.run_role = fake_run_role
     try:
-        reply = await _toyota_routing("ROUTE: receipt_scanner", boom).complete(
-            "audit the receipts"
+        reply = await _toyota_routing("ROUTE: gifts_love_offerings_report", boom).complete(
+            "build the gifts page"
         )
     finally:
         tool_agent_runner_module.run_role = original

@@ -14,7 +14,8 @@ f-string it replaced (tests/test_agent_catalog.py pins that).
 from finance_team.roles import ROLES as _FINANCE_ROLES
 
 from .agents import catalog
-from .role_desks import IRoleAssignment, NamedRolesOrDefault, roles_for
+from .role_desks import IRoleAssignment, NamedRolesOrDefault
+from .roster_membership import TOYOTA_ROSTER_CONFIG, load_membership
 from .rosters import Roster
 from .extra_roles import EXTRA_ROLES
 
@@ -166,6 +167,12 @@ ROLE_BLURBS: dict[str, str] = {
         "status of one named systemd service on this box; it never deletes "
         "a file"
     ),
+    "star_trek_bridge": (
+        "sends one read-only request to an agent on the Star Trek Bridge "
+        "(Codex on the agent_blocks code by default, or a named Bridge agent "
+        "such as hello-world), lists the Bridge's agents, and reads back a "
+        "task's status or result; it never writes, implements, prints or scans"
+    ),
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -199,6 +206,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "sydney_post_office": "the post office",
     "toyota_post_office": "the post office",
     "system_mechanic": "our system mechanic",
+    "star_trek_bridge": "the Star Trek Bridge",
 }
 
 # Each phrase follows "tell them to start".
@@ -235,25 +243,38 @@ ROLE_START_TASKS: dict[str, str] = {
     "sydney_post_office": "sending that on",
     "toyota_post_office": "sending that on",
     "system_mechanic": "taking care of that service",
+    "star_trek_bridge": "a read-only look at that",
 }
 
-# Toyota is the finance desk. Every finance_team role is hers automatically,
-# plus the agent-folder specialists below, whose whole job is the books.
-# Everything else in ROLES -- building, testing and deploying code, agent
-# creation, the mechanic, the browser and web search, the ADW guide -- sits on
-# Sydney's desk. Both rosters ask ROLE_ASSIGNMENT rather than each other's
-# lists (see role_desks.py), so a new agent folder lands on Sydney's desk by
-# default and a new FINANCE agent is one more name below.
+# Toyota is the finance desk: the agent-folder specialists below are hers.
+# Building, testing and deploying code, the browser and web search, the ADW
+# guide sit on Sydney's desk; agent creation and the mechanic are on Sydney's
+# desk AND on Toyota's explicit roster (toyota_roster.json). Sydney's roster
+# asks ROLE_ASSIGNMENT (see role_desks.py), so a new agent folder lands on
+# Sydney's desk by default and reaches Toyota only if her roster names it.
 TOYOTA_EXTRA_ROLE_NAMES = (
     "category_spreadsheet", "spreadsheet_reshaper", "live_books",
     "gifts_love_offerings_report", "tax_progress_page", "toyota_post_office",
     "company_todos", "scala_questions",
 )
-TOYOTA_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES)
+# The DESK assignment, not Toyota's roster. It decides which roles are NOT
+# Sydney's (she gets every role this list doesn't name), so it keeps the
+# finance roles and is unchanged from before. star_trek_bridge is named here
+# only so that registering its folder doesn't land it on Sydney's desk.
+TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
-    TOYOTA_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
+    TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )
-TOYOTA_ROLES = roles_for("toyota", ROLES, ROLE_ASSIGNMENT)
+
+# Toyota's ROSTER: explicit, from toyota_roster.json, validated at import (see
+# roster_membership.py). It lists every finance_team role (a test fails if a
+# new one is neither enabled nor explicitly disabled), her agent-folder
+# specialists, agent_creator and toyota_mechanic -- those two stay on Sydney's
+# roster too, since her desk assignment above is unchanged -- and
+# star_trek_bridge. A role is added only by naming an already-defined role there.
+TOYOTA_MEMBERSHIP = load_membership(TOYOTA_ROSTER_CONFIG)
+TOYOTA_ROLE_NAMES = TOYOTA_MEMBERSHIP.enabled
+TOYOTA_ROLES = TOYOTA_MEMBERSHIP.select(ROLES)
 
 # Toyota's roster: her roles plus the three descriptions, validated as one
 # object. Roster.__post_init__ raises at import if any agent is missing a

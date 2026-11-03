@@ -93,6 +93,7 @@ def _toyota_runner() -> IDelegationRunner:
     around first -- is deleting one line of this map; the agents/live_books
     and agents/category_spreadsheet folders are already written for that case.
     """
+    from .adapters.bridge_runner import BridgeDelegationRunner
     from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
     from .adapters.company_todo_runner import CompanyTodoRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
@@ -107,6 +108,9 @@ def _toyota_runner() -> IDelegationRunner:
             "toyota_post_office": PostOfficeRunner("toyota"),
             COMPANY_TODOS_AGENT_NAME: CompanyTodoRunner(),
             "scala_questions": ScalaAnswerRunner(),
+            # Read-only Codex inspect over the Star Trek Bridge's client API;
+            # no credential means it says "unavailable" and the rest still runs.
+            "star_trek_bridge": BridgeDelegationRunner(),
         },
         default=ToolAgentRunner(),
     )

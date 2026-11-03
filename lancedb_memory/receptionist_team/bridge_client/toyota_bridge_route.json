@@ -1,0 +1,6 @@
+{
+  "default_agent": "codex",
+  "default_workspace": "agent_blocks",
+  "allowed_operations": ["inspect", "explain", "search_memory"],
+  "approval_mode": "read_only"
+}
