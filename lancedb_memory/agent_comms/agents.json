@@ -147,7 +147,9 @@
       "runtime": "hello_world",
       "capabilities": [
         { "task_type": "hello", "description": "says Hello World; proves a path end to end", "default_wait_seconds": 60,
-          "synonyms": [ "ask", "message" ] }
+          "synonyms": [ "ask", "message" ] },
+        { "task_type": "inspect", "description": "read-only: answers Hello World; proves a Star Trek Bridge round trip",
+          "writes": false, "idempotent": true }
       ]
     },
     {
