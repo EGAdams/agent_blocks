@@ -139,6 +139,21 @@ async def test_status_and_result_readback_by_id_and_by_last_task():
     assert client.sent == []
 
 
+async def test_reworded_readbacks_with_a_task_id_send_nothing():
+    for line, said in ((f"What is the result of Star Trek Bridge task {TID}?", "no result yet"),
+                       (f"Can you tell me what Bridge task {TID} said", "no result yet"),
+                       (f"Is task {TID} still running on the bridge?", "running")):
+        client = FakeClient(states=["running"], result=_result("running", ready=False))
+        text = await _say(_runner(client), line)
+        assert said in text and client.sent == [], (line, text)
+
+
+async def test_a_task_id_without_a_question_about_it_is_still_a_submit():
+    client = FakeClient(submits=[_view("queued")])
+    await _say(_runner(client), f"explain how the gateway assigns ids like {TID}")
+    assert len(client.sent) == 1
+
+
 async def test_long_answers_are_clipped_for_speech():
     client = FakeClient(submits=[_view("succeeded")], result=_result("succeeded", ok=True, body="w " * 2000))
     assert len(await _say(_runner(client), "x")) <= SPOKEN_LIMIT

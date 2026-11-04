@@ -37,6 +37,27 @@ PHASES = ("discover", "validate", "route", "submit", "monitor", "retrieve", "res
 
 _READBACK = re.compile(r"^\s*(?:what(?:'s| is) the )?(?P<kind>status|result|answer)\b(?:\s+(?:of|for|on))?(?:\s+task)?"
                        r"(?:\s+(?P<id>t_[0-9a-f]{24}))?\s*[.?!]?\s*$", re.IGNORECASE)
+# Toyota's model rewords the caller before it reaches this desk ("what is the result of Star Trek
+# Bridge task t_..."), so a task id plus a status/result word anywhere is also a readback. A
+# readback sends nothing, so leaning this way can never start work by mistake.
+_TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
+_ASKS_RESULT = re.compile(r"\b(?:result|answer|outcome|reply|said|say|says|finished|done|ready|output)\b", re.IGNORECASE)
+_ASKS_STATUS = re.compile(r"\b(?:status|progress|state|queued|running|still)\b", re.IGNORECASE)
+
+
+def readback_of(text: str) -> tuple[str, str | None] | None:
+    """(kind, task id or None) when `text` asks about an earlier Bridge task, else None."""
+    exact = _READBACK.match(text)
+    if exact:
+        return exact.group("kind").lower(), exact.group("id")
+    found = _TASK_ID.search(text)
+    if not found:
+        return None
+    if _ASKS_RESULT.search(text):
+        return "result", found.group(0)
+    if _ASKS_STATUS.search(text):
+        return "status", found.group(0)
+    return None
 PROMPT_FRAME = ("Read-only request relayed by Toyota, the receptionist. Do not modify any file. "
                 "Answer briefly, in plain sentences suitable to be read aloud.\n\n")
 
@@ -114,10 +135,10 @@ class DiscoverPhase:
 
     def run(self, ctx: BridgeRun) -> PhaseRecord:
         ctx.client = ctx.client or ctx.client_factory()  # no credential -> BridgeUnavailable, nothing sent
-        readback = _READBACK.match(ctx.text)
+        readback = readback_of(ctx.text)
         if readback:
-            ctx.intent, ctx.readback_kind = "readback", readback.group("kind").lower()
-            ctx.readback_id = readback.group("id") or ctx.last_task_id
+            ctx.intent, ctx.readback_kind = "readback", readback[0]
+            ctx.readback_id = readback[1] or ctx.last_task_id
             return PhaseRecord(self.name, "skipped", {"intent": "readback"}, next="monitor")
         ctx.agents = list(ctx.client.discover())
         ctx.intent = "list" if is_listing_request(ctx.text) else "submit"
