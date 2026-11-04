@@ -18,6 +18,9 @@ The rest of /home is an empty tmpfs, /tmp is fresh, Windows' /mnt/c is not
 there at all, and the environment is cleared so the API keys in EG's shell
 never reach the agent. The network is left alone: codex has to reach OpenAI.
 A jail built with `network=False` (the bridge's post-write checks) gets none.
+With the network on, the DNS settings come too: under WSL /etc/resolv.conf
+is a link to /mnt/wsl/resolv.conf, which binding /etc alone leaves dangling,
+so that one file is bound at its real path (and nothing else under /mnt).
 
 A write-enabled card builds its jail with `root_writable=True`: the
 workspace is then bound read-write, but the private-path masks still sit on
@@ -140,12 +143,14 @@ class BwrapJail:
     SYSTEM = ( "/usr", "/etc" )
     LINKS  = (( "usr/bin", "/bin" ), ( "usr/sbin", "/sbin" ), ( "usr/lib", "/lib" ), ( "usr/lib64", "/lib64" ))
     PATH   = "/usr/local/bin:/usr/bin:/bin"
+    DNS    = ( "/etc/resolv.conf", )
 
     def __init__( self, private: IPrivatePaths, state_dirs: list[ Path ], bwrap: str = "/usr/bin/bwrap",
                   home: Path | None = None, env: dict[ str, str ] | None = None,
                   required: list[ Path ] | None = None, root_writable: bool = False,
-                  network: bool = True ) -> None:
+                  network: bool = True, dns_files: tuple[ str, ... ] | None = None ) -> None:
         self._private  = private
+        self._dns      = tuple( self.DNS if dns_files is None else dns_files )
         self._network  = network
         self._root_rw  = root_writable
         self._state    = [ Path( d ) for d in state_dirs ]
@@ -153,6 +158,16 @@ class BwrapJail:
         self._home     = Path( home or Path.home())
         self._env      = dict( env or {})
         self._required = [ Path( r ) for r in required or []]
+
+    def _dns_targets( self ) -> list[ str ]:
+        """Real files behind the DNS settings that the /usr and /etc binds do not already carry."""
+        out = []
+        for name in self._dns:
+            real   = os.path.realpath( name )
+            inside = any( real == top or real.startswith( top + "/" ) for top in self.SYSTEM )
+            if not inside and os.path.isfile( real ) and real not in out:
+                out.append( real )
+        return out
 
     def wrap( self, argv: list[ str ], root: Path, cwd: Path, writable: list[ Path ]) -> list[ str ]:
         if not os.access( self._bwrap, os.X_OK ):
@@ -167,6 +182,9 @@ class BwrapJail:
             jail.append( "--unshare-net" )
         for path in self.SYSTEM:
             jail += [ "--ro-bind", path, path ]
+        if self._network:
+            for path in self._dns_targets():
+                jail += [ "--ro-bind", path, path ]
         for target, link in self.LINKS:
             jail += [ "--symlink", target, link ]
         jail += [ "--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp", "--tmpfs", str( self._home.parent )]

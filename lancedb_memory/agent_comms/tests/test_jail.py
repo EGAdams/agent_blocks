@@ -226,6 +226,45 @@ def test_network_off_adds_unshare_net() -> None:
         shutil.rmtree( base )
 
 
+def test_linked_dns_settings_are_bound_only_with_network() -> None:
+    base = Path( tempfile.mkdtemp())
+    try:
+        root, fake = base / "ws", base / "bwrap"
+        root.mkdir()
+        fake.write_text( "#!/bin/sh\n" )
+        fake.chmod( 0o755 )
+        real = base / "wsl" / "resolv.conf"
+        real.parent.mkdir()
+        real.write_text( "nameserver 10.0.0.1\n" )
+        link = base / "resolv.conf"
+        link.symlink_to( real )
+        make = lambda net: BwrapJail( WorkspacePrivatePaths(), state_dirs=[], bwrap=str( fake ), network=net,
+                                      dns_files=( str( link ), "/no/such/resolv.conf" )).wrap([ "true" ], root, root, [])
+        on, off = make( True ), make( False )
+        at = on.index( str( real ))
+        assert on[ at - 1 : at + 2 ] == [ "--ro-bind", str( real ), str( real )]
+        assert str( real ) not in off
+        assert "/no/such/resolv.conf" not in on
+    finally:
+        shutil.rmtree( base )
+
+
+def test_real_bubblewrap_can_resolve_names() -> None:
+    """The jail must resolve names the way the host does, or codex cannot reach OpenAI."""
+    if not shutil.which( "bwrap" ) or not shutil.which( "getent" ):
+        return
+    host = subprocess.run([ "getent", "hosts", "chatgpt.com" ], capture_output=True, timeout=30 )
+    if host.returncode != 0:
+        return                                          # no DNS on the host either: nothing to compare
+    root = Path( tempfile.mkdtemp())
+    try:
+        argv = BwrapJail( WorkspacePrivatePaths(), state_dirs=[], home=root ).wrap(
+            [ "getent", "hosts", "chatgpt.com" ], root, root, [])
+        assert subprocess.run( argv, capture_output=True, timeout=30 ).returncode == 0
+    finally:
+        shutil.rmtree( root )
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 
 if __name__ == "__main__":
