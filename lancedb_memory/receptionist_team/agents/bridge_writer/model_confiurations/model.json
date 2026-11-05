@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for codex-writer: changes code or files through the Bridge's Codex writer, in a workspace it may write in (bridge_sandbox by default); Toyota reads it back and sends it only after a yes",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_writer",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model (Groq, JSON mode) only fills a form; bridge_client/specialists.py checks it against the Bridge's live GET /agents and builds the request. Changes, prints, print cancels and scans are read back and sent only after a yes."
+}

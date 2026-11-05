@@ -1,0 +1,218 @@
+"""Bridge specialists -- one per Bridge agent Toyota may drive beyond read-only.
+
+    Toyota (Groq) -> ROUTE: bridge_writer | <the user's words>
+      -> BridgeSpecialistRunner
+         -> IFormFiller (one small Groq call): the user's words -> SpecialistForm (JSON)
+         -> IRequestBuilder (code): SpecialistForm + the live GET /agents entry -> BridgeActionRequest
+         -> read back + wait for "yes" when the operation changes a file or moves paper
+         -> BridgeTaskWorkflow (submit, monitor, retrieve, respond) -> Toyota
+
+The model only fills a form. Which Bridge agent a specialist sends to is fixed
+here, never chosen by a model; the operation and workspace it fills in are
+checked against the Bridge's own agent list, and the exact prompt a printer or
+scanner accepts is built by code, never typed by the model.
+"""
+import json
+import re
+from dataclasses import dataclass
+from typing import Protocol
+
+from pydantic import BaseModel, ConfigDict, ValidationError
+
+from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION_MODES
+
+_TASK_ID = re.compile(TASK_ID_PATTERN)
+WRITE_FRAME = ("Request relayed by Toyota, the receptionist; EG confirmed it out loud before it was sent. "
+               "Do only what is asked, in this workspace. Finish with a short plain-sentence summary "
+               "suitable to be read aloud.\n\n")
+READ_FRAME = ("Read-only request relayed by Toyota, the receptionist. Do not modify any file. "
+              "Answer briefly, in plain sentences suitable to be read aloud.\n\n")
+
+
+class FormProblem(Exception):
+    """The form can't become a request. `spoken` says why, or what to ask the user."""
+
+    def __init__(self, spoken: str) -> None:
+        super().__init__(spoken)
+        self.spoken = spoken
+
+
+class SpecialistForm(BaseModel):
+    """What a specialist's model may fill in. Every field optional; extras ignored."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    ask: str | None = None            # a question back to the user when the request is unclear
+    operation: str | None = None
+    workspace: str | None = None
+    instructions: str | None = None   # code agents: what to do
+    scanner: str | None = None        # scanner: window | freezer
+    kind: str | None = None           # printer: text | test_page
+    text: str | None = None
+    title: str | None = None
+    copies: int | None = None
+    job_id: str | None = None         # printer: status or cancel of one job
+
+    @classmethod
+    def parse(cls, raw: object) -> "SpecialistForm":
+        if isinstance(raw, str):
+            try:
+                raw = json.loads(raw)
+            except json.JSONDecodeError:
+                raise FormProblem("My Bridge specialist didn't fill in the request properly, "
+                                  "so I didn't send anything.") from None
+        try:
+            return cls.model_validate(raw)
+        except ValidationError:
+            raise FormProblem("My Bridge specialist filled in the request wrongly, so I didn't send anything.") from None
+
+
+class IFormFiller(Protocol):
+    """One model call: (specialist's system prompt, request) -> a JSON object."""
+
+    def fill(self, system_prompt: str, request: str) -> dict: ...
+
+
+class IRequestBuilder(Protocol):
+    """Strategy: one specialist's form -> the exact Bridge request, or FormProblem."""
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        """The request (without idempotency key) and the read-back sentence."""
+        ...
+
+    def context(self, agent: BridgeAgent) -> str:
+        """What the model is told about the live agent, beside the user's words."""
+        ...
+
+
+def _words(text: str | None, limit: int = 140) -> str:
+    text = " ".join((text or "").split())
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def _request(agent: BridgeAgent, workspace: str, operation: str, prompt: str) -> BridgeActionRequest:
+    try:
+        return BridgeActionRequest(agent=agent.name, workspace=workspace, operation=operation,
+                                   prompt=prompt[:8000], approval_mode=OPERATION_MODES[operation])
+    except (ValidationError, KeyError):
+        raise FormProblem(f"That doesn't fit what {agent.name} accepts on the Bridge, "
+                          "so I didn't send anything.") from None
+
+
+class CodeTaskBuilder:
+    """codex-writer / claude-sonnet: implement in a write workspace, or read in any workspace."""
+
+    def __init__(self, operations: tuple[str, ...], default_workspace: str) -> None:
+        self._operations = operations
+        self._default_workspace = default_workspace
+
+    def _offered(self, agent: BridgeAgent) -> list[str]:
+        return [op for op in self._operations if op in agent.operations]
+
+    def context(self, agent: BridgeAgent) -> str:
+        return (f"Operations: {', '.join(self._offered(agent))}\n"
+                f"Workspaces it can write in: {', '.join(agent.write_workspaces) or 'none'}\n"
+                f"All workspaces: {', '.join(agent.workspaces)}\n"
+                f"Default workspace: {self._default_workspace}")
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        offered = self._offered(agent)
+        operation = (form.operation or offered[0] if offered else "").strip().lower()
+        if operation not in offered:
+            raise FormProblem(f"{agent.name} doesn't do {operation or 'that'} on the Bridge, so I didn't send anything.")
+        workspace = (form.workspace or self._default_workspace).strip().lower()
+        if workspace not in agent.workspaces:
+            raise FormProblem(f"{agent.name} doesn't work in {workspace}, so I didn't send anything.")
+        if operation == "implement" and workspace not in agent.write_workspaces:
+            raise FormProblem(f"{agent.name} may not write in {workspace}, so I didn't send anything.")
+        instructions = (form.instructions or "").strip()
+        if not instructions:
+            raise FormProblem("What should the Bridge do? I didn't catch the instructions.")
+        frame = WRITE_FRAME if operation == "implement" else READ_FRAME
+        verb = "change" if operation == "implement" else "look at"
+        readback = f"I'll ask {agent.name} to {verb} {workspace}: {_words(instructions)}."
+        return _request(agent, workspace, operation, frame + instructions), readback
+
+
+class PrinterBuilder:
+    """printer: a text page or the test page, a job's status, a cancel, or the printer list."""
+
+    OPERATIONS = ("print", "print_status", "print_cancel", "print_discover")
+    MAX_TEXT = 6000
+
+    def context(self, agent: BridgeAgent) -> str:
+        return f"Operations: {', '.join(op for op in self.OPERATIONS if op in agent.operations)}"
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        operation = (form.operation or "").strip().lower()
+        if operation not in self.OPERATIONS or operation not in agent.operations:
+            raise FormProblem("I couldn't tell what to do with the printer. Print some text, print a test page, "
+                              "check a print job, cancel one, or list the printers?")
+        workspace = agent.workspaces[0] if agent.workspaces else "printers"
+        if operation == "print_discover":
+            return _request(agent, workspace, operation, "discover"), ""
+        if operation in ("print_status", "print_cancel"):
+            job = (form.job_id or "").strip()
+            if operation == "print_status" and not job:
+                return _request(agent, workspace, operation, "recent"), ""
+            if not _TASK_ID.fullmatch(job):
+                raise FormProblem("Which print job? Give me its id, the one that starts with t_.")
+            if operation == "print_status":
+                return _request(agent, workspace, operation, f"job={job}"), ""
+            return _request(agent, workspace, operation, f"cancel={job}"), f"I'll cancel print job {job}."
+        copies = form.copies or 1
+        if not 1 <= copies <= 10:
+            raise FormProblem("I can print 1 to 10 copies.")
+        if (form.kind or "").strip().lower() == "test_page":
+            req, said = {"kind": "test_page"}, "the printer's test page"
+        else:
+            text = (form.text or "").strip()
+            if not text:
+                raise FormProblem("What should I print? I didn't catch the text.")
+            if len(text) > self.MAX_TEXT:
+                raise FormProblem("That's too much text for one print; shorten it.")
+            req, said = {"kind": "text", "text": text}, f'a page that says "{_words(text, 80)}"'
+            if form.title:
+                req["title"] = _words(form.title, 120)
+        if copies != 1:
+            req["options"] = {"copies": copies}
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        count = "" if copies == 1 else f", {copies} copies,"
+        return _request(agent, workspace, operation, prompt), f"I'll print {said}{count} on the default printer."
+
+
+class ScannerBuilder:
+    """scanner: start one scan on the Window or Freezer scanner. Scala files the page."""
+
+    SCANNERS = ("window", "freezer")
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Scanners: window, freezer"
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        scanner = (form.scanner or "").strip().lower()
+        if scanner not in self.SCANNERS:
+            raise FormProblem("Which scanner, the Window one or the Freezer one?")
+        workspace = agent.workspaces[0] if agent.workspaces else "scanners"
+        return (_request(agent, workspace, "scan", f"scanner={scanner}"),
+                f"I'll start a scan on the {scanner.capitalize()} scanner, and Scala will file the page.")
+
+
+@dataclass(frozen=True)
+class BridgeSpecialist:
+    """One Toyota route that drives exactly one Bridge agent."""
+
+    name: str           # Toyota's route name
+    bridge_agent: str   # fixed: the only Bridge agent this specialist ever sends to
+    spoken: str
+    builder: IRequestBuilder
+
+
+SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
+    BridgeSpecialist("bridge_writer", "codex-writer", "the Bridge's Codex writer",
+                     CodeTaskBuilder(("implement",), "bridge_sandbox")),
+    BridgeSpecialist("bridge_coder", "claude-sonnet", "the Bridge's Claude Sonnet coder",
+                     CodeTaskBuilder(("implement", "inspect", "explain"), "bridge_sandbox")),
+    BridgeSpecialist("bridge_printer", "printer", "the Bridge's printer", PrinterBuilder()),
+    BridgeSpecialist("bridge_scanner", "scanner", "the Bridge's scanner", ScannerBuilder()),
+)}

@@ -30,6 +30,7 @@ from .mazda_roles import (
 from .adapters.figure_route import FigureQuestionRoute
 from .adapters.finance_report_route import FinanceReportRoute
 from .adapters.post_office_route import PostOfficeRoute
+from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
@@ -94,6 +95,8 @@ def _toyota_runner() -> IDelegationRunner:
     and agents/category_spreadsheet folders are already written for that case.
     """
     from .adapters.bridge_runner import BridgeDelegationRunner
+    from .adapters.bridge_specialist_runner import BridgeSpecialistRunner
+    from .bridge_client.desk import NOTICES
     from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
     from .adapters.company_todo_runner import CompanyTodoRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
@@ -110,7 +113,12 @@ def _toyota_runner() -> IDelegationRunner:
             "scala_questions": ScalaAnswerRunner(),
             # Read-only Codex inspect over the Star Trek Bridge's client API;
             # no credential means it says "unavailable" and the rest still runs.
-            "star_trek_bridge": BridgeDelegationRunner(),
+            "star_trek_bridge": BridgeDelegationRunner(notices=NOTICES),
+            # One Groq form filler per Bridge agent beyond read-only; code checks
+            # the form against GET /agents, and changes, prints and scans wait
+            # for a yes (adapters/bridge_specialist_runner.py).
+            **{name: BridgeSpecialistRunner(name)
+               for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner")},
         },
         default=ToolAgentRunner(),
     )
@@ -209,6 +217,12 @@ class ReceptionistProfile:
     build_alerts: Callable[[], IAlertInbox] | None = None
 
 
+def _toyota_alerts() -> IAlertInbox:
+    from .adapters.post_office_alerts import PostOfficeAlerts
+    from .bridge_client.desk import NOTICES, CombinedAlerts
+    return CombinedAlerts(PostOfficeAlerts("toyota"), NOTICES)
+
+
 def _post_office_alerts(agent: str) -> Callable[[], IAlertInbox]:
     def build() -> IAlertInbox:
         from .adapters.post_office_alerts import PostOfficeAlerts
@@ -254,6 +268,9 @@ TOYOTA = ReceptionistProfile(
     # one that should win. See adapters/route_panel.py. Tax progress goes
     # ahead of both: it builds the page (adapters/tax_progress_route.py).
     route_override=FirstRouteOpinion([
+        # A bare yes/no while a Bridge request waits for one goes to the
+        # specialist that read it back (adapters/bridge_confirmation_route.py).
+        BridgeConfirmationRoute(),
         # Scala's filing questions are to-do items, so an answer to one can
         # name the list; what was asked for is a filing (adapters/scala_route.py).
         ScalaAnswerRoute("scala_questions"),
@@ -268,7 +285,8 @@ TOYOTA = ReceptionistProfile(
         PostOfficeRoute("toyota_post_office"),
         EmailDeskRoute("toyota_post_office"),
     ]),
-    build_alerts=_post_office_alerts("toyota"),
+    # Post-office failures plus Bridge tasks that finished after she answered.
+    build_alerts=_toyota_alerts,
 )
 
 MAZDA = ReceptionistProfile(

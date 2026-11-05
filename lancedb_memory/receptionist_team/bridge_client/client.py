@@ -1,8 +1,8 @@
 """BridgeClient -- discover, submit, status, result over any IBridgeTransport.
 
 Every response is validated into a model; anything that doesn't fit is
-BridgeMalformed, never a guess. There is deliberately no cancel(): the public
-API has one, but Toyota's narrow client doesn't offer it.
+BridgeMalformed, never a guess. cancel() asks the gateway to stop a task; a
+task already running may still finish (the gateway records cancel_requested).
 """
 import re
 
@@ -10,7 +10,8 @@ from pydantic import ValidationError
 
 from .errors import BridgeMalformed, BridgeRefused
 from .interfaces import IBridgeTransport
-from .models import TASK_ID_PATTERN, BridgeAgent, BridgeAgentList, BridgeResult, BridgeTaskRequest, BridgeTaskView
+from .models import (TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, BridgeAgentList, BridgeResult,
+                     BridgeTaskRequest, BridgeTaskView)
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
 
@@ -37,7 +38,7 @@ class BridgeClient:
         _, data = self._transport.request("GET", "/agents")
         return list(self._parse(BridgeAgentList, data, "agent list").agents)
 
-    def submit(self, request: BridgeTaskRequest) -> BridgeTaskView:
+    def submit(self, request: BridgeTaskRequest | BridgeActionRequest) -> BridgeTaskView:
         status, data = self._transport.request("POST", "/tasks", request.body())
         if status not in (200, 201):
             raise BridgeMalformed("unexpected_status", f"submit answered HTTP {status}", status)
@@ -59,3 +60,10 @@ class BridgeClient:
         if result.task_id != task_id:
             raise BridgeMalformed("mismatch", "the Bridge answered about a different task")
         return result
+
+    def cancel(self, task_id: str) -> BridgeTaskView:
+        _, data = self._transport.request("POST", f"/tasks/{_check_task_id(task_id)}/cancel", {})
+        view = self._parse(BridgeTaskView, data, "task")
+        if view.task_id != task_id:
+            raise BridgeMalformed("mismatch", "the Bridge answered about a different task")
+        return view

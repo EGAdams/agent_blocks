@@ -19,7 +19,11 @@
     "scala_questions",
     "agent_creator",
     "toyota_mechanic",
-    "star_trek_bridge"
+    "star_trek_bridge",
+    "bridge_writer",
+    "bridge_coder",
+    "bridge_printer",
+    "bridge_scanner"
   ],
   "disabled": {}
 }

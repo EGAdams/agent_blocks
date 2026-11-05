@@ -85,6 +85,54 @@ class BridgeTaskRequest(BaseModel):
         return self.model_dump(exclude_none=True)
 
 
+# The gateway decides each operation's mode (Bootstrap::OPERATION_MODES); this
+# mirrors it so a specialist's request names the one mode the gateway accepts.
+OPERATION_MODES: dict[str, str] = {
+    "inspect": "read_only", "explain": "read_only", "search_memory": "read_only",
+    "implement": "workspace_write", "scan": "device_control", "print": "device_control",
+    "print_cancel": "device_control", "print_status": "read_only", "print_discover": "read_only",
+}
+# What changes a file or moves paper: Toyota reads these back and waits for a yes.
+CONFIRM_OPERATIONS = frozenset({"implement", "scan", "print", "print_cancel"})
+ActionOperation = Literal["inspect", "explain", "search_memory", "implement", "scan",
+                          "print", "print_cancel", "print_status", "print_discover"]
+
+
+class BridgeActionRequest(BaseModel):
+    """POST /tasks body from a Bridge specialist: any operation, in the gateway's own mode.
+
+    BridgeTaskRequest above stays read-only for the star_trek_bridge desk. This
+    one is built only by bridge_client/specialists.py, from a form a specialist
+    filled and code checked, never from free text.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    schema_version: Literal["1.0"] = "1.0"
+    task_type: Literal["agent_task"] = "agent_task"
+    agent: str = Field(pattern=AGENT_PATTERN)
+    workspace: str = Field(pattern=WORKSPACE_PATTERN)
+    operation: ActionOperation
+    prompt: str = Field(min_length=1, max_length=8000)
+    approval_mode: Literal["read_only", "workspace_write", "device_control"]
+    idempotency_key: str | None = Field(default=None, pattern=IDEMPOTENCY_PATTERN)
+
+    @model_validator(mode="after")
+    def _mode_matches_operation(self) -> "BridgeActionRequest":
+        if not self.prompt.strip():
+            raise ValueError("prompt is blank")
+        if OPERATION_MODES[self.operation] != self.approval_mode:
+            raise ValueError(f"{self.operation} runs {OPERATION_MODES[self.operation]}")
+        return self
+
+    @property
+    def needs_confirmation(self) -> bool:
+        return self.operation in CONFIRM_OPERATIONS
+
+    def body(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True)
+
+
 class BridgeAgent(BaseModel):
     """One entry of GET /agents."""
 

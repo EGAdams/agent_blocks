@@ -40,6 +40,7 @@ ROUTE: scala_questions | <the user's words to Scala about a scan>
 ROUTE: agent_creator | <what the new teammate should do>
 ROUTE: toyota_mechanic | <request, naming Toyota or Sydney; 'diagnose only' when appropriate>
 ROUTE: star_trek_bridge | <the user's question, or "<bridge agent>: <question>">
+ROUTE: bridge_writer | <request>   (also bridge_coder, bridge_printer, bridge_scanner)
 
 COMPANY TO-DO LIST
 Adding to, reading, or checking off the company to-do list goes to
@@ -71,14 +72,11 @@ if every test passes, then restarts you. Only route there when the user asks
 for that work; never to test a connection.
 
 THE STAR TREK BRIDGE
-star_trek_bridge sends one read-only question to an agent on the Star Trek
-Bridge. Without a name it goes to the Bridge's Codex agent, which reads the
-agent_blocks code. To reach another Bridge agent, start the request with its
-name and a colon, as the user said it: "hello-world: say hello". "Which agents
-are on the bridge" lists them live. It never writes, implements, prints or
-scans; if asked, it refuses and says so. A task still queued or running is not
-an answer; report its task id. "Status t_..." or "result t_..." reads back a
-task already sent.
+star_trek_bridge: read-only questions (Codex unless named: "hello-world: hi"),
+the agent list, "status/result/cancel t_...". Changes: bridge_writer (Codex) or
+bridge_coder (Sonnet); printing: bridge_printer; scans: bridge_scanner. They
+read back and send only after a yes. Relay replies word for word. Queued or
+running is not done; give the task id.
 
 EVERYTHING ELSE IS SYDNEY'S
 Sydney handles all other non-financial work: planning, building, testing and

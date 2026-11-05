@@ -168,10 +168,19 @@ ROLE_BLURBS: dict[str, str] = {
         "a file"
     ),
     "star_trek_bridge": (
-        "sends one read-only request to an agent on the Star Trek Bridge "
-        "(Codex on the agent_blocks code by default, or a named Bridge agent "
-        "such as hello-world), lists the Bridge's agents, and reads back a "
-        "task's status or result; it never writes, implements, prints or scans"
+        "read-only questions to Bridge agents, the agent list, and status, result or cancel of a task"
+    ),
+    "bridge_writer": (
+        "changes files via the Bridge's Codex writer, after a yes"
+    ),
+    "bridge_coder": (
+        "coding task for the Bridge's Claude Sonnet; changes after a yes"
+    ),
+    "bridge_printer": (
+        "prints (after a yes), checks or cancels print jobs, lists printers"
+    ),
+    "bridge_scanner": (
+        "scans on the Window or Freezer scanner, after a yes"
     ),
 }
 
@@ -207,6 +216,10 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "toyota_post_office": "the post office",
     "system_mechanic": "our system mechanic",
     "star_trek_bridge": "the Star Trek Bridge",
+    "bridge_writer": "the Bridge's Codex writer",
+    "bridge_coder": "the Bridge's Claude Sonnet coder",
+    "bridge_printer": "the Bridge's printer",
+    "bridge_scanner": "the Bridge's scanner",
 }
 
 # Each phrase follows "tell them to start".
@@ -244,6 +257,10 @@ ROLE_START_TASKS: dict[str, str] = {
     "toyota_post_office": "sending that on",
     "system_mechanic": "taking care of that service",
     "star_trek_bridge": "a read-only look at that",
+    "bridge_writer": "on that change",
+    "bridge_coder": "on that coding task",
+    "bridge_printer": "on that print job",
+    "bridge_scanner": "on that scan",
 }
 
 # Toyota is the finance desk: the agent-folder specialists below are hers.
@@ -261,7 +278,8 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # Sydney's (she gets every role this list doesn't name), so it keeps the
 # finance roles and is unchanged from before. star_trek_bridge is named here
 # only so that registering its folder doesn't land it on Sydney's desk.
-TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge")
+TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
+                          "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

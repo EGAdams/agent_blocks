@@ -27,7 +27,8 @@ What it says, by outcome:
   if it's still unclear, it says it can't tell whether the task arrived.
 
 "status t_..." / "result t_..." (or plain "status" for her last task) reads a
-task back instead of sending a new one. There is no cancel.
+task back instead of sending a new one; "cancel t_..." asks the Bridge to cancel it.
+A task still running when she answers is handed to `notices`, which tells her when it finishes.
 
 bridge_client is imported on first use, the same deferred posture as
 PostOfficeRunner, so building a receptionist doesn't open a socket.
@@ -68,7 +69,9 @@ class BridgeDelegationRunner:
                  sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic,
                  key_factory: Callable[[], str] = lambda: f"toyota-{uuid.uuid4().hex}",
-                 log_factory: Callable[[], object] = _default_log) -> None:
+                 log_factory: Callable[[], object] = _default_log,
+                 notices: object | None = None) -> None:
+        self._notices = notices  # IAlertInbox that reports a task that finished after the answer
         self._client_factory = client_factory
         self._policy_factory = policy_factory
         self._wait = wait_seconds
@@ -101,4 +104,7 @@ class BridgeDelegationRunner:
                                          last_task_id=self.last_task_id))
         self.last_task_id = run.last_task_id
         self.last_trace = run.trace
+        if (run.intent == "submit" and run.view is not None and not run.view.terminal
+                and run.error is None and self._notices is not None):
+            self._notices.track(run.view.task_id, "your question")
         return run.reply

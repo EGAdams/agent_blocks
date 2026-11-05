@@ -1,7 +1,7 @@
 """The two seams: what Toyota's runner needs, and how bytes reach the gateway."""
 from typing import Any, Protocol
 
-from .models import BridgeAgent, BridgeResult, BridgeTaskRequest, BridgeTaskView
+from .models import BridgeActionRequest, BridgeAgent, BridgeResult, BridgeTaskRequest, BridgeTaskView
 
 
 class IBridgeTransport(Protocol):
@@ -12,16 +12,19 @@ class IBridgeTransport(Protocol):
 
 
 class IBridgeClient(Protocol):
-    """The narrow client: discover, submit, status, result. No cancel, no worker API."""
+    """The client API: discover, submit, status, result, cancel. Never the worker API."""
 
     def discover(self) -> list[BridgeAgent]:
         ...
 
-    def submit(self, request: BridgeTaskRequest) -> BridgeTaskView:
+    def submit(self, request: BridgeTaskRequest | BridgeActionRequest) -> BridgeTaskView:
         ...
 
     def status(self, task_id: str) -> BridgeTaskView:
         ...
 
     def result(self, task_id: str) -> BridgeResult:
+        ...
+
+    def cancel(self, task_id: str) -> BridgeTaskView:
         ...

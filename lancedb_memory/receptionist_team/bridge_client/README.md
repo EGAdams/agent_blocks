@@ -149,3 +149,26 @@ From `lancedb_memory/`:
   `adapters/bridge_runner.py`, `roster_membership.py`, `toyota_roster.json`,
   `agents/star_trek_bridge/`, and the three new tests). Then restart the
   unit.
+
+## Bridge specialists (beyond read-only)
+
+`star_trek_bridge` stays read-only. Four more Toyota routes each drive one Bridge agent:
+
+| Route | Bridge agent | Operations |
+|---|---|---|
+| `bridge_writer` | codex-writer | implement (bridge_sandbox by default) |
+| `bridge_coder` | claude-sonnet | implement, inspect, explain |
+| `bridge_printer` | printer | print, print_status, print_cancel, print_discover |
+| `bridge_scanner` | scanner | scan (window or freezer; Scala files the page) |
+
+Flow: `adapters/bridge_specialist_runner.py` asks Groq (`openai/gpt-oss-20b`,
+JSON mode) to fill a small form; `specialists.py` checks it against the live
+`GET /agents` and builds the exact request (printer and scanner prompts are
+built by code). implement, print, print_cancel and scan are read back and held
+in `desk.PENDING`; the next short "yes"/"no" is sent to that specialist by
+`adapters/bridge_confirmation_route.py`. Everything else is sent at once.
+
+A task still running after ~15 s is handed to `desk.NOTICES`; Toyota's alert
+inbox (`CombinedAlerts` with the post office) reports it when it finishes, at
+the start of her next turn and on the dashboard. "cancel t_..." asks the Bridge
+to cancel a task (`POST /tasks/{id}/cancel`).

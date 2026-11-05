@@ -140,7 +140,7 @@ async def test_missing_credential_is_unavailable_and_worker_token_is_ignored():
 
 
 # -- client -----------------------------------------------------------------
-async def test_discover_submit_status_result_use_only_the_four_public_paths():
+async def test_discover_submit_status_result_and_cancel_use_only_the_public_paths():
     result = {"task_id": TID, "state": "succeeded", "ready": True, "ok": True, "body": "Hello World"}
     fake = FakeTransport((200, {"agents": [{"name": "codex", "operations": ["inspect"], "workspaces": ["agent_blocks"]}]}),
                          (201, VIEW), (200, VIEW), (200, result))
@@ -151,7 +151,9 @@ async def test_discover_submit_status_result_use_only_the_four_public_paths():
     assert client.result(TID).succeeded
     assert [(m, p) for m, p, _ in fake.calls] == [
         ("GET", "/agents"), ("POST", "/tasks"), ("GET", f"/tasks/{TID}"), ("GET", f"/tasks/{TID}/result")]
-    assert not hasattr(client, "cancel")
+    cancelled = BridgeClient(FakeTransport((200, {**VIEW, "cancel_requested": True})))
+    assert cancelled.cancel(TID).cancel_requested
+    _raises(e.BridgeRefused, lambda: cancelled.cancel("t_not-an-id"))
 
 
 async def test_not_ready_is_never_success():

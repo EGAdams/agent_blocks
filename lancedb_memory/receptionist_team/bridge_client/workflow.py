@@ -27,7 +27,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal, Protocol
 
 from . import errors as e
-from .models import BridgeResult, BridgeTaskRequest, BridgeTaskView
+from .models import BridgeActionRequest, BridgeResult, BridgeTaskRequest, BridgeTaskView
 from .policy import BridgeRoutePolicy, RouteDecision, is_listing_request
 
 SPOKEN_LIMIT = 700
@@ -35,13 +35,14 @@ SUBMIT_ATTEMPTS = 3
 PhaseStatus = Literal["ok", "stopped", "failed", "skipped"]
 PHASES = ("discover", "validate", "route", "submit", "monitor", "retrieve", "respond")
 
-_READBACK = re.compile(r"^\s*(?:what(?:'s| is) the )?(?P<kind>status|result|answer)\b(?:\s+(?:of|for|on))?(?:\s+task)?"
+_READBACK = re.compile(r"^\s*(?:what(?:'s| is) the )?(?P<kind>status|result|answer|cancel)\b(?:\s+(?:of|for|on))?(?:\s+task)?"
                        r"(?:\s+(?P<id>t_[0-9a-f]{24}))?\s*[.?!]?\s*$", re.IGNORECASE)
 # Toyota's model rewords the caller before it reaches this desk ("what is the result of Star Trek
 # Bridge task t_..."), so a task id plus a status/result word anywhere is also a readback. A
 # readback sends nothing, so leaning this way can never start work by mistake.
 _TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
 _ASKS_RESULT = re.compile(r"\b(?:result|answer|outcome|reply|said|say|says|finished|done|ready|output)\b", re.IGNORECASE)
+_ASKS_CANCEL = re.compile(r"\b(?:cancel|stop|abort|kill)\b", re.IGNORECASE)
 _ASKS_STATUS = re.compile(r"\b(?:status|progress|state|queued|running|still)\b", re.IGNORECASE)
 
 
@@ -53,6 +54,8 @@ def readback_of(text: str) -> tuple[str, str | None] | None:
     found = _TASK_ID.search(text)
     if not found:
         return None
+    if _ASKS_CANCEL.search(text):
+        return "cancel", found.group(0)
     if _ASKS_RESULT.search(text):
         return "result", found.group(0)
     if _ASKS_STATUS.search(text):
@@ -111,11 +114,11 @@ class BridgeRun:
     client: Any = None
     last_task_id: str | None = None
     intent: Literal["submit", "readback", "list"] = "submit"
-    readback_kind: str = ""
+    readback_kind: str = ""  # status | result | answer | cancel
     readback_id: str | None = None  # the task being read back; never changes last_task_id
     agents: list = field(default_factory=list)
     decision: RouteDecision | None = None
-    request: BridgeTaskRequest | None = None
+    request: BridgeTaskRequest | BridgeActionRequest | None = None
     view: BridgeTaskView | None = None
     result: BridgeResult | None = None
     reply: str = ""
@@ -186,6 +189,7 @@ class SubmitPhase:
         self._pause = retry_pause
 
     def run(self, ctx: BridgeRun) -> PhaseRecord:
+        ctx.client = ctx.client or ctx.client_factory()
         for attempt in range(1, SUBMIT_ATTEMPTS + 1):
             try:
                 ctx.view = ctx.client.submit(ctx.request)  # same request, same key, every attempt
@@ -213,6 +217,14 @@ class MonitorPhase:
             if not ctx.readback_id:
                 ctx.reply = "Which Bridge task? Give me its id, the one that starts with t_."
                 return PhaseRecord(self.name, "stopped", error="no_task_id", next="respond")
+            if ctx.readback_kind == "cancel":
+                ctx.view = ctx.client.cancel(ctx.readback_id)
+                ctx.reply = (f"Bridge task {ctx.view.task_id} was already {ctx.view.state}, so there was nothing to cancel."
+                             if ctx.view.terminal and ctx.view.state != "cancelled" else
+                             f"I asked the Star Trek Bridge to cancel task {ctx.view.task_id}; it's now {ctx.view.state}."
+                             + ("" if ctx.view.state == "cancelled" else " If it was already running it may still finish."))
+                return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id, "kind": "cancel"},
+                                   {"state": ctx.view.state}, next="respond")
             if ctx.readback_kind != "status":
                 return PhaseRecord(self.name, "skipped", {"task_id": ctx.readback_id}, next="retrieve")
             ctx.view = ctx.client.status(ctx.readback_id)
@@ -230,7 +242,7 @@ class MonitorPhase:
             polls += 1
         if not ctx.view.terminal:
             ctx.reply = (f"I've sent that to the Star Trek Bridge as task {ctx.view.task_id}. It's "
-                         f"{ctx.view.state} and not finished yet, so ask me for the status in a bit.")
+                         f"{ctx.view.state} and not finished yet. I'll tell you when it finishes.")
             return PhaseRecord(self.name, "stopped", {"task_id": ctx.view.task_id},
                                {"state": ctx.view.state, "polls": polls}, next="respond")
         return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id},
@@ -279,6 +291,14 @@ class RespondPhase:
         return f"I couldn't reach the Star Trek Bridge ({exc.code}). If I'd sent anything, I'd have told you its task id."
 
     @staticmethod
+    def result_sentence(result: BridgeResult) -> str:
+        return RespondPhase._result(result)
+
+    @staticmethod
+    def error_sentence(exc: e.BridgeError) -> str:
+        return RespondPhase._error(exc)
+
+    @staticmethod
     def _result(result: BridgeResult) -> str:
         if not result.ready:
             return f"Bridge task {result.task_id} is {result.state}; there's no result yet."
@@ -308,8 +328,9 @@ class BridgeTaskWorkflow:
         self._phases = {phase.name: phase for phase in phases}
         assert tuple(self._phases) == PHASES
 
-    def execute(self, ctx: BridgeRun) -> BridgeRun:
-        name = PHASES[0]
+    def execute(self, ctx: BridgeRun, start: str = PHASES[0]) -> BridgeRun:
+        """Run from `start`. A specialist that built and confirmed its own request starts at submit."""
+        name = start
         while name:
             phase = self._phases[name]
             try:
@@ -318,7 +339,7 @@ class BridgeTaskWorkflow:
                 ctx.error = exc
                 record = PhaseRecord(name, "failed", error=e.sanitize(exc.code), next="respond")
             except ValueError as exc:  # a request that fails model validation
-                ctx.reply = clip("I won't send that to the Bridge: it doesn't fit my read-only route "
+                ctx.reply = clip("I won't send that to the Bridge: it doesn't fit what that route may send "
                                  f"({exc.__class__.__name__}).")
                 record = PhaseRecord(name, "failed", error=exc.__class__.__name__, next="respond")
             ctx.trace.append(record)
