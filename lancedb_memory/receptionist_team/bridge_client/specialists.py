@@ -86,7 +86,7 @@ class IRequestBuilder(Protocol):
 
 
 def _words(text: str | None, limit: int = 140) -> str:
-    text = " ".join((text or "").split())
+    text = " ".join((text or "").split()).rstrip(".")
     return text if len(text) <= limit else text[:limit - 1] + "…"
 
 

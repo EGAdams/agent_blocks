@@ -1,0 +1,40 @@
+"""BridgeDeviceRoute -- scans, prints and Bridge code changes go to their specialist.
+
+Toyota's model sent "scan a receipt on the window scanner" to the read-only
+star_trek_bridge desk, which can only refuse it. These requests name their
+device or Bridge agent plainly, so they are matched on the latest user
+message, not left to the model. A match only reaches a specialist, which
+still reads the request back and waits for a yes before anything is sent.
+
+Goes right after BridgeConfirmationRoute and ahead of Scala's route: "scan
+this for Scala" is a scan.
+"""
+import re
+
+from .latest_user import latest_user_message
+
+# "What did we spend on printers" is a books question, not a print job.
+_MONEY = re.compile(r"\b(?:spen[dt]|cost|paid|pay|expenses?|totals?|budget|receipts? for|bought)\b|\$", re.I)
+_TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
+_ROUTES = (
+    ("bridge_scanner", re.compile(r"\b(?:window|freezer)\s+scanner\b|\bscan\b.*\b(?:window|freezer)\b"
+                                  r"|\b(?:start|do|run)\s+a\s+scan\b", re.I | re.S)),
+    ("bridge_printer", re.compile(r"\bprinters?\b|\btest\s+page\b|\bprint\s+job\b", re.I)),
+    ("bridge_writer", re.compile(r"\bcodex[\s-]+writer\b|\bbridge[\s_]+sandbox\b", re.I)),
+    ("bridge_coder", re.compile(r"\b(?:claude[\s-]+)?sonnet\b.*\bbridge\b|\bbridge\b.*\b(?:claude[\s-]+)?sonnet\b",
+                                re.I | re.S)),
+)
+
+
+def device_route(text: str) -> str | None:
+    if not text or _TASK_ID.search(text) or _MONEY.search(text):  # status / result / cancel of a task stays with star_trek_bridge
+        return None
+    return next((name for name, pattern in _ROUTES if pattern.search(text)), None)
+
+
+class BridgeDeviceRoute:
+    def forced_agent(self, prompt: str) -> str | None:
+        return device_route(latest_user_message(prompt))
+
+    def question(self, prompt: str) -> str:
+        return latest_user_message(prompt)

@@ -185,8 +185,11 @@ class _TurnRunner:
             return
         if not state["alerts"]:
             return
-        lines = " ".join(alert["spoken"] for alert in state["alerts"])
-        outbox.put(TurnRecord(kind="acknowledgment", text=f"Before I answer, something went wrong. {lines}"))
+        failed = " ".join(a["spoken"] for a in state["alerts"] if a.get("kind") != "bridge_finished")
+        finished = " ".join(a["spoken"] for a in state["alerts"] if a.get("kind") == "bridge_finished")
+        parts = ([f"Before I answer, something went wrong. {failed}"] if failed else []) + \
+                ([f"Before I answer, a Star Trek Bridge task finished. {finished}"] if finished else [])
+        outbox.put(TurnRecord(kind="acknowledgment", text=" ".join(parts)))
         self.acknowledge_alerts([alert["id"] for alert in state["alerts"]])
 
     def clear_context(self) -> dict[str, Any]:

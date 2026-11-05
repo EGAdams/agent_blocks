@@ -31,6 +31,7 @@ from .adapters.figure_route import FigureQuestionRoute
 from .adapters.finance_report_route import FinanceReportRoute
 from .adapters.post_office_route import PostOfficeRoute
 from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
+from .adapters.bridge_device_route import BridgeDeviceRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
@@ -271,6 +272,9 @@ TOYOTA = ReceptionistProfile(
         # A bare yes/no while a Bridge request waits for one goes to the
         # specialist that read it back (adapters/bridge_confirmation_route.py).
         BridgeConfirmationRoute(),
+        # Scans, prints and Bridge code changes go to their specialist, never
+        # the read-only desk, which can only refuse them (bridge_device_route.py).
+        BridgeDeviceRoute(),
         # Scala's filing questions are to-do items, so an answer to one can
         # name the list; what was asked for is a filing (adapters/scala_route.py).
         ScalaAnswerRoute("scala_questions"),

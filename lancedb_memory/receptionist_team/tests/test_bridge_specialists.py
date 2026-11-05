@@ -246,6 +246,18 @@ async def test_a_bridge_error_is_spoken_not_raised():
     assert "couldn't reach the Star Trek Bridge" in said, said
 
 
+async def test_device_requests_route_to_their_specialist_and_task_ids_do_not():
+    from ..adapters.bridge_device_route import device_route
+    cases = {"Scan a receipt on the window scanner": "bridge_scanner",
+             "scan this for Scala on the freezer": "bridge_scanner",
+             "print a test page": "bridge_printer", "list the printers": "bridge_printer",
+             "use the codex writer to add a file": "bridge_writer",
+             "ask Claude Sonnet on the Bridge to fix roles.py": "bridge_coder",
+             f"cancel print job {TID}": None, "what did we spend on printers last year": None,
+             "how much did we spend on utilities": None}
+    assert {t: device_route(t) for t in cases} == cases
+
+
 if __name__ == "__main__":
     from tests.runner import main
 
