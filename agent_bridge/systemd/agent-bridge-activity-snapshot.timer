@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh the Worker Activity snapshot every 3 seconds (the page polls every 2 s; tasks run 20-70 s)
+
+[Timer]
+OnActiveSec=5s
+OnUnitActiveSec=3s
+AccuracySec=1s
+
+[Install]
+WantedBy=timers.target

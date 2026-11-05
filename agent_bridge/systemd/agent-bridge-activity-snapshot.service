@@ -1,0 +1,12 @@
+[Unit]
+Description=Write the dashboard's Worker Activity snapshot from the post office (read-only)
+# The dashboard reads it through WORKER_ACTIVITY_SNAPSHOT; see
+# lancedb_memory/agent_bridge_worker/activity_snapshot.py
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/adamsl/agent_blocks/lancedb_memory
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python -m agent_bridge_worker.activity_snapshot
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+Nice=10
