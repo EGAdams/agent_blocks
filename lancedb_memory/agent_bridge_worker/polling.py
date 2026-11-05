@@ -81,6 +81,7 @@ class PollOutcome( str, Enum ):
     IDLE      = "idle"        # asked, nothing queued
     WORKED    = "worked"      # ran at least one task
     SLOW_DOWN = "slow_down"   # the host asked us to back off
+    OFFLINE   = "offline"     # the request never left this machine (DNS, no network)
     ERROR     = "error"       # anything else went wrong
 
 
@@ -95,6 +96,8 @@ def classify( error: Exception ) -> PollOutcome:
             raise WorkerNotAuthorised( f"gateway answered { error.status } { error.code }" ) from None
         if error.status in ( 429, 503 ):
             return PollOutcome.SLOW_DOWN
+        if error.status == 0:
+            return PollOutcome.OFFLINE
     return PollOutcome.ERROR
 
 
@@ -121,7 +124,12 @@ class BurstAfterWork:
 
 
 class ErrorBackoff:
-    """Decorator: an hour after 429/503, doubling waits after other failures, untouched otherwise."""
+    """Decorator: an hour after 429/503, doubling waits after other failures, untouched otherwise.
+
+    OFFLINE (DNS or network down on this machine) never doubles: nothing reached
+    HostGator, so it costs nothing, and on 2026-11-04 doubling to 15 minutes left
+    tasks queued for most of an hour after the network was already back.
+    """
 
     def __init__( self, inner: IPollSchedule, slow_down_seconds: float, base_seconds: float, max_seconds: float ) -> None:
         self._inner     = inner
@@ -135,6 +143,8 @@ class ErrorBackoff:
         if outcome is PollOutcome.SLOW_DOWN:
             self._failures += 1
             return max( normal, self._slow_down )
+        if outcome is PollOutcome.OFFLINE:
+            return max( normal, min( self._max, self._base ))
         if outcome is PollOutcome.ERROR:
             self._failures += 1
             return max( normal, min( self._max, self._base * 2 ** ( self._failures - 1 )))

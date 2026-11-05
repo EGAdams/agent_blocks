@@ -134,6 +134,7 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     from agent_bridge_worker.adapters.jailed_checks import JailedCheckRunner
     from agent_bridge_worker.adapters.json_journal import JsonWriteJournal
     from agent_bridge_worker.adapters.post_office_agent import PostOfficeAgent
+    from agent_bridge_worker.repeat_answers import JsonAnswerStore, RepeatAnswers
     from agent_bridge_worker.adapters.workspace_lock import FlockWorkspaceLock
     from agent_bridge_worker.adapters.http_scan_facade import HttpScanFacade, load_scan_token
     from agent_bridge_worker.policy import FixedFirstWorkspaces, ScopedPolicy, scoped_operations
@@ -160,6 +161,8 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     events     = next( iter( agents.values()), None )
     if events is None:
         raise RuntimeError( f"no agent in the post office accepts work from { SENDER }" )
+    answers    = JsonAnswerStore( Path.home() / ".cache" / "agent_bridge" / "repeat_answers.json" )
+    agents     = { name: RepeatAnswers( agent, answers, time.time ) for name, agent in agents.items()}
     home       = Path.home()
     workspaces = ConfiguredWorkspaces.load( WORKSPACES_FILE, protected=[
         _HERE, _HERE.parent / "lancedb_memory" / "agent_bridge_worker", _HERE.parent / "lancedb_memory" / "agent_comms",

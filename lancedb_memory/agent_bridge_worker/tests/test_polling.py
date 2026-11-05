@@ -126,7 +126,8 @@ def test_factory_stacks_decorators() -> None:
 def test_classify() -> None:
     assert classify( GatewayError( 429, "rate", "x" )) is PollOutcome.SLOW_DOWN
     assert classify( GatewayError( 503, "busy", "x" )) is PollOutcome.SLOW_DOWN
-    assert classify( GatewayError( 0, "unreachable", "x" )) is PollOutcome.ERROR
+    assert classify( GatewayError( 0, "unreachable", "x" )) is PollOutcome.OFFLINE
+    assert classify( GatewayError( 500, "server", "x" )) is PollOutcome.ERROR
     assert classify( RuntimeError( "boom" )) is PollOutcome.ERROR
     for status in ( 401, 403 ):
         try:
@@ -246,6 +247,12 @@ def test_state_file_is_whole_json_with_no_secrets() -> None:
         assert data[ "phase" ] == "waiting" and data[ "checks" ] == 3 and data[ "pid" ]
         assert set( data ) == { "phase", "outcome", "checked_at", "delay_seconds", "next_check_at", "checks", "pid" }
         assert not list( path.parent.glob( "*.tmp" ))
+
+
+def test_offline_waits_the_base_time_and_never_doubles() -> None:
+    sched = ErrorBackoff( BurstAfterWork( 30, 5, 300 ), 3600, 60, 900 )
+    assert [ sched.delay( PollOutcome.OFFLINE, NOON ) for _ in range( 6 )] == [ 60 ] * 6
+    assert sched.delay( PollOutcome.ERROR, NOON ) == 60 and sched.delay( PollOutcome.ERROR, NOON ) == 120
 
 
 if __name__ == "__main__":
