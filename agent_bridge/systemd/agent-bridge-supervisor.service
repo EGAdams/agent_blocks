@@ -1,0 +1,9 @@
+[Unit]
+Description=Agent bridge worker supervisor (restarts a stopped or stalled agent-bridge-worker; bounded, local only)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/adamsl/agent_blocks/lancedb_memory
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python -m agent_bridge_worker.supervisor
+Environment=PYTHONUNBUFFERED=1
+TimeoutStartSec=120
