@@ -28,13 +28,14 @@ from .adapters.liveness import FileLockLiveness
 from .alerts import CallerAlertForwarder, StalledTaskSweeper, UnrecoverableErrors
 from .board import MailboxTaskBoard, TaskCanceller
 from .executors.basic import ByTaskType, HelloWorldExecutor, ObservedExecutor
+from .executors.claude_cli import ClaudeCliExecutor, ClaudeLoginLifetime, refresh_command
 from .executors.claude_sdk import ClaudeSdkExecutor
 from .executors.codex_cli import CodexCliExecutor
 from .executors.jail import BwrapJail, WorkspacePrivatePaths
 from .executors.mechanic import AdwSubprocessExecutor, DiagnosisExecutor
 from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
-from .models import AgentCard
+from .models import AgentCard, Envelope, TaskEvent
 from .ports import (
     IAgentDiagnostic, IAgentRegistry, IAlertBoard, ITaskLiveness, IClock, ICaseHistory, IEventLog, IEventPublisher, IMessageRouter,
     IMessageTransport, IRequestReply, IRequestValidator, ITaskBoard, ITaskDispatcher, ITaskExecutor, IWorkerLauncher,
@@ -105,7 +106,8 @@ class PostOfficeKit:
                                    self.launcher, grace_seconds )
 
 
-def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path ) -> dict[ str, ExecutorBuilder ]:
+def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path,
+                      events: IEventPublisher | None = None ) -> dict[ str, ExecutorBuilder ]:
     def claude_sdk( card: AgentCard ) -> ITaskExecutor:
         s = card.settings
         return ClaudeSdkExecutor( display_name=card.display_name, model=str( s[ "model" ]),
@@ -174,8 +176,61 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ], env={ "CODEX_HOME": str( home )},
                           required=[ home / "auth.json" ], root_writable=root_writable )
 
+    def claude_cli( card: AgentCard ) -> ITaskExecutor:
+        """Claude Code CLI on EG's existing subscription login, jailed like Codex.
+
+        One card, one executor per operation: each capability marked
+        `writes: true` gets a writer jailed to the one workspace it is given;
+        every other capability gets a reader. Both always run in the jail.
+        """
+        s       = card.settings
+        home    = claude_home( s.get( "claude_home" ))
+        login   = Path( str( s.get( "login_file", Path.home() / ".claude" / ".credentials.json" ))).expanduser()
+        binary  = str( s.get( "binary", "claude" ))
+        common  = dict( binary=binary, model=str( s.get( "model", "sonnet" )),
+                        timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
+                        max_turns=int( s.get( "max_turns", 40 )), secret_files=[ login ],
+                        login=ClaudeLoginLifetime( login, refresh_command( binary )),
+                        progress=claude_progress( card.name ))
+
+        def jail( writes: bool ) -> BwrapJail:
+            return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ], env={ "CLAUDE_CONFIG_DIR": str( home )},
+                              required=[ login ], root_writable=writes,
+                              file_binds=[( login, home / ".credentials.json" )])
+
+        executors: dict[ str, ITaskExecutor ] = {}
+        for capability in card.capabilities:
+            if capability.writes:
+                executors[ capability.task_type ] = ClaudeCliExecutor(
+                    Path( str( s[ "write_workdir" ])), writes=True, jail=jail( True ),
+                    write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])], **common )
+            else:
+                executors[ capability.task_type ] = ClaudeCliExecutor(
+                    Path( str( s.get( "workdir", WORKSPACE ))), writes=False, jail=jail( False ),
+                    read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])], **common )
+        return ByTaskType( executors )
+
+    def claude_home( value: object ) -> Path:
+        """The bridge's own CLAUDE_CONFIG_DIR: none of EG's Claude conversations or settings."""
+        home = Path( str( value or Path.home() / ".claude-bridge" )).expanduser()
+        if home.resolve() == ( Path.home() / ".claude" ).resolve():
+            raise ValueError( "the claude card must not use ~/.claude; it holds EG's own Claude history" )
+        home.mkdir( mode=0o700, parents=True, exist_ok=True )
+        placeholder = home / ".credentials.json"          # where the jail binds the login, read-only
+        if not placeholder.exists():
+            placeholder.touch( mode=0o600 )
+        return home
+
+    def claude_progress( agent: str ):
+        def publish( envelope: Envelope, phase: str, message: str ) -> None:
+            if events is not None:
+                events.publish( TaskEvent( name="task.progress", task_id=envelope.id, agent=agent,
+                                           details={ "phase": phase, "message": message }))
+        return publish
+
     return {
         "claude_sdk":  claude_sdk,
+        "claude_cli":  claude_cli,
         "codex_cli":   codex_cli,
         "codex_cli_write": codex_cli_write,
         "adw":         adw,
@@ -215,7 +270,7 @@ def build_post_office( root: Path | None = None,
     if forward_failures_to_mechanic:
         events.subscribe( FailureForwarder( dispatcher ))
     executors = RuntimeExecutorFactory(
-        builders or default_builders( diagnostic, cases, root / "reports" ), events )
+        builders or default_builders( diagnostic, cases, root / "reports", events ), events )
     return PostOfficeKit(
         root=root, registry=registry, transport=transport, events=events, event_log=event_log,
         router=KeywordRouter( registry, repositories=registry.repositories ), validator=validator, dispatcher=dispatcher, replies=replies,

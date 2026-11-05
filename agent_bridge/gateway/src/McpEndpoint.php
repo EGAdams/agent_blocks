@@ -18,6 +18,7 @@ final class McpEndpoint
     const DEVICE_OPERATIONS = ['scan', 'print', 'print_cancel', 'print_status', 'print_discover'];
 
     /** @var ITaskAuthenticator */ private $auth;
+    private const RECENT_EVENTS = 25;
     /** @var ClientTasks */        private $client;
     /** @var string */             private $memoryAgent;
     /** @var string */             private $memoryWorkspace;
@@ -175,7 +176,12 @@ final class McpEndpoint
                     ]);
                     break;
                 case 'get_agent_task_status':
+                    // The task's latest recorded steps (state changes, phases and
+                    // the worker's real progress lines), so a long task shows what
+                    // it is doing between running and its end.
                     $out = $this->client->status($who, self::taskId($args));
+                    $out['recent_events'] = array_slice(
+                        $this->client->events($who, self::taskId($args), 0)['events'], -self::RECENT_EVENTS);
                     break;
                 case 'get_agent_task_result':
                     $out = $this->client->result($who, self::taskId($args));
@@ -240,7 +246,7 @@ final class McpEndpoint
                  ]],
              'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false]],
             ['name' => 'get_agent_task_status', 'title' => 'Get a task\'s status',
-             'description' => 'Returns the state of a submitted task: queued, running, succeeded, failed or cancelled.',
+             'description' => 'Returns the state of a submitted task (queued, running, succeeded, failed or cancelled) and its most recent recorded steps (recent_events), including the agent\'s live progress while it runs.',
              'inputSchema' => $taskId, 'annotations' => $read],
             ['name' => 'get_agent_task_result', 'title' => 'Get a task\'s result',
              'description' => 'Returns the agent\'s answer once the task has finished; ready=false until then. '

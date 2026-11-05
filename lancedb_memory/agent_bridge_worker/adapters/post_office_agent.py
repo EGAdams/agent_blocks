@@ -7,6 +7,12 @@ it must declare the task type, and its own runtime (`codex_cli` runs
 office wakes the recipient's worker itself; this adapter only sends, polls
 its own inbox for the reply, and withdraws the task if the client cancels.
 
+Progress: an agent that reports its steps as it works (Claude publishes a
+`task.progress` event per tool call, see agent_comms/executors/claude_cli.py)
+has each new step passed to `relay` while the task runs -- the worker sends
+them to the gateway as `progress` events -- instead of only in the audit
+trail at the end. Only steps the agent itself recorded are relayed.
+
 The post-office pieces are typed by the small Protocols below rather than
 imported, so this package never depends on `agent_comms`' concretes.
 """
@@ -40,12 +46,24 @@ class IEventLog( Protocol ):
     def events_for( self, task_id: str ) -> list[ Any ]: ...   # -> list[TaskEvent]
 
 
+PROGRESS    = "task.progress"
+RELAY_EVERY = 3.0          # seconds between reads of the event log while a task runs
+
+
+def progress_line( event: Any ) -> str:
+    details = getattr( event, "details", {}) or {}
+    phase   = str( details.get( "phase", "step" ))
+    message = " ".join( str( details.get( "message", "" )).split())[ :200 ]
+    return f"{ event.agent } { phase }: { message } at { event.at.isoformat( timespec='seconds' ) }"
+
+
 class PostOfficeAgent:
     """Hands a claimed task to one post-office agent and waits for its reply."""
 
     def __init__( self, sender_name: str, sender: ISender, replies: IReplyInbox, canceller: ICanceller,
                   board: ITaskLookup, events: IEventLog, make_request: Callable[..., Any ], clock: IClock,
-                  timeout_seconds: float, poll_seconds: float = 1.0 ) -> None:
+                  timeout_seconds: float, poll_seconds: float = 1.0,
+                  relay: Callable[[ ClaimedTask, str ], None ] | None = None, max_relayed: int = 80 ) -> None:
         self._me       = sender_name
         self._sender   = sender
         self._replies  = replies
@@ -56,6 +74,9 @@ class PostOfficeAgent:
         self._clock    = clock
         self._timeout  = timeout_seconds
         self._poll     = poll_seconds
+        self._relay    = relay
+        self._max      = max_relayed
+        self._relayed: dict[ str, int ] = {}
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
         receipt = self._sender.send( self._request(
@@ -65,9 +86,14 @@ class PostOfficeAgent:
             return AgentOutcome( kind=OutcomeKind.REFUSED, summary=f"the post office refused it: { receipt.reason }" )
         local = receipt.task_id
         start = self._clock.monotonic()
+        next_relay = start + RELAY_EVERY
         while True:
             reply = self._replies.take( self._me, local )
+            if reply is not None or self._clock.monotonic() >= next_relay:
+                self._relay_progress( task, local )
+                next_relay = self._clock.monotonic() + RELAY_EVERY
             if reply is not None:
+                self._relayed.pop( local, None )
                 return self._outcome( reply, local )
             now = self._clock.monotonic()
             if now - start >= self._timeout:
@@ -83,9 +109,35 @@ class PostOfficeAgent:
             self._clock.sleep( self._poll )
 
     def lines( self, local_task_id: str ) -> list[ str ]:
-        """ITaskEventSource: event names and times only -- never the details, which can carry prompt text."""
-        return [ f"{ e.name } ({ e.agent }) at { e.at.isoformat( timespec='seconds' ) }"
-                 for e in self._events.events_for( local_task_id )]
+        """ITaskEventSource: event names and times only -- never the details, which can carry prompt text.
+
+        Progress steps are the exception: their one message is written to be
+        shown. When they were relayed live they are left out here, so the
+        gateway does not get them twice.
+        """
+        out = []
+        for e in self._events.events_for( local_task_id ):
+            if e.name == PROGRESS:
+                if self._relay is None:
+                    out.append( progress_line( e ))
+                continue
+            out.append( f"{ e.name } ({ e.agent }) at { e.at.isoformat( timespec='seconds' ) }" )
+        return out
+
+    def _relay_progress( self, task: ClaimedTask, local: str ) -> None:
+        if self._relay is None:
+            return
+        try:
+            steps = [ e for e in self._events.events_for( local ) if e.name == PROGRESS ]
+        except Exception:                               # noqa: BLE001 -- progress never stops the task
+            return
+        done = self._relayed.get( local, 0 )
+        for event in steps[ done:self._max ]:
+            try:
+                self._relay( task, progress_line( event ))
+            except Exception:                           # noqa: BLE001 -- best effort, like every gateway event
+                pass
+        self._relayed[ local ] = max( done, min( len( steps ), self._max ))
 
     def _withdraw( self, task: ClaimedTask, local: str ) -> AgentOutcome:
         self._cancel.cancel( local, self._me )

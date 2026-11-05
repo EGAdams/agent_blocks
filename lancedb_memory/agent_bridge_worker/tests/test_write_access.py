@@ -167,7 +167,10 @@ def test_registry_offers_writes_only_where_the_card_declares_them() -> None:
                              forward_failures_to_mechanic=False )
     offered = scoped_operations( kit.registry, "chatgpt-bridge" )
     assert offered[ "codex-writer" ] == { "implement": True }
-    assert all( not writes for name, ops in offered.items() if name != "codex-writer" for writes in ops.values())
+    assert offered[ "claude-sonnet" ] == { "inspect": False, "explain": False, "search_memory": False, "implement": True }
+    writers = { "codex-writer", "claude-sonnet" }
+    assert all( not writes for name, ops in offered.items() if name not in writers for writes in ops.values())
+    assert all( not writes for name in writers for op, writes in offered[ name ].items() if op != "implement" )
 
 
 # -- workspaces -------------------------------------------------------------------

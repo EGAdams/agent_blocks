@@ -22,6 +22,10 @@ With the network on, the DNS settings come too: under WSL /etc/resolv.conf
 is a link to /mnt/wsl/resolv.conf, which binding /etc alone leaves dangling,
 so that one file is bound at its real path (and nothing else under /mnt).
 
+A card may also bind single files read-only to another path (`file_binds`).
+Claude's card uses it to show its dedicated config directory the one login
+file it needs, without a copy and without letting the agent rewrite it.
+
 A write-enabled card builds its jail with `root_writable=True`: the
 workspace is then bound read-write, but the private-path masks still sit on
 top of it and its `.git` stays read-only, so a task can change the files it
@@ -148,8 +152,10 @@ class BwrapJail:
     def __init__( self, private: IPrivatePaths, state_dirs: list[ Path ], bwrap: str = "/usr/bin/bwrap",
                   home: Path | None = None, env: dict[ str, str ] | None = None,
                   required: list[ Path ] | None = None, root_writable: bool = False,
-                  network: bool = True, dns_files: tuple[ str, ... ] | None = None ) -> None:
+                  network: bool = True, dns_files: tuple[ str, ... ] | None = None,
+                  file_binds: list[ tuple[ Path, Path ]] | None = None ) -> None:
         self._private  = private
+        self._files    = [( Path( s ), Path( d )) for s, d in file_binds or []]
         self._dns      = tuple( self.DNS if dns_files is None else dns_files )
         self._network  = network
         self._root_rw  = root_writable
@@ -191,6 +197,8 @@ class BwrapJail:
         for path in self._state:
             if path.is_dir():
                 jail += [ "--bind", str( path ), str( path )]
+        for source, target in self._files:
+            jail += [ "--ro-bind", str( source ), str( target )]
         jail += [ "--bind" if self._root_rw else "--ro-bind", str( root ), str( root )]
         for path in masks.dirs:
             jail += [ "--tmpfs", str( path ), "--remount-ro", str( path )]

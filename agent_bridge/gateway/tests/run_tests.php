@@ -520,7 +520,10 @@ test('MCP submit, status and result share the REST path and policy', function ()
         'agent' => 'codex', 'workspace' => 'agent_blocks', 'operation' => 'explain', 'prompt' => 'explain Toyota voice']])->json['result'];
     eq(false, $sub['isError']);
     $id = $sub['structuredContent']['task_id'];
-    eq('queued', $w->mcp('tools/call', ['name' => 'get_agent_task_status', 'arguments' => ['task_id' => $id]])->json['result']['structuredContent']['state']);
+    $st = $w->mcp('tools/call', ['name' => 'get_agent_task_status', 'arguments' => ['task_id' => $id]])->json['result']['structuredContent'];
+    eq('queued', $st['state']);
+    eq('state', $st['recent_events'][0]['kind']);
+    eq('queued', $st['recent_events'][0]['message']);
     $bad = $w->mcp('tools/call', ['name' => 'submit_agent_task', 'arguments' => [
         'agent' => 'codex', 'workspace' => 'agent_blocks', 'operation' => 'modify_code', 'prompt' => 'x']])->json['result'];
     eq(true, $bad['isError']);

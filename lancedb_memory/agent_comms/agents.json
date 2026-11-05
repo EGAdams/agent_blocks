@@ -194,6 +194,59 @@
       ]
     },
     {
+      "name": "claude-sonnet",
+      "display_name": "Claude Sonnet",
+      "runtime": "claude_cli",
+      "settings": {
+        "model": "claude-sonnet-5",
+        "binary": "/usr/local/bin/claude",
+        "timeout_seconds": 900,
+        "max_turns": 40,
+        "claude_home": "/home/adamsl/.claude-bridge",
+        "login_file": "/home/adamsl/.claude/.credentials.json",
+        "workdir": "/home/adamsl/agent_blocks",
+        "read_roots": [
+          "/home/adamsl/letta-code",
+          "/home/adamsl/digi",
+          "/home/adamsl/bridge_workspaces"
+        ],
+        "write_workdir": "/home/adamsl/bridge_workspaces",
+        "write_roots": [
+          "/home/adamsl/letta-code",
+          "/home/adamsl/digi"
+        ]
+      },
+      "accepts_from": [
+        "chatgpt-bridge"
+      ],
+      "capabilities": [
+        {
+          "task_type": "inspect",
+          "description": "read-only: look at files in a workspace and report what is there (Claude Sonnet, jailed, Read/Glob/Grep only)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "explain",
+          "description": "read-only: explain how part of a workspace works, from the code (Claude Sonnet, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "search_memory",
+          "description": "read-only: search repo docs, agent notes and ADW logs for a topic (Claude Sonnet, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "implement",
+          "description": "scoped write: create or edit files in one registered bridge workspace (bridge_sandbox, letta_code or digi); Claude Sonnet jailed to that workspace with Read/Glob/Grep/Edit/Write and no shell",
+          "writes": true,
+          "idempotent": false
+        }
+      ]
+    },
+    {
       "name": "chatgpt-bridge",
       "display_name": "the ChatGPT bridge worker",
       "runtime": "none",

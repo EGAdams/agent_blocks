@@ -11,6 +11,14 @@ gateway. The prompt text and the result are left out, as in the gateway's own
 client view. What it cannot see, it does not invent: a task still queued at the
 gateway, or one refused before it reached the post office, has no row.
 
+Each row also carries the task's own events from the post office's event log
+(`events.jsonl`): its lifecycle (sent, claimed, executing, executed, replied)
+and, for an agent that reports its steps (Claude), one `progress` event per
+tool call it actually made. Only recorded events are listed, never inferred
+ones; their details are dropped except a progress step's one message, which
+is written to be shown. `queued_at` / `started_at` / `completed_at` are the
+envelope's own times, absent when the envelope has none.
+
     cd lancedb_memory
     .venv/bin/python -m agent_bridge_worker.activity_snapshot          # write it once
     .venv/bin/python -m agent_bridge_worker.activity_snapshot --print  # show it, write nothing
@@ -30,7 +38,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 1 ]))
 
 from agent_bridge_worker.redaction import SecretScanner  # noqa: E402
-from agent_comms.models import Envelope, MessageKind, TaskStatus  # noqa: E402
+from agent_comms.adapters.event_log import JsonlEventLog  # noqa: E402
+from agent_comms.models import Envelope, MessageKind, TaskEvent, TaskStatus  # noqa: E402
 
 SENDER          = "chatgpt-bridge"
 WORKSPACE_ROOT  = Path( __file__ ).resolve().parents[ 2 ]
@@ -38,8 +47,12 @@ MAILBOX_ROOT    = WORKSPACE_ROOT / "adws" / "adw_data" / "post_office" / "mailbo
 WORKSPACES_FILE = Path( __file__ ).resolve().parent / "workspaces.json"
 SNAPSHOT_PATH   = Path( os.path.expanduser( "~/.cache/agent_bridge/worker_activity.json" ))
 MAX_ROWS        = 50
+MAX_EVENTS      = 50
+PROGRESS        = "task.progress"
 ERROR_CLIP      = 240
 OPEN_STATES     = { TaskStatus.QUEUED, TaskStatus.RUNNING }
+LIFECYCLE       = { "sent", "queued", "claimed", "executing", "executed", "succeeded", "failed", "replied",
+                    "cancelled", "timed_out", "retried", "woken" }
 
 
 class WorkerTaskRow( BaseModel ):
@@ -57,6 +70,29 @@ class WorkerTaskRow( BaseModel ):
     attempts:     int
     last_update:  str
     error:        str | None
+    queued_at:    str | None = None
+    started_at:   str | None = None
+    completed_at: str | None = None
+    current:      str | None = None             # the latest step this task's agent reported
+    events:       list[ dict[ str, str ]] = []
+
+
+def _iso( at: datetime | None ) -> str | None:
+    return at.astimezone().isoformat( timespec="seconds" ) if at is not None else None
+
+
+def event_rows( events: list[ TaskEvent ], scanner: SecretScanner ) -> list[ dict[ str, str ]]:
+    """Display rows for one task's recorded events, most recent MAX_EVENTS, oldest first."""
+    out = []
+    for e in events[ -MAX_EVENTS: ]:
+        if e.name == PROGRESS:
+            phase   = str( e.details.get( "phase", "step" ))
+            message = safe_error( str( e.details.get( "message", "" )), scanner ) or phase
+        else:
+            phase   = e.name.removeprefix( "task." )
+            message = f"{ phase } ({ e.agent })"
+        out.append({ "timestamp": _iso( e.at ), "agent": e.agent, "phase": phase, "message": message })
+    return out
 
 
 def workspace_names( path: Path ) -> dict[ str, str ]:
@@ -103,13 +139,15 @@ def bridge_requests( root: Path ) -> list[ Envelope ]:
     return found
 
 
-def row_for( envelope: Envelope, names: dict[ str, str ], now: datetime, scanner: SecretScanner ) -> WorkerTaskRow:
+def row_for( envelope: Envelope, names: dict[ str, str ], now: datetime, scanner: SecretScanner,
+             events: list[ TaskEvent ] | None = None ) -> WorkerTaskRow:
     status  = TaskStatus( envelope.status )
     queued  = envelope.enqueued_at or envelope.created_at
     started = envelope.dequeued_at
     ended   = envelope.completed_at
     workdir = str( envelope.context.get( "workdir" ) or "" )
     latest  = max( t for t in ( envelope.created_at, envelope.enqueued_at, started, ended ) if t is not None )
+    shown   = event_rows( events or [], scanner )
     return WorkerTaskRow(
         id=str( envelope.context[ "bridge_task_id" ]),
         agent=envelope.recipient,
@@ -121,11 +159,23 @@ def row_for( envelope: Envelope, names: dict[ str, str ], now: datetime, scanner
         attempts=envelope.attempts,
         last_update=latest.astimezone().isoformat( timespec="seconds" ),
         error=safe_error( envelope.error, scanner ),
+        queued_at=_iso( queued ), started_at=_iso( started ), completed_at=_iso( ended ),
+        current=next(( r[ "message" ] for r in reversed( shown ) if r[ "phase" ] not in LIFECYCLE ), None ),
+        events=shown,
     )
 
 
+def events_by_task( path: Path, wanted: set[ str ]) -> dict[ str, list[ TaskEvent ]]:
+    grouped: dict[ str, list[ TaskEvent ]] = {}
+    for event in JsonlEventLog( path ).all():
+        if event.task_id in wanted:
+            grouped.setdefault( event.task_id, []).append( event )
+    return grouped
+
+
 def build_rows( root: Path = MAILBOX_ROOT, workspaces_file: Path = WORKSPACES_FILE,
-                now: datetime | None = None, limit: int = MAX_ROWS ) -> list[ WorkerTaskRow ]:
+                now: datetime | None = None, limit: int = MAX_ROWS,
+                event_log: Path | None = None ) -> list[ WorkerTaskRow ]:
     """Open work first, then the most recently touched. One row per bridge task."""
     now     = now or datetime.now( timezone.utc )
     names   = workspace_names( workspaces_file )
@@ -135,7 +185,9 @@ def build_rows( root: Path = MAILBOX_ROOT, workspaces_file: Path = WORKSPACES_FI
         key = str( envelope.context[ "bridge_task_id" ])
         if key not in latest or envelope.created_at > latest[ key ].created_at:
             latest[ key ] = envelope
-    rows = [ row_for( e, names, now, scanner ) for e in latest.values()]
+    log    = event_log if event_log is not None else root.parent / "events.jsonl"
+    events = events_by_task( log, { e.id for e in latest.values()})
+    rows = [ row_for( e, names, now, scanner, events.get( e.id )) for e in latest.values()]
     rows.sort( key=lambda r: r.last_update, reverse=True )
     rows.sort( key=lambda r: r.status not in { s.value for s in OPEN_STATES })
     return rows[ :limit ]

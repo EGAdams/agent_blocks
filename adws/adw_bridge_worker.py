@@ -137,6 +137,7 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     from agent_bridge_worker.repeat_answers import JsonAnswerStore, RepeatAnswers
     from agent_bridge_worker.adapters.workspace_lock import FlockWorkspaceLock
     from agent_bridge_worker.adapters.http_scan_facade import HttpScanFacade, load_scan_token
+    from agent_bridge_worker.ports import GatewayError
     from agent_bridge_worker.policy import FixedFirstWorkspaces, ScopedPolicy, scoped_operations
     from agent_bridge_worker.scanner_agent import ScannerAgent
     from agent_bridge_worker.printer_agent import PrinterAgent
@@ -151,13 +152,20 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     clock      = SystemClock()
     token      = load_worker_token()
     kit        = build_post_office( forward_failures_to_mechanic=False )
+    gateway    = HttpTaskGateway( base_url, token )
+
+    def relay( task, line: str ) -> None:              # a worker's real steps, shown live at the gateway
+        try:
+            gateway.event( task, "progress", line )
+        except GatewayError:
+            pass
     offered    = scoped_operations( kit.registry, SENDER )
     agents     = {}
     for name in offered:
         card    = kit.registry.card( name )
         timeout = float( card.settings.get( "timeout_seconds", 600 )) + 60
         agents[ name ] = PostOfficeAgent( SENDER, kit.dispatcher, kit.replies, kit.canceller, kit.board,
-                                          kit.event_log, TaskRequest, clock, timeout_seconds=timeout )
+                                          kit.event_log, TaskRequest, clock, timeout_seconds=timeout, relay=relay )
     events     = next( iter( agents.values()), None )
     if events is None:
         raise RuntimeError( f"no agent in the post office accepts work from { SENDER }" )
@@ -166,7 +174,8 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     home       = Path.home()
     workspaces = ConfiguredWorkspaces.load( WORKSPACES_FILE, protected=[
         _HERE, _HERE.parent / "lancedb_memory" / "agent_bridge_worker", _HERE.parent / "lancedb_memory" / "agent_comms",
-        _HERE.parent / "agent_bridge", home / ".config" / "agent_bridge", home / ".codex-bridge", home / ".codex" ])
+        _HERE.parent / "agent_bridge", home / ".config" / "agent_bridge", home / ".codex-bridge", home / ".codex",
+        home / ".claude", home / ".claude-bridge" ])
     for name, problem in workspaces.problems().items():
         print( f"workspace { name } is not write-enabled: { problem }", flush=True )
     check_jail = BwrapJail( WorkspacePrivatePaths(), state_dirs=[], env={ "PYTHONDONTWRITEBYTECODE": "1" }, network=False )
@@ -181,7 +190,6 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
         JailedCheckRunner( lambda argv, root: check_jail.wrap( argv, root, root, [])),
         JsonWriteJournal( WRITE_DATA ), workspaces.checks, settled, SecretScanner( known=[ token ]),
         write_problem=workspaces.write_problem )
-    gateway = HttpTaskGateway( base_url, token )
     modes   = { "read_only", "workspace_write" }
     if SCAN_TOKEN_FILE.exists():                        # scanning is off until the façade token is provisioned
         SCAN_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )

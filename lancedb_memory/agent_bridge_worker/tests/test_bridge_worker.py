@@ -26,7 +26,7 @@ from agent_bridge_worker.service import BridgeTaskRun
 from agent_comms.adapters.launchers import RecordingLauncher
 from agent_comms.executors.basic import ScriptedExecutor
 from agent_comms.factory import build_post_office
-from agent_comms.models import TaskRequest, TaskResult
+from agent_comms.models import TaskEvent, TaskRequest, TaskResult
 from agent_comms.tests.fakes import FakeClock
 
 TASK_ID = "t_" + "a" * 24
@@ -257,6 +257,53 @@ def test_claimed_task_repr_hides_lease_and_prompt() -> None:
     g = FakeGateway()
     task = g.claim( TASK_ID, "w" )
     assert LEASE not in repr( task ) and "Toyota" not in repr( task )
+
+
+class ProgressExecutor:
+    """An executor that records two real steps through the post office's events, then answers."""
+
+    performer = "claude:fake"
+
+    def __init__( self, events ) -> None:
+        self._events = events
+
+    async def execute( self, envelope ):
+        for message in ( "Read a.py", "Grep \"def main\"" ):
+            self._events.publish( TaskEvent( name="task.progress", task_id=envelope.id, agent="codex",
+                                             details={ "phase": "tool", "message": message }))
+        return TaskResult( ok=True, text="done", performer=self.performer )
+
+
+def test_progress_steps_reach_the_gateway_once_and_before_the_result() -> None:
+    gateway = FakeGateway()
+    h = Harness( gateway )
+    try:
+        h.codex = ProgressExecutor( h.kit.events )
+        h.run._agents[ "codex" ] = PostOfficeAgent(
+            "chatgpt-bridge", h.kit.dispatcher, h.kit.replies, h.kit.canceller, h.kit.board, h.kit.event_log,
+            TaskRequest, h.clock, timeout_seconds=120, relay=lambda task, line: gateway.event( task, "progress", line ))
+        h.run._events = h.run._agents[ "codex" ]
+        report = h.run.run_one()
+    finally:
+        h.close()
+    assert report.outcome is OutcomeKind.SUCCEEDED, report
+    progress = [ m for k, m in gateway.events if k == "progress" ]
+    assert len( progress ) == 2 and progress[ 0 ].startswith( "codex tool: Read a.py at " ), gateway.events
+    assert not any( "Read a.py" in m for k, m in gateway.events if k != "progress" ), gateway.events
+    assert gateway.completed is not None
+
+
+def test_without_a_relay_progress_steps_stay_in_the_closing_trail() -> None:
+    gateway = FakeGateway()
+    h = Harness( gateway )
+    try:
+        h.codex = ProgressExecutor( h.kit.events )
+        report = h.run.run_one()
+    finally:
+        h.close()
+    assert report.outcome is OutcomeKind.SUCCEEDED
+    assert any( "codex tool: Read a.py" in m for k, m in gateway.events if k == "log" ), gateway.events
+    assert not any( k == "progress" for k, _ in gateway.events )
 
 
 def run( test ) -> None:

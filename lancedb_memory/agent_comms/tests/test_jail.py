@@ -132,6 +132,19 @@ def test_env_is_set_and_a_missing_login_refuses() -> None:
     assert argv[ i - 1 ] == "--setenv" and argv[ i + 1 ] == str( home ) and i > argv.index( "--clearenv" )
 
 
+def test_a_file_bind_is_read_only_and_lands_after_its_state_dir() -> None:
+    fake_bwrap = Path( tempfile.mkdtemp()) / "bwrap"
+    fake_bwrap.write_text( "#!/bin/sh\n" )
+    fake_bwrap.chmod( 0o755 )
+    state = Path( tempfile.mkdtemp( prefix="claude_bridge_" ))
+    login = Path( "/home/eg/.claude/.credentials.json" )
+    argv  = BwrapJail( FixedPaths( Masks()), state_dirs=[ state ], bwrap=str( fake_bwrap ),
+                       file_binds=[( login, state / ".credentials.json" )]).wrap([ "/usr/bin/true" ], Path( "/" ), Path( "/" ), [])
+    at = lambda *pair: next( i for i in range( len( argv )) if argv[ i:i + len( pair )] == list( pair ))
+    assert at( "--bind", str( state ), str( state )) < at( "--ro-bind", str( login ), str( state / ".credentials.json" ))
+    assert [ "--bind", str( login ), str( state / ".credentials.json" )] not in [ argv[ i:i + 3 ] for i in range( len( argv ))]
+
+
 def test_writable_root_keeps_masks_and_git_on_top() -> None:
     fake_bwrap = Path( tempfile.mkdtemp()) / "bwrap"
     fake_bwrap.write_text( "#!/bin/sh\n" )

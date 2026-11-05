@@ -15,7 +15,8 @@ sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 2 ]))
 
 from agent_bridge_worker.activity_snapshot import build_rows, duration, safe_error, write_snapshot
 from agent_bridge_worker.redaction import SecretScanner
-from agent_comms.models import Envelope, MessageKind, TaskStatus
+from agent_comms.adapters.event_log import JsonlEventLog
+from agent_comms.models import Envelope, MessageKind, TaskEvent, TaskStatus
 
 NOW = datetime( 2026, 11, 3, 15, 0, 0, tzinfo=timezone.utc )
 
@@ -83,7 +84,8 @@ def test_the_snapshot_never_carries_the_prompt_and_is_the_dashboard_shape() -> N
         data = json.loads( text )
         assert isinstance( data, list ) and all( isinstance( r, dict ) for r in data )
         assert set( data[ 0 ]) == { "id", "agent", "operation", "workspace", "status", "queue_age", "run_duration",
-                                   "attempts", "last_update", "error" }
+                                   "attempts", "last_update", "error", "queued_at", "started_at", "completed_at",
+                                   "current", "events" }
         assert "prompt" not in text
         assert oct( out.stat().st_mode & 0o777 ) == "0o600"
         assert not list( out.parent.glob( ".worker_activity_*" ))
@@ -107,6 +109,29 @@ def test_durations_read_like_a_person_would_say_them() -> None:
 def test_a_missing_mailbox_root_is_an_empty_ledger_not_a_crash() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         assert build_rows( Path( tmp ) / "nope", Path( tmp ) / "nope.json", NOW ) == []
+
+
+def test_a_row_lists_its_own_recorded_events_and_latest_step() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path( tmp ) / "mailboxes"
+        _post( root, _envelope( 1, TaskStatus.RUNNING, agent="claude-sonnet", minutes_ago=2 ), "in_process" )
+        _post( root, _envelope( 2, TaskStatus.SUCCEEDED, ran=3 ), "completed" )
+        log = JsonlEventLog( Path( tmp ) / "events.jsonl" )
+        at = NOW - timedelta( minutes=1 )
+        log.notify( TaskEvent( name="task.claimed", task_id="e1", agent="claude-sonnet", at=at ))
+        log.notify( TaskEvent( name="task.progress", task_id="e1", agent="claude-sonnet", at=at,
+                               details={ "phase": "tool", "message": "Read README.md" }))
+        log.notify( TaskEvent( name="task.progress", task_id="e1", agent="claude-sonnet", at=at,
+                               details={ "phase": "tool", "message": "token sk-abcdefghijklmnopqrstuvwxyz" }))
+        log.notify( TaskEvent( name="task.progress", task_id="other", agent="codex", at=at,
+                               details={ "phase": "tool", "message": "not this task" }))
+        running, done = build_rows( root, _workspaces( Path( tmp )), NOW )
+        assert [ e[ "phase" ] for e in running.events ] == [ "claimed", "tool", "tool" ]
+        assert running.events[ 1 ][ "message" ] == "Read README.md"
+        assert "withheld" in running.events[ 2 ][ "message" ]
+        assert running.current == running.events[ 2 ][ "message" ]
+        assert running.started_at and running.completed_at is None and running.queued_at
+        assert done.events == [] and done.current is None and done.completed_at
 
 
 if __name__ == "__main__":
