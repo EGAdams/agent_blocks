@@ -33,7 +33,7 @@ from .adapters.post_office_route import PostOfficeRoute
 from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
 from .adapters.bridge_device_route import BridgeDeviceRoute
 from .adapters.inspection_route import ObjectInspectionRoute
-from .adapters.bridge_task_route import BridgeTaskRoute
+from .adapters.bridge_task_route import BridgeTaskRoute, BridgeReadOnlyAddressRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
@@ -279,6 +279,7 @@ TOYOTA = ReceptionistProfile(
         # A bare yes/no while a Bridge request waits for one goes to the
         # specialist that read it back (adapters/bridge_confirmation_route.py).
         BridgeConfirmationRoute(),
+        BridgeReadOnlyAddressRoute(),
         # "Where did task t_... stop?" is an inspection question, and the task
         # route below would read its "stop" as a cancel (adapters/inspection_route.py).
         ObjectInspectionRoute("object_inspector"),

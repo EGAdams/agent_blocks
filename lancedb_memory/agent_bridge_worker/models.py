@@ -31,6 +31,7 @@ class ClaimedTask( BaseModel ):
     workspace:        str = Field( pattern=WORKSPACE )
     operation:        str = Field( pattern=r"^[a-z_]{1,30}$" )
     approval_mode:    str = Field( pattern=r"^[a-z_]{1,30}$" )
+    sender:           str = Field( default="chatgpt-bridge", pattern=NAME )
     prompt:           str = Field( min_length=1, max_length=8000, repr=False )
 
 

@@ -18,6 +18,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from object_trace.factory import trace_db_path
+
 from .adapters.alert_board import FileAlertBoard
 from .adapters.event_log import FanOutPublisher, JsonlEventLog
 from .adapters.file_mailbox import FileMailboxTransport
@@ -33,6 +35,7 @@ from .executors.claude_sdk import ClaudeSdkExecutor
 from .executors.codex_cli import CodexCliExecutor
 from .executors.jail import BwrapJail, WorkspacePrivatePaths
 from .executors.mechanic import AdwSubprocessExecutor, DiagnosisExecutor
+from .executors.object_debugger import ObjectDebuggerExecutor
 from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
 from .models import AgentCard, Envelope, TaskEvent
@@ -108,6 +111,7 @@ class PostOfficeKit:
 
 def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path,
                       events: IEventPublisher | None = None ) -> dict[ str, ExecutorBuilder ]:
+    from .executors.machine_ops import MachineOpsExecutor
     def claude_sdk( card: AgentCard ) -> ITaskExecutor:
         s = card.settings
         return ClaudeSdkExecutor( display_name=card.display_name, model=str( s[ "model" ]),
@@ -229,6 +233,8 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         return publish
 
     return {
+        "machine_ops": lambda card: MachineOpsExecutor(),
+        "object_trace": lambda card: ObjectDebuggerExecutor( trace_db_path()),
         "claude_sdk":  claude_sdk,
         "claude_cli":  claude_cli,
         "codex_cli":   codex_cli,

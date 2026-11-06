@@ -84,8 +84,10 @@ class ScopedWriteSession:
         configured = self._checks_for( task.workspace )
         if not configured:
             not_run.append( f"no checks are configured for { task.workspace }" )
-        elif outcome is None or outcome.kind is not OutcomeKind.SUCCEEDED:
-            not_run += [ f"{ ' '.join( c ) } -- skipped: the agent did not finish" for c in configured ]
+        elif (start.resumed or outcome is None
+              or outcome.kind not in ( OutcomeKind.SUCCEEDED, OutcomeKind.FAILED )
+              or ( outcome.local_task_id is not None and not self._settled( outcome.local_task_id ))):
+            not_run += [ f"{ ' '.join( c ) } -- skipped: execution is unsettled, cancelled, or a resumed write" for c in configured ]
         elif not changes.paths:
             not_run += [ f"{ ' '.join( c ) } -- skipped: nothing changed" for c in configured ]
         else:

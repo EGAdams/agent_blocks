@@ -127,6 +127,22 @@ def test_success_publishes_codex_answer() -> None:
     assert not any( "Toyota voice system" in m for _, m in h.gateway.events ), "event lines never carry the prompt"
 
 
+def test_authenticated_toyota_sender_is_preserved_in_local_envelope() -> None:
+    gateway = FakeGateway()
+    gateway._claim["sender"] = "toyota-bridge"
+    h, report = with_harness(gateway)
+    assert report.outcome is OutcomeKind.SUCCEEDED
+    assert h.codex.seen[0].sender == "toyota-bridge"
+
+
+def test_unapproved_gateway_sender_does_not_execute() -> None:
+    gateway = FakeGateway()
+    gateway._claim["sender"] = "untrusted-bridge"
+    h, report = with_harness(gateway)
+    assert report.outcome is OutcomeKind.REFUSED
+    assert not h.codex.seen
+
+
 def test_nothing_queued() -> None:
     h, report = with_harness( FakeGateway( queued=False ))
     assert report.summary == "nothing queued" and report.task_id is None
@@ -309,6 +325,27 @@ def test_without_a_relay_progress_steps_stay_in_the_closing_trail() -> None:
 def run( test ) -> None:
     test()
     print( f"ok  { test.__name__ }" )
+
+
+def test_runtime_diagnostics_reach_agent_outcome_without_private_fields() -> None:
+    gateway = FakeGateway()
+    h = Harness( gateway )
+    try:
+        class LimitedExecutor:
+            performer = "claude:fake"
+            async def execute( self, envelope ):
+                return TaskResult( ok=False, text="claude stopped with error_max_turns: no answer",
+                                   performer=self.performer, details={ "subtype": "error_max_turns",
+                                   "configured_max_turns": 40, "turns": 41, "child_pid": 123,
+                                   "prompt": "private input", "access_token": "do not publish" })
+        h.codex = LimitedExecutor()
+        h.run.run_one()
+        outcome = h.run.outcome
+        assert outcome.details[ "configured_max_turns" ] == 40
+        assert outcome.details[ "subtype" ] == "error_max_turns"
+        assert "prompt" not in outcome.details and "access_token" not in outcome.details
+    finally:
+        h.close()
 
 
 if __name__ == "__main__":

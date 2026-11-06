@@ -78,6 +78,28 @@ async def _say(runner, text):
     return (await runner.run(None, "star_trek_bridge", "m", text)).text
 
 
+async def test_ambiguous_submission_reuses_its_key_on_next_identical_request():
+    client = FakeClient(submits=[e.BridgeAmbiguous("uncertain", "timeout") for _ in range(3)] + [_view("queued")])
+    keys = iter(["first-key", "second-key"])
+    runner = _runner(client)
+    runner._key_factory = lambda: next(keys)
+    await _say(runner, "Say Hello World.")
+    await _say(runner, "Say Hello World.")
+    assert len(client.sent) == 4
+    assert {r.idempotency_key for r in client.sent} == {"first-key"}
+
+
+async def test_machine_ops_receives_exact_json_without_spoken_prompt_frame():
+    machine = BridgeAgent(name="machine-ops", operations=["inspect"], workspaces=["machine_ops"])
+    machine_view = BridgeTaskView(task_id=TID, state="queued", agent="machine-ops", workspace="machine_ops", operation="inspect")
+    client = FakeClient(agents=[machine], submits=[machine_view])
+    runner = _runner(client)
+    runner._wait = 0
+    raw = '{"operation":"status","unit":"adw-supervisor.service"}'
+    await _say(runner, "machine-ops@machine_ops: " + raw)
+    assert client.sent[0].prompt == raw
+
+
 async def test_success_reads_back_the_body_and_sends_a_read_only_inspect():
     client = FakeClient(submits=[_view("queued")], states=["running", "succeeded"],
                         result=_result("succeeded", ok=True, body="Hello World"))

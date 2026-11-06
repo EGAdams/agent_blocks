@@ -98,6 +98,13 @@ final class SqliteTaskStore implements ITaskRepository, ITaskLeaseManager
 
     public function events(string $id, int $afterSeq): array
     {
+        // Internal status sentinel: newest bounded window, independent of task age.
+        if ($afterSeq === -1) {
+            $stmt = $this->pdo->prepare(
+                'SELECT seq, kind, message, created_at FROM task_events WHERE task_id = ? ORDER BY seq DESC LIMIT 50');
+            $stmt->execute([$id]);
+            return array_reverse($stmt->fetchAll());
+        }
         $stmt = $this->pdo->prepare(
             'SELECT seq, kind, message, created_at FROM task_events WHERE task_id = ? AND seq > ? ORDER BY seq LIMIT 500');
         $stmt->execute([$id, $afterSeq]);

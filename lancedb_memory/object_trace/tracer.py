@@ -178,7 +178,8 @@ class ObjectTracer:
         return trace
 
     def construct( self, kind: str, factory: Callable[[], T ], *, interface: str = "", label: str = "",
-                   inputs: object = None, object_id: str | None = None ) -> T:
+                   inputs: object = None, object_id: str | None = None,
+                   on_created: Callable[[ "Trace" ], None ] | None = None ) -> T:
         """Build something, recording it -- or recording exactly how its construction failed, then re-raising."""
         try:
             made = factory()
@@ -188,8 +189,13 @@ class ObjectTracer:
             trace._finish( "construct_failed", "construct_failed", f"construction failed: { type( exc ).__name__ }",
                            error=_error( exc, self.redactor ))
             raise
-        self.begin( kind, object_id, interface=interface, implementation=type( made ).__name__,
+        trace = self.begin( kind, object_id, interface=interface, implementation=type( made ).__name__,
                     module=type( made ).__module__, label=label, inputs=inputs, state="created" )
+        if on_created is not None:
+            try:
+                on_created( trace )
+            except Exception:  # telemetry callbacks cannot break construction
+                pass
         return made
 
 

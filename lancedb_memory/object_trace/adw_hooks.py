@@ -16,7 +16,7 @@ import uuid
 from collections.abc import Callable
 from typing import Any
 
-from .tracer import ObjectTracer, Trace, safe_id, trace_scope
+from .tracer import ObjectTracer, Trace, current_scope, safe_id, trace_scope
 
 
 class AdwRunTrace:
@@ -35,7 +35,7 @@ class AdwRunTrace:
         self._closers: list[ Callable[[ str ], None ]] = []
 
     def __enter__( self ) -> "AdwRunTrace":
-        self._scope = trace_scope( adw_id=self.adw_id )
+        self._scope = trace_scope( adw_id=self.adw_id, run_id=current_scope().run_id or self.adw_id )
         self._scope.__enter__()
         self.run = self._tracer.begin( "adw.run", f"adw.run:{ self.adw_id }", implementation=self._name,
                                        module=self._name, label=self._name, inputs=self._inputs, adw_id=self.adw_id )
@@ -53,7 +53,8 @@ class AdwRunTrace:
                 if exc is not None:
                     self.run.fail( exc )
                 else:
-                    self.run.succeed( message=f"{ self._name } finished" )
+                    self.run.succeed( outputs={ "scope": "orchestration", "task_outcome": "see agent/task objects" },
+                                      message=f"{ self._name } orchestration finished; task outcome is recorded separately" )
         finally:
             if self._scope is not None:
                 self._scope.__exit__( exc_type, exc, tb )

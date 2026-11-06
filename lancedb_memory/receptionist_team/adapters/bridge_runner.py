@@ -44,10 +44,8 @@ from ..bridge_client.workflow import SPOKEN_LIMIT, SUBMIT_ATTEMPTS  # noqa: F401
 
 
 def _default_client():
-    from ..bridge_client.client import BridgeClient
-    from ..bridge_client.config import load_client_config, load_client_token
-    from ..bridge_client.transport import HttpsBridgeTransport
-    return BridgeClient(HttpsBridgeTransport(load_client_config(), load_client_token()))
+    from ..bridge_client.desk import _default_client as client
+    return client()
 
 
 def _default_policy():
@@ -65,7 +63,7 @@ class BridgeDelegationRunner:
 
     def __init__(self, client_factory: Callable[[], object] = _default_client,
                  policy_factory: Callable[[], object] = _default_policy,
-                 wait_seconds: float = 15.0, poll_seconds: float = 5.0,
+                 wait_seconds: float = 0.0, poll_seconds: float = 5.0,
                  sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic,
                  key_factory: Callable[[], str] = lambda: f"toyota-{uuid.uuid4().hex}",
@@ -82,6 +80,8 @@ class BridgeDelegationRunner:
         self._log_factory = log_factory
         self.last_task_id: str | None = None
         self.last_trace: list = []
+        self._retry_request = None
+        self._retry_text: str | None = None
 
     async def run(self, role: object, agent_name: str, model: str, extra: str = "") -> AgentReply:
         text = (extra or "").strip()
@@ -100,11 +100,20 @@ class BridgeDelegationRunner:
         workflow = BridgeTaskWorkflow(policy, self._log_factory(), wait_seconds=self._wait,
                                       poll_seconds=self._poll, sleep=self._sleep, clock=self._clock,
                                       key_factory=self._key_factory)
-        run = workflow.execute(BridgeRun(text=text, client_factory=self._client_factory,
-                                         last_task_id=self.last_task_id))
+        ctx = BridgeRun(text=text, client_factory=self._client_factory, last_task_id=self.last_task_id)
+        retry = self._retry_request is not None and self._retry_text == text
+        if retry:
+            ctx.request = self._retry_request
+        run = workflow.execute(ctx, start="submit" if retry else "discover")
+        if (run.request is not None and run.view is None
+                and any(r.name == "submit" and r.status == "failed" for r in run.trace)):
+            self._retry_request, self._retry_text = run.request, text
+        elif run.view is not None:
+            self._retry_request = self._retry_text = None
         self.last_task_id = run.last_task_id
         self.last_trace = run.trace
         if (run.intent == "submit" and run.view is not None and not run.view.terminal
                 and run.error is None and self._notices is not None):
-            self._notices.track(run.view.task_id, "your question")
+            if self._notices.track(run.view.task_id, "your question") is False:
+                run.reply += " Automatic monitoring is full; read the result back using this task id."
         return run.reply

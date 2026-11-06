@@ -180,8 +180,6 @@ final class McpEndpoint
                     // the worker's real progress lines), so a long task shows what
                     // it is doing between running and its end.
                     $out = $this->client->status($who, self::taskId($args));
-                    $out['recent_events'] = array_slice(
-                        $this->client->events($who, self::taskId($args), 0)['events'], -self::RECENT_EVENTS);
                     break;
                 case 'get_agent_task_result':
                     $out = $this->client->result($who, self::taskId($args));

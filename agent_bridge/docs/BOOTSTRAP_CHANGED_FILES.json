@@ -1,0 +1,82 @@
+{
+  "workspace": "/home/adamsl/agent_blocks",
+  "source_and_documentation_paths": [
+    "adws/adw_bridge_worker.py",
+    "agent_bridge/development/check.py",
+    "agent_bridge/development/deploy.py",
+    "agent_bridge/development/test_deploy.py",
+    "agent_bridge/docs/BOOTSTRAP_CHATGPT.md",
+    "agent_bridge/docs/BOOTSTRAP_INTEGRATION.md",
+    "agent_bridge/docs/BOOTSTRAP_VERIFICATION.md",
+    "agent_bridge/docs/BOOTSTRAP_CHANGED_FILES.json",
+    "agent_bridge/gateway/src/Bootstrap.php",
+    "agent_bridge/gateway/src/GatewayApp.php",
+    "agent_bridge/gateway/src/McpEndpoint.php",
+    "agent_bridge/gateway/src/Policy.php",
+    "agent_bridge/gateway/src/SqliteStore.php",
+    "agent_bridge/gateway/tests/run_tests.php",
+    "agent_bridge/gateway/tests/client_scope_tests.php",
+    "lancedb_memory/agent_bridge_worker/adapters/development_jail.py",
+    "lancedb_memory/agent_bridge_worker/adapters/post_office_agent.py",
+    "lancedb_memory/agent_bridge_worker/models.py",
+    "lancedb_memory/agent_bridge_worker/policy.py",
+    "lancedb_memory/agent_bridge_worker/repeat_answers.py",
+    "lancedb_memory/agent_bridge_worker/tests/test_bridge_worker.py",
+    "lancedb_memory/agent_bridge_worker/tests/test_polling.py",
+    "lancedb_memory/agent_bridge_worker/tests/test_repeat_answers.py",
+    "lancedb_memory/agent_bridge_worker/tests/test_write_access.py",
+    "lancedb_memory/agent_bridge_worker/workspaces.json",
+    "lancedb_memory/agent_comms/agents.json",
+    "lancedb_memory/agent_comms/factory.py",
+    "lancedb_memory/agent_comms/executors/machine_ops.py",
+    "lancedb_memory/agent_comms/executors/object_debugger.py",
+    "lancedb_memory/agent_comms/machine_ops/__init__.py",
+    "lancedb_memory/agent_comms/machine_ops/commands.py",
+    "lancedb_memory/agent_comms/machine_ops/runner.py",
+    "lancedb_memory/agent_comms/tests/test_machine_ops.py",
+    "lancedb_memory/agent_comms/tests/test_object_debugger.py",
+    "lancedb_memory/receptionist_team/adapters/bridge_runner.py",
+    "lancedb_memory/receptionist_team/adapters/bridge_task_route.py",
+    "lancedb_memory/receptionist_team/bridge_client/README.md",
+    "lancedb_memory/receptionist_team/bridge_client/desk.py",
+    "lancedb_memory/receptionist_team/bridge_client/models.py",
+    "lancedb_memory/receptionist_team/bridge_client/monitor.py",
+    "lancedb_memory/receptionist_team/bridge_client/workflow.py",
+    "lancedb_memory/receptionist_team/profiles.py",
+    "lancedb_memory/receptionist_team/tests/test_bridge_runner.py",
+    "lancedb_memory/receptionist_team/tests/test_bridge_task_route.py",
+    "lancedb_memory/receptionist_team/tests/test_bridge_monitor.py"
+  ],
+  "private_configuration_paths": [
+    "/home/adamsl/agent_blocks/lancedb_memory/receptionist_team/.env",
+    "/home/adamsl/.config/agent_bridge/toyota_client_token"
+  ],
+  "development": {
+    "worktree": "/home/adamsl/bridge_workspaces/agent_blocks_dev",
+    "seed_manifest": "/home/adamsl/.cache/agent_bridge/development_baseline.json",
+    "git_history": "separately initialized; no production history or remote; no commits created",
+    "additional_paths": [
+      "AGENTS.md",
+      "docs/BRIDGE_BOOTSTRAP_ACCEPTANCE.md"
+    ]
+  },
+  "remote": {
+    "host": "americansjewelry.com",
+    "sources": [
+      "/home1/tinman72/agent_bridge/gateway/src/Bootstrap.php",
+      "/home1/tinman72/agent_bridge/gateway/src/GatewayApp.php",
+      "/home1/tinman72/agent_bridge/gateway/src/McpEndpoint.php",
+      "/home1/tinman72/agent_bridge/gateway/src/Policy.php",
+      "/home1/tinman72/agent_bridge/gateway/src/SqliteStore.php"
+    ],
+    "config": "/home1/tinman72/agent_bridge_data/bridge.php",
+    "backup": "/home1/tinman72/agent_bridge_backups/bootstrap_20261106"
+  },
+  "generated_artifacts": [
+    "lancedb_memory/receptionist_team/voice_metrics.log",
+    "adws/adw_data/object_trace.db and its SQLite sidecars",
+    "existing bridge/post-office logs, write journal and patches",
+    "/tmp/bridge-bootstrap-20261106/ sanitized diagnostic evidence"
+  ],
+  "notes": "Existing unrelated changes were preserved. No commit, push, provider credential change, dashboard restart, documentation restart or supervisor restart."
+}

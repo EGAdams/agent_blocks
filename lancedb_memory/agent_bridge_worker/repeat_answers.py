@@ -9,7 +9,7 @@ Decorator over any `IAgentAdapter`: for a `read_only` task whose agent,
 workspace, operation and prompt match one that SUCCEEDED within
 `window_seconds`, it returns that answer at once and says which task it came
 from and how old it is. Everything else -- writes, device control, failures,
-older answers -- runs exactly as before. The store keeps a hash of the request,
+older answers, live object-debugger reads -- runs exactly as before. The store keeps a hash of the request,
 never the prompt.
 """
 from __future__ import annotations
@@ -35,7 +35,7 @@ class IAnswerStore( Protocol ):
 
 
 def request_key( task: ClaimedTask ) -> str:
-    raw = "\x1f".join(( task.agent, task.workspace, task.operation, task.prompt ))
+    raw = "\x1f".join(( task.sender, task.agent, task.workspace, task.operation, task.prompt ))
     return hashlib.sha256( raw.encode( "utf-8" )).hexdigest()
 
 
@@ -87,7 +87,8 @@ class RepeatAnswers:
         return self._inner.lines( local_task_id )        # type: ignore[attr-defined]
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
-        if task.approval_mode != "read_only":
+        if task.approval_mode != "read_only" or task.agent in { "object-debugger", "machine-ops" }:
+            # Telemetry must be read again: even an identical prompt asks about the state now.
             return self._inner.run( task, workdir, keep_alive )
         key   = request_key( task )
         entry = self._store.get( key )

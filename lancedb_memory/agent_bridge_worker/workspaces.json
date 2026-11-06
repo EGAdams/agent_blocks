@@ -2,8 +2,13 @@
   "write_root": "/home/adamsl/bridge_workspaces",
   "extra_write_paths": [ "/home/adamsl/letta-code", "/home/adamsl/digi" ],
   "workspaces": {
+    "agent_blocks_dev": { "path": "/home/adamsl/bridge_workspaces/agent_blocks_dev", "writes": true,
+                          "checks": [["/opt/bridge-test-venv/bin/python", "-B", "/opt/bridge-check.py"]] },
+    "machine_ops":    { "path": "/home/adamsl/agent_blocks/lancedb_memory/agent_comms/machine_ops", "writes": false },
+    "object_trace":   { "path": "/home/adamsl/agent_blocks/lancedb_memory/object_trace", "writes": false },
     "agent_blocks":   { "path": "/home/adamsl/agent_blocks", "writes": false },
-    "letta_code":     { "path": "/home/adamsl/letta-code", "writes": true },
+    "letta_code":     { "path": "/home/adamsl/letta-code", "writes": true,
+                        "checks": [["dashboard/.venv/bin/python", "-B", "dashboard/scripts/check_adw_supervisor.py"]] },
     "digi":           { "path": "/home/adamsl/digi", "writes": true },
     "bridge_sandbox": { "path": "/home/adamsl/bridge_workspaces/bridge_sandbox", "writes": true,
                         "checks": [[ "python3", "-m", "unittest", "discover", "-s", "tests", "-q" ]] }

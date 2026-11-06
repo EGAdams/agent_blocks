@@ -1,5 +1,15 @@
 # Toyota → Star Trek Bridge
 
+Current bootstrap behavior (2026-11-06): Toyota has a separate authenticated
+`toyota-bridge` identity with read-only gateway scopes. Machine Ops and Object
+Debugger accept her explicitly. The read-only runner returns after submission;
+`NOTICES` refreshes asynchronously. Status contains bounded `recent_events`,
+and `events t_...` reads that evidence without an events endpoint. Cancellation
+uses the existing cancel API. See
+[the current integration guide](../../../agent_bridge/docs/BOOTSTRAP_INTEGRATION.md)
+for exact commands, identity boundaries and development/deployment scope.
+The older 15-second polling and missing-cancel descriptions below are historical.
+
 Toyota's narrow door to the public Star Trek Bridge client API. She can list
 the Bridge's agents, send a **read-only** request to any Bridge agent that
 offers a read-only operation (`codex` on `agent_blocks` by default), and read a

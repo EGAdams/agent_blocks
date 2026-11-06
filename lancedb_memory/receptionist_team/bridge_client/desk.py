@@ -92,25 +92,41 @@ class BridgeCompletionNotices:
     PREFIX = "bridge-"
 
     def __init__(self, client_factory: Callable[[], object], speak: Callable[[object], str],
-                 clock: Callable[[], float] = time.monotonic, every: float = 15.0, give_up: float = 3600.0) -> None:
+                 clock: Callable[[], float] = time.monotonic, every: float = 15.0, give_up: float = 3600.0,
+                 background: bool = False) -> None:
         self._client_factory = client_factory
         self._speak = speak
         self._clock, self._every, self._give_up = clock, every, give_up
         self._lock = threading.Lock()
         self._watched: dict[str, _Watched] = {}
         self._started: dict[str, float] = {}
+        self._background = background
+        self._refreshing = False
+        self._monitors: dict = {}
+        self._states: dict = {}
 
-    def track(self, task_id: str, label: str) -> None:
+    def track(self, task_id: str, label: str) -> bool:
         with self._lock:
+            if len(self._watched) >= 100 and task_id not in self._watched:
+                return False
             self._watched.setdefault(task_id, _Watched(task_id, label))
             self._started.setdefault(task_id, self._clock())
+            return True
 
     def watching(self) -> list[str]:
         with self._lock:
             return [w.task_id for w in self._watched.values() if not w.spoken]
 
     def pending(self) -> list[dict]:
-        self._refresh()
+        if self._background:
+            with self._lock:
+                start = bool(self._watched) and not self._refreshing
+                if start:
+                    self._refreshing = True
+            if start:
+                threading.Thread(target=self._background_refresh, daemon=True, name="toyota-bridge-notices").start()
+        else:
+            self._refresh()
         with self._lock:
             return [{"id": self.PREFIX + w.task_id, "task_id": w.task_id, "kind": "bridge_finished",
                      "title": f"Star Trek Bridge: {w.label} finished", "spoken": w.spoken}
@@ -123,7 +139,21 @@ class BridgeCompletionNotices:
             for w in done:
                 del self._watched[w.task_id]
                 self._started.pop(w.task_id, None)
+                self._monitors.pop(w.task_id, None)
+                self._states.pop(w.task_id, None)
             return len(done)
+
+    def lifecycle(self, task_id: str):
+        """Latest bounded status evidence; no extra HTTP request on the voice thread."""
+        with self._lock:
+            return self._states.get(task_id)
+
+    def _background_refresh(self) -> None:
+        try:
+            self._refresh()
+        finally:
+            with self._lock:
+                self._refreshing = False
 
     def _refresh(self) -> None:
         now = self._clock()
@@ -134,6 +164,9 @@ class BridgeCompletionNotices:
             for w in [w for w in self._watched.values() if not w.spoken and now - self._started[w.task_id] > self._give_up]:
                 del self._watched[w.task_id]
                 self._started.pop(w.task_id, None)
+                self._monitors.pop(w.task_id, None)
+                self._states.pop(w.task_id, None)
+            due = [w for w in due if w.task_id in self._watched]
         if not due:
             return
         try:
@@ -142,7 +175,11 @@ class BridgeCompletionNotices:
             return
         for w in due:
             try:
+                from .monitor import TaskMonitor
                 view = client.status(w.task_id)
+                with self._lock:
+                    monitor = self._monitors.setdefault(w.task_id, TaskMonitor(w.task_id, client))
+                    self._states[w.task_id] = monitor.observe(view)
                 if view.state not in TERMINAL_STATES:
                     continue
                 spoken = self._speak(client.result(w.task_id))
@@ -194,4 +231,4 @@ def _speak(result) -> str:
 
 # Toyota's one desk: shared by her route override, her Bridge runners and her alert inbox.
 PENDING = PendingBridgeRequests()
-NOTICES = BridgeCompletionNotices(_default_client, _speak)
+NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True)

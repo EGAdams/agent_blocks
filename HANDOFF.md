@@ -2,7 +2,19 @@
 
 **From:** Claude (Sonnet 5) shift ending 2026-11-06
 **To:** next shift (Codex, reads `AGENTS.md`)
-**Status:** design complete, inspection complete, **zero code written yet**. Safe to pick up cold from this file.
+**Current status (Codex, 2026-11-06):** executor implemented, 114 tests passed,
+live telemetry verified through real detached workers, and the local bridge
+worker restarted. **Remote gateway registration approved and deployed.**
+Star Trek Bridge discovery lists `object-debugger`; its `status`, `recent 5`,
+and `task` requests all completed successfully through the actual connector.
+See [the implementation and deployment report](agent_bridge/docs/OBJECT_DEBUGGER.md)
+for changed files, verification, a sample response, and the prepared gateway
+entry. SSH uses port **2222**. Remote config and registry updated with a backup;
+no commit or push performed. Paste-ready ChatGPT instructions are in
+`agent_bridge/docs/OBJECT_DEBUGGER_CHATGPT.md`.
+
+The original design handoff follows; its "not yet coded" statements describe
+the starting point, not the current implementation.
 
 ## Task
 
@@ -119,3 +131,18 @@ Freshness/staleness for `status`: compare `Health.now - Health.last_event_at` ag
 - Root `CLAUDE.md` in `agent_blocks` documents the whole architecture — read it, it's authoritative for file layout, DIP boundaries (`agent_comms` is lower-level; nothing in it should import from `agent_bridge_worker` except via the documented one-way dependency `agent_bridge_worker → agent_comms`. Importing `redaction.SecretScanner` from an `agent_comms` executor is a deliberate, acknowledged exception for reuse of a single source of truth on secret patterns — don't "fix" it by duplicating the regexes instead).
 - `ReportFindings`/code-review tooling aside, this user does not want speculative abstractions — implement exactly the three structured requests, nothing more generic.
 - User preference (from persistent memory, applies across all sessions in this account): commit and push directly to `main`, no feature branches; avoid jargon words "idempotent"/"fail-closed"/"canonical" in any user-facing text; interfaces are named `ISomething`, never `*Port`.
+
+## 2026-11-06 — failed supervisor task repaired locally
+
+User authorized fixing the defects diagnosed in `t_cb29dcb55654efa68f29fee9` and
+requested a message for ChatGPT. Original task/history/patch preserved; do not
+replay its write ID. Main runbook:
+`/home/adamsl/letta-code/dashboard/docs/adw-supervisor.md`; ready-to-send message:
+`/home/adamsl/letta-code/dashboard/docs/adw-supervisor-chatgpt-handoff.md`.
+Supervisor now reads durable post-office rows independently, handles real timing,
+marks stale/unknown/incomplete coverage honestly, and renders escalation state.
+Runtime traces carry future Claude limits/outcome/PIDs; ADW run IDs and worker-app
+closure are repaired. Settled failed writes run configured checks; `letta_code`
+has focused supervisor validation. Service example prepared, not activated.
+No service restart, credential change, remote deployment, commit, or push.
+See runbook for exact verification and remaining gateway/dispatch/activation work.

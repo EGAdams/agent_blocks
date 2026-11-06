@@ -5,6 +5,40 @@ namespace AgentBridge;
 
 use PDO;
 
+/** Scopes and sender are bound to authenticated ids by server configuration. */
+final class ClientScopes
+{
+    private $bindings;
+    private $protectedAgents;
+    private $protectedWorkspaces;
+    public function __construct(array $bindings = [], array $protectedAgents = [], array $protectedWorkspaces = [])
+    {
+        $this->bindings = $bindings;
+        $this->protectedAgents = $protectedAgents;
+        $this->protectedWorkspaces = $protectedWorkspaces;
+    }
+    public function sender(string $id): string
+    {
+        return isset($this->bindings[$id]['sender']) ? (string) $this->bindings[$id]['sender']
+            : 'untrusted-bridge';
+    }
+    public function refusal(Principal $principal, array $envelope): ?string
+    {
+        $scope = $this->bindings[$principal->id] ?? null;
+        if ($scope === null) {
+            return (in_array($envelope['agent'], $this->protectedAgents, true)
+                    || in_array($envelope['workspace'], $this->protectedWorkspaces, true))
+                ? 'authenticated identity is not authorized for this agent' : null;
+        }
+        foreach (['operations' => 'operation', 'workspaces' => 'workspace', 'agents' => 'agent'] as $plural => $field) {
+            if (isset($scope[$plural]) && !in_array($envelope[$field], $scope[$plural], true)) {
+                return 'authenticated identity is not authorized for this ' . $field;
+            }
+        }
+        return null;
+    }
+}
+
 /** Shape checks only. Nothing here decides whether a task is allowed. */
 final class EnvelopeValidator implements ITaskValidator
 {
@@ -86,9 +120,10 @@ final class PolicyAuthorizer implements ITaskAuthorizer
     /** @var array<string,string> */ private $operationModes;
     /** @var ScanStartGuard|null scan is refused outright without one */ private $scans;
     /** @var PrintGuard|null every printer operation is refused outright without one */ private $prints;
+    private $clientScopes;
 
     public function __construct(IAgentRegistry $agents, array $allowedOperations, array $allowedModes, array $operationModes,
-                                ?ScanStartGuard $scans = null, ?PrintGuard $prints = null)
+                                ?ScanStartGuard $scans = null, ?PrintGuard $prints = null, ?ClientScopes $clientScopes = null)
     {
         $this->agents            = $agents;
         $this->allowedOperations = $allowedOperations;
@@ -96,6 +131,7 @@ final class PolicyAuthorizer implements ITaskAuthorizer
         $this->operationModes    = $operationModes;
         $this->scans             = $scans;
         $this->prints            = $prints;
+        $this->clientScopes      = $clientScopes ?: new ClientScopes();
     }
 
     public static function runsOnce(string $mode): bool
@@ -112,6 +148,10 @@ final class PolicyAuthorizer implements ITaskAuthorizer
     {
         if ($principal->role !== 'client') {
             return new Decision(false, 'only client tokens may submit tasks', 'read_only');
+        }
+        $refusal = $this->clientScopes->refusal($principal, $envelope);
+        if ($refusal !== null) {
+            return new Decision(false, $refusal, 'read_only');
         }
         $agent = $this->agents->agent($envelope['agent']);
         if ($agent === null) {

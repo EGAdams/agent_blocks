@@ -152,6 +152,14 @@ class BridgeAgentList(BaseModel):
     agents: list[BridgeAgent]
 
 
+class BridgeEvent(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
+    seq: int = Field(ge=1)
+    kind: str = Field(max_length=40)
+    message: str = Field(max_length=2000)
+    at: int
+
+
 class BridgeTaskView(BaseModel):
     """POST /tasks and GET /tasks/{id}."""
 
@@ -167,6 +175,11 @@ class BridgeTaskView(BaseModel):
     cancel_requested: bool = False
     last_error: str | None = None
     replayed: bool = False
+    recent_events: list[BridgeEvent] | None = Field(default=None, max_length=50)
+
+    @property
+    def events_available(self) -> bool:
+        return self.recent_events is not None
 
     @property
     def terminal(self) -> bool:
@@ -189,6 +202,7 @@ class BridgeResult(BaseModel):
     operation: str | None = None
     workspace: str | None = None
     approval_mode: str | None = None
+    details: dict[str, Any] | None = None
 
     @model_validator(mode="after")
     def _ready_means_an_outcome(self) -> "BridgeResult":

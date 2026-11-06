@@ -254,11 +254,17 @@ class ClaudeCliExecutor:
                 except OSError as error:
                     return self._fail( f"could not start claude: { error }" )
                 self._emit( envelope, "started", f"Claude ({ self._model }) started on { envelope.task_type } in "
-                                                 f"{ workdir.name } ({ self.performer.split( ':' )[ 1 ]})" )
+                                                 f"{ workdir.name } ({ self.performer.split( ':' )[ 1 ]}); pid={ process.pid }, "
+                                                 f"max_turns={ self._turns }, timeout={ limit }s" )
                 final, timed_out = self._stream( envelope, process, workdir, limit )
                 errors.seek( 0 )
                 stderr = errors.read()
-        return self._result( envelope, process.returncode, final, timed_out, stderr, limit )
+        result = self._result( envelope, process.returncode, final, timed_out, stderr, limit )
+        return result.model_copy( update={ "details": {
+            **result.details, "model": self._model, "configured_max_turns": self._turns,
+            "timeout_seconds": limit, "child_pid": process.pid, "process_group_id": process.pid,
+            "bridge_task_id": envelope.context.get( "bridge_task_id" ), "local_task_id": envelope.id,
+        }})
 
     def _stream( self, envelope: Envelope, process: subprocess.Popen, workdir: Path,
                  limit: float ) -> tuple[ dict | None, bool ]:
@@ -317,10 +323,11 @@ class ClaudeCliExecutor:
             self._emit( envelope, "finished", f"Claude finished: { how }, { final.get( 'num_turns', '?' )} turn(s), { secs }s" )
             if final.get( "is_error" ) or how != "success":
                 return self._fail( f"claude stopped with { how }: { _clip( answer ) or 'no answer' }", exit_code=code,
-                                   turns=final.get( "num_turns" ))
+                                   turns=final.get( "num_turns" ), subtype=how, seconds=secs,
+                                   error_source="claude_cli_turn_limit" if how == "error_max_turns" else "claude_cli" )
             if answer:
                 return TaskResult( ok=True, text=answer, performer=self.performer,
-                                   details={ "exit_code": code, "turns": final.get( "num_turns" ), "seconds": secs })
+                                   details={ "exit_code": code, "turns": final.get( "num_turns" ), "seconds": secs, "subtype": how })
         if code not in ( 0, None ):
             tail = stderr.strip().splitlines()[ -3: ]
             return self._fail( f"claude exited { code }: { ' | '.join( tail ) or 'no error text' }", exit_code=code )

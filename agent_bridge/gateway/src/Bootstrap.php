@@ -86,18 +86,20 @@ final class Bootstrap
         $printGuard    = new PrintGuard($printerScopes, $printJobs, $store, $clock, (int) $config['printer_max_prints_per_hour'],
                                         (int) $config['printer_max_open']);
         $grants    = McpEndpoint::grants($config['allowed_operations'], $config['allowed_modes'], $config['operation_modes']);
+        $clientScopes = new ClientScopes($config['client_scopes'] ?? [], $config['protected_agents'] ?? [],
+                                         $config['protected_workspaces'] ?? []);
 
         $submit = new SubmitWorkflow([
             new ReceiveTaskPhase($maxBody),
             new AuthenticateTaskPhase($auth),
             new ValidateTaskPhase(new EnvelopeValidator()),
             new AuthorizeTaskPhase(new PolicyAuthorizer($registry, $config['allowed_operations'], $config['allowed_modes'],
-                                                         $config['operation_modes'], $guard, $printGuard)),
+                                                         $config['operation_modes'], $guard, $printGuard, $clientScopes)),
             new QueueTaskPhase($store, $audit, (int) $config['max_attempts']),
         ], $audit);
 
         $client = new ClientTasks($submit, $store, $registry, $audit);
-        $worker = new WorkerTasks($store, $store, $audit, (int) $config['lease_seconds'], (int) $config['max_details']);
+        $worker = new WorkerTasks($store, $store, $audit, (int) $config['lease_seconds'], (int) $config['max_details'], $clientScopes);
         $mcp    = new McpEndpoint($auth, $client, (string) $config['memory_agent'], (string) $config['memory_workspace'],
                                   $settings->challenge(), $grants,
                                   new ScannerTools($client, $store, $scanStore, $blobs, $scopes, $audit,

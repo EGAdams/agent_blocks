@@ -29,6 +29,14 @@ def test_new_questions_and_recalled_ids_have_no_opinion():
     assert ROUTE.forced_agent(_prompt("what's on the agenda?", recalled=f"USER: result {TID}")) is None
 
 
+def test_explicit_machine_ops_and_debugger_addresses_use_the_read_only_desk():
+    for line in ('machine-ops@machine_ops: {"operation":"status","unit":"adw-supervisor.service"}',
+                 'object-debugger@object_trace: status'):
+        assert TOYOTA.route_override.forced_agent(_prompt(line)) == "star_trek_bridge"
+        assert ROUTE.question(_prompt(line)) == line
+    assert ROUTE.forced_agent(_prompt('codex-writer@agent_blocks_dev/implement: edit files')) is None
+
+
 def test_toyota_asks_this_route_before_the_device_and_figure_routes():
     # "what did the printer task t_... say" names a printer, but it is a readback.
     line = f"what did the printer task {TID} say?"

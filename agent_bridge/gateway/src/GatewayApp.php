@@ -28,7 +28,9 @@ final class ClientTasks
 
     public function status(Principal $who, string $id): array
     {
-        return self::view($this->owned($who, $id));
+        return self::view($this->owned($who, $id)) + [
+            'recent_events' => $this->events($who, $id, -1)['events'],
+        ];
     }
 
     public function events(Principal $who, string $id, int $after): array
@@ -113,15 +115,17 @@ final class WorkerTasks
     /** @var IAuditLogger */      private $audit;
     /** @var int */               private $leaseSeconds;
     /** @var int */               private $maxDetails;
+    private $clientScopes;
 
     public function __construct(ITaskLeaseManager $leases, ITaskRepository $tasks, IAuditLogger $audit, int $leaseSeconds,
-                                int $maxDetails = 131072)
+                                int $maxDetails = 131072, ?ClientScopes $clientScopes = null)
     {
         $this->leases       = $leases;
         $this->tasks        = $tasks;
         $this->audit        = $audit;
         $this->leaseSeconds = $leaseSeconds;
         $this->maxDetails   = $maxDetails;
+        $this->clientScopes = $clientScopes ?: new ClientScopes();
     }
 
     public function next(): ?array
@@ -145,6 +149,7 @@ final class WorkerTasks
         return [
             'task_id'          => $task['id'],
             'lease_token'      => $task['lease_token'],
+            'sender'           => $this->clientScopes->sender($task['client_id']),
             'lease_expires_at' => $task['lease_expires_at'],
             'lease_seconds'    => $this->leaseSeconds,
             'attempt'          => (int) $task['attempts'],

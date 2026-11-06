@@ -13,6 +13,26 @@
   },
   "agents": [
     {
+      "name": "machine-ops",
+      "display_name": "Machine Ops",
+      "runtime": "machine_ops",
+      "settings": { "timeout_seconds": 150 },
+      "capabilities": [
+        { "task_type": "inspect", "description": "Fixed JSON service status, journal_tail, check, run_test; no restarts or writes", "writes": false, "default_wait_seconds": 30 }
+      ],
+      "accepts_from": [ "chatgpt-bridge", "toyota-bridge" ]
+    },
+    {
+      "name": "object-debugger",
+      "display_name": "Object Debugger",
+      "runtime": "object_trace",
+      "settings": {},
+      "capabilities": [
+        { "task_type": "inspect", "description": "Read-only ADW object lifecycle: status, recent [1-200], or task t_<24 hex digits>", "writes": false, "default_wait_seconds": 30 }
+      ],
+      "accepts_from": [ "chatgpt-bridge", "toyota-bridge" ]
+    },
+    {
       "name": "toyota",
       "display_name": "Toyota",
       "runtime": "sidecar",
@@ -164,7 +184,7 @@
       "display_name": "Codex",
       "runtime": "codex_cli",
       "settings": { "workdir": "/home/adamsl/agent_blocks", "binary": "/usr/local/bin/codex", "timeout_seconds": 900, "model": "gpt-5.6-luna", "jail": "bwrap", "codex_home": "/home/adamsl/.codex-bridge", "read_roots": [ "/home/adamsl/letta-code", "/home/adamsl/digi" ] },
-      "accepts_from": [ "chatgpt-bridge" ],
+      "accepts_from": [ "chatgpt-bridge", "toyota-bridge" ],
       "capabilities": [
         { "task_type": "explain",       "description": "read-only: explain how part of a workspace works, from the code", "writes": false, "idempotent": true },
         { "task_type": "inspect",       "description": "read-only: look at files in a workspace and report what is there", "writes": false, "idempotent": true },
@@ -217,7 +237,7 @@
         ]
       },
       "accepts_from": [
-        "chatgpt-bridge"
+        "chatgpt-bridge", "toyota-bridge"
       ],
       "capabilities": [
         {
@@ -245,6 +265,13 @@
           "idempotent": false
         }
       ]
+    },
+    {
+      "name": "toyota-bridge",
+      "display_name": "Toyota's authenticated bridge client",
+      "runtime": "none",
+      "accepts_from": [],
+      "capabilities": []
     },
     {
       "name": "chatgpt-bridge",

@@ -11,6 +11,9 @@ read-only desk answers it from the Bridge. A task id inside a new question
 Goes right after BridgeConfirmationRoute, ahead of BridgeDeviceRoute.
 """
 from .latest_user import latest_user_message
+import re
+
+_READ_ONLY_ADDRESS = re.compile(r"^\s*(?:machine-ops@machine_ops|object-debugger@object_trace)(?:/inspect)?\s*:", re.I)
 
 
 class BridgeTaskRoute:
@@ -20,8 +23,17 @@ class BridgeTaskRoute:
     def forced_agent(self, prompt: str) -> str | None:
         from ..bridge_client.workflow import readback_of
         text = latest_user_message(prompt)
+        if _READ_ONLY_ADDRESS.match(text or ""):
+            return self._agent
         found = readback_of(text) if text else None
         return self._agent if found is not None and found[1] else None
 
     def question(self, prompt: str) -> str:
         return latest_user_message(prompt)
+
+
+class BridgeReadOnlyAddressRoute(BridgeTaskRoute):
+    """An explicit bridge address wins before generic local inspection keywords."""
+
+    def forced_agent(self, prompt: str) -> str | None:
+        return self._agent if _READ_ONLY_ADDRESS.match(latest_user_message(prompt) or "") else None

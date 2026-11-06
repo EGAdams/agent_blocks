@@ -195,6 +195,12 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
     for name, problem in workspaces.problems().items():
         print( f"workspace { name } is not write-enabled: { problem }", flush=True )
     check_jail = BwrapJail( WorkspacePrivatePaths(), state_dirs=[], env={ "PYTHONDONTWRITEBYTECODE": "1" }, network=False )
+    from agent_bridge_worker.adapters.development_jail import development_check_jail
+    development_jail = development_check_jail()
+
+    def wrap_check( argv, root ):
+        jail = development_jail if root == home / "bridge_workspaces/agent_blocks_dev" else check_jail
+        return jail.wrap( argv, root, root, [] )
 
     def settled( local_task_id: str ) -> bool:
         envelope = kit.board.task( local_task_id )
@@ -203,7 +209,7 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
 
     writes = ScopedWriteSession(
         FlockWorkspaceLock( WRITE_DATA / "locks" ), GitChangeTracker(),
-        JailedCheckRunner( lambda argv, root: check_jail.wrap( argv, root, root, [])),
+        JailedCheckRunner( wrap_check ),
         JsonWriteJournal( WRITE_DATA ), workspaces.checks, settled, SecretScanner( known=[ token ]),
         write_problem=workspaces.write_problem )
     modes   = { "read_only", "workspace_write" }
@@ -284,7 +290,10 @@ def one_run( args: argparse.Namespace, cfg: Any, boot: ILifecycleLog ) -> RunRep
     with AdwRunTrace( default_tracer(), "adw_bridge_worker", run.adw_id, task_id_of=task_of ) as hooks:
         try:
             svc = default_tracer().construct( "bridge.worker_app", lambda: build_application( args.url, args.worker_id, hooks ),
-                                              interface="BridgeTaskRun", label="the worker's composition root" )
+                                              interface="BridgeTaskRun", label="the worker's composition root",
+                                              on_created=lambda trace: hooks.closing(
+                                                  lambda reason: trace.succeed( message="worker application closed" )
+                                                  if reason == "finished" else trace.fail( reason )))
             for name, description, act in phases( svc ):
                 executor.execute( run, ServicePhase( name, description, hooks.phase( name, act, description ), log ))
         except BaseException as error:  # noqa: BLE001 -- the lease expires and the gateway retries; the run log has the traceback

@@ -204,6 +204,11 @@ def test_an_error_result_is_a_failure() -> None:
     rig    = Rig()
     result = rig.run( envelope( "x" ), mode="error" )
     assert not result.ok and "error_max_turns" in result.text
+    assert result.details[ "subtype" ] == "error_max_turns"
+    assert result.details[ "error_source" ] == "claude_cli_turn_limit"
+    assert result.details[ "configured_max_turns" ] == 40
+    assert result.details[ "turns" ] == 9 and result.details[ "seconds" ] == 1.2
+    assert result.details[ "child_pid" ] == result.details[ "process_group_id" ] > 0
 
 
 def test_credential_shaped_answers_are_withheld() -> None:

@@ -35,7 +35,7 @@ SUBMIT_ATTEMPTS = 3
 PhaseStatus = Literal["ok", "stopped", "failed", "skipped"]
 PHASES = ("discover", "validate", "route", "submit", "monitor", "retrieve", "respond")
 
-_READBACK = re.compile(r"^\s*(?:what(?:'s| is) the )?(?P<kind>status|result|answer|cancel)\b(?:\s+(?:of|for|on))?(?:\s+task)?"
+_READBACK = re.compile(r"^\s*(?:what(?:'s| is) the )?(?P<kind>status|result|answer|cancel|events|lifecycle)\b(?:\s+(?:of|for|on))?(?:\s+task)?"
                        r"(?:\s+(?P<id>t_[0-9a-f]{24}))?\s*[.?!]?\s*$", re.IGNORECASE)
 # Toyota's model rewords the caller before it reaches this desk ("what is the result of Star Trek
 # Bridge task t_..."), so a task id plus a status/result word anywhere is also a readback. A
@@ -182,7 +182,7 @@ class RoutePhase:
     def run(self, ctx: BridgeRun) -> PhaseRecord:
         r = ctx.decision.route
         ctx.request = BridgeTaskRequest(agent=r.agent, workspace=r.workspace, operation=r.operation,
-                                        prompt=(PROMPT_FRAME + ctx.decision.prompt)[:8000],
+                                        prompt=(("" if r.agent == "machine-ops" else PROMPT_FRAME) + ctx.decision.prompt)[:8000],
                                         approval_mode=r.approval_mode, idempotency_key=self._key_factory())
         return PhaseRecord(self.name, "ok", outputs={"idempotency_key": ctx.request.idempotency_key}, next="submit")
 
@@ -231,11 +231,24 @@ class MonitorPhase:
                              + ("" if ctx.view.state == "cancelled" else " If it was already running it may still finish."))
                 return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id, "kind": "cancel"},
                                    {"state": ctx.view.state}, next="respond")
+            if ctx.readback_kind in {"events", "lifecycle"}:
+                ctx.view = ctx.client.status(ctx.readback_id)
+                events = ctx.view.recent_events
+                if events is None:
+                    ctx.reply = f"Bridge task {ctx.view.task_id}: lifecycle events unavailable in status response."
+                else:
+                    messages = "; ".join(e.sanitize(event.message) for event in events[-5:])
+                    ctx.reply = clip(f"Bridge task {ctx.view.task_id} is {ctx.view.state}. "
+                                     + (messages or "No lifecycle events recorded in the current window."))
+                return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id},
+                                   {"events_available": events is not None}, next="respond")
             if ctx.readback_kind != "status":
                 return PhaseRecord(self.name, "skipped", {"task_id": ctx.readback_id}, next="retrieve")
             ctx.view = ctx.client.status(ctx.readback_id)
             if not ctx.view.terminal:
                 ctx.reply = f"Bridge task {ctx.view.task_id} is {ctx.view.state}; it hasn't finished."
+                if not ctx.view.events_available:
+                    ctx.reply += " Lifecycle events are unavailable in the status response."
                 return PhaseRecord(self.name, "stopped", {"task_id": ctx.view.task_id},
                                    {"state": ctx.view.state}, next="respond")
             return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id}, {"state": ctx.view.state},

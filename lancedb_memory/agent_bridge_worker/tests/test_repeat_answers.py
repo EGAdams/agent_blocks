@@ -33,6 +33,24 @@ class FakeAgent:
         return [ f"line for { local_task_id }" ]
 
 
+def test_cache_is_partitioned_by_authenticated_sender():
+    from agent_bridge_worker.repeat_answers import request_key
+    first = _task()
+    second = first.model_copy(update={"sender": "toyota-bridge"})
+    assert request_key(first) != request_key(second)
+
+
+def test_machine_ops_always_observes_fresh_state():
+    tmp, clock, agent, store, cached = _setup()
+    try:
+        task = _task().model_copy(update={"agent": "machine-ops"})
+        cached.run(task, Path(tmp.name), lambda: None)
+        cached.run(task, Path(tmp.name), lambda: None)
+        assert agent.calls == 2
+    finally:
+        tmp.cleanup()
+
+
 def _setup( kind=OutcomeKind.SUCCEEDED, window=900 ):
     tmp   = tempfile.TemporaryDirectory()
     clock = [ 1000.0 ]
@@ -71,6 +89,20 @@ def test_failures_are_never_reused() -> None:
     deco.run( _task(), Path( "." ), lambda: None )
     deco.run( _task(), Path( "." ), lambda: None )
     assert agent.calls == 2
+
+
+def test_object_debugger_always_reads_live_telemetry() -> None:
+    tmp, clock, agent, store, deco = _setup()
+    try:
+        for prompt in ( "status", "recent", "task t_" + "c" * 24 ):
+            task = _task( prompt=prompt ).model_copy( update={ "agent": "object-debugger", "workspace": "object_trace" })
+            first = deco.run( task, Path( "." ), lambda: None )
+            clock[ 0 ] += 1
+            again = deco.run( task, Path( "." ), lambda: None )
+            assert first.body != again.body and "reused" not in again.summary
+        assert agent.calls == 6 and not ( Path( tmp.name ) / "answers.json" ).exists()
+    finally:
+        tmp.cleanup()
 
 
 def test_lines_pass_through_and_a_broken_store_file_is_ignored() -> None:

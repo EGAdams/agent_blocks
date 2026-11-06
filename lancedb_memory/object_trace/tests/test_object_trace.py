@@ -459,6 +459,21 @@ def test_null_sink_tracer_is_harmless() -> None:
         tr.progress( "p" )
 
 
+def test_constructed_worker_can_close_and_run_ids_are_populated() -> None:
+    store, _ = _store()
+    tracer = _tracer( store, Clock())
+    with AdwRunTrace( tracer, "adw_demo", "lifecycle" ) as hooks:
+        made = tracer.construct( "bridge.worker_app", lambda: Clock(), object_id="app:lifecycle",
+                                 on_created=lambda trace: hooks.closing(
+                                     lambda reason: trace.succeed( message="closed" )))
+        hooks.phase( "finalize_task", lambda: None )()
+    app = store.object( "app:lifecycle" )
+    assert app.state == "succeeded" and app.run_id == "lifecycle"
+    run = store.object( "adw.run:lifecycle" )
+    assert run.outputs[ "scope" ] == "orchestration"
+    assert store.object( "adw.phase:lifecycle:finalize_task" ).run_id == app.run_id
+
+
 if __name__ == "__main__":
     failed = 0
     tests = [( n, f ) for n, f in sorted( globals().items()) if n.startswith( "test_" ) and callable( f )]

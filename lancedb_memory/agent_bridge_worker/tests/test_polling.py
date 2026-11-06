@@ -31,8 +31,10 @@ def test_defaults_are_the_agreed_numbers() -> None:
     assert s.active_hours is None
 
 
-def test_shipped_settings_file_loads_and_matches_defaults() -> None:
-    assert load_settings( SETTINGS_FILE ) == PollSettings()
+def test_shipped_settings_preserve_the_configured_poll_rate_and_active_hours() -> None:
+    settings = load_settings( SETTINGS_FILE )
+    assert ( settings.idle_seconds, settings.burst_seconds, settings.burst_window_seconds ) == ( 60, 10, 300 )
+    assert settings.active_hours == ActiveHours( start_hour=8, end_hour=23 )
 
 
 def test_missing_settings_file_means_defaults() -> None:

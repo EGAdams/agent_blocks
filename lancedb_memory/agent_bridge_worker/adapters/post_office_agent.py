@@ -79,8 +79,11 @@ class PostOfficeAgent:
         self._relayed: dict[ str, int ] = {}
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
+        sender = task.sender
+        if sender not in { "chatgpt-bridge", "toyota-bridge" }:
+            return AgentOutcome( kind=OutcomeKind.REFUSED, summary="gateway sender is not approved" )
         receipt = self._sender.send( self._request(
-            sender=self._me, recipient=task.agent, task_type=task.operation, text=task.prompt,
+            sender=sender, recipient=task.agent, task_type=task.operation, text=task.prompt,
             context={ "workdir": str( workdir ), "bridge_task_id": task.task_id }, wait_seconds=0 ))
         if not receipt.accepted:
             return AgentOutcome( kind=OutcomeKind.REFUSED, summary=f"the post office refused it: { receipt.reason }" )
@@ -88,21 +91,25 @@ class PostOfficeAgent:
         start = self._clock.monotonic()
         next_relay = start + RELAY_EVERY
         while True:
-            reply = self._replies.take( self._me, local )
+            reply = self._replies.take( sender, local )
             if reply is not None or self._clock.monotonic() >= next_relay:
                 self._relay_progress( task, local )
                 next_relay = self._clock.monotonic() + RELAY_EVERY
             if reply is not None:
                 self._relayed.pop( local, None )
-                return self._outcome( reply, local )
+                outcome = self._outcome( reply, local )
+                # Replies predate structured runtime fields. Read only a small
+                # numeric/identifier allowlist from the existing audit event.
+                details = self._runtime_details( local )
+                return outcome.model_copy( update={ "details": details or None })
             now = self._clock.monotonic()
             if now - start >= self._timeout:
-                self._cancel.cancel( local, self._me )
+                self._cancel.cancel( local, sender )
                 return AgentOutcome( kind=OutcomeKind.FAILED, local_task_id=local,
                                      summary=f"{ task.agent } did not answer within { round( self._timeout ) } seconds" )
             signal = keep_alive()                # cheap: the caller decides when it is time to heartbeat
             if signal == "lost":
-                self._cancel.cancel( local, self._me )
+                self._cancel.cancel( local, sender )
                 return AgentOutcome( kind=OutcomeKind.LEASE_LOST, local_task_id=local )
             if signal == "cancel":
                 return self._withdraw( task, local )
@@ -140,12 +147,30 @@ class PostOfficeAgent:
         self._relayed[ local ] = max( done, min( len( steps ), self._max ))
 
     def _withdraw( self, task: ClaimedTask, local: str ) -> AgentOutcome:
-        self._cancel.cancel( local, self._me )
+        self._cancel.cancel( local, task.sender )
         envelope = self._board.task( local )
         status   = getattr( getattr( envelope, "status", None ), "value", "" )
         note     = ( "withdrawn before it started" if status == "cancelled"
                      else f"{ task.agent } had already started, so it may still finish on this machine; its answer will not be published" )
         return AgentOutcome( kind=OutcomeKind.CANCELLED, local_task_id=local, summary=f"cancelled: { note }" )
+
+    def _runtime_details( self, local: str ) -> dict:
+        allowed = { "exit_code", "turns", "seconds", "subtype", "error_source", "model",
+                    "configured_max_turns", "timeout_seconds", "child_pid", "process_group_id",
+                    "timed_out", "bridge_task_id", "local_task_id" }
+        try:
+            records = self._events.events_for( local )
+        except Exception:  # telemetry cannot stop delivery of a real result
+            return {}
+        for event in reversed( records ):
+            if getattr( event, "name", "" ) not in ( "task.executed", "task.failed" ):
+                continue
+            raw = getattr( event, "details", {}) or {}
+            found = { k: v for k, v in raw.items() if k in allowed
+                      and isinstance( v, (str, int, float, bool)) }
+            if found and ( "subtype" in found or "configured_max_turns" in found ):
+                return found
+        return {}
 
     @staticmethod
     def _outcome( reply: Any, local: str ) -> AgentOutcome:
