@@ -71,3 +71,4 @@ lancedb_memory/agent_bridge_worker/*.bak
 # object_trace runtime store and browser-automation logs (regenerated, not source)
 adws/adw_data/object_trace.db*
 .playwright-mcp/
+lancedb_memory/receptionist_team/voice_metrics.log
