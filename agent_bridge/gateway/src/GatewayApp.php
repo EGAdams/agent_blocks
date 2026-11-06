@@ -128,10 +128,11 @@ final class WorkerTasks
         $this->clientScopes = $clientScopes ?: new ClientScopes();
     }
 
-    public function next(): ?array
+    /** @param string[] $skip `operation@workspace` pairs this worker's lane does not run */
+    public function next(array $skip = []): ?array
     {
         $this->leases->recoverExpired();
-        $task = $this->leases->next();
+        $task = $this->leases->next($skip);
         return $task === null ? null : ['task_id' => $task['id']];
     }
 
@@ -348,7 +349,7 @@ final class GatewayApp
         }
         if ($m === 'GET' && $p === '/worker/tasks/next') {
             $this->principal($r, 'worker');
-            $next = $this->worker->next();
+            $next = $this->worker->next($this->laneSkips($r));
             return $next === null ? new Response(204, null) : new Response(200, $next);
         }
         if (preg_match('#^/worker/tasks/(t_[0-9a-f]{24})/(claim|heartbeat|events|complete|fail)$#', $p, $g)) {
@@ -378,6 +379,25 @@ final class GatewayApp
             return new Response(200, $this->scans->manifest($who, $g[1], $this->json($r)));
         }
         throw new BridgeError(404, 'not_found', 'no such route');
+    }
+
+    /** `?skip=implement@agent_blocks_dev,implement@letta_code`: a worker lane's pass-over list, validated. */
+    private function laneSkips(Request $r): array
+    {
+        $raw = isset($r->query['skip']) ? (string) $r->query['skip'] : '';
+        if ($raw === '') {
+            return [];
+        }
+        $pairs = explode(',', $raw);
+        if (count($pairs) > 32) {
+            throw new BridgeError(400, 'bad_skip', 'too many skip entries');
+        }
+        foreach ($pairs as $pair) {
+            if (!preg_match('/^[a-z_]{1,40}@[A-Za-z0-9._-]{1,64}$/', $pair)) {
+                throw new BridgeError(400, 'bad_skip', 'skip entries look like operation@workspace');
+            }
+        }
+        return $pairs;
     }
 
     private function principal(Request $r, string $role): Principal

@@ -289,6 +289,31 @@ test('next returns 204 when the queue is empty, then the oldest task', function 
     ok(!isset($r->json['prompt']), 'next must not hand out the prompt before a claim');
 });
 
+test('lane: next?skip passes over matching tasks, keeps order, and changes nothing', function () {
+    $w     = new World();
+    $long  = $w->submit()->json['task_id'];                 // explain@agent_blocks, oldest
+    $w->clock->t++;
+    $quick = $w->submit(['agent' => 'hello-world', 'operation' => 'inspect'])->json['task_id'];
+    $w->clock->t++;
+    $later = $w->submit(['agent' => 'hello-world', 'operation' => 'inspect', 'prompt' => 'another quick one please'])->json['task_id'];
+    eq($long,  $w->call('GET', '/worker/tasks/next', $w->worker)->json['task_id'], 'no skip: oldest first, as before');
+    $lane = $w->call('GET', '/worker/tasks/next', $w->worker, null, ['skip' => 'explain@agent_blocks']);
+    eq($quick, $lane->json['task_id'], 'the skipped task is passed over, the next oldest is offered');
+    eq($long,  $w->call('GET', '/worker/tasks/next', $w->worker)->json['task_id'], 'the skipped task is still queued');
+    $w->call('POST', "/worker/tasks/$quick/claim", $w->worker, ['worker_id' => 'express']);
+    eq($later, $w->call('GET', '/worker/tasks/next', $w->worker, null, ['skip' => 'explain@agent_blocks'])->json['task_id']);
+    eq(204, $w->call('GET', '/worker/tasks/next', $w->worker, null,
+                     ['skip' => 'explain@agent_blocks,inspect@agent_blocks'])->status, 'everything skipped is an empty lane');
+});
+
+test('lane: a malformed skip list is refused, and a client token still cannot use the route', function () {
+    $w = new World();
+    foreach (['explain', 'explain@', "explain@x'; DROP TABLE tasks;--", '@ws', str_repeat('a@b,', 40)] as $bad) {
+        eq(400, $w->call('GET', '/worker/tasks/next', $w->worker, null, ['skip' => $bad])->status, $bad);
+    }
+    eq(403, $w->call('GET', '/worker/tasks/next', $w->client, null, ['skip' => 'explain@agent_blocks'])->status);
+});
+
 test('a claim hands the worker the prompt and a lease; a second claim loses', function () {
     $w  = new World();
     $id = $w->submit()->json['task_id'];

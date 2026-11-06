@@ -145,10 +145,17 @@ final class SqliteTaskStore implements ITaskRepository, ITaskLeaseManager
 
     // ---- ITaskLeaseManager ----------------------------------------------
 
-    public function next(): ?array
+    public function next(array $skip = []): ?array
     {
-        $stmt = $this->pdo->prepare('SELECT * FROM tasks WHERE state = ? ORDER BY created_at, id LIMIT 1');
-        $stmt->execute([TaskState::QUEUED]);
+        $where = 'state = ?';
+        $args  = [TaskState::QUEUED];
+        foreach ($skip as $pair) {
+            [$operation, $workspace] = explode('@', $pair, 2);
+            $where .= ' AND NOT (operation = ? AND workspace = ?)';
+            array_push($args, $operation, $workspace);
+        }
+        $stmt = $this->pdo->prepare("SELECT * FROM tasks WHERE $where ORDER BY created_at, id LIMIT 1");
+        $stmt->execute($args);
         $row = $stmt->fetch();
         return $row ?: null;
     }

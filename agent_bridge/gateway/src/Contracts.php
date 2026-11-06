@@ -58,7 +58,13 @@ interface ITaskRepository
 /** What workers may do: claim with a lease, keep it alive, and finish. */
 interface ITaskLeaseManager
 {
-    public function next(): ?array;
+    /**
+     * The oldest queued task. `$skip` is a lane filter: each entry is `operation@workspace`, and a task matching
+     * one is passed over (never claimed, never changed), so a reserved worker is not stuck behind a long task
+     * it will not run. Order among the rest is unchanged: created_at, then id.
+     * @param string[] $skip
+     */
+    public function next(array $skip = []): ?array;
     public function claim(string $id, string $workerId, int $leaseSeconds): ?array;
     public function heartbeat(string $id, string $leaseToken, int $leaseSeconds): ?array;
     public function complete(string $id, string $leaseToken, array $result): bool;
