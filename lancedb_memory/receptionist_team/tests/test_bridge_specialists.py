@@ -22,7 +22,8 @@ SONNET = BridgeAgent(name="claude-sonnet", operations=["inspect", "explain", "im
 PRINTER = BridgeAgent(name="printer", operations=["print", "print_cancel", "print_status", "print_discover"],
                       workspaces=["printers"])
 SCANNER = BridgeAgent(name="scanner", operations=["scan"], workspaces=["scanners"])
-LIVE = [WRITER, SONNET, PRINTER, SCANNER]
+NOTES = BridgeAgent(name="notes", operations=["inspect", "implement"], workspaces=["notes"], write_workspaces=["notes"])
+LIVE = [WRITER, SONNET, PRINTER, SCANNER, NOTES]
 
 
 def _view(state, op="implement"):
@@ -135,6 +136,30 @@ async def test_printer_and_scanner_prompts_are_built_by_code():
     assert req.prompt == "scanner=freezer" and "Scala" in said and req.needs_confirmation
 
 
+async def test_notes_builder_makes_the_marker_and_reads_back_every_write():
+    import re
+    b = SPECIALISTS["bridge_notes"].builder
+    req, said = b.build(SpecialistForm(operation="marker_write", marker="NOTESDIAG-000000000000"), NOTES)
+    body = json.loads(req.prompt)
+    assert body["notes"] == "marker_write" and re.fullmatch(r"NOTESDIAG-[0-9a-f]{12}", body["marker"])
+    assert body["marker"] != "NOTESDIAG-000000000000"               # the model never picks the marker it writes
+    assert req.operation == "implement" and req.workspace == "notes" and req.needs_confirmation
+    assert body["marker"] in said
+    other = json.loads(b.build(SpecialistForm(operation="marker_write"), NOTES)[0].prompt)["marker"]
+    assert other != body["marker"]
+    req, said = b.build(SpecialistForm(operation="status", text="is NOTESDIAG-0123456789ab on the page?"), NOTES)
+    assert json.loads(req.prompt) == {"notes": "status", "marker": "NOTESDIAG-0123456789ab"}
+    assert req.operation == "inspect" and not req.needs_confirmation and said == ""
+    req, said = b.build(SpecialistForm(operation="marker_clear"), NOTES)
+    assert json.loads(req.prompt) == {"notes": "marker_clear"} and req.needs_confirmation and said
+    for bad in ("", "edit_deed", "write"):
+        try:
+            b.build(SpecialistForm(operation=bad), NOTES)
+            raise AssertionError(bad)
+        except FormProblem:
+            pass
+
+
 async def test_a_request_whose_mode_disagrees_with_its_operation_is_refused():
     try:
         BridgeActionRequest(agent="printer", workspace="printers", operation="print", prompt="x", approval_mode="read_only")
@@ -189,6 +214,17 @@ async def test_cancel_by_task_id_needs_no_model():
     said = await _say(_runner("bridge_writer", client, filler), f"cancel {TID}")
     assert client.cancelled == [TID] and "cancel" in said and filler.calls == [], said
     assert readback_of(f"please stop task {TID}") == ("cancel", TID)
+
+
+async def test_a_bare_task_id_is_a_readback_never_a_new_task():
+    # 2026-11-05: Toyota's model routed "ROUTE: star_trek_bridge | t_8a71..." for
+    # "What is the result of task t_8a71...?", and it went to codex as task t_3fdd...
+    # A Bridge worker can't know Bridge task ids, and a readback sends nothing.
+    assert readback_of(TID) == ("result", TID)
+    assert readback_of(f" {TID}. ") == ("result", TID)
+    assert readback_of(f"Star Trek Bridge task {TID}") == ("result", TID)
+    assert readback_of(f"explain how the gateway assigns ids like {TID}") is None
+    assert readback_of("what does roles.py do?") is None
 
 
 # -- yes/no, the route and the notices ------------------------------------------
@@ -254,7 +290,10 @@ async def test_device_requests_route_to_their_specialist_and_task_ids_do_not():
              "use the codex writer to add a file": "bridge_writer",
              "ask Claude Sonnet on the Bridge to fix roles.py": "bridge_coder",
              f"cancel print job {TID}": None, "what did we spend on printers last year": None,
-             "how much did we spend on utilities": None}
+             "how much did we spend on utilities": None,
+             "run the notes diagnostic": "bridge_notes", "write a new diagnostic marker": "bridge_notes",
+             "check the diagnostic note": "bridge_notes", "add a note about the deed": None,
+             "explain what the notes diagnostic just proved": None}
     assert {t: device_route(t) for t in cases} == cases
 
 

@@ -181,8 +181,10 @@ class CombinedAlerts:
 def _default_client():
     from .client import BridgeClient
     from .config import load_client_config, load_client_token
+    from .tracing import TracingBridgeClient
     from .transport import HttpsBridgeTransport
-    return BridgeClient(HttpsBridgeTransport(load_client_config(), load_client_token()))
+    # Each submission is recorded as a toyota.bridge_submit object (bridge_client/tracing.py).
+    return TracingBridgeClient(BridgeClient(HttpsBridgeTransport(load_client_config(), load_client_token())))
 
 
 def _speak(result) -> str:

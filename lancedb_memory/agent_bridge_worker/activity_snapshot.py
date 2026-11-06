@@ -19,6 +19,15 @@ ones; their details are dropped except a progress step's one message, which
 is written to be shown. `queued_at` / `started_at` / `completed_at` are the
 envelope's own times, absent when the envelope has none.
 
+The `notes` agent runs self-contained, with no post-office envelope, so its
+rows come from the Notes activity log instead (`NOTES_ACTIVITY_LOG`, default
+`~/.cache/agent_bridge/notes_activity.jsonl`), which both the dashboard's
+Notes interface and the agent append to: reads, writes, conflicts,
+authorization failures, refusals and read-back verification. Events carrying
+a Bridge task id make one row per task; an event without one (a script, or a
+caller refused before it said who it was) is a row of its own. The log holds
+names and revisions only, never note text.
+
     cd lancedb_memory
     .venv/bin/python -m agent_bridge_worker.activity_snapshot          # write it once
     .venv/bin/python -m agent_bridge_worker.activity_snapshot --print  # show it, write nothing
@@ -51,6 +60,10 @@ MAX_EVENTS      = 50
 PROGRESS        = "task.progress"
 ERROR_CLIP      = 240
 OPEN_STATES     = { TaskStatus.QUEUED, TaskStatus.RUNNING }
+NOTES_LOG       = Path( os.environ.get( "NOTES_ACTIVITY_LOG" ) or os.path.expanduser( "~/.cache/agent_bridge/notes_activity.jsonl" ))
+NOTES_TAIL      = 2000
+NOTES_OK        = { "read", "list", "write", "verified", "unchanged" }
+NOTES_FAILED    = { "conflict", "verify_failed", "error", "auth_failed", "not_approved", "refused" }
 LIFECYCLE       = { "sent", "queued", "claimed", "executing", "executed", "succeeded", "failed", "replied",
                     "cancelled", "timed_out", "retried", "woken" }
 
@@ -173,9 +186,64 @@ def events_by_task( path: Path, wanted: set[ str ]) -> dict[ str, list[ TaskEven
     return grouped
 
 
+def _notes_entries( path: Path ) -> list[ dict ]:
+    try:
+        lines = path.read_text( encoding="utf-8", errors="replace" ).splitlines()[ -NOTES_TAIL: ]
+    except OSError:
+        return []
+    out = []
+    for line in lines:
+        try:
+            entry = json.loads( line )
+            entry[ "_at" ] = datetime.fromisoformat( str( entry[ "at" ]))
+        except ( ValueError, KeyError, TypeError ):
+            continue
+        if isinstance( entry, dict ) and isinstance( entry.get( "event" ), str ):
+            out.append( entry )
+    return out
+
+
+def _notes_message( entry: dict, scanner: SecretScanner ) -> str:
+    parts = [ f"{ entry[ 'source' ]}: { entry[ 'event' ]}" if entry.get( "source" ) else entry[ "event" ]]
+    if entry.get( "filename" ):
+        parts.append( str( entry[ "filename" ]))
+    if entry.get( "expected_revision" ) and entry.get( "revision" ):
+        parts.append( f"{ str( entry[ 'expected_revision' ])[ :12 ]} -> { str( entry[ 'revision' ])[ :12 ]}" )
+    elif entry.get( "revision" ):
+        parts.append( f"@{ str( entry[ 'revision' ])[ :12 ]}" )
+    if entry.get( "actor" ):
+        parts.append( f"as { entry[ 'actor' ]}" )
+    if entry.get( "detail" ):
+        parts.append( f"— { entry[ 'detail' ]}" )
+    return safe_error( " ".join( str( p ) for p in parts ), scanner ) or entry[ "event" ]
+
+
+def notes_rows( path: Path, now: datetime, scanner: SecretScanner ) -> list[ WorkerTaskRow ]:
+    """Worker Activity rows for the notes agent and the dashboard's Notes interface."""
+    groups: dict[ str, list[ dict ]] = {}
+    for number, entry in enumerate( _notes_entries( path )):
+        key = str( entry.get( "task_id" ) or "" ) or f"notes-{ entry[ '_at' ].strftime( '%Y%m%dT%H%M%S' )}-{ number }"
+        groups.setdefault( key, []).append( entry )
+    rows = []
+    for key, entries in groups.items():
+        entries.sort( key=lambda e: e[ "_at" ])
+        failures = [ e for e in entries if e[ "event" ] in NOTES_FAILED ]
+        status   = "failed" if failures else "succeeded" if any( e[ "event" ] in NOTES_OK for e in entries ) else "unknown"
+        first, last = entries[ 0 ][ "_at" ], entries[ -1 ][ "_at" ]
+        shown = [{ "timestamp": _iso( e[ "_at" ]), "agent": "notes" if e.get( "source" ) == "worker" else "dashboard",
+                   "phase": e[ "event" ], "message": _notes_message( e, scanner )} for e in entries[ -MAX_EVENTS: ]]
+        op = next(( str( e[ "op" ]) for e in entries if e.get( "op" )), "" ) or entries[ 0 ][ "event" ]
+        rows.append( WorkerTaskRow(
+            id=key, agent="notes", operation=op, workspace="notes", status=status,
+            queue_age=None, run_duration=duration( first, last ), attempts=1,
+            last_update=_iso( last ), error=_notes_message( failures[ -1 ], scanner ) if failures else None,
+            started_at=_iso( first ), completed_at=_iso( last ), current=shown[ -1 ][ "message" ], events=shown ))
+    return rows
+
+
 def build_rows( root: Path = MAILBOX_ROOT, workspaces_file: Path = WORKSPACES_FILE,
                 now: datetime | None = None, limit: int = MAX_ROWS,
-                event_log: Path | None = None ) -> list[ WorkerTaskRow ]:
+                event_log: Path | None = None, notes_log: Path | None = None ) -> list[ WorkerTaskRow ]:
     """Open work first, then the most recently touched. One row per bridge task."""
     now     = now or datetime.now( timezone.utc )
     names   = workspace_names( workspaces_file )
@@ -188,6 +256,9 @@ def build_rows( root: Path = MAILBOX_ROOT, workspaces_file: Path = WORKSPACES_FI
     log    = event_log if event_log is not None else root.parent / "events.jsonl"
     events = events_by_task( log, { e.id for e in latest.values()})
     rows = [ row_for( e, names, now, scanner, events.get( e.id )) for e in latest.values()]
+    if notes_log is not None:
+        seen = { r.id for r in rows }
+        rows += [ r for r in notes_rows( notes_log, now, scanner ) if r.id not in seen ]
     rows.sort( key=lambda r: r.last_update, reverse=True )
     rows.sort( key=lambda r: r.status not in { s.value for s in OPEN_STATES })
     return rows[ :limit ]
@@ -214,7 +285,7 @@ def main( argv: list[ str ] | None = None ) -> int:
     parser.add_argument( "--out", type=Path, default=SNAPSHOT_PATH )
     parser.add_argument( "--print", action="store_true", help="print the rows instead of writing them" )
     args = parser.parse_args( argv )
-    rows = build_rows()
+    rows = build_rows( notes_log=NOTES_LOG )
     if args.print:
         print( json.dumps([ r.model_dump() for r in rows ], indent=1 ))
         return 0

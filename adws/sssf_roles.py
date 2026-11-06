@@ -109,6 +109,29 @@ SssfConfigLoader            = _template.SssfConfigLoader
 SessionRunFactory           = _template.SessionRunFactory
 FileOrInlinePromptResolver  = _template.FileOrInlinePromptResolver
 
+
+
+def _traced( executor: type ) -> type:
+    """The same executor, recording each run and phase in the object trace (object_trace.sssf_hooks).
+
+    Tracing is an addition, never a requirement: if lancedb_memory's object_trace
+    cannot be imported here (another interpreter, no pydantic), the plain executor
+    is used and the ADW runs exactly as it did. OBJECT_TRACE=off also turns it off.
+    """
+    if os.getenv( "OBJECT_TRACE", "" ).lower() in ( "off", "0", "false", "no" ):
+        return executor
+    try:
+        memory = str( _HERE.parent / "lancedb_memory" )
+        if memory not in sys.path:
+            sys.path.append( memory )
+        from object_trace.sssf_hooks import traced_executor
+        return traced_executor( executor )
+    except Exception:                         # noqa: BLE001 -- telemetry must not stop an ADW
+        return executor
+
+
+ManualContextPhaseExecutor = _traced( ManualContextPhaseExecutor )
+
 # Values (not behavior).
 PromptRequest = _template.PromptRequest
 

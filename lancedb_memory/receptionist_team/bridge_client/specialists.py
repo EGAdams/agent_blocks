@@ -14,6 +14,7 @@ scanner accepts is built by code, never typed by the model.
 """
 import json
 import re
+import uuid
 from dataclasses import dataclass
 from typing import Protocol
 
@@ -52,6 +53,7 @@ class SpecialistForm(BaseModel):
     title: str | None = None
     copies: int | None = None
     job_id: str | None = None         # printer: status or cancel of one job
+    marker: str | None = None         # notes: a NOTESDIAG-<12 hex> marker to look for
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -198,6 +200,41 @@ class ScannerBuilder:
                 f"I'll start a scan on the {scanner.capitalize()} scanner, and Scala will file the page.")
 
 
+class NotesBuilder:
+    """notes: the Notes diagnostic -- write a fresh marker, check where it shows, or clear it.
+
+    The Bridge's notes agent touches only its own diagnostic note, never the
+    deed or any other note. The marker is made here, never by the model, so a
+    marker in a read-back is one this code chose.
+    """
+
+    OPERATIONS = {"status": "inspect", "marker_write": "implement", "marker_clear": "implement"}
+    MARKER = re.compile(r"NOTESDIAG-[0-9a-f]{12}")
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: status, marker_write, marker_clear"
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower()
+        if what not in self.OPERATIONS:
+            raise FormProblem("Should I write a new Notes diagnostic marker, check the last one, or clear it?")
+        found = self.MARKER.search(" ".join(filter(None, (form.marker, form.text, form.instructions))))
+        workspace = agent.workspaces[0] if agent.workspaces else "notes"
+        req: dict[str, str] = {"notes": what}
+        if what == "marker_write":
+            req["marker"] = f"NOTESDIAG-{uuid.uuid4().hex[:12]}"
+            said = (f"I'll write the Notes diagnostic marker {req['marker']} to the diagnostic note only, "
+                    "then read it back from the store and from the page's own endpoint.")
+        elif what == "marker_clear":
+            said = "I'll remove the Notes diagnostic note. No other note is touched."
+        else:
+            if found:
+                req["marker"] = found.group(0)
+            said = ""
+        prompt = json.dumps(req, separators=(",", ":"))
+        return _request(agent, workspace, self.OPERATIONS[what], prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -215,4 +252,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
                      CodeTaskBuilder(("implement", "inspect", "explain"), "bridge_sandbox")),
     BridgeSpecialist("bridge_printer", "printer", "the Bridge's printer", PrinterBuilder()),
     BridgeSpecialist("bridge_scanner", "scanner", "the Bridge's scanner", ScannerBuilder()),
+    BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes diagnostic", NotesBuilder()),
 )}

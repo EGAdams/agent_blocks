@@ -23,7 +23,9 @@
     "bridge_writer",
     "bridge_coder",
     "bridge_printer",
-    "bridge_scanner"
+    "bridge_scanner",
+    "bridge_notes",
+    "object_inspector"
   ],
   "disabled": {}
 }

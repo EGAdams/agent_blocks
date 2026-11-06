@@ -82,6 +82,12 @@ SCAN_WORKDIR    = _HERE / "adw_data" / "scan_bridge"    # the `scanners` workspa
 PRINT_ENABLED   = Path.home() / ".config" / "startrek_printer" / "enabled"   # printing is off until this exists
 PRINT_WORKDIR   = _HERE / "adw_data" / "printer" / "workspace"   # the `printers` workspace: empty, nothing runs in it
 PRINT_ADW       = _HERE / "adw_printer.py"
+NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
+NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
+NOTES_URL       = os.environ.get( "NOTES_ENDPOINT_URL", "http://127.0.0.1:8765" )     # the dashboard, loopback
+NOTES_WORKDIR   = _HERE / "adw_data" / "notes_bridge" / "workspace"   # the `notes` workspace: empty, nothing runs in it
+NOTES_TOKEN_FILE = Path.home() / ".config" / "startrek_notes" / "notes_token"   # agent-bridge-notes: notes:read + notes:write
+NOTES_ACTIVITY  = Path( os.environ.get( "NOTES_ACTIVITY_LOG", str( Path.home() / ".cache" / "agent_bridge" / "notes_activity.jsonl" )))
 UV              = Path.home() / ".local" / "bin" / "uv"
 MAX_DRAIN  = 20
 POLL_SETTINGS = _HERE.parent / "lancedb_memory" / "agent_bridge_worker" / "poll_settings.json"
@@ -127,8 +133,9 @@ class ServicePhase( LifecycleLogged, IPhase ):
         return self._act()
 
 
-def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
-    """The composition root: the only place that names a concrete."""
+def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> BridgeTaskRun:
+    """The composition root: the only place that names a concrete. `hooks` (an object_trace AdwRunTrace) traces
+    the gateway and every agent adapter as objects; without it nothing is traced."""
     from agent_bridge_worker.adapters.git_changes import GitChangeTracker
     from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
     from agent_bridge_worker.adapters.jailed_checks import JailedCheckRunner
@@ -141,6 +148,10 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     from agent_bridge_worker.policy import FixedFirstWorkspaces, ScopedPolicy, scoped_operations
     from agent_bridge_worker.scanner_agent import ScannerAgent
     from agent_bridge_worker.printer_agent import PrinterAgent
+    from agent_bridge_worker.notes_agent import NotesAgent
+    from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
+    from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
+    from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
     from agent_bridge_worker.adapters.printer_process import UvPrinterCommands
     from agent_bridge_worker.redaction import SecretScanner
     from agent_bridge_worker.workspaces import ConfiguredWorkspaces
@@ -153,6 +164,11 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
     token      = load_worker_token()
     kit        = build_post_office( forward_failures_to_mechanic=False )
     gateway    = HttpTaskGateway( base_url, token )
+    if hooks is not None:                               # observe only: every call and result passes through unchanged
+        from agent_bridge_worker.adapters.traced import TracingGateway
+        from object_trace.factory import default_tracer
+        gateway = TracingGateway( gateway, default_tracer(), lambda: hooks.current )
+        hooks.closing( gateway.close )
 
     def relay( task, line: str ) -> None:              # a worker's real steps, shown live at the gateway
         try:
@@ -202,9 +218,25 @@ def build_application( base_url: str, worker_id: str ) -> BridgeTaskRun:
         agents[ "printer" ]  = PrinterAgent( UvPrinterCommands( UV, PRINT_ADW, _HERE.parent ), clock )
         offered[ "printer" ] = { "print": False, "print_cancel": False, "print_status": False, "print_discover": False }
         modes.add( "device_control" )
-    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR }, workspaces )
-    return BridgeTaskRun( gateway, ScopedPolicy( offered, workspaces.write_names(), frozenset( modes )),
-                          resolver, agents, events, clock, worker_id, writes=writes )
+    write_names = workspaces.write_names()
+    if NOTES_ENABLED.exists():                          # the Notes diagnostic is off until EG creates the flag file
+        NOTES_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        # Approved-note list/read/update go through the dashboard's token interface; without the token
+        # file they are refused as "not provisioned" and only the diagnostic operations run.
+        bridge = ( HttpNotesBridge( NOTES_URL, load_scan_token( NOTES_TOKEN_FILE ))
+                   if NOTES_TOKEN_FILE.exists() else None )
+        agents[ "notes" ]  = NotesAgent( FilesystemNotesStore( NOTES_DIR ), HttpNotesEndpoint( NOTES_URL ), bridge,
+                                         JsonlNotesActivity( NOTES_ACTIVITY ))
+        offered[ "notes" ] = { "inspect": False, "implement": True }
+        write_names = write_names | { "notes" }
+    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR },
+                                    workspaces )
+    if hooks is not None:
+        from agent_bridge_worker.adapters.traced import TracingAgent
+        from object_trace.factory import default_tracer
+        agents = { name: TracingAgent( agent, default_tracer(), name ) for name, agent in agents.items()}
+    return BridgeTaskRun( gateway, ScopedPolicy( offered, write_names, frozenset( modes )),
+                          resolver, agents, events, clock, worker_id, writes=writes, self_contained=frozenset({ "notes" }))
 
 
 def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ]) -> Any:
@@ -240,18 +272,27 @@ def phases( svc: BridgeTaskRun ) -> list[ tuple[ str, str, Callable[[], Any ]]]:
 
 
 def one_run( args: argparse.Namespace, cfg: Any, boot: ILifecycleLog ) -> RunReport:
-    svc      = build_application( args.url, args.worker_id )
+    from object_trace.adw_hooks import AdwRunTrace
+    from object_trace.factory import default_tracer
+
     run      = SessionRunFactory( boot ).create( cfg, args.adw_id )
     log      = ConsoleLifecycleLog( run )
     executor = ManualContextPhaseExecutor( boot )
-    try:
-        for name, description, act in phases( svc ):
-            executor.execute( run, ServicePhase( name, description, act, log ))
-    except BaseException as error:  # noqa: BLE001 -- the lease expires and the gateway retries; the run log has the traceback
-        run.finish( accepted=False, reason=f"{ type( error ).__name__ }: { error }"[ :300 ])
-        raise
-    finally:
-        svc.close()                # a write task's workspace lock, whatever happened
+    svc: BridgeTaskRun | None = None
+    task_of  = lambda: svc.task.task_id if svc is not None and svc.task is not None else None  # noqa: E731
+    # The trace shares the SSSF run's adw_id, so the inspector joins the two. It only observes (OBJECT_TRACE=off stops it).
+    with AdwRunTrace( default_tracer(), "adw_bridge_worker", run.adw_id, task_id_of=task_of ) as hooks:
+        try:
+            svc = default_tracer().construct( "bridge.worker_app", lambda: build_application( args.url, args.worker_id, hooks ),
+                                              interface="BridgeTaskRun", label="the worker's composition root" )
+            for name, description, act in phases( svc ):
+                executor.execute( run, ServicePhase( name, description, hooks.phase( name, act, description ), log ))
+        except BaseException as error:  # noqa: BLE001 -- the lease expires and the gateway retries; the run log has the traceback
+            run.finish( accepted=False, reason=f"{ type( error ).__name__ }: { error }"[ :300 ])
+            raise
+        finally:
+            if svc is not None:
+                svc.close()            # a write task's workspace lock, whatever happened
     report = svc.report
     run.finish( accepted=True, reason=( report.summary or "done" )[ :300 ])
     return report

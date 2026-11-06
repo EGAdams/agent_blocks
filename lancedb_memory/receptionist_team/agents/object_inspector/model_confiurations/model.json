@@ -1,0 +1,9 @@
+{
+  "description": "answers four questions from the ADW object trace with evidence: the latest Notes update, where a task stopped, an object's state and error, and whether content saved and the browser rendered that version",
+  "model": null,
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data",
+  "notes": "Toyota's profile maps this name to adapters/inspection_runner.ObjectInspectionRunner, which calls object_trace.service on 127.0.0.1:8790 (/api/ask/<question>) with no model in the path. adapters/inspection_route.ObjectInspectionRoute forces the route for the four questions. Read-only: it never writes the trace or the Notes."
+}

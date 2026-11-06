@@ -9,6 +9,7 @@ from agent_memory.config import Settings
 from agent_memory.errors import ModelUnavailable
 from agent_memory.adapters.turn_telemetry import turn_scope, record_timing
 from .adapters.reply_stream import PublicReplyRelay
+from .object_tracing import end_turn, traced_turn
 from .alert_inbox import IAlertInbox, NoAlerts
 from .main import build_mazda_desk, build_receptionist, build_shared_memory
 from .profiles import TOYOTA, ReceptionistProfile
@@ -246,13 +247,15 @@ class _TurnRunner:
 
     async def _turn(self, request: TurnRequest, outbox: queue.Queue) -> None:
         """Serialize a turn and record queue time separately from execution."""
-        with turn_scope(request.request_id):
+        with turn_scope(request.request_id), \
+                traced_turn(self._profile.name, request.request_id, request.text) as trace:
             queued = perf_counter()
             async with self._lock:
                 record_timing('queue_wait', perf_counter() - queued)
                 started = perf_counter()
                 ok = await self._run_turn(request, outbox)
                 record_timing('turn', perf_counter() - started, 'ok' if ok else 'error')
+                end_turn(trace, ok)
 
     async def _run_turn(self, request: TurnRequest, outbox: queue.Queue) -> bool:
         self._reply_relay.bind(lambda text: outbox.put(TurnRecord(kind='delta', text=text)))

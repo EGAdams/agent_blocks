@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for notes: writes a fresh diagnostic marker to its own Notes diagnostic note (read back, sent after a yes), checks where the marker shows (store, endpoint), or clears the diagnostic note",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_notes",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation; bridge_client/specialists.NotesBuilder makes the marker and the exact JSON prompt. Writes and clears are read back and sent only after a yes."
+}

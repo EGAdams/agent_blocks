@@ -6,7 +6,7 @@
   "error_base_seconds": 60,
   "error_max_seconds": 900,
   "active_hours": {
-    "start_hour": 9,
+    "start_hour": 8,
     "end_hour": 23
   }
 }

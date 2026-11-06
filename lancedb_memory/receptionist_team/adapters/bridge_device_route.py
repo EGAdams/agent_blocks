@@ -16,9 +16,12 @@ from .latest_user import latest_user_message
 # "What did we spend on printers" is a books question, not a print job.
 _MONEY = re.compile(r"\b(?:spen[dt]|cost|paid|pay|expenses?|totals?|budget|receipts? for|bought)\b|\$", re.I)
 _TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
+# "Explain what the notes diagnostic proved" is a question for Toyota, not a job for the device.
+_NOTES_ACTION = re.compile(r"\b(?:run|write|check|clear|remove|delete|start|status|new)\b", re.I)
 _ROUTES = (
     ("bridge_scanner", re.compile(r"\b(?:window|freezer)\s+scanner\b|\bscan\b.*\b(?:window|freezer)\b"
                                   r"|\b(?:start|do|run)\s+a\s+scan\b", re.I | re.S)),
+    ("bridge_notes", re.compile(r"\bnotes?\s+diagnostics?\b|\bNOTESDIAG-[0-9a-f]{12}\b|\bdiagnostic\s+(?:note|marker)\b", re.I)),
     ("bridge_printer", re.compile(r"\bprinters?\b|\btest\s+page\b|\bprint\s+job\b", re.I)),
     ("bridge_writer", re.compile(r"\bcodex[\s-]+writer\b|\bbridge[\s_]+sandbox\b", re.I)),
     ("bridge_coder", re.compile(r"\b(?:claude[\s-]+)?sonnet\b.*\bbridge\b|\bbridge\b.*\b(?:claude[\s-]+)?sonnet\b",
@@ -29,7 +32,10 @@ _ROUTES = (
 def device_route(text: str) -> str | None:
     if not text or _TASK_ID.search(text) or _MONEY.search(text):  # status / result / cancel of a task stays with star_trek_bridge
         return None
-    return next((name for name, pattern in _ROUTES if pattern.search(text)), None)
+    name = next((name for name, pattern in _ROUTES if pattern.search(text)), None)
+    if name == "bridge_notes" and not _NOTES_ACTION.search(text):
+        return None
+    return name
 
 
 class BridgeDeviceRoute:

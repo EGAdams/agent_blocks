@@ -134,6 +134,40 @@ def test_a_row_lists_its_own_recorded_events_and_latest_step() -> None:
         assert done.events == [] and done.current is None and done.completed_at
 
 
+def _notes_log( path: Path, *entries: dict ) -> Path:
+    path.write_text( "".join( json.dumps( e ) + "\n" for e in entries ) + "not json\n", encoding="utf-8" )
+    return path
+
+
+def test_notes_activity_becomes_one_row_per_bridge_task() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        log = _notes_log( Path( tmp ) / "notes.jsonl",
+            { "at": "2026-11-03T14:00:00+00:00", "source": "dashboard", "event": "read", "task_id": "t_aaaaaaaa",
+              "filename": "deed.md", "revision": "a" * 64, "actor": "agent-bridge-notes" },
+            { "at": "2026-11-03T14:00:01+00:00", "source": "dashboard", "event": "write", "task_id": "t_aaaaaaaa",
+              "filename": "deed.md", "expected_revision": "a" * 64, "revision": "b" * 64 },
+            { "at": "2026-11-03T14:00:02+00:00", "source": "worker", "event": "verified", "task_id": "t_aaaaaaaa",
+              "op": "update", "filename": "deed.md", "revision": "b" * 64 },
+            { "at": "2026-11-03T14:05:00+00:00", "source": "dashboard", "event": "conflict", "task_id": "t_bbbbbbbb",
+              "filename": "deed.md", "expected_revision": "a" * 64, "revision": "b" * 64 },
+            { "at": "2026-11-03T14:06:00+00:00", "source": "dashboard", "event": "auth_failed",
+              "detail": "unauthorized (401) for notes:read" })
+        rows = { r.id: r for r in build_rows( Path( tmp ) / "nope", Path( tmp ) / "nope.json", NOW, notes_log=log )}
+        done = rows[ "t_aaaaaaaa" ]
+        assert done.agent == "notes" and done.operation == "update" and done.status == "succeeded"
+        assert [ e[ "phase" ] for e in done.events ] == [ "read", "write", "verified" ]
+        assert "aaaaaaaaaaaa -> bbbbbbbbbbbb" in done.events[ 1 ][ "message" ] and done.run_duration == "2s"
+        assert done.events[ 2 ][ "agent" ] == "notes" and done.events[ 0 ][ "agent" ] == "dashboard"
+        assert rows[ "t_bbbbbbbb" ].status == "failed" and "conflict" in rows[ "t_bbbbbbbb" ].error
+        ( denied, ) = [ r for i, r in rows.items() if i.startswith( "notes-" )]
+        assert denied.status == "failed" and "401" in denied.error
+
+
+def test_notes_rows_are_left_out_unless_asked_for_and_a_missing_log_is_empty() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        assert build_rows( Path( tmp ) / "nope", Path( tmp ) / "nope.json", NOW, notes_log=Path( tmp ) / "absent" ) == []
+
+
 if __name__ == "__main__":
     for name, fn in list( globals().items()):
         if name.startswith( "test_" ):

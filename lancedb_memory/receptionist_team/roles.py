@@ -182,6 +182,10 @@ ROLE_BLURBS: dict[str, str] = {
     "bridge_scanner": (
         "scans on the Window or Freezer scanner, after a yes"
     ),
+    "bridge_notes": (
+        "Notes diagnostic: writes a marker to its own diagnostic note (after a yes), checks it, or clears it"
+    ),
+    "object_inspector": "answers from the object trace",
 }
 
 ROLE_SPOKEN_NAMES: dict[str, str] = {
@@ -220,6 +224,8 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_coder": "the Bridge's Claude Sonnet coder",
     "bridge_printer": "the Bridge's printer",
     "bridge_scanner": "the Bridge's scanner",
+    "bridge_notes": "the Bridge's Notes diagnostic",
+    "object_inspector": "our object inspector",
 }
 
 # Each phrase follows "tell them to start".
@@ -261,6 +267,8 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_coder": "on that coding task",
     "bridge_printer": "on that print job",
     "bridge_scanner": "on that scan",
+    "bridge_notes": "on the Notes diagnostic",
+    "object_inspector": "looking that up in the object trace",
 }
 
 # Toyota is the finance desk: the agent-folder specialists below are hers.
@@ -279,7 +287,8 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # finance roles and is unchanged from before. star_trek_bridge is named here
 # only so that registering its folder doesn't land it on Sydney's desk.
 TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
-                          "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner")
+                          "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
+                          "bridge_notes", "object_inspector")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

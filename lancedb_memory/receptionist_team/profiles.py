@@ -32,6 +32,8 @@ from .adapters.finance_report_route import FinanceReportRoute
 from .adapters.post_office_route import PostOfficeRoute
 from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
 from .adapters.bridge_device_route import BridgeDeviceRoute
+from .adapters.inspection_route import ObjectInspectionRoute
+from .adapters.bridge_task_route import BridgeTaskRoute
 from .adapters.route_panel import FirstRouteOpinion
 from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
@@ -100,6 +102,7 @@ def _toyota_runner() -> IDelegationRunner:
     from .bridge_client.desk import NOTICES
     from .adapters.category_spreadsheet_runner import AdwCategorySpreadsheetRunner
     from .adapters.company_todo_runner import CompanyTodoRunner
+    from .adapters.inspection_runner import ObjectInspectionRunner
     from .adapters.live_finance_runner import AdwLiveFinanceRunner
     from .adapters.post_office_runner import PostOfficeRunner
     from .adapters.scala_answer_runner import ScalaAnswerRunner
@@ -119,7 +122,11 @@ def _toyota_runner() -> IDelegationRunner:
             # the form against GET /agents, and changes, prints and scans wait
             # for a yes (adapters/bridge_specialist_runner.py).
             **{name: BridgeSpecialistRunner(name)
-               for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner")},
+               for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
+                            "bridge_notes")},
+            # The four inspection questions, answered from object_trace.service
+            # (127.0.0.1:8790) with evidence; no model (adapters/inspection_runner.py).
+            "object_inspector": ObjectInspectionRunner(),
         },
         default=ToolAgentRunner(),
     )
@@ -272,6 +279,12 @@ TOYOTA = ReceptionistProfile(
         # A bare yes/no while a Bridge request waits for one goes to the
         # specialist that read it back (adapters/bridge_confirmation_route.py).
         BridgeConfirmationRoute(),
+        # "Where did task t_... stop?" is an inspection question, and the task
+        # route below would read its "stop" as a cancel (adapters/inspection_route.py).
+        ObjectInspectionRoute("object_inspector"),
+        # A status/result/cancel question about a Bridge task id is read back
+        # from the Bridge, never from recalled turns (bridge_task_route.py).
+        BridgeTaskRoute(),
         # Scans, prints and Bridge code changes go to their specialist, never
         # the read-only desk, which can only refuse them (bridge_device_route.py).
         BridgeDeviceRoute(),

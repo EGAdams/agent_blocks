@@ -11,7 +11,9 @@ through an injected IWriteSession: PrepareWorkspace (lock it, record what it
 held), VerifyChanges (what changed, then the configured checks) and
 CollectResult (files, diff, report). The last two run however the agent
 ended -- a timeout or a cancel after edits is reported with its changed
-paths, never as "no changes". Read-only tasks never touch the session.
+paths, never as "no changes". Read-only tasks never touch the session, and
+neither does a self-contained agent (the Notes diagnostic), whose write goes
+to a store outside every workspace and is verified by the agent's own read-back.
 """
 from __future__ import annotations
 
@@ -30,7 +32,7 @@ class BridgeTaskRun:
 
     def __init__( self, gateway: ITaskGatewayClient, policy: IExecutionPolicy, workspaces: IWorkspaceResolver,
                   agents: dict[ str, IAgentAdapter ], events: ITaskEventSource, clock: IClock, worker_id: str,
-                  writes: IWriteSession | None = None ) -> None:
+                  writes: IWriteSession | None = None, self_contained: frozenset[ str ] = frozenset()) -> None:
         self._gateway    = gateway
         self._policy     = policy
         self._workspaces = workspaces
@@ -39,6 +41,7 @@ class BridgeTaskRun:
         self._clock      = clock
         self._worker_id  = worker_id
         self._writes     = writes
+        self._self_contained = frozenset( self_contained )   # agents whose writes are their own, verified store (notes)
         self.write_start: WriteStart | None = None
         self._found: object | None = None
         self._write_problem = ""
@@ -106,6 +109,8 @@ class BridgeTaskRun:
     def prepare_workspace( self ) -> None:
         """PrepareWorkspace: for a write task, lock the workspace and record what it holds now."""
         if self.stopped or self.task.operation not in WRITE_OPERATIONS:
+            return
+        if self.task.agent in self._self_contained:     # it touches no git workspace; it reads its own write back
             return
         if self._writes is None:
             self.outcome = AgentOutcome( kind=OutcomeKind.REFUSED, summary="refused by the worker: writes are not set up here" )

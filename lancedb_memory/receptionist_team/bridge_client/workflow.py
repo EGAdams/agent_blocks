@@ -44,6 +44,7 @@ _TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
 _ASKS_RESULT = re.compile(r"\b(?:result|answer|outcome|reply|said|say|says|finished|done|ready|output)\b", re.IGNORECASE)
 _ASKS_CANCEL = re.compile(r"\b(?:cancel|stop|abort|kill)\b", re.IGNORECASE)
 _ASKS_STATUS = re.compile(r"\b(?:status|progress|state|queued|running|still)\b", re.IGNORECASE)
+_BARE_ID_FILLER = re.compile(r"\b(?:star|trek|bridge|task|the|id)\b", re.IGNORECASE)
 
 
 def readback_of(text: str) -> tuple[str, str | None] | None:
@@ -60,6 +61,11 @@ def readback_of(text: str) -> tuple[str, str | None] | None:
         return "result", found.group(0)
     if _ASKS_STATUS.search(text):
         return "status", found.group(0)
+    # The model sometimes routes the id alone ("ROUTE: star_trek_bridge | t_..."), 2026-11-05.
+    # Nothing in that is a question for a worker, so read the task back (a result readback reports
+    # the state if it hasn't finished). An id inside a real question is still a submit.
+    if not _BARE_ID_FILLER.sub(" ", _TASK_ID.sub(" ", text)).strip(" .?!:,;-'\"\t\n"):
+        return "result", found.group(0)
     return None
 PROMPT_FRAME = ("Read-only request relayed by Toyota, the receptionist. Do not modify any file. "
                 "Answer briefly, in plain sentences suitable to be read aloud.\n\n")
