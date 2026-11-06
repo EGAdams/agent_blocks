@@ -1,7 +1,7 @@
 # Toyota → Star Trek Bridge
 
 Current bootstrap behavior (2026-11-06): Toyota has a separate authenticated
-`toyota-bridge` identity with read-only gateway scopes. Machine Ops and Object
+`toyota-bridge` identity with the same gateway scope as ChatGPT (EG, 2026-11-06). Machine Ops and Object
 Debugger accept her explicitly. The read-only runner returns after submission;
 `NOTICES` refreshes asynchronously. Status contains bounded `recent_events`,
 and `events t_...` reads that evidence without an events endpoint. Cancellation

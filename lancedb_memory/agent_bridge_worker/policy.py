@@ -88,8 +88,6 @@ class ScopedPolicy:
     def refusal( self, task: ClaimedTask ) -> str | None:
         if task.sender not in { "chatgpt-bridge", "toyota-bridge" }:
             return "gateway sender is not approved"
-        if task.sender == "toyota-bridge" and task.approval_mode != "read_only":
-            return "toyota-bridge only has read-only gateway scope"
         expected = MODE_FOR.get( task.operation )
         if expected is None:
             return f"operation { task.operation } is not one this worker runs"

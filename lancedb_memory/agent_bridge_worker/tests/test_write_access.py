@@ -40,12 +40,16 @@ GIT_ENV = { "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NA
 CHECK   = [ sys.executable, "-c", "import pathlib,sys; sys.exit(0 if pathlib.Path('NOTES.md').exists() else 3)" ]
 
 
-def test_toyota_gateway_identity_cannot_promote_itself_to_workspace_write() -> None:
+def test_toyota_and_chatgpt_identities_get_the_same_worker_policy() -> None:
+    """EG's decision (2026-11-06): the gateway identity differs, the permissions do not."""
     policy = ScopedPolicy({"codex-writer": {"implement": True}}, frozenset({"agent_blocks_dev"}))
-    task = ClaimedTask(task_id=TASK_ID, lease_token=LEASE, lease_expires_at=0, lease_seconds=60,
-                       attempt=1, agent="codex-writer", workspace="agent_blocks_dev", operation="implement",
-                       approval_mode="workspace_write", prompt="Voice confirmation: yes", sender="toyota-bridge")
-    assert "read-only" in policy.refusal(task)
+    def task( sender: str ) -> ClaimedTask:
+        return ClaimedTask(task_id=TASK_ID, lease_token=LEASE, lease_expires_at=0, lease_seconds=60,
+                           attempt=1, agent="codex-writer", workspace="agent_blocks_dev", operation="implement",
+                           approval_mode="workspace_write", prompt="x", sender=sender)
+    assert policy.refusal( task( "toyota-bridge" )) is None
+    assert policy.refusal( task( "chatgpt-bridge" )) is None
+    assert policy.refusal( task( "someone-else" )) == "gateway sender is not approved"
 
 
 def git( root: Path, *args: str ) -> str:

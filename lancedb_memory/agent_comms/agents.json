@@ -203,7 +203,7 @@
         "jail": "bwrap",
         "codex_home": "/home/adamsl/.codex-bridge"
       },
-      "accepts_from": [ "chatgpt-bridge" ],
+      "accepts_from": [ "chatgpt-bridge", "toyota-bridge" ],
       "capabilities": [
         {
           "task_type": "implement",
