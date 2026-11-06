@@ -90,3 +90,20 @@ class MachineOpsTests(unittest.TestCase):
 
 
 if __name__ == "__main__": unittest.main()
+
+
+class RefusalIsFinalTests(unittest.TestCase):
+    def test_refusal_names_reason_and_is_not_retried(self):
+        from agent_comms.worker import IdempotentRetries
+        result = asyncio.run(MachineOpsExecutor(FakeRunner()).execute(envelope("please check the worker")))
+        self.assertFalse(result.ok)
+        self.assertIn("Reason: not valid JSON", result.text)
+        self.assertNotIn("please check", result.text)             # never echoes the request
+        again = envelope("x", idempotent=True, attempts=1, max_attempts=3)
+        self.assertFalse(IdempotentRetries().should_retry(again, result))
+
+    def test_ordinary_failure_still_retries(self):
+        from agent_comms.models import TaskResult
+        from agent_comms.worker import IdempotentRetries
+        again = envelope("x", idempotent=True, attempts=1, max_attempts=3)
+        self.assertTrue(IdempotentRetries().should_retry(again, TaskResult(ok=False, text="boom", performer="p")))

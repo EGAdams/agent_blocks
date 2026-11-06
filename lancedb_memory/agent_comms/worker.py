@@ -21,6 +21,8 @@ class IdempotentRetries:
     """IRetryPolicy: retry only what is safe to repeat, up to its own limit."""
 
     def should_retry( self, envelope: Envelope, result: TaskResult ) -> bool:
+        if result.details.get( "retryable" ) is False:   # a refusal fails the same way every time
+            return False
         return envelope.idempotent and envelope.attempts < envelope.max_attempts
 
 
