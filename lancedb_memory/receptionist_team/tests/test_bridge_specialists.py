@@ -292,9 +292,82 @@ async def test_device_requests_route_to_their_specialist_and_task_ids_do_not():
              f"cancel print job {TID}": None, "what did we spend on printers last year": None,
              "how much did we spend on utilities": None,
              "run the notes diagnostic": "bridge_notes", "write a new diagnostic marker": "bridge_notes",
-             "check the diagnostic note": "bridge_notes", "add a note about the deed": None,
+             "check the diagnostic note": "bridge_notes", "add a note about the deed": "bridge_notes",
+             "read the deed": "bridge_notes", "list the notes": "bridge_notes",
+             "change Drafted by to Prepared by in 2026-11-05_deed.md": "bridge_notes",
+             "what did we spend on the deed attorney": None, "what is a deed": None,
              "explain what the notes diagnostic just proved": None}
     assert {t: device_route(t) for t in cases} == cases
+
+
+# -- approved notes: list, read, update ------------------------------------------
+REV1, REV2 = "a" * 64, "b" * 64
+DEED = "2026-11-05_deed.md"
+
+
+async def test_notes_builder_list_and_read_need_no_yes_and_update_always_does():
+    b = SPECIALISTS["bridge_notes"].builder
+    req, said = b.build(SpecialistForm(operation="list"), NOTES)
+    assert json.loads(req.prompt) == {"notes": "list"} and req.operation == "inspect" and not req.needs_confirmation
+    req, _ = b.build(SpecialistForm(operation="read", note_id=DEED), NOTES)
+    assert json.loads(req.prompt) == {"notes": "read", "id": DEED} and not req.needs_confirmation
+    form = SpecialistForm(operation="update", note_id=DEED, expected_revision=REV1,
+                          edits=[{"find": "Drafted by", "replace": "Prepared by"}])
+    req, said = b.build(form, NOTES)
+    assert json.loads(req.prompt) == {"notes": "update", "id": DEED, "expected_revision": REV1,
+                                      "edits": [{"find": "Drafted by", "replace": "Prepared by"}]}
+    assert req.operation == "implement" and req.approval_mode == "workspace_write" and req.needs_confirmation
+    assert DEED in said and REV1[:12] in said and "Drafted by" in said and "Prepared by" in said
+
+
+async def test_notes_builder_refuses_what_cannot_be_safe():
+    b = SPECIALISTS["bridge_notes"].builder
+    edit = [{"find": "x", "replace": "y"}]
+    for form in (SpecialistForm(operation="read"),                                            # no note named
+                 SpecialistForm(operation="read", note_id="../../etc/passwd"),                # not a note file name
+                 SpecialistForm(operation="update", note_id=DEED, edits=edit),                # never read: no revision
+                 SpecialistForm(operation="update", note_id=DEED, expected_revision="abc", edits=edit),
+                 SpecialistForm(operation="update", note_id=DEED, expected_revision=REV1),    # nothing to change
+                 SpecialistForm(operation="update", note_id=DEED, expected_revision=REV1,
+                                edits=[{"find": "", "replace": "y"}])):
+        try:
+            b.build(form, NOTES)
+            raise AssertionError(form)
+        except FormProblem:
+            pass
+
+
+async def test_a_read_then_an_update_uses_the_remembered_revision_and_waits_for_yes():
+    from ..bridge_client import desk
+    desk.NOTE_REVISIONS.remember(DEED, "c" * 64)                                 # stale, from an earlier read
+    read_body = json.dumps({"id": DEED, "revision": REV1, "note": "Drafted by X"})
+    client = FakeClient(submits=[_view("queued", "inspect")], states=["succeeded"],
+                        result=BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body=read_body))
+    filler = Filler({"operation": "read", "note_id": DEED},
+                    {"operation": "update", "note_id": DEED, "expected_revision": "d" * 64,    # the model's own: ignored
+                     "edits": [{"find": "Drafted by", "replace": "Prepared by"}]})
+    pending = PendingBridgeRequests()
+    runner = _runner("bridge_notes", client, filler, pending)
+    assert "Drafted by X" in await _say(runner, "read the deed")
+    assert client.sent[0].operation == "inspect"
+    said = await _say(runner, "change Drafted by to Prepared by in the deed")
+    assert "Shall I send it" in said and len(client.sent) == 1, said                  # nothing sent before yes
+    assert json.loads(pending.peek().request.prompt)["expected_revision"] == REV1
+    done = json.dumps({"id": DEED, "revision": REV2, "verified": True, "diff": ""})
+    client.submits.append(_view("queued")); client.states.append("succeeded")
+    client._result = BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body=done)
+    await _say(runner, "yes")
+    assert client.sent[1].operation == "implement" and desk.NOTE_REVISIONS.get(DEED) == REV2
+
+
+async def test_an_update_with_no_read_in_this_process_sends_nothing():
+    from ..bridge_client import desk
+    desk.NOTE_REVISIONS = desk.NoteRevisions()
+    client = FakeClient()
+    runner = _runner("bridge_notes", client, Filler({"operation": "update", "note_id": "never_read.md",
+                                                     "edits": [{"find": "a", "replace": "b"}]}))
+    said = await _say(runner, "fix never_read.md")
+    assert "read it first" in said and client.sent == [], said
 
 
 if __name__ == "__main__":

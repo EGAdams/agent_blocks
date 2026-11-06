@@ -38,6 +38,15 @@ class FormProblem(Exception):
         self.spoken = spoken
 
 
+class NoteEditForm(BaseModel):
+    """One find -> replace pair for a Notes update."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    find: str
+    replace: str = ""
+
+
 class SpecialistForm(BaseModel):
     """What a specialist's model may fill in. Every field optional; extras ignored."""
 
@@ -54,6 +63,9 @@ class SpecialistForm(BaseModel):
     copies: int | None = None
     job_id: str | None = None         # printer: status or cancel of one job
     marker: str | None = None         # notes: a NOTESDIAG-<12 hex> marker to look for
+    note_id: str | None = None        # notes: an approved note's filename, from a list
+    expected_revision: str | None = None   # notes: filled by code from the last read, never by the model
+    edits: list[NoteEditForm] | None = None   # notes: exact find -> replace pairs
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -201,26 +213,43 @@ class ScannerBuilder:
 
 
 class NotesBuilder:
-    """notes: the Notes diagnostic -- write a fresh marker, check where it shows, or clear it.
+    """notes: the Notes diagnostic, and reading and updating approved notes.
 
-    The Bridge's notes agent touches only its own diagnostic note, never the
-    deed or any other note. The marker is made here, never by the model, so a
-    marker in a read-back is one this code chose.
+    The diagnostic ops touch only the Bridge's own diagnostic note. `list`,
+    `read` and `update` go to approved notes by filename; the server's
+    approved list and protected list decide which, whatever is asked here.
+    The marker is made here, never by the model. An update's revision is the
+    one code remembered from the last read (see desk.NoteRevisions), never
+    something the model wrote, and an update always waits for a yes.
     """
 
-    OPERATIONS = {"status": "inspect", "marker_write": "implement", "marker_clear": "implement"}
+    OPERATIONS = {"status": "inspect", "marker_write": "implement", "marker_clear": "implement",
+                  "list": "inspect", "read": "inspect", "update": "implement"}
     MARKER = re.compile(r"NOTESDIAG-[0-9a-f]{12}")
+    NOTE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md")
+    REVISION = re.compile(r"[0-9a-f]{64}")
+    MAX_EDITS = 50
 
     def context(self, agent: BridgeAgent) -> str:
-        return "Operations: status, marker_write, marker_clear"
+        return ("Operations: status, marker_write, marker_clear (the diagnostic note), "
+                "list, read, update (approved notes, by note_id)")
 
     def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
         what = (form.operation or "").strip().lower()
         if what not in self.OPERATIONS:
-            raise FormProblem("Should I write a new Notes diagnostic marker, check the last one, or clear it?")
-        found = self.MARKER.search(" ".join(filter(None, (form.marker, form.text, form.instructions))))
+            raise FormProblem("Should I write a new Notes diagnostic marker, check the last one, clear it, "
+                              "list the notes, read one, or update one?")
         workspace = agent.workspaces[0] if agent.workspaces else "notes"
-        req: dict[str, str] = {"notes": what}
+        if what in ("list", "read", "update"):
+            req, said = self._approved(what, form)
+        else:
+            req, said = self._diagnostic(what, form)
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, self.OPERATIONS[what], prompt), said
+
+    def _diagnostic(self, what: str, form: SpecialistForm) -> tuple[dict, str]:
+        found = self.MARKER.search(" ".join(filter(None, (form.marker, form.text, form.instructions))))
+        req: dict = {"notes": what}
         if what == "marker_write":
             req["marker"] = f"NOTESDIAG-{uuid.uuid4().hex[:12]}"
             said = (f"I'll write the Notes diagnostic marker {req['marker']} to the diagnostic note only, "
@@ -231,8 +260,31 @@ class NotesBuilder:
             if found:
                 req["marker"] = found.group(0)
             said = ""
-        prompt = json.dumps(req, separators=(",", ":"))
-        return _request(agent, workspace, self.OPERATIONS[what], prompt), said
+        return req, said
+
+    def _approved(self, what: str, form: SpecialistForm) -> tuple[dict, str]:
+        if what == "list":
+            return {"notes": "list"}, ""
+        note_id = (form.note_id or "").strip()
+        if not self.NOTE_ID.fullmatch(note_id):
+            raise FormProblem("Which note? Ask me to list the notes, then give me the file name.")
+        if what == "read":
+            return {"notes": "read", "id": note_id}, ""
+        revision = (form.expected_revision or "").strip().lower()
+        if not self.REVISION.fullmatch(revision):
+            raise FormProblem(f"I haven't read {note_id} yet in this conversation, so I can't change it safely. "
+                              "Ask me to read it first.")
+        edits = form.edits or []
+        if not edits or len(edits) > self.MAX_EDITS or any(not e.find for e in edits):
+            raise FormProblem("What exact text should change, and to what? I need the words as they appear now.")
+        req = {"notes": "update", "id": note_id, "expected_revision": revision,
+               "edits": [{"find": e.find, "replace": e.replace} for e in edits]}
+        steps = "; ".join(f'"{_words(e.find, 60)}" to "{_words(e.replace, 60)}"' if e.replace
+                          else f'remove "{_words(e.find, 60)}"' for e in edits[:5])
+        more = f", and {len(edits) - 5} more" if len(edits) > 5 else ""
+        said = (f"I'll change {note_id}, as I read it at revision {revision[:12]}: {steps}{more}. "
+                "Each piece of text must match exactly once, or nothing is written.")
+        return req, said
 
 
 @dataclass(frozen=True)
@@ -252,5 +304,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
                      CodeTaskBuilder(("implement", "inspect", "explain"), "bridge_sandbox")),
     BridgeSpecialist("bridge_printer", "printer", "the Bridge's printer", PrinterBuilder()),
     BridgeSpecialist("bridge_scanner", "scanner", "the Bridge's scanner", ScannerBuilder()),
-    BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes diagnostic", NotesBuilder()),
+    BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes", NotesBuilder()),
 )}

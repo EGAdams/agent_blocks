@@ -106,6 +106,7 @@ class BridgeSpecialistRunner:
             form = SpecialistForm.parse(self._filler.fill(system_prompt, brief))
             if form.ask:
                 return form.ask
+            self._attach_revision(form)
             request, readback = spec.builder.build(form, agent)
         except FormProblem as problem:
             return problem.spoken
@@ -117,12 +118,35 @@ class BridgeSpecialistRunner:
             return f"{readback} Shall I send it? Say yes or no."
         return self._send(request)
 
+    def _attach_revision(self, form) -> None:
+        """An update carries the revision code remembered from the last read, never the model's."""
+        from ..bridge_client import desk
+        form.expected_revision = None
+        if (form.operation or "").strip().lower() == "update" and form.note_id:
+            form.expected_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
+
+    def _remember_revision(self, run) -> None:
+        """After a read or update that finished, keep the note's revision for the next update."""
+        import json
+        from ..bridge_client import desk
+        request, result = run.request, run.result
+        if request is None or result is None or request.agent != "notes" or not result.succeeded:
+            return
+        try:
+            asked, body = json.loads(request.prompt), json.loads(result.body or "")
+            if asked.get("notes") in ("read", "update") and body.get("id") == asked.get("id") \
+                    and (asked["notes"] == "read" or body.get("verified")):
+                desk.NOTE_REVISIONS.remember(body["id"], body["revision"])
+        except (ValueError, TypeError, KeyError, AttributeError):
+            return
+
     def _send(self, request) -> str:
         request = request.model_copy(update={"idempotency_key": self._key_factory()})
         run = self._run("")
         run.request = request
         run = self._workflow().execute(run, start="submit")
         self.last_trace = run.trace
+        self._remember_revision(run)
         if run.view is not None and not run.view.terminal and run.error is None:
             self._notices.track(run.view.task_id, self._specialist.spoken.replace("the Bridge's ", ""))
             return run.reply

@@ -183,7 +183,7 @@ ROLE_BLURBS: dict[str, str] = {
         "scans on the Window or Freezer scanner, after a yes"
     ),
     "bridge_notes": (
-        "Notes diagnostic: writes a marker to its own diagnostic note (after a yes), checks it, or clears it"
+        "Notes: lists, reads and (after a yes) edits approved notes such as the deed; also runs the Notes diagnostic marker"
     ),
     "object_inspector": "answers from the object trace",
 }
@@ -224,7 +224,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_coder": "the Bridge's Claude Sonnet coder",
     "bridge_printer": "the Bridge's printer",
     "bridge_scanner": "the Bridge's scanner",
-    "bridge_notes": "the Bridge's Notes diagnostic",
+    "bridge_notes": "the Bridge's Notes",
     "object_inspector": "our object inspector",
 }
 
@@ -267,7 +267,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_coder": "on that coding task",
     "bridge_printer": "on that print job",
     "bridge_scanner": "on that scan",
-    "bridge_notes": "on the Notes diagnostic",
+    "bridge_notes": "on the notes",
     "object_inspector": "looking that up in the object trace",
 }
 

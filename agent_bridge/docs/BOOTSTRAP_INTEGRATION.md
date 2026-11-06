@@ -35,10 +35,16 @@ bound. A newly consented ChatGPT connection requires an explicit new binding.
 
 Toyota uses a separately issued client credential, stored in a mode-0600
 file outside both repositories. Its value is never in source or reports.
-It is scoped to read-only operations and explicit agents/workspaces; gateway
-policy and local worker policy both reject its writes. Existing local voice
-confirmation and specialist read-back/yes gates remain in place. The
-read-only Toyota bridge credential does not gain write privileges after a yes.
+Since 2026-11-06 (EG's instruction) its gateway binding carries the same scope
+as ChatGPT's: the live `client_scopes` entries for both identities set only the
+`sender` and no operation, workspace or agent limits. Toyota's own safeguards
+stay in force: her `star_trek_bridge` desk sends read-only requests only, and
+every write goes through a specialist (`bridge_writer`, `bridge_coder`,
+`bridge_printer`, `bridge_scanner`, `bridge_notes`) that reads the request back
+and waits for a spoken "yes" first. `bridge_notes` lists and reads approved
+notes, and updates them by exact find/replace against the revision she last
+read; the Notes server's approved list and the worker's revision check still
+decide what can change.
 
 Toyota keeps the existing `BridgeClient`, `BridgeTaskWorkflow`,
 `BridgeDelegationRunner`, `PENDING` and `NOTICES` infrastructure. The read-only

@@ -8,7 +8,10 @@ and `events t_...` reads that evidence without an events endpoint. Cancellation
 uses the existing cancel API. See
 [the current integration guide](../../../agent_bridge/docs/BOOTSTRAP_INTEGRATION.md)
 for exact commands, identity boundaries and development/deployment scope.
-The older 15-second polling and missing-cancel descriptions below are historical.
+`bridge_notes` also lists, reads and updates approved notes (the deed, by file
+name): reads go straight through; an update is read back, waits for a "yes",
+and carries the revision Toyota last read in this process, so she asks for a
+read first after a restart. The older 15-second polling and missing-cancel descriptions below are historical.
 
 Toyota's narrow door to the public Star Trek Bridge client API. She can list
 the Bridge's agents, send a **read-only** request to any Bridge agent that

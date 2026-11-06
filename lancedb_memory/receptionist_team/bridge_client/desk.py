@@ -71,6 +71,32 @@ class PendingBridgeRequests:
         return pending
 
 
+class NoteRevisions:
+    """The revision of each note Toyota last read or wrote, in this process only.
+
+    An update must name the revision a read returned, and Toyota is not asked
+    to say a 64-character hash out loud. Code remembers it instead; the
+    worker still refuses the update if the note has moved since.
+    """
+
+    LIMIT = 50
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._known: dict[str, str] = {}
+
+    def remember(self, note_id: str, revision: str) -> None:
+        with self._lock:
+            self._known.pop(note_id, None)
+            self._known[note_id] = revision
+            while len(self._known) > self.LIMIT:
+                self._known.pop(next(iter(self._known)))
+
+    def get(self, note_id: str) -> str | None:
+        with self._lock:
+            return self._known.get(note_id)
+
+
 @dataclass
 class _Watched:
     task_id: str
@@ -231,4 +257,5 @@ def _speak(result) -> str:
 
 # Toyota's one desk: shared by her route override, her Bridge runners and her alert inbox.
 PENDING = PendingBridgeRequests()
+NOTE_REVISIONS = NoteRevisions()
 NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True)

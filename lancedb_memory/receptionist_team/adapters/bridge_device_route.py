@@ -18,10 +18,16 @@ _MONEY = re.compile(r"\b(?:spen[dt]|cost|paid|pay|expenses?|totals?|budget|recei
 _TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
 # "Explain what the notes diagnostic proved" is a question for Toyota, not a job for the device.
 _NOTES_ACTION = re.compile(r"\b(?:run|write|check|clear|remove|delete|start|status|new)\b", re.I)
+# Approved notes (the deed, or any note named by its .md file name): list, read, change.
+_APPROVED_NOTES = re.compile(r"\b[\w.-]+\.md\b|\b(?:the\s+)?deed\b|\bapproved\s+notes?\b|"
+                             r"\b(?:list|show)\s+(?:me\s+)?(?:the\s+|my\s+)?notes\b", re.I)
+_APPROVED_ACTION = re.compile(r"\b(?:list|show|read|open|update|edit|change|fix|replace|correct|remove|delete|"
+                              r"insert|add|rename)\b", re.I)
 _ROUTES = (
     ("bridge_scanner", re.compile(r"\b(?:window|freezer)\s+scanner\b|\bscan\b.*\b(?:window|freezer)\b"
                                   r"|\b(?:start|do|run)\s+a\s+scan\b", re.I | re.S)),
     ("bridge_notes", re.compile(r"\bnotes?\s+diagnostics?\b|\bNOTESDIAG-[0-9a-f]{12}\b|\bdiagnostic\s+(?:note|marker)\b", re.I)),
+    ("bridge_notes", _APPROVED_NOTES),
     ("bridge_printer", re.compile(r"\bprinters?\b|\btest\s+page\b|\bprint\s+job\b", re.I)),
     ("bridge_writer", re.compile(r"\bcodex[\s-]+writer\b|\bbridge[\s_]+sandbox\b", re.I)),
     ("bridge_coder", re.compile(r"\b(?:claude[\s-]+)?sonnet\b.*\bbridge\b|\bbridge\b.*\b(?:claude[\s-]+)?sonnet\b",
@@ -33,7 +39,8 @@ def device_route(text: str) -> str | None:
     if not text or _TASK_ID.search(text) or _MONEY.search(text):  # status / result / cancel of a task stays with star_trek_bridge
         return None
     name = next((name for name, pattern in _ROUTES if pattern.search(text)), None)
-    if name == "bridge_notes" and not _NOTES_ACTION.search(text):
+    if name == "bridge_notes" and not (_NOTES_ACTION.search(text) or
+                                       (_APPROVED_NOTES.search(text) and _APPROVED_ACTION.search(text))):
         return None
     return name
 
