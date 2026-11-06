@@ -11,6 +11,7 @@ import os
 import re
 import urllib.error
 import urllib.request
+from collections.abc import Sequence
 from pathlib import Path
 
 from ..models import Beat, ClaimedTask
@@ -45,12 +46,13 @@ def load_worker_token( env: str = "BRIDGE_WORKER_TOKEN", file_env: str = "BRIDGE
 class HttpTaskGateway:
     """The gateway's `/worker/...` endpoints."""
 
-    def __init__( self, base_url: str, token: str, timeout_seconds: float = 30.0 ) -> None:
+    def __init__( self, base_url: str, token: str, timeout_seconds: float = 30.0, skip: Sequence[ str ] = () ) -> None:
         if not ( base_url.startswith( "https://" ) or base_url.startswith( "http://127.0.0.1" ) or base_url.startswith( "http://localhost" )):
             raise ValueError( "the gateway must be HTTPS (plain HTTP is allowed only on loopback)" )
         self._base    = base_url.rstrip( "/" )
         self._token   = token
         self._timeout = timeout_seconds
+        self._skip    = ",".join( skip )        # a worker lane's pass-over list: `operation@workspace,...`
 
     def __repr__( self ) -> str:            # never show the token
         return f"HttpTaskGateway({ self._base!r })"
@@ -58,10 +60,20 @@ class HttpTaskGateway:
     # -- ITaskGatewayClient -------------------------------------------------
 
     def next( self ) -> str | None:
-        status, body = self._call( "GET", "/worker/tasks/next" )
+        status, body = self._call( "GET", "/worker/tasks/next" + ( f"?skip={ self._skip }" if self._skip else "" ))
         if status == 204 or not body:
             return None
         return str( body[ "task_id" ])
+
+    def supports_lanes( self ) -> bool:
+        """True when the gateway honours `?skip=`. A deliberately malformed list is refused with `bad_skip` by a gateway
+        that knows lanes and silently ignored by one that does not -- and a reserved worker on the old one would claim
+        tasks it must not run."""
+        try:
+            self._call( "GET", "/worker/tasks/next?skip=lane-probe" )
+        except GatewayError as exc:
+            return exc.status == 400 and exc.code == "bad_skip"
+        return False
 
     def claim( self, task_id: str, worker_id: str ) -> ClaimedTask | None:
         try:

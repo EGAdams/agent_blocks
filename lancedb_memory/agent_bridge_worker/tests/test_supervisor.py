@@ -112,6 +112,15 @@ def test_dry_run_and_exit_78_do_not_restart() -> None:
         assert report[ "status" ] == "unauthorised" and systemd.restarts == systemd78.restarts == 0
 
 
+def test_each_lane_is_supervised_through_its_own_unit_and_files() -> None:
+    from agent_bridge_worker.lanes import WorkerLane
+    from agent_bridge_worker.supervisor import build_supervisor
+    general, express = build_supervisor( WorkerLane( name="general" )), build_supervisor( WorkerLane( name="express" ))
+    assert general.unit == "agent-bridge-worker.service" and express.unit == "agent-bridge-worker-express.service"
+    assert general.health._path.name == "worker_health.json" and express.health._path.name == "worker_health_express.json"
+    assert general.observe_extra( 0 )[ 1 ] is None or isinstance( general.observe_extra( 0 )[ 1 ], dict )
+
+
 if __name__ == "__main__":
     for name, fn in list( globals().items()):
         if name.startswith( "test_" ):

@@ -1,0 +1,22 @@
+[Unit]
+Description=Agent bridge worker (EXPRESS lane: never takes coding writes, so diagnostics, Machine Ops and Notes never wait behind one)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python adws/adw_bridge_worker.py --watch --lane express --url https://bridge.americansjewelry.com/api/agent-bridge/v1
+Environment=PYTHONUNBUFFERED=1
+Environment=BRIDGE_WORKER_TOKEN_FILE=/home/adamsl/.config/agent_bridge/worker_token
+# How often it checks: lancedb_memory/agent_bridge_worker/poll_settings.json
+# (edit, then: systemctl --user restart agent-bridge-worker agent-bridge-worker-express)
+Restart=on-failure
+RestartSec=60
+# Exit 78 = the gateway rejected the worker token. Restarting would only hammer
+# HostGator with the same bad token, so systemd leaves it stopped.
+RestartPreventExitStatus=78
+# A task in flight when stopped is retried by the gateway once its lease expires.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

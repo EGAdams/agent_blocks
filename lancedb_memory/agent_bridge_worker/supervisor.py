@@ -33,6 +33,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
+from .lanes import WorkerLane
+
 UNIT            = "agent-bridge-worker.service"
 WORKER_SCRIPT   = "adw_bridge_worker.py"
 CACHE           = Path.home() / ".cache" / "agent_bridge"
@@ -133,7 +135,7 @@ class SystemdUserManager:
 
     def show( self, unit: str ) -> dict[ str, str ]:
         out = self._run([ "systemctl", "--user", "show", unit, "--property",
-                          "ActiveState,MainPID,ExecMainStatus,ActiveEnterTimestampMonotonic" ]).stdout
+                          "ActiveState,LoadState,MainPID,ExecMainStatus,ActiveEnterTimestampMonotonic" ]).stdout
         return dict( line.split( "=", 1 ) for line in out.splitlines() if "=" in line )
 
     def restart( self, unit: str ) -> tuple[ bool, str ]:
@@ -238,19 +240,24 @@ class WorkerSupervisor:
         return report
 
 
-def build_supervisor() -> WorkerSupervisor:
-    """Composition root."""
+def build_supervisor( lane: WorkerLane = WorkerLane()) -> WorkerSupervisor:
+    """Composition root: one supervisor per worker lane, each with its own unit, poll-state and health file."""
     def extra( pid: int ) -> tuple[ str, dict | None, bool ]:
-        return read_cmdline( pid ), read_json( POLL_STATE ), HOLD_FILE.exists()
-    return WorkerSupervisor( SystemdUserManager(), JsonHealthFile(), extra )
+        return read_cmdline( pid ), read_json( lane.poll_state_path ), HOLD_FILE.exists()
+    return WorkerSupervisor( SystemdUserManager(), JsonHealthFile( lane.health_path ), extra, unit=lane.unit )
 
 
 def main( argv: list[ str ] | None = None ) -> int:
     parser = argparse.ArgumentParser( description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument( "--dry-run", action="store_true", help="assess and report, never restart" )
     args   = parser.parse_args( argv )
-    report = build_supervisor().run_once( dry_run=args.dry_run )
-    print( json.dumps({ k: report[ k ] for k in ( "status", "reason", "action", "pid", "restarts_in_window" )}), flush=True )
+    for lane in ( WorkerLane( name="general" ), WorkerLane( name="express" )):
+        supervisor = build_supervisor( lane )
+        if supervisor.services.show( supervisor.unit ).get( "LoadState" ) == "not-found":
+            continue                                    # a lane that was never installed is not a failure
+        report = supervisor.run_once( dry_run=args.dry_run )
+        print( json.dumps({ "lane": lane.name, **{ k: report[ k ] for k in ( "status", "reason", "action", "pid", "restarts_in_window" )}}),
+               flush=True )
     return 0
 
 

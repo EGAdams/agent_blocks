@@ -69,6 +69,7 @@ from sssf_roles import ( ConsoleLifecycleLog, ILifecycleLog, IPhase, IPhaseHandl
 
 from adw_modules.data_types import PhaseParams  # noqa: E402
 
+from agent_bridge_worker.lanes import WorkerLane  # noqa: E402
 from agent_bridge_worker.models import RunReport  # noqa: E402
 from agent_bridge_worker.service import BridgeTaskRun  # noqa: E402
 
@@ -133,7 +134,18 @@ class ServicePhase( LifecycleLogged, IPhase ):
         return self._act()
 
 
-def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> BridgeTaskRun:
+def configured_workspaces() -> Any:
+    """The workspaces file, with the places the bridge itself runs from protected. One reader for the
+    application and for the watcher's lane filter, so they cannot disagree about what a coding workspace is."""
+    from agent_bridge_worker.workspaces import ConfiguredWorkspaces
+    home = Path.home()
+    return ConfiguredWorkspaces.load( WORKSPACES_FILE, protected=[
+        _HERE, _HERE.parent / "lancedb_memory" / "agent_bridge_worker", _HERE.parent / "lancedb_memory" / "agent_comms",
+        _HERE.parent / "agent_bridge", home / ".config" / "agent_bridge", home / ".codex-bridge", home / ".codex",
+        home / ".claude", home / ".claude-bridge" ])
+
+
+def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: WorkerLane = WorkerLane()) -> BridgeTaskRun:
     """The composition root: the only place that names a concrete. `hooks` (an object_trace AdwRunTrace) traces
     the gateway and every agent adapter as objects; without it nothing is traced."""
     from agent_bridge_worker.adapters.git_changes import GitChangeTracker
@@ -154,7 +166,6 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
     from agent_bridge_worker.adapters.printer_process import UvPrinterCommands
     from agent_bridge_worker.redaction import SecretScanner
-    from agent_bridge_worker.workspaces import ConfiguredWorkspaces
     from agent_bridge_worker.write_session import ScopedWriteSession
     from agent_comms.executors.jail import BwrapJail, WorkspacePrivatePaths
     from agent_comms.factory import build_post_office
@@ -163,7 +174,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
     clock      = SystemClock()
     token      = load_worker_token()
     kit        = build_post_office( forward_failures_to_mechanic=False )
-    gateway    = HttpTaskGateway( base_url, token )
+    workspaces = configured_workspaces()
+    gateway    = HttpTaskGateway( base_url, token, skip=lane.skips( workspaces.write_names()))
     if hooks is not None:                               # observe only: every call and result passes through unchanged
         from agent_bridge_worker.adapters.traced import TracingGateway
         from object_trace.factory import default_tracer
@@ -188,10 +200,6 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
     answers    = JsonAnswerStore( Path.home() / ".cache" / "agent_bridge" / "repeat_answers.json" )
     agents     = { name: RepeatAnswers( agent, answers, time.time ) for name, agent in agents.items()}
     home       = Path.home()
-    workspaces = ConfiguredWorkspaces.load( WORKSPACES_FILE, protected=[
-        _HERE, _HERE.parent / "lancedb_memory" / "agent_bridge_worker", _HERE.parent / "lancedb_memory" / "agent_comms",
-        _HERE.parent / "agent_bridge", home / ".config" / "agent_bridge", home / ".codex-bridge", home / ".codex",
-        home / ".claude", home / ".claude-bridge" ])
     for name, problem in workspaces.problems().items():
         print( f"workspace { name } is not write-enabled: { problem }", flush=True )
     check_jail = BwrapJail( WorkspacePrivatePaths(), state_dirs=[], env={ "PYTHONDONTWRITEBYTECODE": "1" }, network=False )
@@ -224,7 +232,7 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
         agents[ "printer" ]  = PrinterAgent( UvPrinterCommands( UV, PRINT_ADW, _HERE.parent ), clock )
         offered[ "printer" ] = { "print": False, "print_cancel": False, "print_status": False, "print_discover": False }
         modes.add( "device_control" )
-    write_names = workspaces.write_names()
+    self_contained: set[ str ] = set()
     if NOTES_ENABLED.exists():                          # the Notes diagnostic is off until EG creates the flag file
         NOTES_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
         # Approved-note list/read/update go through the dashboard's token interface; without the token
@@ -234,7 +242,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
         agents[ "notes" ]  = NotesAgent( FilesystemNotesStore( NOTES_DIR ), HttpNotesEndpoint( NOTES_URL ), bridge,
                                          JsonlNotesActivity( NOTES_ACTIVITY ))
         offered[ "notes" ] = { "inspect": False, "implement": True }
-        write_names = write_names | { "notes" }
+        self_contained.add( "notes" )
+    write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR },
                                     workspaces )
     if hooks is not None:
@@ -245,20 +254,23 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None ) -> Bri
                           resolver, agents, events, clock, worker_id, writes=writes, self_contained=frozenset({ "notes" }))
 
 
-def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ]) -> Any:
+def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ], lane: WorkerLane = WorkerLane()) -> Any:
     """The composition root for `--watch`: a cheap probe, the schedule, the waiter."""
     from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
     from agent_bridge_worker.adapters.poll_state_file import JsonPollStateFile
     from agent_bridge_worker.polling import build_schedule, load_settings
     from agent_bridge_worker.watch import PollLoop
 
-    probe    = HttpTaskGateway( base_url, load_worker_token())
+    probe    = HttpTaskGateway( base_url, load_worker_token(), skip=lane.skips( configured_workspaces().write_names()))
+    if not lane.takes_coding_writes and not probe.supports_lanes():
+        raise RuntimeError( "the gateway does not support worker lanes yet (?skip=); the express worker will not start, "
+                            "because it could claim a coding task it must not run" )
     settings = load_settings( settings_path )
     say      = lambda line: print( f"{ datetime.now():%Y-%m-%d %H:%M:%S} watch: { line }", flush=True )  # noqa: E731
     say( f"settings { settings.model_dump_json()}" )
     now      = lambda: datetime.now().astimezone()  # noqa: E731 -- offset-aware, so the dashboard can count down
     return PollLoop( lambda: probe.next() is not None, run_work, build_schedule( settings ),
-                     SignalWaiter(), now, say, observers=[ JsonPollStateFile()])
+                     SignalWaiter(), now, say, observers=[ JsonPollStateFile( lane.poll_state_path )])
 
 
 def phases( svc: BridgeTaskRun ) -> list[ tuple[ str, str, Callable[[], Any ]]]:
@@ -289,7 +301,7 @@ def one_run( args: argparse.Namespace, cfg: Any, boot: ILifecycleLog ) -> RunRep
     # The trace shares the SSSF run's adw_id, so the inspector joins the two. It only observes (OBJECT_TRACE=off stops it).
     with AdwRunTrace( default_tracer(), "adw_bridge_worker", run.adw_id, task_id_of=task_of ) as hooks:
         try:
-            svc = default_tracer().construct( "bridge.worker_app", lambda: build_application( args.url, args.worker_id, hooks ),
+            svc = default_tracer().construct( "bridge.worker_app", lambda: build_application( args.url, args.worker_id, hooks, WorkerLane( name=args.lane )),
                                               interface="BridgeTaskRun", label="the worker's composition root",
                                               on_created=lambda trace: hooks.closing(
                                                   lambda reason: trace.succeed( message="worker application closed" )
@@ -317,7 +329,9 @@ def describe( report: RunReport ) -> str:
 def main( argv: list[ str ] | None = None ) -> int:
     parser = argparse.ArgumentParser( description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument( "--url", default=os.environ.get( "BRIDGE_URL", "" ), help="gateway base, ending /api/agent-bridge/v1" )
-    parser.add_argument( "--worker-id", default=f"wsl-{ socket.gethostname().lower() }" )
+    parser.add_argument( "--lane", choices=[ "general", "express" ], default="general",
+                         help="express never takes coding writes, so it is always free for diagnostics, Machine Ops and Notes" )
+    parser.add_argument( "--worker-id", default=None )
     parser.add_argument( "--drain", action="store_true", help=f"keep going until nothing is queued (at most { MAX_DRAIN })" )
     parser.add_argument( "--watch", action="store_true", help="keep checking for work, paced by --poll-settings" )
     parser.add_argument( "--poll-settings", default=str( POLL_SETTINGS ))
@@ -327,6 +341,8 @@ def main( argv: list[ str ] | None = None ) -> int:
     args = parser.parse_args( argv )
     if not args.url:
         parser.error( "set --url or BRIDGE_URL" )
+    lane = WorkerLane( name=args.lane )
+    args.worker_id = args.worker_id or lane.default_worker_id( socket.gethostname().lower())
 
     boot: ILifecycleLog = PrintLifecycleLog()
     loader = SssfConfigLoader( boot )
@@ -343,7 +359,7 @@ def main( argv: list[ str ] | None = None ) -> int:
             return sum( 1 for report in reports if report.task_id is not None )
 
         try:
-            build_watcher( args.url, Path( args.poll_settings ), drain_and_count ).run()
+            build_watcher( args.url, Path( args.poll_settings ), drain_and_count, lane ).run()
         except WorkerNotAuthorised as error:
             print( f"stopping: { error } -- check the worker token", flush=True )
             return EXIT_NOT_AUTHORISED
