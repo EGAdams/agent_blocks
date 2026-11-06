@@ -165,3 +165,27 @@ The read-only `codex` card is unchanged, and `bridge_sandbox` still works.
 Rollback: restore `bridge.php` (mode 600) from the server backup and run `migrate.php`; untar the Win11 backup
 from `lancedb_memory/` and restart `agent-bridge-worker`. Or, writes-off only: set `letta_code` back to
 `"writes": false` and restart the worker.
+
+## Worker lanes (2026-11-06, EG approved)
+
+The queue is first-in-first-out and one worker runs one task at a time, so a long coding task used to hold
+every later task (diagnostics, Machine Ops, Notes) behind it. There are now two workers:
+
+| Unit | `--lane` | Takes | State / health files in `~/.cache/agent_bridge/` |
+| --- | --- | --- | --- |
+| `agent-bridge-worker` | `general` (default) | everything, including coding writes (one at a time, in order) | `poll_state.json`, `worker_health.json` |
+| `agent-bridge-worker-express` | `express` | everything except coding writes (`implement` in a git-backed write workspace) | `poll_state_express.json`, `worker_health_express.json` |
+
+- Claims stay atomic at the gateway (a second claim of one task is a 409). Coding writes only ever run on `general`,
+  so they keep their order and never overlap (the per-workspace flock is still there as a second guard).
+- The express worker asks the gateway to pass over coding writes: `GET /worker/tasks/next?skip=implement@letta_code,...`.
+  `skip` is a list of `operation@workspace`; omitting it behaves exactly as before. The express worker **refuses to start**
+  against a gateway that does not honour `skip` (it probes with a malformed list and expects `400 bad_skip`),
+  because it could otherwise claim a coding task it must not run. **Deploy the gateway files before starting it.**
+- Gateway files changed: `src/Contracts.php`, `src/SqliteStore.php`, `src/GatewayApp.php`
+  (backup of the previous three on the host: `~/agent_bridge_backups/gateway_lane_20261106/`; rollback = copy them back,
+  then stop the express worker).
+- Install: `cp agent_bridge/systemd/agent-bridge-worker-express.service ~/.config/systemd/user/ &&
+  systemctl --user daemon-reload && systemctl --user enable --now agent-bridge-worker-express`.
+  The supervisor timer, the Worker Activity page and `adw_supervisor` each watch both lanes; a lane whose unit is not
+  installed is shown as "not installed", not as a failure.
