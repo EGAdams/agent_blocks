@@ -125,6 +125,27 @@ class CdpWorkflowBrowser:
         # No loaderId means a same-document move (a #fragment): nothing is replaced.
         self._wait_replaced( allow_same_document=not result.get( "loaderId" ))
 
+    def reload( self ) -> None:
+        """Reload the tab as it stands (Page.reload), and wait for the new document."""
+        self._mark()
+        self._page.call( "Page.reload", { "ignoreCache": False })
+        self._wait_replaced( allow_same_document=False )
+
+    def is_foreground( self ) -> bool:
+        """Does the page itself say it is the visible tab? (document.visibilityState)"""
+        return self._evaluate( "document.visibilityState" ) == "visible"
+
+    def capture_png( self, path: str ) -> bool:
+        """Page.captureScreenshot of the visible page into `path`. False if the browser gave no image.
+        (`screenshot` stays False on purpose: Cashy reads the DOM and the playback engine relies on that.)"""
+        import base64
+        data = self._page.call( "Page.captureScreenshot", { "format": "png" }).get( "data" )
+        if not data:
+            return False
+        with open( path, "wb" ) as handle:
+            handle.write( base64.b64decode( data ))
+        return True
+
     # -- IFormControls ------------------------------------------------------------
 
     def select_option( self, element: IWorkflowElement, value: str ) -> None:

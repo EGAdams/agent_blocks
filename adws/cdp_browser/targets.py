@@ -56,6 +56,10 @@ class HttpTargetDirectory:
     def activate( self, endpoint: DebugEndpoint, target_id: str ) -> None:
         self._get( endpoint, f"/json/activate/{ target_id }", parse=False )
 
+    def close_page( self, endpoint: DebugEndpoint, target_id: str ) -> None:
+        """Close exactly one tab, by the id /json/list gave. Nothing else is touched."""
+        self._get( endpoint, f"/json/close/{ quote( target_id, safe='' )}", parse=False )
+
     def _get( self, endpoint: DebugEndpoint, path: str, method: str = "GET", parse: bool = True ):
         self._guard.check( endpoint )
         request = urllib.request.Request( f"http://{ endpoint.address }{ path }", method=method )

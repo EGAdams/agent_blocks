@@ -72,3 +72,4 @@ lancedb_memory/agent_bridge_worker/*.bak
 adws/adw_data/object_trace.db*
 .playwright-mcp/
 lancedb_memory/receptionist_team/voice_metrics.log
+adws/adw_data/browser_control/

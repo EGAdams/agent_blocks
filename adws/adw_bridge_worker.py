@@ -83,6 +83,9 @@ SCAN_WORKDIR    = _HERE / "adw_data" / "scan_bridge"    # the `scanners` workspa
 PRINT_ENABLED   = Path.home() / ".config" / "startrek_printer" / "enabled"   # printing is off until this exists
 PRINT_WORKDIR   = _HERE / "adw_data" / "printer" / "workspace"   # the `printers` workspace: empty, nothing runs in it
 PRINT_ADW       = _HERE / "adw_printer.py"
+BROWSER_ENABLED = Path.home() / ".config" / "startrek_browser" / "enabled"   # browser control is off until this exists
+BROWSER_WORKDIR = _HERE / "adw_data" / "browser_control" / "workspace"      # the `browser` workspace: empty, nothing runs in it
+BROWSER_ADW     = _HERE / "adw_browser_control.py"
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
 NOTES_URL       = os.environ.get( "NOTES_ENDPOINT_URL", "http://127.0.0.1:8765" )     # the dashboard, loopback
@@ -161,6 +164,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.scanner_agent import ScannerAgent
     from agent_bridge_worker.printer_agent import PrinterAgent
     from agent_bridge_worker.notes_agent import NotesAgent
+    from agent_bridge_worker.browser_agent import BrowserAgent
+    from agent_bridge_worker.adapters.browser_process import UvBrowserCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
@@ -243,15 +248,20 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
                                          JsonlNotesActivity( NOTES_ACTIVITY ))
         offered[ "notes" ] = { "inspect": False, "implement": True }
         self_contained.add( "notes" )
+    if BROWSER_ENABLED.exists():                        # the Browser Control ADW is off until EG creates the flag file
+        BROWSER_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "browser" ]  = BrowserAgent( UvBrowserCommands( UV, BROWSER_ADW, _HERE.parent ), clock )
+        offered[ "browser" ] = { "inspect": False, "implement": True }
+        self_contained.add( "browser" )                 # it changes a window, not a git workspace; the ADW verifies the result
     write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
-    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR },
+    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent
         from object_trace.factory import default_tracer
         agents = { name: TracingAgent( agent, default_tracer(), name ) for name, agent in agents.items()}
     return BridgeTaskRun( gateway, ScopedPolicy( offered, write_names, frozenset( modes )),
-                          resolver, agents, events, clock, worker_id, writes=writes, self_contained=frozenset({ "notes" }))
+                          resolver, agents, events, clock, worker_id, writes=writes, self_contained=frozenset( self_contained ))
 
 
 def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ], lane: WorkerLane = WorkerLane()) -> Any:
