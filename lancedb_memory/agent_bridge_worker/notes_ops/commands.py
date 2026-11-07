@@ -21,6 +21,7 @@ from ..models import AgentOutcome, ClaimedTask
 from .base import NotesContext, NotesRefusal, conflict, done, failed, refused, yes
 from .edits import edit_from
 from .highlights import SPAN, highlight_from
+from .names import create_hint, renamed
 from .requests import NotesRequest
 
 _NEEDS = {
@@ -259,7 +260,7 @@ class CreateNote( Lifecycle ):
         return None if request.text.strip() else "create text must not be blank"
 
     def perform( self, ctx, task, request ):
-        return ctx.gateway.create( request.name, request.text, request.category or None, task.task_id )
+        return ctx.gateway.create( create_hint( request.name, request.category ), request.text, task.task_id )
 
     def verify( self, ctx, task, request, result ):
         served = ctx.endpoint.served( result[ "filename" ])
@@ -278,11 +279,16 @@ class RenameNote( Lifecycle ):
         return None if ( request.new_name is not None or request.category is not None ) else "rename needs new_name or category"
 
     def perform( self, ctx, task, request ):
-        return ctx.gateway.rename( request.id, request.expected_revision, request.new_name, request.category, task.task_id )
+        new_filename = renamed( request.id, request.new_name, request.category )
+        if new_filename == request.id:
+            return { "filename": request.id, "revision": request.expected_revision, "changed": False }
+        return { **ctx.gateway.rename( request.id, request.expected_revision, new_filename, task.task_id ), "changed": True }
 
     def verify( self, ctx, task, request, result ):
         new = ctx.endpoint.served( result[ "filename" ])
         old_gone = result[ "filename" ] == request.id or ctx.endpoint.served( request.id ) is None
+        if not result.get( "changed", True ):
+            return { "dashboard_has_it": bool( new and new[ 1 ] == request.expected_revision )}
         return { "dashboard_has_new_name": bool( new and new[ 1 ] == result[ "revision" ] and result[ "revision" ] == request.expected_revision ),
                  "old_name_gone": old_gone}
 

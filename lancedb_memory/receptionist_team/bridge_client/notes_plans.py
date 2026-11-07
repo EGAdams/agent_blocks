@@ -14,11 +14,15 @@ import uuid
 from typing import Protocol
 
 NOTE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md")
-TRASH_ID = re.compile(r"\d{8}T\d{6}Z__[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md")
+TRASH_ID = re.compile(r"\d{14}_(?:\d+_)?[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md")
 REVISION = re.compile(r"[0-9a-f]{64}")
 MARKER = re.compile(r"NOTESDIAG-[0-9a-f]{12}")
 COLOR = re.compile(r"[a-z]{3,10}")
 MAX_ITEMS = 50
+
+
+def _original(trash_id: str) -> str:
+    return re.sub(r"^\d{14}_(?:\d+_)?", "", trash_id)
 
 
 def words(text: str | None, limit: int = 60) -> str:
@@ -241,7 +245,7 @@ class RestoreNote:
         trash_id = (form.trash_id or "").strip()
         if not TRASH_ID.fullmatch(trash_id):
             problem("Which trashed note? Ask me to list the trash, then tell me which one.")
-        return {"notes": "restore", "trash_id": trash_id}, f"I'll restore {trash_id.split('__', 1)[1]} from the trash."
+        return {"notes": "restore", "trash_id": trash_id}, f"I'll restore {_original(trash_id)} from the trash."
 
 
 class PurgeNote:
@@ -253,7 +257,7 @@ class PurgeNote:
             problem("Which trashed note? Ask me to list the trash, then tell me which one.")
         req = {"notes": "purge", "trash_id": trash_id,
                "authorization": f"EG authorizes permanently deleting {trash_id}"}
-        return req, (f"This permanently deletes {trash_id.split('__', 1)[1]} from the trash. It cannot be undone, "
+        return req, (f"This permanently deletes {_original(trash_id)} from the trash. It cannot be undone, "
                      "and saying yes is your authorization.")
 
 

@@ -18,6 +18,7 @@ import urllib.parse
 import urllib.request
 
 from ..notes_ops.base import NoteChanged, NotesDenied
+from ..notes_ops.names import original_of
 
 LOOPBACK = re.compile( r"^http://(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?/" )
 TASK     = re.compile( r"^t_[0-9a-f]{8,64}$" )
@@ -68,30 +69,34 @@ class HttpNotesBridge:
         return self._json( "GET", f"/notes/{ _quoted( filename )}/highlights", task_id )
 
     def trash_list( self, task_id: str ) -> list[ dict ]:
-        found = self._json( "GET", "/trash", task_id ).get( "trash", [])
-        return [ t for t in found if isinstance( t, dict )] if isinstance( found, list ) else []
+        names = self._json( "GET", "/trash", task_id ).get( "trash", [])
+        return [{ "trash_id": n, "filename": original_of( n )} for n in names if isinstance( n, str )] if isinstance( names, list ) else []
 
-    # -- INotesLifecycle -------------------------------------------------------
+    # -- INotesLifecycle (the dashboard's create / rename / delete / restore / purge) --------
 
-    def create( self, name: str, text: str, category: int | None, task_id: str ) -> dict:
-        return self._post( "/notes", { "name": name, "note": text, "category": category }, task_id )
+    def create( self, hint: str, text: str, task_id: str ) -> dict:
+        answer = self._post( "/notes", { "note": text, "filename": hint }, task_id )
+        return { "filename": answer.get( "filename" ), "revision": answer.get( "revision" )}
 
-    def rename( self, filename: str, expected_revision: str, new_name: str | None, category: int | None,
-                task_id: str ) -> dict:
-        body = { "expected_revision": expected_revision, "new_name": new_name, "category": category }
-        return self._post( f"/notes/{ _quoted( filename )}/rename", body, task_id )
+    def rename( self, filename: str, expected_revision: str, new_filename: str, task_id: str ) -> dict:
+        answer = self._post( f"/notes/{ _quoted( filename )}/rename",
+                             { "new_filename": new_filename, "expected_revision": expected_revision }, task_id )
+        return { "filename": answer.get( "filename" ), "revision": answer.get( "revision" )}
 
     def trash( self, filename: str, expected_revision: str, task_id: str ) -> dict:
-        return self._post( f"/notes/{ _quoted( filename )}/trash", { "expected_revision": expected_revision }, task_id )
+        answer = self._post( f"/notes/{ _quoted( filename )}/delete", { "expected_revision": expected_revision }, task_id )
+        return { "trash_id": answer.get( "trashed_as" ), "filename": filename, "revision": expected_revision }
 
     def restore( self, trash_id: str, task_id: str ) -> dict:
-        return self._post( f"/trash/{ _quoted( trash_id )}/restore", {}, task_id )
+        answer = self._post( f"/trash/{ _quoted( trash_id )}/restore", {}, task_id )
+        return { "filename": answer.get( "restored_as" ), "revision": answer.get( "revision" )}
 
     def purge( self, trash_id: str, authorization: str, task_id: str ) -> dict:
-        return self._post( f"/trash/{ _quoted( trash_id )}/purge", { "authorization": authorization }, task_id )
+        self._post( f"/trash/{ _quoted( trash_id )}/purge", { "authorization": authorization }, task_id )
+        return { "trash_id": trash_id, "purged": True }
 
     def _post( self, path: str, payload: dict, task_id: str ) -> dict:
-        answer = self._json( "POST", path, task_id, json.dumps({ k: v for k, v in payload.items() if v is not None }).encode( "utf-8" ))
+        answer = self._json( "POST", path, task_id, json.dumps( payload ).encode( "utf-8" ))
         if not answer.get( "ok" ):
             raise OSError( "the Notes interface did not confirm the change" )
         return answer
@@ -112,6 +117,8 @@ class HttpNotesBridge:
             answer = _dict( exc.read( 64 * 1024 ))
             code   = str( answer.get( "error", "" ))[ :60 ] or "error"
             reason = str( answer.get( "message", "" ))[ :200 ]
+            if exc.code == 409 and code == "name_exists":
+                raise OSError( f"that name is already taken ({ reason or code })" ) from None
             if exc.code == 409:
                 raise NoteChanged( f"it is now at { str( answer.get( 'revision', '?' ))[ :12 ]}" ) from None
             if exc.code == 404:

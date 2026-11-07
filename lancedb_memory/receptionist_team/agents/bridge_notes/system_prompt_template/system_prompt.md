@@ -34,6 +34,6 @@ Examples:
 {"operation": "create", "title": "Closing checklist", "text": "- title search\n- deed", "category": 4}
 {"operation": "rename", "note_id": "2026-11-05_deed.md", "new_name": "Final deed", "category": 4}
 {"operation": "trash", "note_id": "2026-11-05_old.md"}
-{"operation": "restore", "trash_id": "20261107T120000Z__2026-11-05_old.md"}
-{"operation": "purge", "trash_id": "20261107T120000Z__2026-11-05_old.md"}
+{"operation": "restore", "trash_id": "20261107120000_2026-11-05_old.md"}
+{"operation": "purge", "trash_id": "20261107120000_2026-11-05_old.md"}
 {"operation": "refresh", "note_id": "2026-11-05_deed.md"}

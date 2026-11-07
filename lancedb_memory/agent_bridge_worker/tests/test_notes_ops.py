@@ -127,32 +127,31 @@ class Dashboard:
                  "highlights": [{ "color": m.group( 1 ), "text": m.group( 2 )} for m in SPAN.finditer( text )]}
 
     def trash_list( self, task_id ):
-        return [{ "trash_id": t, "filename": t.split( "__", 1 )[ 1 ]} for t in self.trash_bin]
+        return [{ "trash_id": t, "filename": t.split( "_", 1 )[ 1 ]} for t in self.trash_bin]
 
     # INotesLifecycle
-    def create( self, name, text, category, task_id ):
-        filename = f"2026-11-07_{ f'{category:02d}-' if category else '' }{ name.lower().replace( ' ', '-' )}.md"
+    def create( self, hint, text, task_id ):
+        filename = f"2026-11-07_{ hint }.md"
         self.notes[ filename ] = text if text.endswith( "\n" ) else text + "\n"
         return { "filename": filename, "revision": sha( self.notes[ filename ])}
 
-    def rename( self, filename, expected_revision, new_name, category, task_id ):
+    def rename( self, filename, expected_revision, new_filename, task_id ):
         self._gate()
         if sha( self.notes[ filename ]) != expected_revision:
             raise NoteChanged( "it changed" )
-        new = f"2026-11-05_{ f'{category:02d}-' if category else '' }{ (new_name or 'same').lower().replace( ' ', '-' )}.md"
-        self.notes[ new ] = self.notes.pop( filename )
-        return { "filename": new, "revision": sha( self.notes[ new ]), "changed": True }
+        self.notes[ new_filename ] = self.notes.pop( filename )
+        return { "filename": new_filename, "revision": sha( self.notes[ new_filename ])}
 
     def trash( self, filename, expected_revision, task_id ):
         self._gate()
         if sha( self.notes[ filename ]) != expected_revision:
             raise NoteChanged( "it changed" )
-        trash_id = f"20261107T120000Z__{ filename }"
+        trash_id = f"20261107120000_{ filename }"
         self.trash_bin[ trash_id ] = self.notes.pop( filename )
         return { "trash_id": trash_id, "filename": filename, "revision": expected_revision }
 
     def restore( self, trash_id, task_id ):
-        filename = trash_id.split( "__", 1 )[ 1 ]
+        filename = trash_id.split( "_", 1 )[ 1 ]
         self.notes[ filename ] = self.trash_bin.pop( trash_id )
         return { "filename": filename, "revision": sha( self.notes[ filename ])}
 
@@ -160,7 +159,7 @@ class Dashboard:
         if authorization != f"EG authorizes permanently deleting { trash_id }":
             raise NotesDenied( "authorization_required", 403 )
         self.trash_bin.pop( trash_id )
-        return { "trash_id": trash_id, "purged": True, "revision": "r" }
+        return { "trash_id": trash_id, "purged": True }
 
     # INotesEndpoint (what the browser sees)
     def served( self, filename ):
@@ -299,10 +298,38 @@ def test_a_protected_note_refusal_surfaces_as_refused() -> None:
     assert d.notes[ A ].startswith( "# Alpha" )
 
 
+def test_file_names_for_create_rename_and_move() -> None:
+    from agent_bridge_worker.notes_ops.names import create_hint, original_of, renamed
+    assert create_hint( "Probate Deed!", 4 ) == "04-probate-deed" and create_hint( "plain", None ) == "plain"
+    assert renamed( "2026-11-05_04-deed.md", None, 5 ) == "2026-11-05_05-deed.md"          # move
+    assert renamed( "2026-11-05_04-deed.md", "Final Deed", None ) == "2026-11-05_04-final-deed.md"
+    assert renamed( "2026-11-05_04-deed.md", None, 0 ) == "2026-11-05_deed.md"             # out of its category
+    assert renamed( "2026-11-05_deed.md", "x", 2 ) == "2026-11-05_02-x.md"
+    assert original_of( "20261107120000_2026-11-05_x.md" ) == "2026-11-05_x.md"
+    assert original_of( "20261107120000_2_2026-11-05_x.md" ) == "2026-11-05_x.md"
+    for bad in (( "notes.md", "x", None ), ( "2026-11-05_a.md", "!!!", None ), ( "2026-11-05_a.md", None, 11 )):
+        try:
+            renamed( *bad )
+            raise AssertionError( bad )
+        except NotesRefusal:
+            pass
+    try:
+        create_hint( "", None )
+        raise AssertionError( "empty name" )
+    except NotesRefusal:
+        pass
+
+
+def test_a_rename_to_the_same_name_changes_nothing() -> None:
+    d = Dashboard()
+    out = ask( d, { "notes": "rename", "id": A, "expected_revision": rev( d, A ), "category": 4 })     # A is already 04-
+    assert out.kind is OutcomeKind.SUCCEEDED and "nothing moved" in out.summary and A in d.notes
+
+
 def test_every_operation_has_one_command_and_the_right_lane() -> None:
     d = Dashboard()
     for payload, wrong in (({ "notes": "trash_list" }, "implement" ), ({ "notes": "create", "name": "n", "text": "t" }, "inspect" ),
-                           ({ "notes": "purge", "trash_id": "20261107T120000Z__x.md", "authorization": "a" }, "inspect" )):
+                           ({ "notes": "purge", "trash_id": "20261107120000_x.md", "authorization": "a" }, "inspect" )):
         assert ask( d, payload, wrong ).kind is OutcomeKind.REFUSED, payload
 
 

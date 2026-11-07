@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 MARKER    = r"^NOTESDIAG-[0-9a-f]{12}$"
 REVISION  = r"^[0-9a-f]{64}$"
 NOTE_ID   = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md$"
-TRASH_ID  = r"^\d{8}T\d{6}Z__[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md$"
+TRASH_ID  = r"^\d{14}_(?:\d+_)?[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md$"
 MAX_EDITS = 50
 
 OPERATIONS = ( "status", "marker_write", "marker_clear",

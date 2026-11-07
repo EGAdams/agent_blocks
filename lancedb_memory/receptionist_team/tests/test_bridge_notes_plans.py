@@ -14,7 +14,7 @@ from .test_bridge_specialists import NOTES
 
 REV = "c" * 64
 DEED = "2026-11-05_04-deed.md"
-TRASHED = "20261107T120000Z__2026-11-05_old.md"
+TRASHED = "20261107120000_2026-11-05_old.md"
 B = SPECIALISTS["bridge_notes"].builder
 
 # operation -> (form kwargs, the exact prompt, needs a yes)
