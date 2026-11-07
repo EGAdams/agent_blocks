@@ -118,12 +118,19 @@ class BridgeSpecialistRunner:
             return f"{readback} Shall I send it? Say yes or no."
         return self._send(request)
 
+    #: Notes operations that must name the revision a read returned. Code supplies it, never the model.
+    REVISION_CHECKED = ("update", "highlight", "rename", "trash")
+
     def _attach_revision(self, form) -> None:
-        """An update carries the revision code remembered from the last read, never the model's."""
+        """A change carries the revision code remembered from the last read, never the model's.
+        `refresh` compares against the same memory: "has it changed since I last looked?"."""
         from ..bridge_client import desk
-        form.expected_revision = None
-        if (form.operation or "").strip().lower() == "update" and form.note_id:
+        form.expected_revision = form.known_revision = None
+        what = (form.operation or "").strip().lower()
+        if form.note_id and what in self.REVISION_CHECKED:
             form.expected_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
+        elif form.note_id and what == "refresh":
+            form.known_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
 
     def _remember_revision(self, run) -> None:
         """After a read or update that finished, keep the note's revision for the next update."""
@@ -134,9 +141,12 @@ class BridgeSpecialistRunner:
             return
         try:
             asked, body = json.loads(request.prompt), json.loads(result.body or "")
-            if asked.get("notes") in ("read", "update") and body.get("id") == asked.get("id") \
-                    and (asked["notes"] == "read" or body.get("verified")):
+            what = asked.get("notes")
+            if what in ("read", "refresh", "update", "highlight") and body.get("id") == asked.get("id") \
+                    and (what in ("read", "refresh") or body.get("verified")):
                 desk.NOTE_REVISIONS.remember(body["id"], body["revision"])
+            elif what in ("create", "rename", "restore") and body.get("verified") and body.get("filename"):
+                desk.NOTE_REVISIONS.remember(body["filename"], body["revision"])   # a new or renamed note
         except (ValueError, TypeError, KeyError, AttributeError):
             return
 

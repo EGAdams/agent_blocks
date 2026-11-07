@@ -183,7 +183,9 @@ ROLE_BLURBS: dict[str, str] = {
         "scans on the Window or Freezer scanner, after a yes"
     ),
     "bridge_notes": (
-        "Notes: lists, reads and (after a yes) edits approved notes such as the deed; also runs the Notes diagnostic marker"
+        "Notes: searches and reads every note and its highlights; after a yes edits lines or sections, adds or clears "
+        "highlights, creates, renames or moves, trashes and restores notes (permanent delete only from the trash, "
+        "on EG's yes); also runs the Notes diagnostic marker"
     ),
     "object_inspector": "answers from the object trace",
 }

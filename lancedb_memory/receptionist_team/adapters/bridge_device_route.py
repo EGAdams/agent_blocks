@@ -20,9 +20,14 @@ _TASK_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
 _NOTES_ACTION = re.compile(r"\b(?:run|write|check|clear|remove|delete|start|status|new)\b", re.I)
 # Approved notes (the deed, or any note named by its .md file name): list, read, change.
 _APPROVED_NOTES = re.compile(r"\b[\w.-]+\.md\b|\b(?:the\s+)?deed\b|\bapproved\s+notes?\b|"
-                             r"\b(?:list|show)\s+(?:me\s+)?(?:the\s+|my\s+)?notes\b", re.I)
+                             r"\b(?:list|show)\s+(?:me\s+)?(?:the\s+|my\s+)?notes\b|"
+                             r"\b(?:search|find|look\s+through)\s+(?:through\s+)?(?:the\s+|my\s+|all\s+)?notes\b|"
+                             r"\bnotes?\s+trash\b|\btrash(?:ed)?\s+notes?\b|\b(?:in|from|to)\s+the\s+trash\b|"
+                             r"\b(?:create|make|add)\s+(?:a\s+)?new\s+note\b|"
+                             r"\bhighlights?\b.{0,60}\bnotes?\b|\bnotes?\b.{0,60}\bhighlights?\b", re.I | re.S)
 _APPROVED_ACTION = re.compile(r"\b(?:list|show|read|open|update|edit|change|fix|replace|correct|remove|delete|"
-                              r"insert|add|rename)\b", re.I)
+                              r"insert|add|rename|highlight|unhighlight|clear|search|find|create|make|trash|restore|"
+                              r"purge|move|refresh|permanently|changed|modified|updated)\b", re.I)
 _ROUTES = (
     ("bridge_scanner", re.compile(r"\b(?:window|freezer)\s+scanner\b|\bscan\b.*\b(?:window|freezer)\b"
                                   r"|\b(?:start|do|run)\s+a\s+scan\b", re.I | re.S)),

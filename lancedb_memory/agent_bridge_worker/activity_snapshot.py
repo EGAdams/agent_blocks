@@ -62,8 +62,9 @@ ERROR_CLIP      = 240
 OPEN_STATES     = { TaskStatus.QUEUED, TaskStatus.RUNNING }
 NOTES_LOG       = Path( os.environ.get( "NOTES_ACTIVITY_LOG" ) or os.path.expanduser( "~/.cache/agent_bridge/notes_activity.jsonl" ))
 NOTES_TAIL      = 2000
-NOTES_OK        = { "read", "list", "write", "verified", "unchanged" }
-NOTES_FAILED    = { "conflict", "verify_failed", "error", "auth_failed", "not_approved", "refused" }
+NOTES_OK        = { "read", "list", "write", "verified", "unchanged", "create", "rename", "trash", "restore", "purge",
+                    "trash_list", "highlights", "export_docx", "email_draft" }
+NOTES_FAILED    = { "conflict", "verify_failed", "error", "auth_failed", "not_approved", "refused", "protected" }
 LIFECYCLE       = { "sent", "queued", "claimed", "executing", "executed", "succeeded", "failed", "replied",
                     "cancelled", "timed_out", "retried", "woken" }
 

@@ -8,10 +8,12 @@ and `events t_...` reads that evidence without an events endpoint. Cancellation
 uses the existing cancel API. See
 [the current integration guide](../../../agent_bridge/docs/BOOTSTRAP_INTEGRATION.md)
 for exact commands, identity boundaries and development/deployment scope.
-`bridge_notes` also lists, reads and updates approved notes (the deed, by file
-name): reads go straight through; an update is read back, waits for a "yes",
-and carries the revision Toyota last read in this process, so she asks for a
-read first after a restart. The older 15-second polling and missing-cancel descriptions below are historical.
+`bridge_notes` manages every note on the Notes page, the same operations ChatGPT has
+(`notes_plans.NOTES_PLANS`): list/search, read, highlights, refresh (did it change?), trash list;
+and, each read back and sent only after a "yes", update (by exact text, line or section), highlight
+(add / recolor / clear), create, rename or move to a category, trash, restore and purge. A change
+carries the revision Toyota last read in this process, so she asks for a read first after a restart.
+Purge is permanent, works only on a trashed note, and her read-back says so: the "yes" is EG's authorization. The older 15-second polling and missing-cancel descriptions below are historical.
 
 Toyota's narrow door to the public Star Trek Bridge client API. She can list
 the Bridge's agents, send a **read-only** request to any Bridge agent that

@@ -17,7 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from ..notes_agent import NoteChanged, NotesDenied
+from ..notes_ops.base import NoteChanged, NotesDenied
 
 LOOPBACK = re.compile( r"^http://(127\.0\.0\.1|localhost|\[::1\])(:\d{1,5})?/" )
 TASK     = re.compile( r"^t_[0-9a-f]{8,64}$" )
@@ -56,6 +56,46 @@ class HttpNotesBridge:
             raise OSError( "the Notes interface did not report the saved revision" )
         return revision
 
+    # -- INotesCatalog ---------------------------------------------------------
+
+    def entries( self, query: str, category: int | None, task_id: str ) -> list[ dict ]:
+        params = { k: v for k, v in { "q": query, "category": category }.items() if v not in ( "", None ) }
+        params.setdefault( "detail", "1" )
+        found = self._json( "GET", "/notes?" + urllib.parse.urlencode( params ), task_id ).get( "entries", [])
+        return [ e for e in found if isinstance( e, dict )] if isinstance( found, list ) else []
+
+    def highlights( self, filename: str, task_id: str ) -> dict:
+        return self._json( "GET", f"/notes/{ _quoted( filename )}/highlights", task_id )
+
+    def trash_list( self, task_id: str ) -> list[ dict ]:
+        found = self._json( "GET", "/trash", task_id ).get( "trash", [])
+        return [ t for t in found if isinstance( t, dict )] if isinstance( found, list ) else []
+
+    # -- INotesLifecycle -------------------------------------------------------
+
+    def create( self, name: str, text: str, category: int | None, task_id: str ) -> dict:
+        return self._post( "/notes", { "name": name, "note": text, "category": category }, task_id )
+
+    def rename( self, filename: str, expected_revision: str, new_name: str | None, category: int | None,
+                task_id: str ) -> dict:
+        body = { "expected_revision": expected_revision, "new_name": new_name, "category": category }
+        return self._post( f"/notes/{ _quoted( filename )}/rename", body, task_id )
+
+    def trash( self, filename: str, expected_revision: str, task_id: str ) -> dict:
+        return self._post( f"/notes/{ _quoted( filename )}/trash", { "expected_revision": expected_revision }, task_id )
+
+    def restore( self, trash_id: str, task_id: str ) -> dict:
+        return self._post( f"/trash/{ _quoted( trash_id )}/restore", {}, task_id )
+
+    def purge( self, trash_id: str, authorization: str, task_id: str ) -> dict:
+        return self._post( f"/trash/{ _quoted( trash_id )}/purge", { "authorization": authorization }, task_id )
+
+    def _post( self, path: str, payload: dict, task_id: str ) -> dict:
+        answer = self._json( "POST", path, task_id, json.dumps({ k: v for k, v in payload.items() if v is not None }).encode( "utf-8" ))
+        if not answer.get( "ok" ):
+            raise OSError( "the Notes interface did not confirm the change" )
+        return answer
+
     # -- HTTP -------------------------------------------------------------------
 
     def _json( self, method: str, path: str, task_id: str, body: bytes | None = None ) -> dict:
@@ -71,13 +111,14 @@ class HttpNotesBridge:
         except urllib.error.HTTPError as exc:
             answer = _dict( exc.read( 64 * 1024 ))
             code   = str( answer.get( "error", "" ))[ :60 ] or "error"
+            reason = str( answer.get( "message", "" ))[ :200 ]
             if exc.code == 409:
                 raise NoteChanged( f"it is now at { str( answer.get( 'revision', '?' ))[ :12 ]}" ) from None
             if exc.code == 404:
                 raise FileNotFoundError( path ) from None
             if exc.code in ( 401, 403 ):
-                raise NotesDenied( code, exc.code ) from None
-            raise OSError( f"the Notes interface answered { exc.code } { code }" ) from None
+                raise NotesDenied( code + ( f": { reason }" if reason and exc.code == 403 else "" ), exc.code ) from None
+            raise OSError( f"the Notes interface answered { exc.code } { code }" + ( f": { reason }" if reason else "" )) from None
         except urllib.error.URLError as exc:
             raise OSError( f"the Notes interface is unreachable ({ exc.reason })" ) from None
 
