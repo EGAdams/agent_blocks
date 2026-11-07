@@ -79,3 +79,20 @@ The first live failures ("control port never answered") had two host causes, now
    The live box's `.wslconfig` has `localhostForwarding=true` and no mirrored mode (NAT), so the port is unreachable
    whatever the timeout, and the Windows firewall drops WSL-to-host connections. Fix: add `networkingMode=mirrored`
    under `[wsl2]` in the Windows user's `.wslconfig` and `wsl --shutdown` (restarts every WSL service).
+
+## browser.open is three phases: launch, visibility, open (2026-11-07)
+
+"The control port answers" proved Chrome was running, not that anyone could see it. Chrome started through
+WSL interop opens in the Windows session of the `wslhost` carrying the interop socket; after WSL was restarted
+remotely that was session 0, the hidden services desktop. Every check passed and nobody saw a window.
+
+`browser.open` is now an `OperationSequence` (`browser_control/catalog.py`), each step its own traced phase:
+
+| Phase | Does | Fails with `cause` |
+|---|---|---|
+| `browser_launch` | Starts Chrome through an Interactive-only scheduled task `\ADW\ADW_OpenChrome` run as the signed-in user (`windows.InteractiveTaskStarter`), so it opens on that person's desktop whatever session WSL is in. A Chrome already on the port but in a hidden session is closed (`Browser.close`) and replaced. | `windows_interop`, `launch`, `control_port`, `hidden_session` |
+| `browser_visibility` | Asks Windows (`windows.WindowsSessionProbe`) which session owns the debug port's Chrome and which sessions have a desktop (explorer.exe). Success only if they match and it isn't 0. | `hidden_session`, `visibility_unknown` |
+| `browser_open` | Adds the tab if Chrome was already running; verifies the tab list. | -- |
+
+PowerShell gets each script as `-EncodedCommand`, and the URL travels inside it base64-encoded, so no URL can
+change what the script does. The debug profile is `%LOCALAPPDATA%\adw-chrome-debug` of the signed-in user.

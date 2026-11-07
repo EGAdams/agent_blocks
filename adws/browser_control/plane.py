@@ -20,9 +20,11 @@ from cdp_browser.browser import CdpWorkflowBrowser
 from cdp_browser.interfaces import CdpTarget
 from cdp_browser.targets import HttpTargetDirectory, LoopbackOnly
 
-from .interfaces import IBrowserCatalog, IWindowsLink, IBrowserEndpoint, IBrowserStarter, IClock, IPageAttacher, IPageSession
+from .interfaces import (IBrowserCatalog, IBrowserEndpoint, IBrowserStarter, IClock, IPageAttacher, IPageSession,
+                         IWindowSessions, IWindowsLink)
 from .link import WslInteropLink
 from .models import ALIASES, BROWSERS, BrowserKind
+from .windows import InteractiveTaskStarter, WindowsSessionProbe
 
 ALLOWED_SCHEMES = ("http", "https")
 
@@ -38,7 +40,11 @@ class StaticBrowserCatalog:
 
 
 class DebugBrowserStarter:
-    """IBrowserStarter: browser_session's launcher, with the table's executable and profile."""
+    """IBrowserStarter: browser_session's launcher, with the table's executable and profile.
+
+    Starts Chrome through WSL interop, so it opens in the session of whichever `wslhost` carries the
+    interop socket -- session 0 (hidden) when WSL was started remotely. The plane uses
+    `InteractiveTaskStarter` instead; this stays for a WSL started from the person's own desktop."""
 
     def __init__(self) -> None:
         self._spawner = DetachedProcessSpawner()
@@ -80,6 +86,19 @@ class CdpBrowserEndpoint:
     def close_page(self, kind: BrowserKind, target_id: str) -> None:
         self._directory.close_page(DebugEndpoint(port=kind.port), target_id)
 
+    def shutdown(self, kind: BrowserKind) -> None:
+        """Browser.close over the browser-level socket. Chrome may drop the socket before it answers."""
+        channel = WebSocketCdpConnector(timeout_seconds=5.0).connect(self._directory.browser_socket(DebugEndpoint(port=kind.port)))
+        try:
+            channel.call("Browser.close", timeout_seconds=5.0)
+        except (BrowserWorkflowError, OSError):
+            pass
+        finally:
+            try:
+                channel.close()
+            except OSError:
+                pass
+
 
 class CdpPageAttacher:
     """IPageAttacher: the named tab, else the most recently used one."""
@@ -114,12 +133,13 @@ class ControlPlane:
     link:     IWindowsLink
     shots:    Path                   # where screenshots land (a folder this ADW owns)
     ready_seconds: float = 20.0
+    sessions: IWindowSessions | None = None   # None: visibility cannot be checked, so open refuses to claim it
 
 
 def default_plane() -> ControlPlane:
     root = Path(__file__).resolve().parent.parent / "adw_data" / "browser_control" / "screenshots"
-    return ControlPlane(StaticBrowserCatalog(), DebugBrowserStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
-                        SystemClock(), WslInteropLink(), root)
+    return ControlPlane(StaticBrowserCatalog(), InteractiveTaskStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
+                        SystemClock(), WslInteropLink(), root, sessions=WindowsSessionProbe())
 
 
 def checked_url(raw: object) -> str:

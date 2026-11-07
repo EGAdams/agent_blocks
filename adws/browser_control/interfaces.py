@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from cdp_browser.interfaces import CdpTarget
-from .models import BrowserKind
+from .models import BrowserKind, BrowserPlacement
 
 
 class IBrowserCatalog(Protocol):
@@ -23,6 +23,7 @@ class IBrowserEndpoint(Protocol):
     def open_page(self, kind: BrowserKind, url: str) -> CdpTarget: ...
     def activate(self, kind: BrowserKind, target_id: str) -> None: ...
     def close_page(self, kind: BrowserKind, target_id: str) -> None: ...
+    def shutdown(self, kind: BrowserKind) -> None: ...                 # close the whole browser (Browser.close)
 
 
 class IPageSession(Protocol):
@@ -53,3 +54,8 @@ class IWindowsLink(Protocol):
     """Can this process start Windows programs, and why can't it see what they open?"""
     def ensure(self) -> tuple[bool, str]: ...
     def explain_unreachable(self, port: int) -> str: ...
+
+
+class IWindowSessions(Protocol):
+    """Which Windows session the debug browser is in, and which sessions a person can see. Never raises."""
+    def placement(self, kind: BrowserKind) -> BrowserPlacement: ...

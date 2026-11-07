@@ -29,3 +29,17 @@ class TabView(BaseModel):
     id:     str
     url:    str
     title:  str = ""
+
+
+class BrowserPlacement(BaseModel):
+    """Where Windows says the debug browser is. `known` False means Windows could not be asked."""
+    known:    bool
+    found:    bool = False        # a browser owns the debug port
+    pid:      int = 0
+    session:  int = -1            # its Windows session; 0 is the hidden services desktop
+    desktops: list[int] = []      # sessions with a desktop (explorer.exe) a person can be looking at
+    reason:   str = ""
+
+    @property
+    def visible(self) -> bool:
+        return self.found and self.session != 0 and self.session in self.desktops

@@ -11,7 +11,7 @@ import pytest
 from browser_workflows.errors import BrowserWorkflowError
 from cdp_browser.interfaces import CdpTarget
 from browser_control.catalog import PUBLIC, browser_control_operations
-from browser_control.models import BROWSERS
+from browser_control.models import BROWSERS, BrowserPlacement
 from browser_control.operations import safe_url
 from browser_control.plane import ControlPlane, StaticBrowserCatalog, checked_url
 
@@ -56,9 +56,10 @@ class FakeWorld:
     def __init__(self, running=(), launches=True):
         self.running, self.launches, self.started = {n: [CdpTarget(id=f"{n}-1", url="https://a.example/x?token=SECRET", title="A")] for n in running}, launches, []
         self.elements, self.reloads, self.active, self.closed = [FakeElement()], 0, None, []
+        self.shutdowns, self.closes, self.session, self.start_session, self.known = [], True, 1, 1, True
     # IBrowserStarter
     def start(self, kind, url):
-        self.started.append((kind.name, url))
+        self.started.append((kind.name, url)); self.session = self.start_session
         if self.launches: self.running[kind.name] = [CdpTarget(id=f"{kind.name}-1", url=url, title="Fresh")]
         return self.launches, "" if self.launches else "not installed"
     # IBrowserEndpoint
@@ -68,6 +69,14 @@ class FakeWorld:
         t = CdpTarget(id=f"{kind.name}-{len(self.running[kind.name]) + 1}", url=url, title="New"); self.running[kind.name].append(t); return t
     def activate(self, kind, target_id): self.active = target_id
     def close_page(self, kind, target_id): self.closed.append(target_id); self.running[kind.name] = [t for t in self.running[kind.name] if t.id != target_id]
+    def shutdown(self, kind):
+        self.shutdowns.append(kind.name)
+        if self.closes: self.running.pop(kind.name, None)
+    # IWindowSessions: a fresh start lands in `start_session`; what was already running sits in `session`
+    def placement(self, kind):
+        if self.known is False: return BrowserPlacement(known=False, reason="powershell timed out")
+        if kind.name not in self.running: return BrowserPlacement(known=True, found=False, desktops=[1])
+        return BrowserPlacement(known=True, found=True, pid=42, session=self.session, desktops=[1])
     # IPageAttacher
     def attach(self, kind, tab_id):
         pages = self.running[kind.name]
@@ -75,10 +84,11 @@ class FakeWorld:
         self.page = FakePage(self, tab); return self.page
 
 
-def make(tmp_path, link=None, **world_args):
+def make(tmp_path, link=None, sessions=True, **world_args):
     world = FakeWorld(**world_args)
     link = link or FakeLink()
-    plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), link, tmp_path, ready_seconds=5)
+    plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), link, tmp_path, ready_seconds=5,
+                         sessions=world if sessions else None)
     return browser_control_operations(plane), world
 
 
@@ -225,3 +235,52 @@ def test_screenshot_writes_a_real_file(tmp_path):
     ops, _ = make(tmp_path, running=["chrome"])
     out = run(ops, "browser.screenshot")
     assert out.ok and Path(out.data["path"]).read_bytes().startswith(b"\x89PNG")
+
+
+# -- launch and visibility phases ----------------------------------------------
+
+def test_open_runs_as_three_traced_phases(tmp_path):
+    ops, _ = make(tmp_path)
+    assert [s.name for s in ops["browser_open"].steps] == ["browser_launch", "browser_visibility", "browser_open"]
+    seen = []
+    out = ops["browser_open"].run({"url": "https://example.com"}, step_runner=lambda st, a: seen.append(st.name) or st.run(a))
+    assert out.ok and seen == ["browser_launch", "browser_visibility", "browser_open"]
+    assert "on your desktop in Windows session 1" in out.line and out.data["visible"] is True
+
+
+def test_a_hidden_chrome_is_closed_and_a_visible_one_started(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.session = 0                                     # the old interop launch: alive, answering, unseen
+    out = run(ops, "browser.open", url="https://example.com")
+    assert out.ok and world.shutdowns == ["chrome"] and world.started == [("chrome", "https://example.com")]
+    assert out.data["replaced_hidden"] and out.data["session"] == 1 and "hidden copy was closed" in out.line
+
+
+def test_a_hidden_chrome_that_will_not_close_is_reported(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.session, world.closes = 0, False
+    out = run(ops, "browser.open")
+    assert not out.ok and out.data["cause"] == "hidden_session" and not world.started
+
+
+def test_a_launch_that_lands_hidden_is_not_called_success(tmp_path):
+    ops, world = make(tmp_path)
+    world.start_session = 0
+    out = run(ops, "browser.open")
+    assert not out.ok and out.data["cause"] == "hidden_session" and out.data["verified"] is False
+    assert "not on your screen" in out.line and "session (0)" in out.line
+
+
+def test_open_will_not_claim_visibility_it_could_not_check(tmp_path):
+    ops, world = make(tmp_path)
+    world.known = False
+    out = run(ops, "browser.open")
+    assert not out.ok and out.data["cause"] == "visibility_unknown" and "powershell timed out" in out.line
+    ops, _ = make(tmp_path, sessions=False)
+    assert run(ops, "browser.open").data["cause"] == "visibility_unknown"
+
+
+def test_a_visible_running_chrome_is_left_alone(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    out = run(ops, "browser.open", url="https://b.example")
+    assert out.ok and not world.shutdowns and not world.started and len(world.running["chrome"]) == 2

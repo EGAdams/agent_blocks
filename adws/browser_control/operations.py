@@ -73,39 +73,106 @@ class BrowserOperation(Operation):
         return self._plane.attacher.attach(kind, self._tab_id(kind, args))
 
 
-class Open(BrowserOperation):
-    name = "browser_open"
-    description = "browser.open: start Chrome on the Windows desktop with a control port (or add a tab)"
+class Launch(BrowserOperation):
+    """Phase 1 of browser.open: make sure Chrome is running where the person can see it.
+
+    Already running and visible (or Windows can't say): leave it alone. Running but hidden in session 0
+    (the interop launch of earlier versions): close that one -- nobody can see or use it -- and start a
+    visible one. Not running: start it through the desktop starter and wait for its control port."""
+    name = "browser_launch"
+    description = "browser.open, phase 1: start Chrome on the signed-in person's desktop (replacing a hidden one)"
 
     def perform(self, args: dict[str, Any]) -> OperationOutcome:
         kind = self._kind(args)
         url = checked_url(args["url"]) if args.get("url") else "about:blank"
         up, detail = self._plane.endpoint.reachable(kind)
-        started = False
-        if up:                                                  # already running: add a tab, touch nothing else
-            if args.get("url"):
-                self._plane.endpoint.open_page(kind, url)
-        else:
-            linked, why = self._plane.link.ensure()
-            if not linked:
-                return refused(why, browser=kind.name, started=False, verified=False, cause="windows_interop")
-            launched, reason = self._plane.starter.start(kind, url)
-            if not launched:
-                return refused(f"I could not start {kind.name}: {reason}", browser=kind.name, verified=False)
-            started = True
-            deadline = self._plane.clock.monotonic() + self._plane.ready_seconds
-            while not up and self._plane.clock.monotonic() < deadline:
-                self._plane.clock.sleep(0.5)
-                up, detail = self._plane.endpoint.reachable(kind)
-            if not up:
-                return refused(f"I started {kind.name} but could not control it: "
-                               f"{self._plane.link.explain_unreachable(kind.port)} ({detail})",
-                               browser=kind.name, started=True, verified=False, cause="control_port")
+        replaced = False
+        linked, why = self._plane.link.ensure()                 # PowerShell and chrome.exe both need it
+        if up and linked and self._plane.sessions is not None:
+            where = self._plane.sessions.placement(kind)
+            if where.known and where.found and not where.visible:
+                self._plane.endpoint.shutdown(kind)
+                if not self._wait(kind, want_up=False, seconds=10.0):
+                    return refused(f"{kind.name} is running in hidden Windows session {where.session}, and it would not close "
+                                   "so a visible one could start.", browser=kind.name, verified=False, cause="hidden_session")
+                up, replaced = False, True
+        if up:
+            return ok(f"{kind.name} is already running ({detail}).", browser=kind.name, version=detail,
+                      started=False, replaced_hidden=False)
+        if not linked:
+            return refused(why, browser=kind.name, started=False, verified=False, cause="windows_interop")
+        launched, reason = self._plane.starter.start(kind, url)
+        if not launched:
+            return refused(f"I could not start {kind.name}: {reason}", browser=kind.name, verified=False, cause="launch")
+        if not self._wait(kind, want_up=True, seconds=self._plane.ready_seconds):
+            _, detail = self._plane.endpoint.reachable(kind)
+            return refused(f"I started {kind.name} but could not control it: "
+                           f"{self._plane.link.explain_unreachable(kind.port)} ({detail})",
+                           browser=kind.name, started=True, verified=False, cause="control_port")
+        _, detail = self._plane.endpoint.reachable(kind)
+        return ok(f"{kind.name} started ({detail})" + (", replacing a hidden one." if replaced else "."),
+                  browser=kind.name, version=detail, started=True, replaced_hidden=replaced)
+
+    def _wait(self, kind: BrowserKind, want_up: bool, seconds: float) -> bool:
+        deadline = self._plane.clock.monotonic() + seconds
+        while True:
+            if self._plane.endpoint.reachable(kind)[0] == want_up:
+                return True
+            if self._plane.clock.monotonic() >= deadline:
+                return False
+            self._plane.clock.sleep(0.5)
+
+
+class Visibility(BrowserOperation):
+    """Phase 2 of browser.open: Windows confirms the Chrome on the control port is on a desktop a person can see.
+    "The port answers" only proves it runs; a Chrome in session 0 answers too and is never seen."""
+    name = "browser_visibility"
+    description = "browser.open, phase 2: confirm with Windows that Chrome is on a visible desktop, not hidden session 0"
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        if self._plane.sessions is None:
+            return refused(f"I can't check where {kind.name} opened, so I won't say you can see it.",
+                           browser=kind.name, verified=False, cause="visibility_unknown")
+        linked, why = self._plane.link.ensure()
+        if not linked:
+            return refused(f"{kind.name} is running, but I couldn't ask Windows whether it is on your screen: {why}",
+                           browser=kind.name, verified=False, cause="visibility_unknown")
+        where = self._plane.sessions.placement(kind)
+        facts = dict(browser=kind.name, pid=where.pid, session=where.session, desktops=where.desktops)
+        if not where.known:
+            return refused(f"{kind.name} is running, but I couldn't confirm it is on your screen: {where.reason}",
+                           verified=False, cause="visibility_unknown", **facts)
+        if not where.found:
+            return refused(f"Windows shows no {kind.name} owning control port {kind.port}.",
+                           verified=False, cause="visibility_unknown", **facts)
+        if not where.visible:
+            hidden = "the hidden services session (0)" if where.session == 0 else f"session {where.session}, which has no desktop"
+            return refused(f"{kind.name} is running but not on your screen: Windows has it in {hidden}; "
+                           f"desktops are in session(s) {where.desktops or 'none'}.", verified=False, cause="hidden_session", **facts)
+        return ok(f"{kind.name} is on the desktop in Windows session {where.session}.", visible=True, **facts)
+
+
+class Open(BrowserOperation):
+    """Phase 3 of browser.open: add the asked-for tab to a Chrome that was already running, and verify the tabs.
+    The catalog runs it after Launch and Visibility (an OperationSequence), whose data it reads."""
+    name = "browser_open"
+    description = "browser.open: start Chrome on the Windows desktop with a control port (or add a tab)"
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        detail = self._up(kind)
+        started = bool(args.get("started"))
+        if args.get("url") and not started:                  # already running: add a tab, touch nothing else
+            self._plane.endpoint.open_page(kind, checked_url(args["url"]))
         tabs = self._tabs(kind)
         if not tabs:
             return refused(f"{kind.name} answered but shows no open page.", browser=kind.name, verified=False)
         what = "started" if started else "was already running"
-        return ok(f"{kind.name} {what} on this computer ({detail}); {len(tabs)} tab(s) open.",
+        if args.get("replaced_hidden"):
+            what = "started (a hidden copy was closed first)"
+        where = f" in Windows session {args['session']}" if args.get("visible") else ""
+        return ok(f"{kind.name} {what} on your desktop{where} ({detail}); {len(tabs)} tab(s) open.",
                   browser=kind.name, version=detail, started=started, verified=True, tabs=[t.model_dump() for t in tabs])
 
 
