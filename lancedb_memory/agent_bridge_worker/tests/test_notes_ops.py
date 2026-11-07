@@ -271,6 +271,20 @@ def test_create_rename_trash_restore_purge() -> None:
     assert d.trash_bin == {}
 
 
+def test_every_result_body_has_a_spoken_sentence_for_toyota() -> None:
+    d = Dashboard()
+    for payload in ({ "notes": "list" }, { "notes": "search", "query": "line" }, { "notes": "highlights", "id": A },
+                    { "notes": "trash_list" }, { "notes": "refresh", "id": A, "known_revision": "0" * 64 },
+                    { "notes": "update", "id": A, "expected_revision": rev( d, A ), "edits": [{ "append": "z" }]},
+                    { "notes": "create", "name": "n", "text": "t" }):
+        out = ask( d, payload )
+        body = json.loads( out.body )
+        assert out.kind is OutcomeKind.SUCCEEDED, payload
+        assert body[ "said" ].startswith( out.summary[ :40 ]), payload      # the sentence Toyota speaks is the summary
+    spoken = json.loads( ask( d, { "notes": "highlights", "id": A }).body )[ "said" ]
+    assert "saved highlight" in spoken and "diff" not in spoken
+
+
 def test_purge_cannot_name_a_live_note() -> None:
     d = Dashboard()
     out = ask( d, { "notes": "purge", "trash_id": A, "authorization": "x" })

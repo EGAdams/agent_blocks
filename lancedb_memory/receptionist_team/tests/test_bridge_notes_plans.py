@@ -98,6 +98,20 @@ async def test_the_runner_supplies_revisions_for_every_revision_checked_operatio
     assert form.expected_revision is None
 
 
+async def test_a_result_with_a_said_sentence_is_read_aloud_and_other_bodies_are_unchanged():
+    from ..bridge_client.models import BridgeResult
+    from ..bridge_client.workflow import RespondPhase
+
+    def spoken(body):
+        return RespondPhase.result_sentence(BridgeResult(task_id="t_" + "a" * 24, state="succeeded", ready=True,
+                                                         ok=True, summary="s", body=body))
+    assert spoken(json.dumps({"said": "Created x.md.", "revision": "r" * 64, "diff": "huge"})).endswith("): Created x.md.")
+    assert "revision" not in spoken(json.dumps({"said": "Created x.md.", "revision": "r"}))
+    assert spoken("plain words").endswith("): plain words")
+    assert spoken('{"no_said": 1}').endswith('): {"no_said": 1}')
+    assert spoken('{"said": 5}').endswith('{"said": 5}')
+
+
 if __name__ == "__main__":
     from tests.runner import main
 

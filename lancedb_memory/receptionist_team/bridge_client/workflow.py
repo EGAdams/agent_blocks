@@ -20,6 +20,7 @@ the prompt text, only ids, names, states and sanitized error codes.
 """
 import re
 import sys
+import json
 import time
 import uuid
 from collections.abc import Callable
@@ -327,7 +328,20 @@ class RespondPhase:
             reason = e.sanitize(result.last_error or result.summary or "no reason given")
             return clip(f"Bridge task {result.task_id} failed: {reason}")
         answer = (result.body or result.summary or "").strip() or "it finished but returned no text"
+        answer = RespondPhase._said(answer) or answer
         return clip(f"The Star Trek Bridge says (task {result.task_id}): {answer}")
+
+    @staticmethod
+    def _said(body: str) -> str:
+        """A body that is a JSON object with a "said" sentence is read aloud as that sentence; the structured
+        fields beside it are for the caller that chains calls (ChatGPT), not for speech."""
+        if not body.startswith("{"):
+            return ""
+        try:
+            said = json.loads(body).get("said")
+        except (ValueError, AttributeError):
+            return ""
+        return said.strip() if isinstance(said, str) else ""
 
 
 # -- the executor -------------------------------------------------------------

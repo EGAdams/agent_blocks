@@ -18,7 +18,7 @@ import json
 from abc import ABC, abstractmethod
 
 from ..models import AgentOutcome, ClaimedTask
-from .base import NotesContext, NotesRefusal, conflict, done, failed, refused, yes
+from .base import NotesContext, NotesRefusal, conflict, done, failed, refused, said_body, yes
 from .edits import edit_from
 from .highlights import SPAN, highlight_from
 from .names import create_hint, renamed
@@ -68,13 +68,13 @@ class ListNotes( NotesCommand ):
     def execute( self, ctx, task, request ):
         if request.query is None and request.category is None:
             names = ctx.gateway.list( task.task_id )
-            return done( f"{ len( names )} note(s): { ', '.join( names ) or 'none' }.",
-                         { "notes": "list", "approved": names }, body=json.dumps({ "approved": names }))
+            line = f"{ len( names )} note(s): { ', '.join( names ) or 'none' }."
+            return done( line, { "notes": "list", "approved": names }, body=said_body( line, approved=names ))
         entries = ctx.gateway.entries( request.query or "", request.category, task.task_id )
         names   = [ e[ "filename" ] for e in entries ]
         what    = f'matching "{ request.query }"' if request.query else f"in category { request.category }"
-        return done( f"{ len( names )} note(s) { what }: { ', '.join( names ) or 'none' }.",
-                     { "notes": "list", "count": len( names )}, body=json.dumps({ "approved": names, "entries": entries }))
+        line = f"{ len( names )} note(s) { what }: { ', '.join( names ) or 'none' }."
+        return done( line, { "notes": "list", "count": len( names )}, body=said_body( line, approved=names, entries=entries ))
 
 
 class SearchNotes( ListNotes ):
@@ -98,10 +98,12 @@ class ReadHighlights( NotesCommand ):
     def execute( self, ctx, task, request ):
         got = ctx.gateway.highlights( request.id, task.task_id )
         spans, marks = got.get( "highlights", [] ), got.get( "review_marks", [] )
-        return done( f"{ request.id } has { len( spans )} saved highlight(s) and { len( marks )} review mark(s) "
-                     f"at revision { str( got.get( 'revision', '' ))[ :12 ]}.",
-                     { "notes": "highlights", "id": request.id, "highlights": len( spans ), "review_marks": len( marks )},
-                     body=json.dumps({ "id": request.id, **got }))
+        line = ( f"{ request.id } has { len( spans )} saved highlight(s) and { len( marks )} review mark(s) "
+                 f"at revision { str( got.get( 'revision', '' ))[ :12 ]}." )
+        shown = [ f"line { h.get( 'line' )}: { h.get( 'text', '' )[ :80 ]}" for h in spans[ :6 ]] + \
+                [ f"line { m.get( 'line' )} needs review: { m.get( 'text', '' )[ :80 ]}" for m in marks[ :6 ]]
+        return done( line, { "notes": "highlights", "id": request.id, "highlights": len( spans ), "review_marks": len( marks )},
+                     body=said_body( line + ( " " + "; ".join( shown ) if shown else "" ), id=request.id, **got ))
 
 
 class ListTrash( NotesCommand ):
@@ -109,8 +111,8 @@ class ListTrash( NotesCommand ):
 
     def execute( self, ctx, task, request ):
         items = ctx.gateway.trash_list( task.task_id )
-        return done( f"{ len( items )} note(s) in the trash.", { "notes": "trash_list", "count": len( items )},
-                     body=json.dumps({ "trash": items }))
+        line = f"{ len( items )} note(s) in the trash" + ( ": " + ", ".join( t.get( "filename", "" ) for t in items[ :8 ]) if items else "" ) + "."
+        return done( line, { "notes": "trash_list", "count": len( items )}, body=said_body( line, trash=items ))
 
 
 class RefreshNote( NotesCommand ):
@@ -121,9 +123,9 @@ class RefreshNote( NotesCommand ):
         text, revision = ctx.gateway.read( request.id, task.task_id )
         changed = revision != request.known_revision
         body = { "id": request.id, "revision": revision, "changed": changed, **({ "note": text } if changed else {}) }
-        return done( f"{ request.id } " + ( f"changed externally: now at { revision[ :12 ]}." if changed
-                                             else f"is unchanged at { revision[ :12 ]}." ),
-                     { "notes": "refresh", "id": request.id, "revision": revision, "changed": changed }, body=json.dumps( body ))
+        line = f"{ request.id } " + ( f"changed externally: now at { revision[ :12 ]}." if changed else f"is unchanged at { revision[ :12 ]}." )
+        return done( line, { "notes": "refresh", "id": request.id, "revision": revision, "changed": changed },
+                     body=said_body( line, **body ))
 
 
 # -- implement: verified overwrite (Template Method) ----------------------------------------------------
@@ -178,7 +180,7 @@ class VerifiedWrite( NotesCommand ):
                         else "read-back mismatch: " + ", ".join( k for k, v in checks.items() if not v ))
         line = ( f"Updated { request.id }: revision { revision_before[ :12 ]} -> { revision_after[ :12 ]}; "
                  f"read back through the Notes interface and the dashboard's own endpoint { yes( ok )}." )
-        body = json.dumps({ "id": request.id, "revision": revision_after, "verified": ok, "diff": diff })
+        body = said_body( line, id=request.id, revision=revision_after, verified=ok, diff=diff )
         return done( line, details, body=body ) if ok else failed( "read-back failed: " + line, details )
 
 
@@ -250,7 +252,7 @@ class Lifecycle( NotesCommand ):
                  else "mismatch: " + ", ".join( k for k, v in checks.items() if not v )))
         line = f"{ self.sentence( request, result )} Read back from the dashboard { yes( ok )}."
         details = { "notes": self.name, "verified": ok, **checks, **{ k: v for k, v in result.items() if k != "note" }}
-        return done( line, details, body=json.dumps({ **result, "verified": ok })) if ok else failed( "read-back failed: " + line, details )
+        return done( line, details, body=said_body( line, **result, verified=ok )) if ok else failed( "read-back failed: " + line, details )
 
 
 class CreateNote( Lifecycle ):

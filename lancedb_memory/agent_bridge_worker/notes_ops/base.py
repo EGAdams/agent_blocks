@@ -93,6 +93,13 @@ def done( summary: str, details: dict, body: str | None = None ) -> AgentOutcome
                          body=summary if body is None else body, details=details )
 
 
+def said_body( said: str, **fields ) -> str:
+    """A result body: the structured fields for a caller that chains calls, plus `said` -- the sentence a
+    receptionist reads aloud (Toyota speaks `said` when it is there; ChatGPT reads the fields)."""
+    import json
+    return json.dumps({ **fields, "said": said })
+
+
 def failed( summary: str, details: dict | None = None ) -> AgentOutcome:
     return AgentOutcome( kind=OutcomeKind.FAILED, performer=PERFORMER, summary=summary[ :300 ], body=summary,
                          retryable=False, details=details )
