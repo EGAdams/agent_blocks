@@ -18,8 +18,8 @@ text is printed to the terminal for the person asking, but never written to the 
 
     lancedb_memory/.venv/bin/python adws/adw_notes_highlight_watch.py --filename F [--url U] [--until-clear TEXT]
 
-Exit status 0 when the page was read (and, with --until-clear, TEXT is no longer highlighted), 1 when TEXT is still
-highlighted at the deadline, 2 when the check could not run.
+Exit status 0 when the page was read (and, with --until-clear, TEXT is no longer highlighted; the output says whether it
+was highlighted at the first read), 1 when TEXT is still highlighted at the deadline, 2 when the check could not run.
 """
 from __future__ import annotations
 
@@ -60,6 +60,8 @@ class HighlightWatch:
         self._browser: Any = None
         self.marks: list[ dict[ str, str ]] = []
         self.cleared: bool | None = None
+        self.was_highlighted: bool | None = None       # --until-clear: was TEXT highlighted at the first read?
+        self.waited = 0.0
 
     def launch_browser( self ) -> None:
         if SELENIUM_HEADLESS_ROOT not in sys.path:
@@ -79,12 +81,16 @@ class HighlightWatch:
 
     def read_highlights( self ) -> None:
         driver = self._browser.driver
-        deadline = time.monotonic() + self.wait
+        started = time.monotonic()
+        deadline = started + self.wait
         while True:
             self.marks = driver.execute_script( MARKS )
             if self.until_clear is None:
                 return
             self.cleared = not any( self.until_clear in m[ "text" ] for m in self.marks )
+            if self.was_highlighted is None:
+                self.was_highlighted = not self.cleared
+            self.waited = time.monotonic() - started
             if self.cleared or time.monotonic() > deadline:
                 return
             time.sleep( 1 )                     # no reload: the page's own poll must do it
@@ -93,7 +99,8 @@ class HighlightWatch:
         kinds: dict[ str, int ] = {}
         for m in self.marks:
             kinds[ m[ "kind" ]] = kinds.get( m[ "kind" ], 0 ) + 1
-        return { "highlighted": len( self.marks ), "kinds": kinds, "cleared": self.cleared }
+        return { "highlighted": len( self.marks ), "kinds": kinds, "cleared": self.cleared,
+                 "was_highlighted": self.was_highlighted, "waited_seconds": round( self.waited, 1 )}
 
     def close( self ) -> None:
         if self._browser is not None:
@@ -149,7 +156,14 @@ def main( argv: list[ str ] | None = None ) -> int:
         watch.close()
     for m in watch.marks:
         print( f"  [{ m[ 'kind' ]}] { m[ 'text' ][ :110 ]}" )
-    verdict = "" if watch.cleared is None else ( f"; { args.until_clear!r} is " + ( "no longer highlighted (cleared live, no reload)" if watch.cleared else "STILL highlighted" ))
+    if watch.cleared is None:
+        verdict = ""
+    elif watch.cleared and watch.was_highlighted:
+        verdict = f"; { args.until_clear!r} WAS highlighted when I started and cleared after { watch.waited:.0f} s with no reload"
+    elif watch.cleared:
+        verdict = f"; { args.until_clear!r} was already not highlighted at the first read (nothing to watch clear)"
+    else:
+        verdict = f"; { args.until_clear!r} is STILL highlighted"
     print( f"{ args.filename }: { out[ 'highlighted' ]} highlighted line(s){ verdict } (object browser.highlights:{ adw_id })" )
     return 1 if watch.cleared is False else 0
 
