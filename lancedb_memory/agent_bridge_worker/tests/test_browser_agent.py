@@ -68,8 +68,8 @@ def run( commands, t, signals=None ):
 
 def test_open_runs_the_adw_and_reports_the_verified_result_with_its_execution_id():
     commands = FakeCommands( verified( started=True ))
-    out = run( commands, task({ "browser": "open", "url": "https://example.com", "target": "edge" }))
-    assert commands.calls == [( "open", { "url": "https://example.com", "browser": "edge" }, False )]
+    out = run( commands, task({ "browser": "open", "url": "https://example.com", "target": "chrome" }))
+    assert commands.calls == [( "open", { "url": "https://example.com", "browser": "chrome" }, False )]
     assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "adw_id" ] == "abcd1234" and out.details[ "verified" ] is True
 
 
@@ -111,6 +111,14 @@ def test_free_text_unknown_fields_and_missing_values_are_refused_before_anything
     assert commands.calls == []
 
 
+def test_only_chrome_can_be_targeted():
+    commands = FakeCommands( verified())
+    for other in ( "edge", "msedge", "firefox" ):
+        assert run( commands, task({ "browser": "open", "target": other })).kind == OutcomeKind.REFUSED
+    assert run( commands, task({ "browser": "open", "target": "chrome" })).kind == OutcomeKind.SUCCEEDED
+    assert len( commands.calls ) == 1
+
+
 def test_the_public_spelling_browser_dot_open_is_accepted():
     commands = FakeCommands( verified())
     assert run( commands, task({ "browser": "browser.open" })).kind == OutcomeKind.SUCCEEDED and commands.calls[ 0 ][ 0 ] == "open"
@@ -139,8 +147,8 @@ def test_the_policy_lets_the_browser_agent_do_both_modes_for_gateway_senders_onl
 
 def test_the_uv_adapter_builds_a_fixed_argv_and_values_cannot_become_options():
     commands = UvBrowserCommands( Path( "/uv" ), Path( "/adw.py" ), Path( "." ))
-    argv = commands.argv( "click", { "text": "--help", "browser": "edge" }, True, "/tmp/r.json" )
-    assert argv == [ "/uv", "run", "--quiet", "/adw.py", "browser.click", "--browser=edge", "--text=--help", "--confirm", "--json-out=/tmp/r.json" ]
+    argv = commands.argv( "click", { "text": "--help", "browser": "chrome" }, True, "/tmp/r.json" )
+    assert argv == [ "/uv", "run", "--quiet", "/adw.py", "browser.click", "--browser=chrome", "--text=--help", "--confirm", "--json-out=/tmp/r.json" ]
     try:
         commands.argv( "rm", {}, False, "/tmp/r" )
     except BrowserCommandFailed:

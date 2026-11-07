@@ -15,7 +15,7 @@ Status: implemented and verified locally 2026-11-07. **Not yet registered on the
 | Bridge transport | gateway + worker + `ScopedPolicy` (unchanged) | `BrowserAgent` (like `notes`/`printer`) |
 
 Not used: Playwright/Selenium (the CDP path needs no driver), MCP browser servers (none present). Both Windows
-Chrome and Edge are reached from WSL over loopback (`networkingMode=mirrored`). A link opened with Windows'
+Chrome is reached from WSL over loopback, which needs `networkingMode=mirrored` (see Host requirements). A link opened with Windows'
 own default handler can never be steered afterwards, so `default` means Chrome with a debug profile
 (`%LOCALAPPDATA%\adw-chrome-debug`; Edge: `adw-edge-debug`, port 9223).
 
@@ -43,21 +43,21 @@ Agent `browser`, workspace `browser`. The prompt is JSON; ChatGPT turns the sent
 
 | Say | operation | prompt |
 | --- | --- | --- |
-| "Open a browser." / "Open Edge." | `implement` | `{"browser":"open"}` / `{"browser":"open","target":"edge"}` |
+| "Open the browser." | `implement` | `{"browser":"open"}` |
 | "Go to my dashboard." | `implement` | `{"browser":"navigate","url":"https://desktop-2obsqmc.tailb8fc54.ts.net/"}` |
 | "Refresh the page." | `implement` | `{"browser":"refresh"}` |
 | "Read what's on the screen." | `inspect` | `{"browser":"read"}` |
 | "Click the Notes button." | `implement` | `{"browser":"click","text":"Notes"}` |
 | tabs / select / screenshot / status / close | `inspect` for tabs, screenshot, status; `implement` for select_tab, close | `{"browser":"tabs"}`, `{"browser":"select_tab","tab":"2"}`, `{"browser":"close","tab":"2"}` |
 
-Optional fields: `target` (chrome|edge), `url`, `tab` (number or id), `text`, `label`, `css`, `confirm`.
+Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `confirm`.
 A task succeeds only if the ADW verified the operation (`details.verified`); the answer carries `details.adw_id`.
 
 ## Deploy steps (not done)
 
 1. **Gateway** (`bridge.php` on the host, then `php bin/migrate.php` to re-seed the registry; back up first as in
    DEPLOY.md). Add to `agents`:
-   `['name' => 'browser', 'display_name' => 'Browser Control', 'description' => 'Opens and drives Chrome or Edge on EG\'s Windows desktop; every action is an ADW run.', 'operations' => ['inspect', 'implement'], 'workspaces' => ['browser'], 'write_workspaces' => ['browser']]`
+   `['name' => 'browser', 'display_name' => 'Browser Control', 'description' => 'Opens and drives Chrome on EG\'s Windows desktop; every action is an ADW run.', 'operations' => ['inspect', 'implement'], 'workspaces' => ['browser'], 'write_workspaces' => ['browser']]`
    `implement` must be allowed for the client token, as for Notes.
 2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. (Off until then.)
 3. Toyota: no code needed for reading status; a Toyota plan like `notes_plans.py` is a follow-up.
@@ -66,3 +66,16 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
 
 `cd adws && ../lancedb_memory/.venv/bin/python -m pytest -q browser_control/tests` (18), and
 `cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent` (12).
+
+## Chrome only; host requirements (2026-11-07 fix)
+
+Chrome is the only authorized browser: Edge was removed from the table, aliases and defaults; any other name is
+refused ("Chrome is the only authorized browser ... Nothing was launched.") and the worker agent refuses it first.
+
+The first live failures ("control port never answered") had two host causes, now diagnosed by `link.py`:
+1. **WSL interop**: a systemd service has no `WSL_INTEROP`; its default socket can belong to a dead session
+   (`accept4 failed 110`), so `chrome.exe` never starts. The ADW now finds a working socket, or says interop is down.
+2. **WSL networking**: Chrome listens on Windows' 127.0.0.1:9222. WSL reaches it only in `networkingMode=mirrored`.
+   The live box's `.wslconfig` has `localhostForwarding=true` and no mirrored mode (NAT), so the port is unreachable
+   whatever the timeout, and the Windows firewall drops WSL-to-host connections. Fix: add `networkingMode=mirrored`
+   under `[wsl2]` in the Windows user's `.wslconfig` and `wsl --shutdown` (restarts every WSL service).

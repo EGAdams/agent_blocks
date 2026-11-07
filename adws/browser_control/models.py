@@ -5,7 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 
 class BrowserKind(BaseModel):
-    """One Chromium browser this machine can start with a DevTools port, as data."""
+    """A browser this machine may start with a DevTools port, as data (today: Chrome only)."""
     model_config = ConfigDict(frozen=True)
 
     name:    str
@@ -14,15 +14,13 @@ class BrowserKind(BaseModel):
     profile: str          # folder under %LOCALAPPDATA%; Chromium refuses a debug port on the everyday profile
 
 
-#: "default" is Chrome: the browser the user's other ADWs already drive. Windows' own default
-#: handler can open a link but never be steered afterwards, so it cannot be the controllable one.
+#: Chrome is the ONLY authorized browser. There is deliberately no second entry to select, fall back to, or launch.
+#: "default" means Chrome with the debug profile: Windows' own default handler can open a link but never be steered.
 BROWSERS: dict[str, BrowserKind] = {
     "chrome": BrowserKind(name="chrome", exe="/mnt/c/Program Files/Google/Chrome/Application/chrome.exe",
                           port=9222, profile="adw-chrome-debug"),
-    "edge":   BrowserKind(name="edge", exe="/mnt/c/Program Files (x86)/Microsoft/Edge/Application/msedge.exe",
-                          port=9223, profile="adw-edge-debug"),
 }
-ALIASES = {"default": "chrome", "google chrome": "chrome", "microsoft edge": "edge", "msedge": "edge"}
+ALIASES = {"default": "chrome", "google chrome": "chrome", "google-chrome": "chrome"}
 
 
 class TabView(BaseModel):

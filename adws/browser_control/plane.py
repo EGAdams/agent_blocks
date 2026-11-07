@@ -20,7 +20,8 @@ from cdp_browser.browser import CdpWorkflowBrowser
 from cdp_browser.interfaces import CdpTarget
 from cdp_browser.targets import HttpTargetDirectory, LoopbackOnly
 
-from .interfaces import IBrowserCatalog, IBrowserEndpoint, IBrowserStarter, IClock, IPageAttacher, IPageSession
+from .interfaces import IBrowserCatalog, IWindowsLink, IBrowserEndpoint, IBrowserStarter, IClock, IPageAttacher, IPageSession
+from .link import WslInteropLink
 from .models import ALIASES, BROWSERS, BrowserKind
 
 ALLOWED_SCHEMES = ("http", "https")
@@ -32,7 +33,7 @@ class StaticBrowserCatalog:
     def kind(self, name: str | None) -> BrowserKind:
         key = ALIASES.get((name or "chrome").strip().lower(), (name or "chrome").strip().lower())
         if key not in BROWSERS:
-            raise BrowserWorkflowError(f"I can control {', '.join(sorted(BROWSERS))} (or 'default'), not {name!r}")
+            raise BrowserWorkflowError(f"Chrome is the only authorized browser; {name!r} is not available. Nothing was launched.")
         return BROWSERS[key]
 
 
@@ -110,6 +111,7 @@ class ControlPlane:
     endpoint: IBrowserEndpoint
     attacher: IPageAttacher
     clock:    IClock
+    link:     IWindowsLink
     shots:    Path                   # where screenshots land (a folder this ADW owns)
     ready_seconds: float = 20.0
 
@@ -117,7 +119,7 @@ class ControlPlane:
 def default_plane() -> ControlPlane:
     root = Path(__file__).resolve().parent.parent / "adw_data" / "browser_control" / "screenshots"
     return ControlPlane(StaticBrowserCatalog(), DebugBrowserStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
-                        SystemClock(), root)
+                        SystemClock(), WslInteropLink(), root)
 
 
 def checked_url(raw: object) -> str:

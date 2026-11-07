@@ -75,7 +75,7 @@ class BrowserOperation(Operation):
 
 class Open(BrowserOperation):
     name = "browser_open"
-    description = "browser.open: start Chrome or Edge on the Windows desktop with a control port (or add a tab)"
+    description = "browser.open: start Chrome on the Windows desktop with a control port (or add a tab)"
 
     def perform(self, args: dict[str, Any]) -> OperationOutcome:
         kind = self._kind(args)
@@ -86,6 +86,9 @@ class Open(BrowserOperation):
             if args.get("url"):
                 self._plane.endpoint.open_page(kind, url)
         else:
+            linked, why = self._plane.link.ensure()
+            if not linked:
+                return refused(why, browser=kind.name, started=False, verified=False, cause="windows_interop")
             launched, reason = self._plane.starter.start(kind, url)
             if not launched:
                 return refused(f"I could not start {kind.name}: {reason}", browser=kind.name, verified=False)
@@ -95,8 +98,9 @@ class Open(BrowserOperation):
                 self._plane.clock.sleep(0.5)
                 up, detail = self._plane.endpoint.reachable(kind)
             if not up:
-                return refused(f"I started {kind.name} but its control port never answered within "
-                               f"{self._plane.ready_seconds:.0f}s ({detail}).", browser=kind.name, verified=False)
+                return refused(f"I started {kind.name} but could not control it: "
+                               f"{self._plane.link.explain_unreachable(kind.port)} ({detail})",
+                               browser=kind.name, started=True, verified=False, cause="control_port")
         tabs = self._tabs(kind)
         if not tabs:
             return refused(f"{kind.name} answered but shows no open page.", browser=kind.name, verified=False)
@@ -255,10 +259,10 @@ class Screenshot(BrowserOperation):
 
 class Status(BrowserOperation):
     name = "browser_status"
-    description = "browser.status: is each controllable browser up, which version, how many tabs"
+    description = "browser.status: is Chrome up, which version, how many tabs"
 
     def perform(self, args: dict[str, Any]) -> OperationOutcome:
-        names = [args["browser"]] if args.get("browser") else ["chrome", "edge"]
+        names = [args.get("browser") or "chrome"]
         report, lines = [], []
         for name in names:
             kind = self._plane.catalog.kind(name)

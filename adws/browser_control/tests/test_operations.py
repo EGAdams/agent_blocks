@@ -45,6 +45,12 @@ class FakePage:
     def release(self): self.released = True
 
 
+class FakeLink:
+    def __init__(self, up=True, mode="mirrored"): self.up, self.mode = up, mode
+    def ensure(self): return (True, "") if self.up else (False, "WSL cannot start Windows programs from here")
+    def explain_unreachable(self, port): return f"networking is {self.mode}" if self.mode != "mirrored" else "nothing answered"
+
+
 class FakeWorld:
     """Starter + endpoint + attacher in one: the machine's browsers."""
     def __init__(self, running=(), launches=True):
@@ -69,9 +75,10 @@ class FakeWorld:
         self.page = FakePage(self, tab); return self.page
 
 
-def make(tmp_path, **world_args):
+def make(tmp_path, link=None, **world_args):
     world = FakeWorld(**world_args)
-    plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), tmp_path, ready_seconds=5)
+    link = link or FakeLink()
+    plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), link, tmp_path, ready_seconds=5)
     return browser_control_operations(plane), world
 
 
@@ -106,14 +113,31 @@ def test_open_reports_a_port_that_never_answers(tmp_path):
     ops, world = make(tmp_path)
     world.start = lambda kind, url: (True, "")             # claims to launch, never comes up
     out = run(ops, "browser.open")
-    assert not out.ok and "never answered" in out.line
+    assert not out.ok and "could not control it" in out.line
 
 
-def test_browser_selection_default_chrome_and_edge(tmp_path):
+def test_chrome_is_the_only_browser_and_default_means_chrome(tmp_path):
     ops, world = make(tmp_path)
-    run(ops, "browser.open", browser="default"); run(ops, "browser.open", browser="Microsoft Edge")
-    assert [n for n, _ in world.started] == ["chrome", "edge"] and BROWSERS["edge"].port != BROWSERS["chrome"].port
-    assert not run(ops, "browser.open", browser="netscape").ok
+    assert run(ops, "browser.open", browser="default").ok and [n for n, _ in world.started] == ["chrome"]
+    assert list(BROWSERS) == ["chrome"]
+    for other in ("edge", "Microsoft Edge", "msedge", "firefox", "netscape"):
+        out = run(ops, "browser.open", browser=other)
+        assert not out.ok and "only authorized browser" in out.line
+    assert [n for n, _ in world.started] == ["chrome"], "no other browser may ever be launched"
+    assert not run(ops, "browser.status", browser="edge").ok
+
+
+def test_open_says_when_windows_programs_cannot_be_started(tmp_path):
+    ops, world = make(tmp_path, link=FakeLink(up=False))
+    out = run(ops, "browser.open")
+    assert not out.ok and out.data["cause"] == "windows_interop" and not world.started
+
+
+def test_open_names_the_networking_cause_when_the_port_is_unreachable(tmp_path):
+    ops, world = make(tmp_path, link=FakeLink(mode="nat"))
+    world.start = lambda kind, url: (True, "")
+    out = run(ops, "browser.open")
+    assert not out.ok and out.data["cause"] == "control_port" and "networking is nat" in out.line
 
 
 def test_navigate_refuses_anything_but_http(tmp_path):
@@ -189,12 +213,12 @@ def test_click_that_finds_nothing_says_so(tmp_path):
     assert not out.ok and "could not find" in out.line
 
 
-def test_read_returns_visible_text_only_and_status_lists_both_browsers(tmp_path):
+def test_read_returns_visible_text_only_and_status_lists_only_chrome(tmp_path):
     ops, _ = make(tmp_path, running=["chrome"])
     out = run(ops, "browser.read")
     assert out.ok and out.data["text"] == "Hello\n\nWorld"
     status = run(ops, "browser.status")
-    assert [b["running"] for b in status.data["browsers"]] == [True, False]
+    assert [b["browser"] for b in status.data["browsers"]] == ["chrome"] and status.data["browsers"][0]["running"]
 
 
 def test_screenshot_writes_a_real_file(tmp_path):

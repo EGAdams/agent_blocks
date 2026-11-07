@@ -7,12 +7,12 @@
 
     cd /home/adamsl/agent_blocks && uv run adws/adw_browser_control.py browser.open --url https://example.com
     uv run adws/adw_browser_control.py browser.tabs
-    uv run adws/adw_browser_control.py browser.click --text "Notes" --browser edge
+    uv run adws/adw_browser_control.py browser.click --text "Notes"
 
 Operations: browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
             browser.click  browser.read  browser.screenshot  browser.status  browser.close
 
-It reuses what exists: browser_session starts the Windows Chrome/Edge with a DevTools port,
+It reuses what exists: browser_session starts the Windows Chrome with a DevTools port,
 cdp_browser drives the page (no Selenium, no driver), browser_workflows finds the element and
 classifies consequential clicks. This script only picks the operation (the first argument).
 Each run is an SSSF session whose phase is the operation, so the lifecycle log and the object
@@ -31,7 +31,7 @@ from browser_workflow_adw import Flag, run_browser_operation
 from browser_control.catalog import PUBLIC, browser_control_operations
 
 FLAGS = [
-    Flag( "browser", "chrome (the default), edge" ),
+    Flag( "browser", "chrome (the only authorized browser; anything else is refused)" ),
     Flag( "url", "an http(s) address (open, navigate)" ),
     Flag( "tab", "a tab number or id from browser.tabs (select_tab, close; optional elsewhere)" ),
     Flag( "text", "the element's visible text (click)" ),

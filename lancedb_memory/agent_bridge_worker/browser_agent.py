@@ -1,8 +1,8 @@
 """BrowserAgent: the IAgentAdapter that lets ChatGPT and Toyota drive a browser on the Windows desktop. No model in the path.
 
-The prompt is JSON written by code (ChatGPT turns "open Edge" into it; Toyota's plan does the same):
+The prompt is JSON written by code (ChatGPT turns "open the browser" into it; Toyota's plan does the same):
 
-    {"browser": "open", "url": "https://example.com", "target": "chrome" | "edge"}
+    {"browser": "open", "url": "https://example.com", "target": "chrome"}   # Chrome is the only authorized browser
 
     inspect    read_only        status | tabs | read | screenshot
     implement  workspace_write  open | navigate | refresh | select_tab | click | close      (workspace `browser`)
@@ -28,7 +28,7 @@ from .ports import IClock, Signal
 PERFORMER = "browser_control"
 READS     = frozenset({ "status", "tabs", "read", "screenshot" })
 WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close" })
-#: request key -> the ADW flag it becomes. `target` is the browser (chrome/edge); `browser` already names the operation.
+#: request key -> the ADW flag it becomes. `target` is the browser (Chrome only); `browser` already names the operation.
 FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css" }
 REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",) }
 MAX_VALUE = 500
@@ -65,6 +65,8 @@ class BrowserAgent:
             return self._refused( f"the browser does not offer { what!r}" )
         if expected != task.operation:
             return self._refused( f"{ what } runs as { expected }, not { task.operation }" )
+        if str( request.get( "target", "chrome" )).strip().lower() not in ( "chrome", "default", "google chrome" ):
+            return self._refused( "Chrome is the only authorized browser; no other browser is launched" )
         unknown = set( request ) - set( FLAGS ) - { "browser", "confirm" }
         if unknown:
             return self._refused( "unknown field(s): " + ", ".join( sorted( str( k )[ :20 ] for k in unknown )))
