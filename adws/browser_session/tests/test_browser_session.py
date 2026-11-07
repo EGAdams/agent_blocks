@@ -294,4 +294,33 @@ def test_launcher_spawns_the_built_command_and_never_raises():
 def test_catalog_serves_the_registry_by_name():
     catalog = InMemoryTargetCatalog( ALL_TARGETS )
     assert catalog.get( "fifth_third_login" ) is FIFTH_THIRD_LOGIN
-    assert catalog.get( "nope" ) is None and catalog.names() == [ "fifth_third_login" ]
+    assert catalog.get( "nope" ) is None
+    assert sorted( catalog.names()) == [ "dashboard_notes_tab", "fifth_third_login" ]
+
+
+def test_dashboard_notes_tab_is_on_the_dashboard_host_only():
+    from browser_session.site_targets import DASHBOARD_NOTES_TAB
+    from browser_session.url_specs import HostSuffixSpecification
+    spec = HostSuffixSpecification( DASHBOARD_NOTES_TAB.host_suffix )
+    assert spec.is_satisfied_by( "https://desktop-2obsqmc.tailb8fc54.ts.net/" )
+    assert not spec.is_satisfied_by( "https://example.com/" )
+    assert DASHBOARD_NOTES_TAB.locators[ 0 ].kind == "css"
+
+
+class _Fetcher:                                     # IJsonFetcher
+    def __init__( self, answer ):
+        self._answer = answer
+
+    def get_json( self, url, timeout_seconds ):
+        if isinstance( self._answer, Exception ):
+            raise self._answer
+        return self._answer
+
+
+def test_driver_factory_asks_for_the_running_chromes_major_version():
+    from browser_session.models import DebugEndpoint
+    from browser_session.selenium_driver_factory import SeleniumAttachedDriverFactory
+    end = DebugEndpoint()
+    assert SeleniumAttachedDriverFactory( _Fetcher({ "Browser": "Chrome/156.0.8078.80" })).major_version( end ) == "156"
+    assert SeleniumAttachedDriverFactory( _Fetcher( OSError( "down" ))).major_version( end ) == ""
+    assert SeleniumAttachedDriverFactory( _Fetcher({ "Browser": "weird" })).major_version( end ) == ""

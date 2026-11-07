@@ -20,4 +20,16 @@ FIFTH_THIRD_LOGIN = ClickTarget(
     ],
 )
 
-ALL_TARGETS: list[ ClickTarget ] = [ FIFTH_THIRD_LOGIN ]
+#: The NOTES tab on the ROL dashboard, served over Tailscale from DESKTOP-2OBSQMC.
+#: Its `data-target` names the panel it shows, so that is tried before the label.
+DASHBOARD_NOTES_TAB = ClickTarget(
+    name="dashboard_notes_tab",
+    description="the NOTES tab on the ROL dashboard",
+    host_suffix="desktop-2obsqmc.tailb8fc54.ts.net",
+    locators=[
+        LocatorSpec( kind="css", value="button.tab[data-nav='main'][data-target='notes']" ),
+        LocatorSpec( kind="button_text", value="NOTES" ),
+    ],
+)
+
+ALL_TARGETS: list[ ClickTarget ] = [ FIFTH_THIRD_LOGIN, DASHBOARD_NOTES_TAB ]
