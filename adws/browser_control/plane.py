@@ -19,9 +19,12 @@ from cdp_browser.choosers import FirstPageChooser, PreferredTargetChooser
 from cdp_browser.browser import CdpWorkflowBrowser
 from cdp_browser.interfaces import CdpTarget
 from cdp_browser.targets import HttpTargetDirectory, LoopbackOnly
+from browser_workflows.playback.download_directory import NativeDownloadDirectory
+from browser_workflows.playback.downloads import FileDownloadVerifier, FolderDownloadWatcher
 
-from .interfaces import (IBrowserCatalog, IBrowserEndpoint, IBrowserStarter, IClock, IPageAttacher, IPageSession,
-                         IWindowSessions, IWindowsLink)
+from .interfaces import (IBrowserCatalog, IBrowserEndpoint, IBrowserStarter, IClock, IDownloadFolder,
+                         IDownloadVerifier, IDownloadWatcher, IPageAttacher, IPageSession, IWindowSessions,
+                         IWindowsLink)
 from .link import WslInteropLink
 from .models import ALIASES, BROWSERS, BrowserKind
 from .windows import InteractiveTaskStarter, WindowsSessionProbe
@@ -134,12 +137,25 @@ class ControlPlane:
     shots:    Path                   # where screenshots land (a folder this ADW owns)
     ready_seconds: float = 20.0
     sessions: IWindowSessions | None = None   # None: visibility cannot be checked, so open refuses to claim it
+    #: browser.download's three parts. All None on a plane built without them, and that operation then
+    #: refuses rather than pressing something that saves a file and guessing whether it worked.
+    folder:   IDownloadFolder | None = None     # where Chrome saves (a path on Chrome's machine)
+    watcher:  IDownloadWatcher | None = None    # the same folder as this machine sees it
+    verifier: IDownloadVerifier | None = None   # what is wrong with what landed, if anything
 
 
 def default_plane() -> ControlPlane:
+    """The composition root: the only place in Browser Control that names a concrete part.
+
+    Downloads land in the one Chrome-side folder this system already uses (NativeDownloadDirectory,
+    shared with playback), so there is a single place to look for a saved file, and
+    BROWSER_WORKFLOW_DOWNLOAD_DIR moves it for both at once."""
     root = Path(__file__).resolve().parent.parent / "adw_data" / "browser_control" / "screenshots"
+    folder = NativeDownloadDirectory()
     return ControlPlane(StaticBrowserCatalog(), InteractiveTaskStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
-                        SystemClock(), WslInteropLink(), root, sessions=WindowsSessionProbe())
+                        SystemClock(), WslInteropLink(), root, sessions=WindowsSessionProbe(),
+                        folder=folder, watcher=FolderDownloadWatcher(folder.resolve),
+                        verifier=FileDownloadVerifier())
 
 
 def checked_url(raw: object) -> str:

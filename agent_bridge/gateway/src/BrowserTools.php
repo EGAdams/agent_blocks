@@ -32,6 +32,7 @@ final class BrowserTools
         'browser_open'                 => ['open', 'implement', ['url'], []],
         'browser_navigate'             => ['navigate', 'implement', ['url', 'tab'], ['url']],
         'browser_click'                => ['click', 'implement', ['text', 'label', 'css', 'tab', 'confirm'], []],
+        'browser_download'             => ['download', 'implement', ['text', 'label', 'css', 'tab', 'confirm'], []],
         'browser_select_tab'           => ['select_tab', 'implement', ['tab'], ['tab']],
         'browser_refresh'              => ['refresh', 'implement', ['tab'], []],
         'browser_close_tab'            => ['close', 'implement', ['tab'], ['tab']],
@@ -48,7 +49,8 @@ final class BrowserTools
                          'replaced_hidden', 'opened_tab', 'notes_active', 'in_front', 'clicked', 'moved_to',
                          'needs_confirmation', 'redirected', 'browsers', 'remaining', 'excerpt', 'text', 'truncated',
                          'version', 'controls', 'listing', 'total', 'shown', 'options', 'selected', 'selected_value',
-                         'position', 'note', 'typed', 'value', 'field', 'wanted', 'attempts', 'site_drawn'];
+                         'position', 'note', 'typed', 'value', 'field', 'wanted', 'attempts', 'site_drawn',
+                         'files', 'download_directory', 'saves_file', 'use_instead'];
 
     /** @var ClientTasks */  private $client;
     /** @var ClientScopes */ private $scopes;
@@ -174,8 +176,8 @@ final class BrowserTools
                 throw new BridgeError(422, 'invalid_argument', 'browser ' . $op . ' needs ' . $key);
             }
         }
-        if ($op === 'click' && !isset($out['text']) && !isset($out['label']) && !isset($out['css'])) {
-            throw new BridgeError(422, 'invalid_argument', 'browser_click needs text, label or css');
+        if (($op === 'click' || $op === 'download') && !isset($out['text']) && !isset($out['label']) && !isset($out['css'])) {
+            throw new BridgeError(422, 'invalid_argument', 'browser_' . ($op === 'click' ? 'click' : 'download') . ' needs text, label or css');
         }
         // A form control is named by css or label only: `text` is the words to type, not what to look for.
         if (($op === 'fill' || $op === 'select_option') && !isset($out['css']) && !isset($out['label'])) {
@@ -298,6 +300,23 @@ final class BrowserTools
                                . 'this conversation. Never touches password fields.' . $after,
                 'inputSchema' => $object(['text' => ['type' => 'string'], 'label' => ['type' => 'string'],
                                           'css' => ['type' => 'string'], 'confirm' => ['type' => 'boolean']] + $tab, []),
+                'annotations' => $acts],
+            'browser_download' => ['title' => 'Download a file the page offers',
+                'description' => 'Presses one link or button that saves a file -- named by its visible text (the file name as '
+                               . 'the row shows it), its label, or a CSS selector -- waits for Chrome to finish writing, and '
+                               . 'reports the file\'s name, size in bytes and first bytes, plus the folder it landed in. Use '
+                               . 'this, not browser_click, for anything that saves: a click cannot keep a file, because Chrome '
+                               . 'writes a download only when a folder has been set for the session, so clicking a .tif or a '
+                               . 'statement link reported a successful click over an empty folder. browser_click now refuses a '
+                               . 'file link and names this tool. verified=true only when a file actually arrived and is not '
+                               . 'empty or mislabelled; nothing arriving is reported as nothing arriving, with what the press '
+                               . 'did instead. Words like pay, send or delete are refused unless confirm=true, which you may '
+                               . 'send only after EG said so in this conversation. Reading the file afterwards is a separate '
+                               . 'step on EG\'s machine.' . $after,
+                'inputSchema' => $object(['text' => ['type' => 'string', 'description' => 'The link\'s visible text, e.g. the file name as the page shows it'],
+                                          'label' => ['type' => 'string'],
+                                          'css' => ['type' => 'string', 'description' => 'A CSS selector for the link or button, best from browser_form_controls'],
+                                          'confirm' => ['type' => 'boolean']] + $tab, []),
                 'annotations' => $acts],
             'browser_select_tab' => ['title' => 'Bring a tab to the front',
                 'description' => 'Brings one tab (by number or id) to the front and confirms it is.' . $after,

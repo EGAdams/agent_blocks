@@ -86,6 +86,12 @@ class FakePage:
     def find(self, css): return [e for e in self.world.elements if e.matches(css)]
     def form_controls(self, limit=60): return self.world.controls
     def release(self): self.released = True
+    def __post_attach__(self):
+        """A page Chrome can be told where to save. A world with `can_download=False` has none, which is
+        how the refusal for a browser that cannot be told is tested."""
+        if self.world.can_download:
+            self.configure_downloads = self._configure_downloads
+    def _configure_downloads(self, directory): self.world.download_dir = directory
 
 
 class FakeLink:
@@ -101,6 +107,7 @@ class FakeWorld:
         self.elements, self.reloads, self.active, self.closed = [FakeElement()], 0, None, []
         self.controls = {"total": 0, "controls": []}
         self.shutdowns, self.closes, self.session, self.start_session, self.known = [], True, 1, 1, True
+        self.can_download, self.download_dir = True, None
     # IBrowserStarter
     def start(self, kind, url):
         self.started.append((kind.name, url)); self.session = self.start_session
@@ -125,14 +132,16 @@ class FakeWorld:
     def attach(self, kind, tab_id):
         pages = self.running[kind.name]
         tab = next((t for t in pages if t.id == tab_id), pages[0]) if tab_id else pages[0]
-        self.page = FakePage(self, tab); return self.page
+        self.page = FakePage(self, tab); self.page.__post_attach__(); return self.page
 
 
-def make(tmp_path, link=None, sessions=True, **world_args):
+def make(tmp_path, link=None, sessions=True, downloads=None, **world_args):
     world = FakeWorld(**world_args)
     link = link or FakeLink()
+    parts = downloads or (None, None, None)
     plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), link, tmp_path, ready_seconds=5,
-                         sessions=world if sessions else None)
+                         sessions=world if sessions else None,
+                         folder=parts[0], watcher=parts[1], verifier=parts[2])
     return browser_control_operations(plane), world
 
 
@@ -143,7 +152,7 @@ def test_every_documented_operation_is_registered(tmp_path):
     ops, _ = make(tmp_path)
     assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read",
                                                     "screenshot", "status", "close", "dashboard_notes",
-                                                    "form_controls", "select_option", "fill")}
+                                                    "form_controls", "select_option", "fill", "download")}
     assert all(op.description.startswith(name) for name, op in ((n, ops[v]) for n, v in PUBLIC.items()))
 
 

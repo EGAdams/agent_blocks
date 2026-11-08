@@ -1,9 +1,12 @@
-"""The thirteen Browser Control operations. Each is one `Operation` (browser_workflows' base class, so
+"""The fourteen Browser Control operations. Each is one `Operation` (browser_workflows' base class, so
 the ADW harness runs it as a lifecycle phase and the object trace records it) over a ControlPlane.
 
     browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
     browser.click browser.read      browser.screenshot browser.status browser.close
     browser.form_controls  browser.select_option  browser.fill
+
+(browser.download is the fourteenth and lives in `downloads.py`, because saving a file to EG's disk
+is a power the other thirteen must not have; `click` refuses a file link and names it.)
 
 Every result is verified, not assumed: `open` waits until the DevTools port answers and lists a tab,
 `navigate` reports the URL the tab ended on, `close` re-lists the tabs. Nothing here reads cookies,
@@ -21,6 +24,7 @@ from browser_workflows.normalizing.consequences import KeywordConsequenceClassif
 from browser_workflows.operations.common import Operation, OperationOutcome, locators_from, ok, refused
 from browser_workflows.playback.locating import RankedElementResolver, default_strategy_registry
 
+from .filelinks import saved_extension
 from .forms import (OptionMatcher, SecretFieldGuard, TypedValueCheck, WidgetDropdown, form_locators_from,
                     form_strategy_registry, looks_site_drawn, same_characters)
 from .models import BrowserKind, FormControlView, OptionView, TabView
@@ -285,6 +289,16 @@ class Click(BrowserOperation):
                                browser=kind.name, verified=False)
             if element.tag_name == "input" and (element.get_attribute("type") or "").lower() == "password":
                 return refused("That is a password field; I do not touch those.", browser=kind.name, verified=False)
+            # Pressing this saves a file, and a click cannot keep one: Chrome writes a download only
+            # when a folder has been set for the session, which browser.download does and this does not.
+            # Clicking anyway would report an honest "Clicked 'x.tif'." over an empty folder -- the one
+            # failure that looks exactly like a success.
+            saves = saved_extension(element)
+            if saves:
+                return refused(f"That saves a file (.{saves}), and a click cannot keep it -- Chrome only writes a "
+                               "download when a folder has been set for the session. Use browser.download with the "
+                               "same text, label or css and it saves the file and reports its name and size.",
+                               browser=kind.name, saves_file=saves, use_instead="browser.download", verified=False)
             label = (element.text or "")[:60]
             before = page.current_url
             element.click()

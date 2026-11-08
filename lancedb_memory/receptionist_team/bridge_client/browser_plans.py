@@ -86,7 +86,10 @@ def _locator(form, problem, what: str) -> dict:
 
 
 def _named(locator: dict) -> str:
-    return f'the "{words(locator["label"])}" control' if "label" in locator else locator.get("css", "that control")
+    for key in ("label", "text"):
+        if key in locator:
+            return f'the "{words(locator[key])}" control'
+    return locator.get("css", "that control")
 
 
 def _credential(text: str, problem) -> None:
@@ -264,8 +267,29 @@ class Fill:
         return req, said
 
 
+class Download:
+    """Press a link that saves a file, and keep the file. Not the same as a click: Chrome writes a download only
+    when a folder has been set for the session, so clicking a .tif reported a successful click over an empty
+    folder. The workflow reports the name and size of what actually landed, or that nothing did."""
+
+    name, operation = "download", "implement"
+
+    def build(self, form, problem):
+        #: Unlike the other plans this one accepts `text` as the locator, because what a person says is the
+        #: file name, and that is also the link's visible text -- Accela's .tif links carry it nowhere else.
+        said_text = str(form.text or "").strip()
+        locator = ({"text": said_text[:160]} if said_text and not (form.css or form.label)
+                   else _locator(form, problem, "download from"))
+        req: dict = {"browser": "download", **locator}
+        tab = _tab(form, problem)
+        if tab:
+            req["tab"] = tab
+        return req, (f"I'll press {_named(locator)} and wait for the file to finish saving, then tell you its name "
+                     "and size. If nothing arrives, I'll say that rather than call it downloaded.")
+
+
 BROWSER_PLANS: dict[str, IBrowserPlan] = {p.name: p for p in (
     Status(), Tabs(), Read(), FormControls(),
     Open(), DashboardNotes(), Navigate(), Refresh(), SelectTab(), CloseTab(),
-    Click(), SelectOption(), Fill(),
+    Click(), SelectOption(), Fill(), Download(),
 )}

@@ -222,6 +222,30 @@ def test_a_form_operation_names_its_tab_by_the_stable_id():
     assert commands.calls[ 0 ][ 1 ][ "tab" ] == "D4E512DAA70B7741"
 
 
+def test_download_is_a_change_that_needs_a_locator_and_carries_the_file_back():
+    """A click cannot keep a file, so download is its own operation -- and its own lane."""
+    refused = run( FakeCommands( verified()), task({ "browser": "download" }))
+    assert refused.kind == OutcomeKind.REFUSED and "needs text, label or css" in refused.summary
+    wrong_lane = run( FakeCommands( verified()), task({ "browser": "download", "text": "0337201.tif" },
+                                                      operation="inspect" ))
+    assert wrong_lane.kind == OutcomeKind.REFUSED and "implement" in wrong_lane.summary
+    commands = FakeCommands( verified( "Saved 0337201.tif (84.2 KB) to C:\\Users\\eg\\Downloads\\BrowserRecorder.",
+                                       files=[ { "name": "0337201.tif", "bytes": 86234 } ],
+                                       download_directory=r"C:\Users\eg\Downloads\BrowserRecorder" ))
+    out = run( commands, task({ "browser": "download", "text": "0337201.tif" }))
+    assert commands.calls == [( "download", { "text": "0337201.tif" }, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED
+    assert out.details[ "files" ][ 0 ][ "name" ] == "0337201.tif"
+
+
+def test_a_download_that_saved_nothing_is_not_reported_as_done():
+    commands = FakeCommands( { "ok": False, "line": "I pressed '0337201.tif', but no file arrived in "
+                                                     "C:\\Users\\eg\\Downloads\\BrowserRecorder within 60s.",
+                               "data": { "verified": False } })
+    out = run( commands, task({ "browser": "download", "text": "0337201.tif" }))
+    assert out.kind != OutcomeKind.SUCCEEDED and "no file arrived" in ( out.body or out.summary )
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 if __name__ == "__main__":
     for test in TESTS:

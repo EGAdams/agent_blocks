@@ -6,7 +6,7 @@ The prompt is JSON written by code (ChatGPT turns "open the browser" into it; To
 
     inspect    read_only        status | tabs | read | screenshot | form_controls
     implement  workspace_write  open | navigate | refresh | select_tab | click | close | dashboard_notes
-                                select_option | fill                                      (workspace `browser`)
+                                select_option | fill | download                           (workspace `browser`)
 
 `form_controls` is how a form is operated without guessing: it lists the page's fields, dropdowns (with every
 option) and buttons, each with the selector to pass back as `css`. `select_option` chooses an item in a dropdown
@@ -22,6 +22,14 @@ Each task becomes one run of `adws/adw_browser_control.py` (through `IBrowserCom
 Control ADW: it has its own execution id (the ADW id), lifecycle log and object trace. This adapter only checks the
 request against a fixed table, never lets a value become an argv option, and turns the ADW's one JSON outcome into
 an honest AgentOutcome: success means the ADW verified the operation, never that it was queued.
+
+`download` is `click` for anything that saves a file, and it is a separate operation on purpose. Chrome writes a
+downloaded file only when a folder has been set for the session, so a `click` on a `.tif` or a statement link
+answered "Clicked '0337201.tif'." over an empty folder -- a true sentence about a failed job. `download` sets the
+folder, presses the element, waits for Chrome to finish writing and reports the file's name, size and first bytes;
+nothing arriving is reported as nothing arriving, never as a download. `click` now refuses a file link outright and
+names this operation. It takes the same locators as `click` (`css` best, else `label` or `text`), and because it
+writes to EG's disk it is an `implement`, never an `inspect`.
 
 A click whose words look consequential (pay, send, delete ...) is refused by the ADW unless the request carries
 `"confirm": true`, which ChatGPT may set only after EG said so. Nothing here reads cookies, storage or passwords.
@@ -39,7 +47,7 @@ from .ports import IClock, Signal
 PERFORMER = "browser_control"
 READS     = frozenset({ "status", "tabs", "read", "screenshot", "form_controls" })
 WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes",
-                        "select_option", "fill" })
+                        "select_option", "fill", "download" })
 #: request key -> the ADW flag it becomes (the ADW spells a two-word flag with a dash: --option-text).
 #: `target` is the browser (Chrome only); `browser` already names the operation.
 FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css",
@@ -96,8 +104,8 @@ class BrowserAgent:
         missing = [ k for k in REQUIRED.get( what, ()) if FLAGS[ k ] not in flags ]
         if missing:
             return self._refused( f"{ what } needs: " + ", ".join( missing ))
-        if what == "click" and not any( k in flags for k in ( "text", "label", "css" )):
-            return self._refused( "click needs text, label or css" )
+        if what in ( "click", "download" ) and not any( k in flags for k in ( "text", "label", "css" )):
+            return self._refused( f"{ what } needs text, label or css" )
         if what in ( "select_option", "fill" ) and not any( k in flags for k in ( "css", "label" )):
             return self._refused( f"{ what } needs css (from form_controls, best) or label; for { what }, text is not a locator" )
         if what == "select_option" and not any( k in flags for k in ( "option-text", "value" )):

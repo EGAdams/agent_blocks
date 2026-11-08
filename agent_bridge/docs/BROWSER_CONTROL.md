@@ -27,8 +27,8 @@ own default handler can never be steered afterwards, so `default` means Chrome w
 `adws/adw_browser_control.py <operation> [flags]` -- one operation per run, `--json-out` for the outcome.
 Operations: `browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab  browser.click
 browser.read  browser.screenshot  browser.status  browser.close  browser.form_controls  browser.select_option
-browser.fill`. Package: `adws/browser_control/` (`operations.py`, `catalog.py`, `plane.py`, `interfaces.py`,
-`models.py`, `forms.py`). Each operation is an `Operation` over an injected `ControlPlane`; a new one is a class
+browser.fill  browser.download`. Package: `adws/browser_control/` (`operations.py`, `catalog.py`, `plane.py`,
+`interfaces.py`, `models.py`, `forms.py`, `downloads.py`, `filelinks.py`). Each operation is an `Operation` over an injected `ControlPlane`; a new one is a class
 plus a line in `catalog.ORDER`.
 
 Tracing: the ADW id is the execution id. Each run is an `adw.run:<id>` object with an `adw.phase:<id>:browser_<op>`
@@ -47,7 +47,7 @@ released, never quit.
 
 Root cause of "ChatGPT cannot open Chrome": the connector listed no browser tools. The browser agent was reachable
 only through the generic `submit_agent_task` with a hand-written JSON prompt, so ChatGPT concluded it had no browser
-(and the agent's description still said "Chrome or Edge"). The gateway now lists fourteen `browser_*` tools
+(and the agent's description still said "Chrome or Edge"). The gateway now lists fifteen `browser_*` tools
 (`gateway/src/BrowserTools.php`), each the same `browser` task written by the gateway and submitted with the
 caller's own credentials through `ClientTasks->submit`, so policy and client scopes apply unchanged:
 
@@ -56,6 +56,7 @@ caller's own credentials through `ClientTasks->submit`, so policy and client sco
 | `browser_open_dashboard_notes` | `browser.dashboard_notes` (request -> launch -> visibility -> dashboard_tab -> click -> notes_verify) | implement, no fields |
 | `browser_open` / `browser_navigate` / `browser_click` / `browser_select_tab` / `browser_refresh` / `browser_close_tab` | open / navigate / click / select_tab / refresh / close | implement |
 | `browser_select_option` / `browser_fill` | select_option / fill | implement, a form control named by `css` or `label` |
+| `browser_download` | download | implement, a link named by `text` (the file name), `label` or `css` |
 | `browser_read` / `browser_tabs` / `browser_status` / `browser_form_controls` | read / tabs / status / form_controls | inspect |
 | `browser_get_result` | -- | reads a browser task's result |
 
@@ -82,6 +83,7 @@ Agent `browser`, workspace `browser`. The prompt is JSON:
 | "What's on this form?" | `inspect` | `{"browser":"form_controls","limit":120}` |
 | "Set Record Type to PLAT Records." | `implement` | `{"browser":"select_option","css":"#ddlGSPermitType","option_text":"PLAT Records"}` |
 | "Type Fralick's Addition in Project Name." | `implement` | `{"browser":"fill","css":"#txtGSProjectName","text":"Fralick's Addition"}` |
+| "Download that .tif." | `implement` | `{"browser":"download","text":"0337201.tif"}` |
 
 Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `option_text`,
 `value`, `limit`, `confirm`. (On the ADW command line a two-word flag is spelled with a dash: `--option-text`.)
@@ -121,14 +123,20 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
 
 ## Tests
 
-All three re-run green on 2026-11-07 (20:48 EST, DESKTOP-2OBSQMC):
+All re-run green on 2026-11-08:
 
 ```bash
 cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp \
-    pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py      # 95 passed (88 + 7), 2 skipped
-cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent   # 21 passed
-cd agent_bridge/gateway && php tests/run_tests.php                          # 118 passed, 0 failed
+    pytest -q browser_control/tests cdp_browser/tests                       # 114 passed, 2 skipped
+cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp \
+    pytest -q browser_workflows/tests                                       # 107 passed, 5 skipped
+cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent   # 23 passed
+cd agent_bridge/gateway && php tests/run_tests.php                          # 132 passed, 0 failed
 ```
+
+`browser.download` moved a module out of Cashy, so her suite is part of this now:
+`cd adws && uv run --quiet --with pydantic --with pytest --with lancedb --with pyarrow pytest -q cashy/tests`
+(37 passed, 3 skipped).
 
 `lancedb_memory/.venv` has **no pytest**, so the older spelling
 (`../lancedb_memory/.venv/bin/python -m pytest`) fails with `No module named pytest`. Use the `uv run` line above
@@ -136,6 +144,46 @@ for the `adws` suites; the worker suite is a plain script and does run under tha
 
 These numbers say the rules are right. They say nothing about whether a form on a real site works -- that is the
 Verification state section.
+
+## browser.download: a click cannot keep a file (2026-11-08)
+
+Chrome writes a download only when a download folder has been set for the session
+(`Browser.setDownloadBehavior`, on the browser-level socket). `browser.click` never sets one, so clicking
+Michigan's `.tif` attachment reported `Clicked '0337201.tif'.` over an empty folder -- a true sentence about a
+failed job, which is the hardest kind of failure to chase.
+
+The saving is its own operation rather than a flag on `click`, so that the other thirteen operations do not all
+acquire the ability to write files to EG's disk, and so the intent is named in the task and visible in the log.
+
+| Piece | What it is |
+| --- | --- |
+| `browser_control/downloads.py` | the `Download` operation: set the folder -> resolve the element -> press -> wait -> verify -> report |
+| `browser_control/filelinks.py` | `saved_extension(element)`: does pressing this save a file? |
+| `browser_control/interfaces.py` | `IDownloadFolder`, `IDownloadWatcher`, `IDownloadVerifier`, `IDownloadingPage` |
+| `browser_workflows/playback/downloads.py` | the folder watcher and file verifier, moved down from `cashy/documents/folder.py` (a shim re-exports, so Cashy is unchanged) -- machinery must not depend on an agent |
+| `adws/adw_browser_download.py` | the same operation on its own, for when downloading is the whole job |
+
+Where files land: `NativeDownloadDirectory` -- the one Chrome-side folder this system already uses, shared with
+playback, so there is a single place to look. Typically `C:\Users\<user>\Downloads\BrowserRecorder`;
+`BROWSER_WORKFLOW_DOWNLOAD_DIR` moves it for downloads and playback at once. The path handed to Chrome must be
+the **Windows** spelling (Chrome's machine); the `/mnt/c/...` spelling is only how WSL reads the same folder back.
+
+The rules, enforced in code:
+
+- A press that saved nothing is never reported as a download. The refusal says whether the page navigated
+  instead (so the caller knows which half failed) and names `browser.read` as the next look.
+- `verified` is true only when a file arrived, Chrome finished writing it (no `.crdownload` beside it), and the
+  verifier found nothing wrong with it (not empty, not a page claiming to be a PDF).
+- The report carries name, size and the first 8 bytes in hex -- never the contents.
+- `browser.click` now **refuses** a file link before pressing it, with `saves_file` and
+  `use_instead: browser.download` in the data. `saved_extension` reads `<a download>`, the href's path, **and
+  the element's own text**: Accela's `.tif` link is `javascript:__doPostBack(...)` with the file name nowhere
+  but the row's text.
+- A plane with no download parts wired, or a page that cannot be told where to save, refuses rather than
+  pressing something that saves a file and guessing whether it worked.
+
+Timeouts: 60 s wait for the file, plus up to 15 s to find the folder, inside `BrowserAgent`'s 120 s deadline and
+`UvBrowserCommands`' 180 s hard limit.
 
 ## Chrome only; host requirements (2026-11-07 fix)
 
@@ -290,6 +338,8 @@ a fix is live. The worker runs straight out of the checkout, so for it "deployed
 | Toyota driving a form | yes | yes | 110 route tests (`test_bridge_browser_route.py`) | n/a -- her code is local | **no.** No live run through her exists yet; the route is implemented and locally tested only |
 | A refused click naming the real selector | yes | yes | yes (3 tests in `browser_control/tests`) | n/a -- local ADW, picked up per task | yes, on `aca-prod.accela.com` PLATS-38123: Record Info menu (adw `aa19790c`) -> Record Details (`7c690ef0`) -> `#lnkMoreDetail` (`ed5fed1c`, `verified: true`), then `read` (`bf686264`) returned County KENT |
 | Reading a record's Attachments panel | yes | yes | yes | -- | yes, and the panel is **genuinely empty** on that record -- header, upload rules, upload widget, `fileRows` 0, and `#lnkViewRecordDocument` / `#lnkViewPeopleDocument` server-rendered `ACA_Hide`. **Open question, not a defect:** the session is anonymous, and ten plat records all look identical, so the DOM cannot distinguish "no scans attached" from "hidden from signed-out visitors". Signing in is EG's step; no agent here types a credential |
+| `browser.download` saving a file | yes | yes (2026-11-08) | 15 adws / 2 worker / 1 gateway test | not yet | **yes, via the ADW** -- `adw_browser_download.py --css 'a[href$="docs-text.zip"]'` on `docs.python.org/3/download.html` (adw `b1b6c83c`): `Saved python-3.15-docs-text.zip (4757.7 KB) to C:\Users\NewUser\Downloads\BrowserRecorder.`, 4,871,863 bytes on disk, head `504b0304` (a real zip). Not yet through the connector, and not yet the Michigan `.tif` -- that needs EG signed in |
+| `browser.click` refusing a file link | yes | yes (2026-11-08) | yes | not yet | **yes, via the ADW** -- the same selector through `browser.click` answered `That saves a file (.zip), and a click cannot keep it`, with `use_instead: browser.download` (nothing was pressed) |
 | A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
 | A file chooser | n/a | refused on purpose | yes | -- | same |
 

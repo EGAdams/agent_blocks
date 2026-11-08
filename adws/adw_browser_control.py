@@ -11,10 +11,16 @@
     uv run adws/adw_browser_control.py browser.form_controls
     uv run adws/adw_browser_control.py browser.select_option --css "#ddlType" --option_text "PLAT Records"
     uv run adws/adw_browser_control.py browser.fill --css "#txtName" --text "Fralick's Addition"
+    uv run adws/adw_browser_control.py browser.download --text "0337201.tif"
 
 Operations: browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
             browser.click  browser.read  browser.screenshot  browser.status  browser.close
-            browser.form_controls  browser.select_option  browser.fill
+            browser.form_controls  browser.select_option  browser.fill  browser.download
+
+browser.download is the one that saves a file. A click cannot: Chrome writes a download only when a
+folder has been set for the session, which that operation does and browser.click deliberately does not,
+so browser.click refuses a file link and names it instead. adw_browser_download.py is the same operation
+on its own, for when downloading is the whole job.
 
 It reuses what exists: browser_session starts the Windows Chrome with a DevTools port,
 cdp_browser drives the page (no Selenium, no driver), browser_workflows finds the element and

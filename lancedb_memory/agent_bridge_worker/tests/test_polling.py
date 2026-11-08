@@ -31,10 +31,13 @@ def test_defaults_are_the_agreed_numbers() -> None:
     assert s.active_hours is None
 
 
-def test_shipped_settings_preserve_the_configured_poll_rate_and_active_hours() -> None:
+def test_shipped_settings_poll_round_the_clock_at_the_configured_rate() -> None:
+    """`active_hours: null` on purpose: a task sent at midnight was sitting until 08:00, which looked
+    like the Bridge being down. It costs roughly 1440 idle polls a day instead of ~900, and the
+    dashboard's Poll Settings tab is where to narrow it again."""
     settings = load_settings( SETTINGS_FILE )
     assert ( settings.idle_seconds, settings.burst_seconds, settings.burst_window_seconds ) == ( 60, 10, 300 )
-    assert settings.active_hours == ActiveHours( start_hour=8, end_hour=23 )
+    assert settings.active_hours is None
 
 
 def test_missing_settings_file_means_defaults() -> None:

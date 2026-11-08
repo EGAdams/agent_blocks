@@ -50,10 +50,10 @@ for name in ("status", "tabs", "read", "form_controls"):
     req, _ = build(operation=name)
     check(f"{name} is a read", (req.operation, req.approval_mode) == ("inspect", "read_only"), req.operation)
     check(f"{name} needs no yes", not req.needs_confirmation)
-for name in ("open", "dashboard_notes", "refresh", "click", "select_option", "fill"):
+for name in ("open", "dashboard_notes", "refresh", "click", "select_option", "fill", "download"):
     form = {"operation": name}
     form |= {"click": {"css": "#b"}, "select_option": {"css": "#d", "option_text": "x"},
-             "fill": {"css": "#t", "text": "x"}}.get(name, {})
+             "fill": {"css": "#t", "text": "x"}, "download": {"text": "0337201.tif"}}.get(name, {})
     req, said = build(**form)
     check(f"{name} is a change", (req.operation, req.approval_mode) == ("implement", "workspace_write"))
     check(f"{name} is read back and waits for a yes", req.needs_confirmation and said.strip() != "", said)
@@ -62,7 +62,7 @@ for name in ("open", "dashboard_notes", "refresh", "click", "select_option", "fi
 # Mirrors agent_bridge_worker/browser_agent.py: READS / WRITES, FLAGS, REQUIRED.
 WORKER_READS = {"status", "tabs", "read", "screenshot", "form_controls"}
 WORKER_WRITES = {"open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes",
-                 "select_option", "fill"}
+                 "select_option", "fill", "download"}
 WORKER_FIELDS = {"browser", "confirm", "target", "url", "tab", "text", "label", "css", "option_text", "value", "limit"}
 for name, plan in BROWSER_PLANS.items():
     lane = "inspect" if name in WORKER_READS else "implement" if name in WORKER_WRITES else None

@@ -1,6 +1,7 @@
 """What the operations need from the machine, as Protocols (say "interface", never "port")."""
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Protocol
 
 from cdp_browser.interfaces import CdpTarget
@@ -82,3 +83,31 @@ class IWindowsLink(Protocol):
 class IWindowSessions(Protocol):
     """Which Windows session the debug browser is in, and which sessions a person can see. Never raises."""
     def placement(self, kind: BrowserKind) -> BrowserPlacement: ...
+
+
+class IDownloadFolder(Protocol):
+    """Where Chrome should save what it downloads. The path is on **Chrome's** machine, so from WSL
+    this is a Windows path -- handing Chrome the /mnt/c spelling of it saves nothing anywhere."""
+    def resolve(self) -> str: ...                           # raises BrowserWorkflowError if it cannot be found
+
+
+class IDownloadWatcher(Protocol):
+    """That same folder as *this* machine sees it. `wait_new` returns only files Chrome has finished
+    writing (no .crdownload beside them), and an empty list when nothing arrived in time -- which is
+    what lets browser.download refuse to call a click a download."""
+    def before(self) -> set[str]: ...
+    def wait_new(self, before: set[str], timeout_seconds: float = 30.0) -> list[Path]: ...
+
+
+class IDownloadVerifier(Protocol):
+    """One sentence naming what is wrong with a file that landed, or "" when nothing is."""
+    def problem(self, path: Path) -> str: ...
+
+
+class IDownloadingPage(IPageSession, Protocol):
+    """A tab that can also be told where Chrome saves. `CdpWorkflowBrowser` satisfies it; a page that
+    does not is refused by browser.download rather than clicked and hoped over.
+
+    This is separate from IPageSession on purpose: the other twelve operations must not acquire the
+    ability to write files to EG's disk just because one of them needed it."""
+    def configure_downloads(self, directory: str) -> None: ...

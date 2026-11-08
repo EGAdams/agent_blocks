@@ -79,10 +79,16 @@ The top-level areas are:
   `adws/adw_data/mechanic/`; see
   `lancedb_memory/receptionist_team/agents/toyota_mechanic/README.md`.
   `adws/browser_control/` is Browser Control, the operations ChatGPT and Toyota
-  reach over the Star Trek Bridge: open/navigate/read/click/tabs plus the three
-  form operations (`form_controls`, `select_option`, `fill`), each one an
-  `Operation` over an injected `ControlPlane`, driving Windows Chrome through
-  `adws/cdp_browser/` (DevTools, no WebDriver). Read
+  reach over the Star Trek Bridge: open/navigate/read/click/tabs, the three
+  form operations (`form_controls`, `select_option`, `fill`), and `download`,
+  each one an `Operation` over an injected `ControlPlane`, driving Windows
+  Chrome through `adws/cdp_browser/` (DevTools, no WebDriver). `download` is
+  separate from `click` on purpose: Chrome writes a file only when a download
+  folder has been set for the session, so a click on a `.tif` link reported a
+  successful click over an empty folder -- `click` now refuses a file link and
+  names `download` instead, and the other thirteen operations never gain the
+  power to write files to EG's disk. `adws/adw_browser_download.py` is the same
+  operation on its own; verified live on 2026-11-08 (adw `b1b6c83c`). Read
   `agent_bridge/docs/BROWSER_CONTROL.md` before changing it -- it holds the
   environment table, the failure causes, and which rows are verified end to end
   rather than only unit-tested. The agent-facing loop is the

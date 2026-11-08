@@ -1,6 +1,6 @@
 ---
 name: browser-form-control
-description: Operate a website's forms through the Browser Control ADWs — list a page's controls, choose a dropdown item, type into a field, submit, and verify the result. Use when a task needs a search form filled in, a dropdown set, or a web application driven hands-free on EG's Windows desktop. Keywords - form, dropdown, select, combobox, text field, fill, search a website, browser_select_option, browser_fill, browser_form_controls, plat search, Accela.
+description: Operate a website's forms through the Browser Control ADWs — list a page's controls, choose a dropdown item, type into a field, submit, download a file the page offers, and verify the result. Use when a task needs a search form filled in, a dropdown set, a document or statement saved, or a web application driven hands-free on EG's Windows desktop. Keywords - form, dropdown, select, combobox, text field, fill, download, save the file, attachment, tif, pdf, search a website, browser_select_option, browser_fill, browser_form_controls, browser_download, plat search, Accela.
 argument-hint: "[what to do on which page]"
 ---
 
@@ -18,6 +18,7 @@ already be up with its DevTools port (`browser.open` or `browser.dashboard_notes
 | see the controls | `browser.form_controls` | `browser_form_controls` | `"browser": "form_controls"` |
 | choose in a dropdown | `browser.select_option` | `browser_select_option` | `"browser": "select_option"` |
 | type in a field | `browser.fill` | `browser_fill` | `"browser": "fill"` |
+| keep a file the page offers | `browser.download` | `browser_download` | `"browser": "download"` |
 
 On the command line a two-word flag is spelled with a dash (`--option-text`); in JSON it is
 `option_text`.
@@ -85,7 +86,30 @@ On the command line a two-word flag is spelled with a dash (`--option-text`); in
    uv run adws/adw_browser_control.py browser.click --tab=<id> --css='#ctl00_PlaceHolderMain_btnNewSearch'
    ```
 
-5. **Read the result, and only then say what happened.**
+5. **If the result is a file, download it — a click cannot keep it.**
+
+   ```bash
+   uv run adws/adw_browser_download.py --tab=<id> --text='0337201.tif'
+   # or the same operation inside the shared ADW:
+   uv run adws/adw_browser_control.py browser.download --tab=<id> --css='#...lnkFileName'
+   ```
+
+   Chrome writes a download only when a folder has been set for the session, and `browser.click`
+   deliberately does not set one — so clicking a `.tif` link used to answer `Clicked '0337201.tif'.`
+   over an empty folder, a true sentence about a failed job. `browser.click` now **refuses** a file
+   link and names this operation instead (`saves_file`, `use_instead` in the answer).
+
+   `--text` is the best locator here, because the link's visible text is the file name — and on an
+   ASP.NET postback link (`javascript:__doPostBack(...)`) it is the *only* place the name appears.
+
+   The answer carries the file's name, size in bytes, first bytes in hex and the folder it landed in
+   (`C:\Users\<user>\Downloads\BrowserRecorder`, moved by `BROWSER_WORKFLOW_DOWNLOAD_DIR`). It is
+   `verified: true` only when a file actually arrived, Chrome finished writing it, and it is not empty
+   or mislabelled. **Nothing arriving is reported as nothing arriving**, and the answer says whether
+   the page navigated instead — that tells you which half failed. Read the file from
+   `/mnt/c/...` afterwards; that is a separate step.
+
+6. **Read the result, and only then say what happened.**
 
    ```bash
    uv run adws/adw_browser_control.py browser.read --tab=<id>
@@ -126,6 +150,16 @@ the `line` and the `cause` and stop. The causes:
 - Never press a consequential control (pay, send, delete, submit an application) without `--confirm`,
   and only after EG said so in this conversation.
 - Never claim a form worked because it was submitted.
+
+## Live example: a download (verified 2026-11-08)
+
+```bash
+uv run adws/adw_browser_download.py --css 'a[href$="docs-text.zip"]'
+# Saved python-3.15-docs-text.zip (4757.7 KB) to C:\Users\NewUser\Downloads\BrowserRecorder.
+```
+
+4,871,863 bytes on disk, head `504b0304` — a real zip. The same selector through `browser.click`
+answered `That saves a file (.zip), and a click cannot keep it` and pressed nothing.
 
 ## Live example (verified 2026-11-07)
 

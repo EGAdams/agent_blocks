@@ -26,7 +26,7 @@ function browserCall(World $w, string $tool, array $args = [], ?string $token = 
 const BROWSER_TOOLS = ['browser_open_dashboard_notes', 'browser_open', 'browser_navigate', 'browser_click',
                        'browser_select_tab', 'browser_refresh', 'browser_close_tab', 'browser_read', 'browser_tabs',
                        'browser_status', 'browser_form_controls', 'browser_select_option', 'browser_fill',
-                       'browser_get_result'];
+                       'browser_download', 'browser_get_result'];
 
 test('browser: every browser_* tool is listed when the agent exists and implement is on', function () {
     $names = toolNames(browserWorld());
@@ -45,6 +45,7 @@ test('browser: no browser tools without the browser agent, and only reads withou
     ok(in_array('browser_form_controls', $names, true), 'looking at a form is a read');
     ok(!in_array('browser_open_dashboard_notes', $names, true) && !in_array('browser_click', $names, true), 'no actions');
     ok(!in_array('browser_select_option', $names, true) && !in_array('browser_fill', $names, true), 'no form writing');
+    ok(!in_array('browser_download', $names, true), 'saving a file to EG\'s disk is not a read');
     eq(true, browserCall($w, 'browser_open_dashboard_notes')['isError']);
 });
 
@@ -115,6 +116,24 @@ test('browser: arguments are checked and become the prompt fields', function () 
     eq(['browser' => 'click', 'text' => 'NOTES', 'tab' => '2'], json_decode($prompt, true), 'confirm only when true');
     $read = browserCall($w, 'browser_read')['structuredContent']['task_id'];
     eq('read_only', $w->call('GET', "/tasks/$read", $w->client)->json['approval_mode']);
+});
+
+test('browser: a download is its own tool, named like a click, and keeps the file details', function () {
+    // A click cannot keep a file: Chrome writes a download only when a folder has been set for the session.
+    $w = browserWorld();
+    eq(true, browserCall($w, 'browser_download', ['tab' => '1'])['isError'], 'download needs text, label or css');
+    $id = browserCall($w, 'browser_download', ['text' => '0337201.tif', 'tab' => 2])['structuredContent']['task_id'];
+    list($prompt, $lease) = claimTask($w, $id);
+    eq(['browser' => 'download', 'text' => '0337201.tif', 'tab' => '2'], json_decode($prompt, true));
+    eq('workspace_write', $w->call('GET', "/tasks/$id", $w->client)->json['approval_mode'], 'it writes a file');
+    completeTask($w, $id, $lease,
+                 ['browser' => 'download', 'ok' => true, 'verified' => true, 'adw_id' => 'cafe1234',
+                  'clicked' => '0337201.tif', 'download_directory' => 'C:\\Users\\eg\\Downloads\\BrowserRecorder',
+                  'files' => [['name' => '0337201.tif', 'bytes' => 86234]]]);
+    $s = browserCall($w, 'browser_get_result', ['task_id' => $id])['structuredContent'];
+    eq(true, $s['verified']);
+    eq('0337201.tif', $s['files'][0]['name'], 'the file name comes back');
+    ok(strpos($s['download_directory'], 'BrowserRecorder') !== false, 'and where it landed');
 });
 
 test('browser: a dropdown and a field are named by css or label, and the item by option_text or value', function () {
