@@ -52,18 +52,19 @@ Not demonstrated, and not to be claimed:
 
 ## Git synchronization (checked 2026-11-07, 20:48–20:52 EST)
 
-Repo: `agent_blocks`, intended branch `main`, intended remote commit **`938b1e5`**.
+Repo: `agent_blocks`, intended branch `main`, intended remote commit **`30c47a4`** -- this documentation
+commit, on top of `938b1e5` (the deploy record) and `24b5286` (the work).
 
 | Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
 |---|---|---|---|---|---|---|---|
-| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `938b1e5` | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
-| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | `938b1e5` | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:48 EST |
-| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **2 behind** (`24b5286`, `938b1e5` missing) | **not read** | 20:50 EST |
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `30c47a4` | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | `30c47a4` | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:55 EST |
+| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **4 behind** (`24b5286`, `938b1e5`, `30c47a4` and this line's own commit missing) | **not read** | 20:50 EST |
 
 **Rosemary46 is not synchronized.** One read succeeded, then sshd went away: `Connection refused`, then
 `Connection timed out` on three retries. Recovery, when it is up:
 `ssh -p 22 adamsl@100.72.34.38 'cd ~/agent_blocks && git status --short && git fetch origin && git rev-list --left-right --count origin/main...HEAD && git pull --ff-only origin main'` —
-check the branch and the dirty list **before** pulling; it is two commits behind and its working tree is unknown.
+check the branch and the dirty list **before** pulling; it is several commits behind and its working tree is unknown.
 
 Also note: `ssh desktop-shdbati` by **name** fails with `Host key verification failed` from this box (a stale or
 conflicting `known_hosts` entry). The tailscale IP `100.80.49.10` works. Do not blindly delete the entry — that
