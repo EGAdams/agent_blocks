@@ -842,6 +842,7 @@ require __DIR__ . '/client_scope_tests.php';
 require __DIR__ . '/scanner_tests.php';
 require __DIR__ . '/printer_tests.php';
 require __DIR__ . '/browser_tests.php';
+require __DIR__ . '/relay_tests.php';
 
 // ---- run -------------------------------------------------------------------
 

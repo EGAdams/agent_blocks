@@ -86,6 +86,9 @@ PRINT_ADW       = _HERE / "adw_printer.py"
 BROWSER_ENABLED = Path.home() / ".config" / "startrek_browser" / "enabled"   # browser control is off until this exists
 BROWSER_WORKDIR = _HERE / "adw_data" / "browser_control" / "workspace"      # the `browser` workspace: empty, nothing runs in it
 BROWSER_ADW     = _HERE / "adw_browser_control.py"
+RELAY_ENABLED   = Path.home() / ".config" / "startrek_relay" / "enabled"     # the ChatGPT relay is off until this exists
+RELAY_WORKDIR   = _HERE / "adw_data" / "chatgpt_relay" / "workspace"        # the `chatgpt-relay` workspace: empty, nothing runs in it
+RELAY_ADW       = _HERE / "adw_chatgpt_relay.py"
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
 NOTES_URL       = os.environ.get( "NOTES_ENDPOINT_URL", "http://127.0.0.1:8765" )     # the dashboard, loopback
@@ -166,6 +169,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.notes_agent import NotesAgent
     from agent_bridge_worker.browser_agent import BrowserAgent
     from agent_bridge_worker.adapters.browser_process import UvBrowserCommands
+    from agent_bridge_worker.chatgpt_relay_agent import ChatGptRelayAgent
+    from agent_bridge_worker.adapters.chatgpt_relay_process import UvChatGptCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
@@ -253,8 +258,18 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         agents[ "browser" ]  = BrowserAgent( UvBrowserCommands( UV, BROWSER_ADW, _HERE.parent ), clock )
         offered[ "browser" ] = { "inspect": False, "implement": True }
         self_contained.add( "browser" )                 # it changes a window, not a git workspace; the ADW verifies the result
+    if RELAY_ENABLED.exists():                          # the ChatGPT relay is off until EG creates the flag file
+        RELAY_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "chatgpt-relay" ]  = ChatGptRelayAgent( UvChatGptCommands( UV, RELAY_ADW, _HERE.parent ), clock )
+        offered[ "chatgpt-relay" ] = { "inspect": False, "implement": True }
+        # One name, used as both: `self_contained` is read as agent names in service.py and as workspace names
+        # in lane.write_workspaces, so an agent called `chatgpt-relay` writing in a workspace called `relay`
+        # would be refused for a workspace that is not write-enabled -- with a message about workspaces that
+        # says nothing about the two spellings being different.
+        self_contained.add( "chatgpt-relay" )           # it types into a window on another machine, not a git workspace
     write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
-    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR },
+    resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
+                                      "chatgpt-relay": RELAY_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent
