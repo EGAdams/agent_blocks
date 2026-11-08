@@ -15,7 +15,10 @@ from __future__ import annotations
 
 FORM_CONTROLS_JS = r"""
 (function (limit) {
-  const SELECTOR = 'input:not([type=hidden]), select, textarea, button, a[id], ' +
+  // `a[onclick]` is here for the tab and menu anchors a site builds without an id -- Accela's
+  // "Record Details" is one, and without it the control that reveals a whole panel cannot be
+  // discovered at all. The `acts` test below still drops an anchor that is only navigation.
+  const SELECTOR = 'input:not([type=hidden]), select, textarea, button, a[id], a[onclick], ' +
                    '[role=button], [role=combobox], [role=textbox], [contenteditable=""], [contenteditable=true]';
   const SECRET = /pass(word|wd|code)?|^pwd$|\bpin\b|otp|one.?time|mfa|2fa|totp|secret|token|apikey|api.?key|cvv|cvc|ssn/i;
 

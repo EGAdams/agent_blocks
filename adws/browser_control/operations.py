@@ -280,7 +280,8 @@ class Click(BrowserOperation):
             if element is None:
                 tried = ", ".join(f"{a.label}: {a.outcome}" for a in resolution.attempts)
                 return refused(f"I could not find one clickable element for that ({tried})."
-                               + self._dropdown_hint(page, hint),
+                               + self._dropdown_hint(page, hint)
+                               + self._targeting_hint(page, resolution, hint),
                                browser=kind.name, verified=False)
             if element.tag_name == "input" and (element.get_attribute("type") or "").lower() == "password":
                 return refused("That is a password field; I do not touch those.", browser=kind.name, verified=False)
@@ -293,6 +294,41 @@ class Click(BrowserOperation):
         moved = safe_url(after) if after != before else ""
         return ok(f"Clicked {label!r}" + (f"; the page moved to {moved}." if moved else "."),
                   browser=kind.name, clicked=label, moved_to=moved, winner=resolution.winner, verified=True)
+
+    @staticmethod
+    def _targeting_hint(page, resolution, wanted: str) -> str:
+        """Why the resolver refused, and the one operation that ends the guessing.
+
+        Three outcomes are all the same mistake, so they get the same answer. "ambiguous" means the
+        words name several things on the screen -- a heading, the row it sits in, and the control, all
+        carrying the same caption. "hidden" and "zero_size" mean the thing is in the page but not on it:
+        a collapsed section or a closed menu, so what has to be pressed first is whatever reveals it.
+        In every case the fix is to read the controls and aim with the selector one of them carries,
+        never to take the first match -- which would press a heading and report success.
+        """
+        blocked = {a.outcome for a in resolution.attempts} & {"ambiguous", "hidden", "zero_size"}
+        if not blocked:
+            return ""
+        asked = " ".join(wanted.split()).rstrip(":*").strip().casefold()
+        named = []
+        if asked:
+            try:
+                found = page.form_controls(MAX_CONTROLS)
+            except Exception:
+                found = {}
+            for control in (found or {}).get("controls") or []:
+                said = " ".join(f"{control.get('label') or ''} {control.get('text') or ''}".split()).casefold()
+                if control.get("css") and asked in said:
+                    named.append(f"{control['css']} ({(control.get('label') or control.get('text') or '')[:40]!r}"
+                                 + ("" if control.get("visible") else ", not on the screen") + ")")
+        why = (" Those words name more than one thing on the screen."
+               if "ambiguous" in blocked else
+               " What matched is in the page but not on the screen, so it is inside a collapsed section or a"
+               " closed menu; press whatever opens that first.")
+        advice = (f" browser.form_controls lists these candidates: {'; '.join(named[:6])}."
+                  " Repeat with --css=<one of those>." if named else
+                  " Run browser.form_controls and repeat with --css taken from the control you mean.")
+        return why + advice
 
     @staticmethod
     def _dropdown_hint(page, wanted: str) -> str:

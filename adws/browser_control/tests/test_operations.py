@@ -269,6 +269,39 @@ def test_click_that_finds_nothing_says_so(tmp_path):
     assert not out.ok and "could not find" in out.line
 
 
+def test_click_on_ambiguous_words_names_the_candidates_instead_of_guessing(tmp_path):
+    """Accela's bug: "More Details" is a heading, the row holding it, and the control that opens it.
+    The resolver must refuse all three and the refusal must name the selector that works."""
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="More Details", tag="h1"), FakeElement(text="More Details", tag="span")]
+    world.controls = {"total": 1, "controls": [
+        {"role": "button", "tag": "a", "id": "lnkMoreDetail", "label": "Expand More Details",
+         "css": "#lnkMoreDetail", "text": "", "visible": False}]}
+    out = run(ops, "browser.click", text="More Details")
+    assert not out.ok and not any(e.clicked for e in world.elements)
+    assert "more than one thing on the screen" in out.line
+    assert "browser.form_controls" in out.line and "#lnkMoreDetail" in out.line
+    assert "--css=" in out.line
+
+
+def test_click_on_a_control_that_is_in_the_page_but_not_on_it_says_to_open_it_first(tmp_path):
+    """A collapsed section or a closed menu: Accela keeps the Record Details tab in the DOM with
+    display:none, so the only match is hidden and pressing it would do nothing."""
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="Record Details", tag="a", shown=False)]
+    out = run(ops, "browser.click", text="Record Details")
+    assert not out.ok and not world.elements[0].clicked
+    assert "not on the screen" in out.line and "collapsed section" in out.line
+    assert "browser.form_controls" in out.line
+
+
+def test_click_that_simply_finds_nothing_gets_no_targeting_lecture(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = []
+    out = run(ops, "browser.click", text="Missing")
+    assert not out.ok and "form_controls" not in out.line
+
+
 def test_read_returns_visible_text_only_and_status_lists_only_chrome(tmp_path):
     ops, _ = make(tmp_path, running=["chrome"])
     out = run(ops, "browser.read")
