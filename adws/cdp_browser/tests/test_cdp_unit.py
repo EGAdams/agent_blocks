@@ -8,6 +8,7 @@ import pytest
 
 from browser_session.models import DebugEndpoint
 from browser_workflows.errors import BrowserWorkflowError
+from cdp_browser.browser import CdpWorkflowBrowser
 from cdp_browser.element import CdpElement
 from cdp_browser.choosers import FirstPageChooser, PreferredTargetChooser
 from cdp_browser.interfaces import CdpTarget
@@ -107,3 +108,53 @@ def test_a_filled_field_is_emptied_first_so_filling_replaces() -> None:
     channel = FakeChannel()
     channel.holds = "old"
     assert CdpElement( channel, "node-1" ).fill( "new" ) == "new"
+
+
+class RecordingChannel:
+    """Records the one Runtime.evaluate `find`/`body_text` sends, and answers with `answer`."""
+
+    def __init__( self, answer: dict ) -> None:
+        self.answer, self.expression, self.calls = answer, "", []
+
+    def call( self, method: str, params: dict, **_: object ) -> dict:
+        self.calls.append( method )
+        if method == "Runtime.evaluate":
+            self.expression = params[ "expression" ]
+            return self.answer
+        if method == "Runtime.getProperties":
+            return { "result": []}
+        return {}
+
+
+def _browser( channel: RecordingChannel ) -> CdpWorkflowBrowser:
+    """A CdpWorkflowBrowser whose page channel is the recorder, with no socket opened."""
+    page = CdpWorkflowBrowser.__new__( CdpWorkflowBrowser )
+    page._page = channel                                                       # noqa: SLF001
+    return page
+
+
+def test_find_searches_frames_as_well_as_the_page() -> None:
+    """Accela's `.tif` link lives in `iframeAttachmentList`; a search of `document` alone said "none"
+    for an element that was plainly on the screen."""
+    channel = RecordingChannel({ "result": {}})
+    _browser( channel ).find( 'a[id*="lnkFileName"]' )
+    assert "contentDocument" in channel.expression                             # it descends into frames
+    assert '"a[id*=\\"lnkFileName\\"]"' in channel.expression                   # the selector is passed as data
+    assert "depth >= 5" in channel.expression                                  # and cannot recurse forever
+
+
+def test_find_still_finds_nothing_for_a_selector_chrome_rejects() -> None:
+    channel = RecordingChannel({ "exceptionDetails": { "text": "invalid selector" }})
+    assert _browser( channel ).find( "a[[[bad" ) == []
+
+
+def test_find_finds_nothing_when_the_page_answers_without_an_object() -> None:
+    assert _browser( RecordingChannel({ "result": {}})).find( "a" ) == []
+
+
+def test_body_text_reads_frames_too_and_says_which_frame() -> None:
+    """`browser.read` showed none of the attachment list, so a caller had to guess its selectors."""
+    channel = RecordingChannel({ "result": { "value": "page text" }})
+    assert _browser( channel ).body_text() == "page text"
+    assert "contentDocument" in channel.expression
+    assert "[frame " in channel.expression                                     # each frame's text is labelled

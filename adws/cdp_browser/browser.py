@@ -41,6 +41,44 @@ KEYS: dict[ str, tuple[ str, int, str ]] = {
 #: The flag `_mark` leaves on a document about to be navigated away from.
 _MARK = "__cdpWorkflowLeaving"
 
+#: `find` searches the page *and* its same-origin frames, deepest last. Accela puts the attachment
+#: list -- the `.tif` a person clicks -- inside `iframeAttachmentList`, so a selector matched against
+#: `document` alone answered "none" for an element that is plainly on the screen. A cross-origin frame
+#: has no contentDocument and is skipped; a bad selector still finds nothing, as before.
+_FIND = """(() => {
+  const hits = [];
+  const visit = (doc, depth) => {
+    try { hits.push(...doc.querySelectorAll(%s)); } catch (e) {}
+    if (depth >= 5) return;
+    for (const frame of doc.querySelectorAll("iframe,frame")) {
+      let inner = null;
+      try { inner = frame.contentDocument; } catch (e) { inner = null; }
+      if (inner) visit(inner, depth + 1);
+    }
+  };
+  visit(document, 0);
+  return hits;
+})()"""
+
+#: `body_text` reads the page and its same-origin frames for the same reason `find` does: the text a
+#: person is looking at includes what the frames are showing. Each frame's text is introduced by its
+#: id or name, so a caller can tell where a line came from. Cross-origin frames contribute nothing.
+_BODY_TEXT = """(() => {
+  const parts = [];
+  const visit = (doc, depth, label) => {
+    const body = doc.body;
+    if (body && body.innerText.trim()) parts.push(label ? "[frame " + label + "]\\n" + body.innerText : body.innerText);
+    if (depth >= 5) return;
+    for (const frame of doc.querySelectorAll("iframe,frame")) {
+      let inner = null;
+      try { inner = frame.contentDocument; } catch (e) { inner = null; }
+      if (inner) visit(inner, depth + 1, frame.id || frame.name || frame.src.slice(0, 60));
+    }
+  };
+  visit(document, 0, "");
+  return parts.join("\\n\\n");
+})()"""
+
 _SELECT = """function (wanted) {
   const options = Array.from(this.options || []);
   const hit = options.find(o => o.value === wanted) || options.find(o => o.text.trim() === wanted);
@@ -84,7 +122,7 @@ class CdpWorkflowBrowser:
 
     def find( self, css_selector: str ) -> list[ IWorkflowElement ]:
         result = self._page.call( "Runtime.evaluate", {
-            "expression":  f"Array.from(document.querySelectorAll({ json.dumps( css_selector ) }))",
+            "expression":  _FIND % json.dumps( css_selector ),
             "objectGroup": GROUP,
         })
         if "exceptionDetails" in result:
@@ -115,7 +153,7 @@ class CdpWorkflowBrowser:
             return "loading"                            # the document was mid-replacement
 
     def body_text( self ) -> str:
-        return str( self._evaluate( "document.body ? document.body.innerText : ''" ) or "" )
+        return str( self._evaluate( _BODY_TEXT ) or "" )
 
     # -- IPageNavigator -----------------------------------------------------------
 
