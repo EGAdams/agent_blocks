@@ -110,6 +110,12 @@ spoken = refused(operation="fill", label="Password", text="whatever")
 check("a password field is refused by its label", "never type one into a page" in spoken, spoken)
 req, _ = build(operation="fill", css="#x", text="Fralick's Addition")
 check("ordinary words are not mistaken for a secret", asked(req)["text"] == "Fralick's Addition")
+# A guard that refuses an ordinary sentence teaches the caller to stop believing its refusals, so each of
+# these is a word the pattern used to match on a bare prefix: "pass", "pin", "token", "one time".
+for text in ("keep passing this along", "pin the tab", "tokenomics is not a word I like",
+             "pass the October statement to Mazda", "one time I saw that"):
+    req, _ = build(operation="fill", css="#x", text=text)
+    check(f"an ordinary sentence is not refused as a secret ({text[:14]})", asked(req)["text"] == text)
 
 # -- confirm is never set, so a consequential click stays the ADW's refusal -----
 for name in BROWSER_PLANS:

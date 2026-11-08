@@ -33,8 +33,13 @@ SELECTOR = re.compile(rf"^(?:{_ID}|{_CLASS_CHAIN}|{_ATTRIBUTE}|{_PATH})$")
 URL = re.compile(r"^https?://[^\s]{3,2000}$", re.IGNORECASE)
 TAB = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
 # What must never be typed into a page from here, whatever the field is called.
-CREDENTIAL = re.compile(r"pass(word|wd|code)?|\bpin\b|otp|one.?time|mfa|2fa|totp|secret|token|api.?key|cvv|cvc|ssn",
-                        re.IGNORECASE)
+# Each suffix is required, not optional. `pass` on its own matches "passing this along", a bare lowercase
+# `pin` is "pin the tab", and `token` alone is "tokenomics" -- and a guard that refuses an ordinary sentence
+# as a credential teaches the caller to stop believing its refusals, which is the one thing it cannot afford.
+_PIN = r"(?-i:\bPIN\b)|\bpin\s*(code|number|#)|\bpin\b(?=\D{0,8}\d)"
+CREDENTIAL = re.compile(rf"pass(word|wd|code)s?|{_PIN}|\botp\b|one.?time.?(code|pass)|mfa|2fa|totp|secret|"
+                        r"\btokens?\b|api.?key|\bcvv\b|\bcvc\b|\bssn\b|private.?key|"
+                        r"BEGIN [A-Z ]*PRIVATE KEY", re.IGNORECASE)
 MAX_TEXT = 500
 MAX_LIMIT = 200
 

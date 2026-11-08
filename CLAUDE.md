@@ -92,6 +92,28 @@ The top-level areas are:
   which reaches the *same* Bridge agent, worker and ADW ChatGPT drives rather
   than a second browser mechanism. Written and tested offline on 2026-11-08;
   no live run through her yet, so don't call it verified.
+  `adws/chatgpt_relay/` is the ChatGPT relay: one message typed into a real,
+  signed-in ChatGPT window on another machine, and its reply read back. It
+  re-implements `~/letta-code/browser_tools/browser_server.py`'s Flask API as
+  one GoF pattern per file -- Facade (`plane`), Command per operation, Composite
+  for `relay.ask`, Strategy for settling, Adapter/remote Proxy transport with
+  retry and observing Decorators, Chain of Responsibility guards, a Registry of
+  addressable instances -- and is reached through `adw_chatgpt_relay.py` plus
+  eight deliberately redundant one-operation ADWs that collapse back into it
+  once the system is debugged. Two rules are enforced in code, not prose: there
+  is no way to quit the browser anywhere in the table (it would cost the
+  account's login), and a message that looks like a credential is refused before
+  the transport is reached. A `ThreadSnapshot` is taken before typing, because
+  ChatGPT's cross-chat memory means a settled read cannot otherwise tell a fresh
+  answer from history; a hop limit and a self-talk guard exist so two instances
+  that can message each other cannot ping-pong. The relay reads the thread only
+  through the browser server, so the reader there is load-bearing: ChatGPT's UI
+  has already dropped `[data-message-author-role]` once, and the fix (a cascade
+  through `[data-content-search-unit-key]` and `[data-conversation-role]`) lives
+  in that other repository. Tests: `cd adws && uv run --quiet --with pydantic
+  --with pytest pytest -q chatgpt_relay/tests` -- 56, all offline, no Chrome and
+  no account. `relay.ask` is verified live end to end; the Bridge halves (worker,
+  gateway, Toyota route) are not written yet, so ChatGPT cannot reach it today.
   `adws/browser_workflows/` is the click recorder and playback engine
   (read its `DESIGN.md` first). An MV3 extension (`chrome_extension/`,
   loaded unpacked from `%LOCALAPPDATA%\adw-browser-recorder` via
