@@ -92,10 +92,17 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
    `implement` must be allowed for the client token, as for Notes.
 2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. (Off until then.)
 3. Toyota: no code needed for reading status; a Toyota plan like `notes_plans.py` is a follow-up.
-4. The form operations need no registry or config change -- the tools are code. Deploying them is: copy
-   `gateway/src/BrowserTools.php` and `gateway/src/McpEndpoint.php` to the host, restart
-   `agent-bridge-worker` (the worker's `browser_agent.py` changed), and have ChatGPT refresh the connector so
-   `browser_form_controls`, `browser_select_option` and `browser_fill` appear in its tool list.
+4. **The form operations: deployed 2026-11-07 with EG's approval.** They needed no registry or config change --
+   the tools are code. What was done: the live `src/BrowserTools.php` and `src/McpEndpoint.php` were copied to
+   `~/agent_bridge_backups/<timestamp>/` first, then those two files and `tests/browser_tests.php` were scp'd to
+   `~/agent_bridge/gateway/` (md5s match this repo), `php -l` passed on both under ea-php83, and the server's
+   own suite went 114 -> **118 passed, 0 failed**. `systemctl --user restart agent-bridge-worker` picked up the
+   worker's changed `browser_agent.py`. Live over MCP with the client token: `tools/list` returns 35 tools
+   including `browser_form_controls`, `browser_select_option` and `browser_fill`; `browser_form_controls`
+   (task `t_e584e40c5345f2257fa294ea`, adw `bf9a03f4`) and `browser_select_option` on a site-drawn combobox
+   (task `t_a48c153161dfea200262b2af`, adw `3c3a7b8a`, "Chose 'Apple' ... it now shows 'Apple'") both came back
+   `verified: true`. ChatGPT only has to refresh the connector to see the three tools.
+   Rollback: copy the two PHP files back out of that backup directory; nothing else changed on the host.
 
 ## Tests
 
