@@ -257,9 +257,12 @@ one of them.
 
 | Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
 |---|---|---|---|---|---|---|---|
-| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `97d30b1` | **level, pushed** | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | this shift |
-| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `/home/adamsl/agent_blocks`, WSL on that box, reached via `ssh desktop-shdbati` | `main` | `d5c8f9f` | **13 behind** -- **pending checkout, not synchronized** | clean | this shift |
-| `Rosemary46` (Mom's) | -- | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222**, reached via `ssh 100.72.34.38` (the `rosemary46-24` alias refused on port 22 -- use the `100.72.34.38` host block, which already carries `Port 2222`) | `main` | `d5c8f9f` | **13 behind** -- **pending checkout, not synchronized** | clean | this shift |
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `ef8ec9d` | **level, pushed** (2026-11-08 evening) | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | this shift |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `/home/adamsl/agent_blocks`, WSL on that box, reached via `ssh desktop-shdbati` | `main` | `ef8ec9d` | **level** -- pulled `--ff-only` 2026-11-08 evening | clean | this shift |
+| `Rosemary46` (Mom's) | -- | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222**, reached via `ssh 100.72.34.38` (the `rosemary46-24` alias refused on port 22 -- use the `100.72.34.38` host block, which already carries `Port 2222`) | `main` | `ef8ec9d` | **level** -- pulled `--ff-only` 2026-11-08 evening | clean | this shift |
+
+**Update, 2026-11-08 evening:** all three checkouts were pulled to `ef8ec9d` and measured level (`0 0`); the
+paragraph below is the earlier state.
 
 **Verified vs pending, stated plainly.** EG's box is verified level with `origin/main` and pushed (`97d30b1`).
 Both other machines were **reached and read this shift** -- their branch, HEAD and dirty count are measured,
