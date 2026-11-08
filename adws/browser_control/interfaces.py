@@ -132,3 +132,7 @@ class IDownloadingPage(IPageSession, Protocol):
     This is separate from IPageSession on purpose: the other twelve operations must not acquire the
     ability to write files to EG's disk just because one of them needed it."""
     def configure_downloads(self, directory: str) -> None: ...
+    def save_shown_file(self) -> bool:
+        """When the tab shows a file rather than a web page (Chrome's PDF viewer), ask Chrome to save
+        it and answer True; for an ordinary page do nothing and answer False."""
+        ...

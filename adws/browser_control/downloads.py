@@ -110,6 +110,8 @@ class Download(BrowserOperation):
             element.click()
             saved = staged.wait_new(before, WAIT_SECONDS)
             now_at = page.current_url
+            if not saved and now_at != was_at and self._save_shown(page):
+                saved = staged.wait_new(before, WAIT_SECONDS)
             kept = staged.keep(saved)
         finally:
             try:
@@ -142,6 +144,18 @@ class Download(BrowserOperation):
                                    f"{f['name']}." for f in renamed)
         return ok(line, browser=kind.name, clicked=label, moved_to=moved, download_directory=directory,
                   files=files, verified=True)
+
+    @staticmethod
+    def _save_shown(page: Any) -> bool:
+        """The press opened a file in the tab instead of saving it -- Chrome shows a PDF in its viewer
+        unless told otherwise, so a "Form W-9 PDF" link moved the page and saved nothing. Ask the tab to
+        save what it is showing, with its own sign-in. A tab showing an ordinary web page is left alone:
+        saving a page someone navigated to would be reporting the wrong thing as the download."""
+        save = getattr(page, "save_shown_file", None)
+        try:
+            return bool(save()) if save is not None else False
+        except BrowserWorkflowError:
+            return False
 
     def _downloads(self) -> tuple[IDownloadFolder, IDownloadFiler, IDownloadVerifier]:
         parts = (self._plane.folder, self._plane.filer, self._plane.verifier)

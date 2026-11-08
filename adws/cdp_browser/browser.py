@@ -90,6 +90,17 @@ _SELECT = """function (wanted) {
 }"""
 
 
+#: A same-origin anchor with `download` set saves the file the viewer is showing, as the tab's own
+#: request (its cookies, its sign-in). Only when the document is not a web page.
+_SAVE_SHOWN = """(() => {
+  if (/^(text\\/html|application\\/xhtml)/.test(document.contentType || 'text/html')) return false;
+  const a = document.createElement('a');
+  a.href = location.href; a.download = '';
+  (document.body || document.documentElement).appendChild(a); a.click(); a.remove();
+  return true;
+})()"""
+
+
 class CdpWorkflowBrowser:
     def __init__( self, endpoint: DebugEndpoint, target: CdpTarget,
                   directory: ITargetDirectory, connector: ICdpConnector,
@@ -256,6 +267,11 @@ class CdpWorkflowBrowser:
                                 { "behavior": "allow", "downloadPath": directory, "eventsEnabled": True })
         except CdpCommandError as exc:
             raise BrowserWorkflowError( f"cannot configure downloads to { directory }: { exc }" ) from exc
+
+    def save_shown_file( self ) -> bool:
+        """The tab shows a file, not a page (a PDF in Chrome's viewer): save it, with the tab's own
+        cookies, into wherever downloads are set to go. An HTML page is left alone and answers False."""
+        return bool( self._evaluate( _SAVE_SHOWN ))
 
     # -- release ------------------------------------------------------------------
 

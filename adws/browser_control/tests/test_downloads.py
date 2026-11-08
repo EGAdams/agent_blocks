@@ -181,6 +181,38 @@ def test_a_press_that_navigated_instead_says_so(tmp_path):
     assert out.data["moved_to"].startswith("https://plats.example/view?")
 
 
+def test_a_press_that_opened_a_pdf_saves_what_the_tab_shows(tmp_path):
+    """IRS's "Form W-9 PDF" link, live: Chrome showed the PDF in its viewer and saved nothing."""
+    pdf = a_file(tmp_path, "fw9.pdf", b"%PDF-1.7 rest")
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    world.elements = [FakeElement(text="Form W-9 PDF", sets=None)]
+    asked = []
+    arrivals = iter([[], [pdf]])
+    watcher.wait_new = lambda before, timeout_seconds=30.0: next(arrivals)
+
+    def click_that_opens_the_viewer():
+        world.page.current_url = "https://irs.example/pub/fw9.pdf"
+        world.page.save_shown_file = lambda: asked.append(True) or True
+
+    world.elements[0].click = click_that_opens_the_viewer
+    out = run(ops, "browser.download", text="Form W-9 PDF")
+    assert asked == [True] and out.ok and out.data["verified"] is True
+    assert out.data["files"][0]["name"] == "fw9.pdf" and out.data["files"][0]["mime"] == "application/pdf"
+
+
+def test_a_press_that_opened_a_web_page_is_not_saved_as_the_download(tmp_path):
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    world.elements = [FakeElement(text="0337201.tif", sets=None)]
+
+    def click_that_navigates():
+        world.page.current_url = "https://plats.example/view?id=1"
+        world.page.save_shown_file = lambda: False       # an HTML page: nothing to save
+
+    world.elements[0].click = click_that_navigates
+    out = run(ops, "browser.download", text="0337201.tif")
+    assert not out.ok and "opened rather than downloaded" in out.line
+
+
 def test_a_plane_with_no_download_parts_refuses(tmp_path):
     ops, _ = make(tmp_path, running=("chrome",))
     out = ops["browser_download"].run({"text": "0337201.tif"})
