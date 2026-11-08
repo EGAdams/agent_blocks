@@ -4,7 +4,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from browser_workflows.playback.downloads import KeptFile
 from cdp_browser.interfaces import CdpTarget
+from file_inspection.models import Inspection
 from .models import BrowserKind, BrowserPlacement
 
 
@@ -91,12 +93,31 @@ class IDownloadFolder(Protocol):
     def resolve(self) -> str: ...                           # raises BrowserWorkflowError if it cannot be found
 
 
-class IDownloadWatcher(Protocol):
-    """That same folder as *this* machine sees it. `wait_new` returns only files Chrome has finished
-    writing (no .crdownload beside them), and an empty list when nothing arrived in time -- which is
-    what lets browser.download refuse to call a click a download."""
+class IStagedDownload(Protocol):
+    """One download's own empty folder. Chrome is pointed at `chrome_dir` (a path on Chrome's machine)
+    for exactly one press, so whatever finishes there is that press's file and nothing else's.
+
+    `wait_new` returns only files Chrome has finished writing (no .crdownload beside them), and an
+    empty list when nothing arrived in time -- which is what lets browser.download refuse to call a
+    click a download. `keep` moves them into the real download folder under names nothing else has
+    (Chrome itself overwrites a same-named file), and `finish` removes the empty staging folder and
+    names anything still in it."""
+    chrome_dir: str
     def before(self) -> set[str]: ...
     def wait_new(self, before: set[str], timeout_seconds: float = 30.0) -> list[Path]: ...
+    def keep(self, files: list[Path]) -> list[KeptFile]: ...
+    def finish(self) -> list[str]: ...
+
+
+class IDownloadFiler(Protocol):
+    """Makes an IStagedDownload under the download folder `directory` (Chrome's spelling of it)."""
+    def stage(self, directory: str) -> IStagedDownload: ...
+
+
+class IFileInspector(Protocol):
+    """Turns a saved file into something a reader can look at: page images and text. Never raises
+    for a damaged or unknown file -- that is a `note` on the result. The original is never changed."""
+    def inspect(self, source: Path, sha256: str) -> Inspection: ...
 
 
 class IDownloadVerifier(Protocol):

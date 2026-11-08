@@ -270,14 +270,18 @@ final class GatewayApp
     /** @var array<string,string> the WWW-Authenticate header for a 401 */ private $challenge;
     /** @var WorkerScans|null the worker's scan uploads; absent means no scan routes */ private $scans;
     /** @var int one uploaded page or original only */ private $maxBlob;
+    /** @var WorkerDownloads|null the worker's download uploads; absent means no download routes */ private $downloads;
 
     const BLOB_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})/blobs/([0-9a-f]{64})$#';
     const SCAN_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})$#';
+    const DOWNLOAD_BLOB_ROUTE = '#^/worker/downloads/(t_[0-9a-f]{24})/blobs/([0-9a-f]{64})$#';
+    const DOWNLOAD_ROUTE      = '#^/worker/downloads/(t_[0-9a-f]{24})$#';
 
     public function __construct(ITaskAuthenticator $auth, ClientTasks $client, WorkerTasks $worker, McpEndpoint $mcp,
                                 OAuthServer $oauth, int $maxBody, array $challenge, int $maxResultBody = 0,
-                                ?WorkerScans $scans = null, int $maxBlob = 0)
+                                ?WorkerScans $scans = null, int $maxBlob = 0, ?WorkerDownloads $downloads = null)
     {
+        $this->downloads     = $downloads;
         $this->maxResultBody = max($maxBody, $maxResultBody);
         $this->scans         = $scans;
         $this->maxBlob       = max($maxBody, $maxBlob);
@@ -307,8 +311,9 @@ final class GatewayApp
     {
         $m = $r->method;
         $p = rtrim($r->path, '/');
-        $isReport = (bool) preg_match('#^/worker/tasks/t_[0-9a-f]{24}/complete$#', $p) || (bool) preg_match(self::SCAN_ROUTE, $p);
-        $isBlob   = (bool) preg_match(self::BLOB_ROUTE, $p);
+        $isReport = (bool) preg_match('#^/worker/tasks/t_[0-9a-f]{24}/complete$#', $p) || (bool) preg_match(self::SCAN_ROUTE, $p)
+                 || (bool) preg_match(self::DOWNLOAD_ROUTE, $p);
+        $isBlob   = (bool) preg_match(self::BLOB_ROUTE, $p) || (bool) preg_match(self::DOWNLOAD_BLOB_ROUTE, $p);
         if (strlen($r->body) > ($isBlob ? $this->maxBlob : ($isReport ? $this->maxResultBody : $this->maxBody))) {
             throw new BridgeError(413, 'too_large', 'request body too large');
         }
@@ -377,6 +382,17 @@ final class GatewayApp
             }
             preg_match(self::SCAN_ROUTE, $p, $g);
             return new Response(200, $this->scans->manifest($who, $g[1], $this->json($r)));
+        }
+        if ($this->downloads !== null && ($isBlob || $isReport) && preg_match('#^/worker/downloads/#', $p)) {
+            if ($m !== 'POST') {
+                throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
+            }
+            $who = $this->principal($r, 'worker');
+            if (preg_match(self::DOWNLOAD_BLOB_ROUTE, $p, $g)) {
+                return new Response(200, $this->downloads->blob($who, $g[1], $g[2], $r->body));
+            }
+            preg_match(self::DOWNLOAD_ROUTE, $p, $g);
+            return new Response(200, $this->downloads->manifest($who, $g[1], $this->json($r)));
         }
         throw new BridgeError(404, 'not_found', 'no such route');
     }

@@ -246,6 +246,75 @@ def test_a_download_that_saved_nothing_is_not_reported_as_done():
     assert out.kind != OutcomeKind.SUCCEEDED and "no file arrived" in ( out.body or out.summary )
 
 
+
+class FakeUploader:
+    def __init__( self, fail=None ):
+        self.blobs, self.manifests, self.fail = [], [], fail
+
+    def upload_download_blob( self, task_id, sha256, data ):
+        if self.fail:
+            from agent_bridge_worker.ports import GatewayError
+            raise GatewayError( 409, "lease_invalid", self.fail )
+        self.blobs.append(( task_id, sha256, data ))
+
+    def post_downloads( self, task_id, manifest ):
+        self.manifests.append( manifest )
+        return { "files": [{ "idx": f[ "idx" ], "file_id": f"f_{ f[ 'idx' ]:024x}" } for f in manifest[ "files" ]]}
+
+
+def a_downloaded_file( tmp: Path ) -> dict:
+    import hashlib
+    original, page = tmp / "0337201.tif", tmp / "page-001-full.png"
+    original.write_bytes( b"II*\x00a-plat" )
+    page.write_bytes( b"\x89PNG-page-one" )
+    digest = lambda p: hashlib.sha256( p.read_bytes()).hexdigest()
+    return { "name": "0337201.tif", "original_name": "0337201.tif", "path": str( original ), "chrome_path": "C:\\x\\0337201.tif",
+             "bytes": original.stat().st_size, "sha256": digest( original ), "mime": "image/tiff", "status": "saved",
+             "inspection": { "kind": "image", "mime": "image/tiff", "page_count": 1, "text": "", "note": "",
+                             "pages": [{ "page": 1, "rendition": "full", "path": str( page ), "mime": "image/png",
+                                         "width": 10, "height": 10, "bytes": page.stat().st_size, "sha256": digest( page )}]}}
+
+
+def run_publishing( uploader, files ):
+    from agent_bridge_worker.download_publisher import DownloadPublisher
+    commands = FakeCommands( verified( "Saved 0337201.tif (0.0 KB).", files=files ))
+    agent = BrowserAgent( commands, FakeClock(), poll_seconds=0.1, publisher=DownloadPublisher( uploader ))
+    return agent.run( task({ "browser": "download", "text": "0337201.tif" }), Path( "." ), lambda: "continue" )
+
+
+def test_a_saved_download_is_published_and_given_a_file_id():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        uploader = FakeUploader()
+        out = run_publishing( uploader, [ a_downloaded_file( Path( tmp ))])
+    assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "inspectable" ] is True
+    assert len( uploader.blobs ) == 2 and uploader.manifests[ 0 ][ "lease_token" ] == LEASE
+    sent = uploader.manifests[ 0 ][ "files" ][ 0 ]
+    assert sent[ "original_stored" ] is True and sent[ "pages" ][ 0 ][ "rendition" ] == "full" and "path" not in sent[ "pages" ][ 0 ]
+    kept = out.details[ "files" ][ 0 ]
+    assert kept[ "file_id" ] == "f_" + "0" * 24 and "pages" not in kept[ "inspection" ]
+    assert "browser_view_file" in out.body
+
+
+def test_a_publish_that_fails_keeps_the_download_but_says_it_cannot_be_viewed():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        out = run_publishing( FakeUploader( fail="lease gone" ), [ a_downloaded_file( Path( tmp ))])
+    assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "inspectable" ] is False
+    assert "could not be published for viewing" in out.body
+
+
+def test_a_file_that_changed_after_hashing_is_not_published_under_the_old_checksum():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        f = a_downloaded_file( Path( tmp ))
+        Path( f[ "path" ]).write_bytes( b"something else" )
+        uploader = FakeUploader()
+        out = run_publishing( uploader, [ f ])
+    assert out.details[ "inspectable" ] is False and "changed after it was checked" in out.details[ "inspect_problem" ]
+    assert uploader.blobs == [] and uploader.manifests == []
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 if __name__ == "__main__":
     for test in TESTS:

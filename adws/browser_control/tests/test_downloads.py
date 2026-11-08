@@ -26,10 +26,18 @@ class FakeFolder:
 
 
 class FakeWatcher:
-    """IDownloadWatcher: hands back whatever files the test said would arrive."""
+    """IDownloadFiler and its IStagedDownload in one: hands back whatever files the test said would
+    arrive, and keeps them in place (the real move-and-rename is tested in browser_workflows)."""
 
-    def __init__(self, arriving=()):
-        self.arriving, self.waited = list(arriving), None
+    chrome_dir = r"C:\Users\eg\Downloads\BrowserRecorder\.incoming\abc123"
+
+    def __init__(self, arriving=(), leftovers=()):
+        self.arriving, self.waited, self.leftovers = list(arriving), None, list(leftovers)
+        self.staged_under, self.finished = None, False
+
+    def stage(self, directory):
+        self.staged_under = directory
+        return self
 
     def before(self):
         return set()
@@ -37,6 +45,25 @@ class FakeWatcher:
     def wait_new(self, before, timeout_seconds=30.0):
         self.waited = timeout_seconds
         return list(self.arriving)
+
+    def keep(self, files):
+        from browser_workflows.playback.downloads import KeptFile
+        return [KeptFile(original_name=p.name, name=p.name, path=str(p), chrome_path=p.name, renamed=False)
+                for p in files]
+
+    def finish(self):
+        self.finished = True
+        return self.leftovers
+
+
+class FakeInspector:
+    def __init__(self):
+        self.seen = []
+
+    def inspect(self, source, sha256):
+        from file_inspection.models import Inspection
+        self.seen.append((source.name, sha256))
+        return Inspection(kind="image", mime="image/tiff", page_count=1)
 
 
 class FakeVerifier:
@@ -47,10 +74,10 @@ class FakeVerifier:
         return self.problems.get(path.name, "")
 
 
-def wired(tmp_path, arriving=(), problems=None, folder=None, **world_args):
+def wired(tmp_path, arriving=(), problems=None, folder=None, leftovers=(), inspector=None, **world_args):
     folder = folder or FakeFolder()
-    watcher = FakeWatcher(arriving)
-    ops, world = make(tmp_path, downloads=(folder, watcher, FakeVerifier(problems)), **world_args)
+    watcher = FakeWatcher(arriving, leftovers)
+    ops, world = make(tmp_path, downloads=(folder, watcher, FakeVerifier(problems), inspector), **world_args)
     world.elements = [FakeElement(text="0337201.tif", attrs={"href": "/docs/0337201.tif"})]
     return ops, world, watcher
 
@@ -83,14 +110,42 @@ def test_a_file_that_arrives_is_reported_with_its_name_and_size(tmp_path):
     assert out.data["files"][0]["name"] == "0337201.tif"
     assert out.data["files"][0]["bytes"] == saved.stat().st_size
     assert out.data["files"][0]["head"] == b"II*\x00rest".hex()[:16]
-    assert "0337201.tif" in out.line and world.download_dir == FakeFolder().directory
+    assert "0337201.tif" in out.line
+    import hashlib
+    assert out.data["files"][0]["sha256"] == hashlib.sha256(saved.read_bytes()).hexdigest()
+    assert out.data["files"][0]["mime"] == "image/tiff" and out.data["files"][0]["status"] == "saved"
 
 
-def test_chrome_is_told_where_to_save_before_the_press(tmp_path):
-    ops, world, _ = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
+def test_chrome_is_told_where_to_save_before_the_press_then_pointed_back(tmp_path):
+    ops, world, watcher = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
     run(ops, "browser.download", text="0337201.tif")
     #: The whole bug: without this call Chrome writes nothing and the click still looks successful.
-    assert world.download_dir == FakeFolder().directory
+    #: It saves into this download's own staging folder, and is then pointed back at the folder itself.
+    assert world.download_dirs == [FakeWatcher.chrome_dir, FakeFolder().directory]
+    assert watcher.staged_under == FakeFolder().directory and watcher.finished
+
+
+def test_each_file_is_inspected_when_an_inspector_is_wired(tmp_path):
+    saved = a_file(tmp_path)
+    inspector = FakeInspector()
+    ops, *_ = wired(tmp_path, arriving=[saved], inspector=inspector, running=("chrome",))
+    out = run(ops, "browser.download", text="0337201.tif")
+    assert inspector.seen == [("0337201.tif", out.data["files"][0]["sha256"])]
+    assert out.data["files"][0]["inspection"]["page_count"] == 1
+
+
+def test_an_unfinished_download_is_named_not_called_saved(tmp_path):
+    ops, *_ = wired(tmp_path, leftovers=["0337201.tif.crdownload"], running=("chrome",))
+    out = run(ops, "browser.download", text="0337201.tif")
+    assert not out.ok and "had not finished" in out.line
+    assert out.data["unfinished"] == ["0337201.tif.crdownload"]
+
+
+def test_the_folder_is_restored_even_when_nothing_is_found(tmp_path):
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    world.elements = []
+    run(ops, "browser.download", text="0337201.tif")
+    assert world.download_dirs[-1] == FakeFolder().directory and watcher.finished
 
 
 def test_the_tab_is_released_and_never_quit(tmp_path):

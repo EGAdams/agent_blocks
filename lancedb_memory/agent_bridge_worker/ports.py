@@ -163,3 +163,13 @@ class IScanUploader( Protocol ):
     def upload_blob( self, scan_id: str, sha256: str, data: bytes ) -> None: ...   # GatewayError 413 when too large
 
     def post_scan( self, scan_id: str, manifest: dict ) -> dict: ...                # GatewayError 409 when the lease is gone
+
+
+class IDownloadUploader( Protocol ):
+    """The gateway's `/worker/downloads/...` endpoints: a browser.download task's saved files and their
+    rendered pages as content-addressed blobs, then one lease-checked manifest that answers with file ids.
+    It is what turns "a file sitting in the Windows Downloads folder" into something ChatGPT can view."""
+
+    def upload_download_blob( self, task_id: str, sha256: str, data: bytes ) -> None: ...   # GatewayError 413 when too large
+
+    def post_downloads( self, task_id: str, manifest: dict ) -> dict: ...                # {"files": [{"idx", "file_id"}]}

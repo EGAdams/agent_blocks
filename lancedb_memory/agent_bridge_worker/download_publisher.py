@@ -1,0 +1,98 @@
+"""DownloadPublisher: hand a browser.download task's saved files to the gateway so ChatGPT can look at them.
+
+The Browser Control ADW saves a file on the Windows desktop and renders its pages to images
+(`adws/file_inspection`). That alone leaves ChatGPT with a path on a machine it cannot reach. This
+uploads, for each saved file, the original (when it fits the gateway's blob limit) and every rendered
+page as content-addressed blobs, then posts one lease-checked manifest. The gateway answers with a
+`file_id` per file, which is what `browser_view_file` takes.
+
+What goes back into the task's details is a summary -- the file id, its kind, page count and a note --
+never the extracted text or the local rendition paths, which would only bloat the task record; the
+text lives with the file at the gateway and is returned by `browser_view_file`.
+
+A bytes-on-disk mismatch (the file changed after the ADW hashed it) is refused, not uploaded under the
+old checksum, and a publish that fails leaves the download a success with `inspectable: false` and
+the reason, because the file *was* saved -- it is the viewing that did not happen.
+"""
+from __future__ import annotations
+
+import hashlib
+from collections.abc import Callable
+from pathlib import Path
+
+from .models import ClaimedTask
+from .ports import GatewayError, IDownloadUploader
+
+#: The gateway's blob ceiling (GatewayApp's MAX_BLOB). A larger original is described, not uploaded;
+#: its rendered pages still are, so it can still be looked at.
+MAX_BLOB = 7_340_032
+#: Text sent per file. The gateway stores at most this much and says when it was cut.
+MAX_TEXT = 100_000
+PAGE_KEYS = ( "page", "rendition", "mime", "width", "height", "bytes", "sha256" )
+
+
+class DownloadPublisher:
+    def __init__( self, uploader: IDownloadUploader, read: Callable[[ Path ], bytes ] = Path.read_bytes ) -> None:
+        self._uploader, self._read = uploader, read
+
+    def publish( self, task: ClaimedTask, details: dict ) -> dict:
+        """`details` with each file given a `file_id` (and `inspectable`), or the whole set marked
+        `inspectable: false` with the reason. Never raises for a gateway or file problem."""
+        files = [ f for f in details.get( "files" ) or [] if isinstance( f, dict )]
+        if not files:
+            return details
+        try:
+            sent = [ self._upload( task, index, f ) for index, f in enumerate( files )]
+            answer = self._uploader.post_downloads( task.task_id, { "task_id": task.task_id,
+                                                                    "lease_token": task.lease_token, "files": sent })
+        except ( GatewayError, OSError, ValueError ) as exc:
+            reason = f"{ type( exc ).__name__ }: { str( exc )[ :240 ]}"
+            return { **details, "files": [ self._summary( f ) for f in files ], "inspectable": False,
+                     "inspect_problem": f"the file was saved but could not be published for viewing ({ reason })" }
+        ids = { int( row.get( "idx", -1 )): str( row.get( "file_id", "" ))
+                for row in answer.get( "files" ) or [] if isinstance( row, dict )}
+        out = []
+        for index, f in enumerate( files ):
+            summary = self._summary( f )
+            summary[ "file_id" ] = ids.get( index, "" )
+            summary[ "original_stored" ] = sent[ index ][ "original_stored" ]
+            out.append( summary )
+        return { **details, "files": out, "inspectable": all( f[ "file_id" ] for f in out )}
+
+    def _upload( self, task: ClaimedTask, index: int, f: dict ) -> dict:
+        inspection = f.get( "inspection" ) if isinstance( f.get( "inspection" ), dict ) else {}
+        original_stored = False
+        if 0 < int( f.get( "bytes" ) or 0 ) <= MAX_BLOB:
+            self._blob( task, Path( str( f[ "path" ])), str( f[ "sha256" ]))
+            original_stored = True
+        pages = []
+        for page in inspection.get( "pages" ) or []:
+            self._blob( task, Path( str( page[ "path" ])), str( page[ "sha256" ]))
+            pages.append({ k: page.get( k ) for k in PAGE_KEYS })
+        text = str( inspection.get( "text" ) or "" )
+        return { "idx": index, "name": f.get( "name" ), "original_name": f.get( "original_name" ),
+                 "saved_path": f.get( "chrome_path" ) or f.get( "path" ), "mime": f.get( "mime" ),
+                 "bytes": f.get( "bytes" ), "sha256": f.get( "sha256" ), "original_stored": original_stored,
+                 "kind": inspection.get( "kind" ) or "binary", "page_count": inspection.get( "page_count" ) or 0,
+                 "text": text[ :MAX_TEXT ], "text_truncated": bool( inspection.get( "text_truncated" )) or len( text ) > MAX_TEXT,
+                 "note": str( inspection.get( "note" ) or "" )[ :500 ], "pages": pages }
+
+    def _blob( self, task: ClaimedTask, path: Path, sha256: str ) -> None:
+        data = self._read( path )
+        if hashlib.sha256( data ).hexdigest() != sha256:
+            raise ValueError( f"{ path.name } changed after it was checked, so it is not published under that checksum" )
+        if len( data ) > MAX_BLOB:
+            raise ValueError( f"{ path.name } is larger than the gateway accepts" )
+        self._uploader.upload_download_blob( task.task_id, sha256, data )
+
+    @staticmethod
+    def _summary( f: dict ) -> dict:
+        """The file as the task record keeps it: everything but the text and the local rendition paths."""
+        inspection = f.get( "inspection" ) if isinstance( f.get( "inspection" ), dict ) else {}
+        out = { k: v for k, v in f.items() if k != "inspection" }
+        if inspection:
+            renditions = sorted({ str( p.get( "rendition" )) for p in inspection.get( "pages" ) or []})
+            out[ "inspection" ] = { "kind": inspection.get( "kind" ), "page_count": inspection.get( "page_count" ) or 0,
+                                    "renditions": renditions, "text_chars": len( str( inspection.get( "text" ) or "" )),
+                                    "note": str( inspection.get( "note" ) or "" )[ :300 ]}
+        return out

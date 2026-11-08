@@ -26,7 +26,7 @@ function browserCall(World $w, string $tool, array $args = [], ?string $token = 
 const BROWSER_TOOLS = ['browser_open_dashboard_notes', 'browser_open', 'browser_navigate', 'browser_click',
                        'browser_select_tab', 'browser_refresh', 'browser_close_tab', 'browser_read', 'browser_tabs',
                        'browser_status', 'browser_form_controls', 'browser_select_option', 'browser_fill',
-                       'browser_download', 'browser_get_result'];
+                       'browser_download', 'browser_get_result', 'browser_downloaded_files', 'browser_view_file'];
 
 test('browser: every browser_* tool is listed when the agent exists and implement is on', function () {
     $names = toolNames(browserWorld());

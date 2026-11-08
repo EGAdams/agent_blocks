@@ -91,7 +91,8 @@ class FakePage:
         how the refusal for a browser that cannot be told is tested."""
         if self.world.can_download:
             self.configure_downloads = self._configure_downloads
-    def _configure_downloads(self, directory): self.world.download_dir = directory
+    def _configure_downloads(self, directory):
+        self.world.download_dir = directory; self.world.download_dirs.append(directory)
 
 
 class FakeLink:
@@ -109,7 +110,7 @@ class FakeWorld:
         self.elements, self.reloads, self.active, self.closed = [FakeElement()], 0, None, []
         self.controls = {"total": 0, "controls": []}
         self.shutdowns, self.closes, self.session, self.start_session, self.known = [], True, 1, 1, True
-        self.can_download, self.download_dir = True, None
+        self.can_download, self.download_dir, self.download_dirs = True, None, []
     # IBrowserStarter
     def start(self, kind, url):
         self.started.append((kind.name, url)); self.session = self.start_session
@@ -140,10 +141,10 @@ class FakeWorld:
 def make(tmp_path, link=None, sessions=True, downloads=None, **world_args):
     world = FakeWorld(**world_args)
     link = link or FakeLink()
-    parts = downloads or (None, None, None)
+    parts = tuple(downloads or ()) + (None,) * (4 - len(downloads or ()))
     plane = ControlPlane(StaticBrowserCatalog(), world, world, world, FakeClock(), link, tmp_path, ready_seconds=5,
                          sessions=world if sessions else None,
-                         folder=parts[0], watcher=parts[1], verifier=parts[2])
+                         folder=parts[0], filer=parts[1], verifier=parts[2], inspector=parts[3])
     return browser_control_operations(plane), world
 
 

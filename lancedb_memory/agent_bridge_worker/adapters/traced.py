@@ -118,6 +118,16 @@ class TracingGateway:
         self._on( lambda t: t.progress( f"posted scan { scan_id[ :40 ]}" ))
         return answer
 
+    # IDownloadUploader: the BrowserAgent publishes a download's files for viewing. Bytes are never recorded.
+    def upload_download_blob( self, task_id: str, sha256: str, data: bytes ) -> None:
+        self._inner.upload_download_blob( task_id, sha256, data )
+        self._on( lambda t: t.progress( f"uploaded a { len( data )}-byte download file for { task_id }" ))
+
+    def post_downloads( self, task_id: str, manifest: dict ) -> dict:
+        answer = self._inner.post_downloads( task_id, manifest )
+        self._on( lambda t: t.progress( f"published { len( manifest.get( 'files' ) or [])} downloaded file(s) for viewing" ))
+        return answer
+
     def close( self, reason: str ) -> None:
         """The run is over. A task it never published (a lost lease, a crash) is closed as such, not left 'running'."""
         if self.trace is not None and not self.trace.done:

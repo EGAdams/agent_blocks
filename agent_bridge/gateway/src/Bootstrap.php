@@ -15,6 +15,7 @@ require_once __DIR__ . '/ScanStore.php';
 require_once __DIR__ . '/ScannerPolicy.php';
 require_once __DIR__ . '/ScannerTools.php';
 require_once __DIR__ . '/WorkerScans.php';
+require_once __DIR__ . '/DownloadStore.php';
 require_once __DIR__ . '/PrinterPolicy.php';
 require_once __DIR__ . '/PrinterTools.php';
 require_once __DIR__ . '/BrowserTools.php';
@@ -81,6 +82,7 @@ final class Bootstrap
                      'printer_scopes' => [], 'printer_max_prints_per_hour' => 10, 'printer_max_open' => 2];
         $scopes    = new ScannerScopes((array) $config['scanner_scopes']);
         $scanStore = new SqliteScanStore($pdo, $clock);
+        $downloadStore = new SqliteDownloadStore($pdo, $clock);
         $blobs     = new FileBlobStore((string) $config['scans_dir']);
         $guard     = new ScanStartGuard($scopes, $scanStore, $store, $clock, (int) $config['scanner_max_starts_per_hour']);
         $printerScopes = new PrinterScopes((array) $config['printer_scopes']);
@@ -109,12 +111,14 @@ final class Bootstrap
                                   new PrinterTools($client, $printJobs, $printerScopes, $audit, $clock,
                                                    in_array('print', $grants['operations'], true)),
                                   new BrowserTools($client, $clientScopes, $audit, $grants,
-                                                   (int) ($config['browser_wait_seconds'] ?? 20)),
+                                                   (int) ($config['browser_wait_seconds'] ?? 20), null,
+                                                   $downloadStore, $blobs),
                                   new RelayTools($client, $clientScopes, $audit, $grants,
                                                  (int) ($config['relay_wait_seconds'] ?? 45)));
         $scans  = new WorkerScans($store, $store, $scanStore, $blobs, $audit, (int) $config['lease_seconds']);
         return new GatewayApp($auth, $client, $worker, $mcp, new OAuthServer($settings, $oauth, $audit, $clock),
-                              $maxBody, $settings->challenge(), (int) $config['max_result_body'], $scans, (int) $config['max_blob']);
+                              $maxBody, $settings->challenge(), (int) $config['max_result_body'], $scans, (int) $config['max_blob'],
+                              new WorkerDownloads($store, $store, $downloadStore, $blobs, $audit, (int) $config['lease_seconds']));
     }
 
     /** Applies each migrations/*.sql once, then seeds the agent registry. Returns applied file names. */

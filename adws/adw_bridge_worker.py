@@ -168,6 +168,7 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.printer_agent import PrinterAgent
     from agent_bridge_worker.notes_agent import NotesAgent
     from agent_bridge_worker.browser_agent import BrowserAgent
+    from agent_bridge_worker.download_publisher import DownloadPublisher
     from agent_bridge_worker.adapters.browser_process import UvBrowserCommands
     from agent_bridge_worker.chatgpt_relay_agent import ChatGptRelayAgent
     from agent_bridge_worker.adapters.chatgpt_relay_process import UvChatGptCommands
@@ -255,7 +256,10 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         self_contained.add( "notes" )
     if BROWSER_ENABLED.exists():                        # the Browser Control ADW is off until EG creates the flag file
         BROWSER_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
-        agents[ "browser" ]  = BrowserAgent( UvBrowserCommands( UV, BROWSER_ADW, _HERE.parent ), clock )
+        # A download's files are published to the gateway (the same gateway object, so a traced run records it)
+        # so ChatGPT can view them with browser_view_file, not only read that they exist on the desktop.
+        agents[ "browser" ]  = BrowserAgent( UvBrowserCommands( UV, BROWSER_ADW, _HERE.parent ), clock,
+                                             publisher=DownloadPublisher( gateway ))
         offered[ "browser" ] = { "inspect": False, "implement": True }
         self_contained.add( "browser" )                 # it changes a window, not a git workspace; the ADW verifies the result
     if RELAY_ENABLED.exists():                          # the ChatGPT relay is off until EG creates the flag file

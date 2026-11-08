@@ -99,6 +99,21 @@ interface IBlobStore
     public function read(string $sha256): string;
 }
 
+/** Files a browser.download task saved, published by the worker for viewing. */
+interface IDownloadStore
+{
+    /** Replaces every file of $taskId with $files (each carrying its own 'pages'), in one transaction. */
+    public function saveTask(string $taskId, array $files): void;
+    public function find(string $fileId): ?array;
+    /** @return array[] the task's files in order, without their text */
+    public function byTask(string $taskId): array;
+    /** @return array[] newest first, without their text */
+    public function recent(string $clientId, int $limit): array;
+    /** @return array[] every rendition of every page */
+    public function pages(string $fileId): array;
+    public function page(string $fileId, int $page, string $rendition): ?array;
+}
+
 /** Scan records uploaded by the worker, each bound to the scan task that made it. */
 interface IScanStore
 {

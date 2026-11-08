@@ -23,6 +23,7 @@ USER_AGENT = "agent-bridge-worker/1.0 (+https://bridge.americansjewelry.com)"
 MAX_BODY   = 65536
 SCAN_ID    = re.compile( r"scan_[0-9A-HJKMNP-TV-Z]{26}" )
 SHA256     = re.compile( r"[0-9a-f]{64}" )
+TASK_ID    = re.compile( r"t_[0-9a-f]{24}" )
 
 
 def clip( text: str, limit: int ) -> str:
@@ -119,6 +120,19 @@ class HttpTaskGateway:
             raise ValueError( "not a scan id" )
         data = json.dumps( manifest, ensure_ascii=False ).encode( "utf-8" )   # document text stays compact
         _, out = self._send( "POST", f"/worker/scans/{ scan_id }", data, "application/json" )
+        return out or {}
+
+    # IDownloadUploader: a browser.download task's files, then the manifest that names them.
+    def upload_download_blob( self, task_id: str, sha256: str, data: bytes ) -> None:
+        if not ( TASK_ID.fullmatch( task_id ) and SHA256.fullmatch( sha256 )):
+            raise ValueError( "a download blob is addressed by a task id and a lowercase sha256" )
+        self._send( "POST", f"/worker/downloads/{ task_id }/blobs/{ sha256 }", data, "application/octet-stream" )
+
+    def post_downloads( self, task_id: str, manifest: dict ) -> dict:
+        if not TASK_ID.fullmatch( task_id ):
+            raise ValueError( "not a task id" )
+        data = json.dumps( manifest, ensure_ascii=False ).encode( "utf-8" )
+        _, out = self._send( "POST", f"/worker/downloads/{ task_id }", data, "application/json" )
         return out or {}
 
     # -- plumbing -------------------------------------------------------------

@@ -29,7 +29,9 @@ answered "Clicked '0337201.tif'." over an empty folder -- a true sentence about 
 folder, presses the element, waits for Chrome to finish writing and reports the file's name, size and first bytes;
 nothing arriving is reported as nothing arriving, never as a download. `click` now refuses a file link outright and
 names this operation. It takes the same locators as `click` (`css` best, else `label` or `text`), and because it
-writes to EG's disk it is an `implement`, never an `inspect`.
+writes to EG's disk it is an `implement`, never an `inspect`. Each file is saved under a name nothing else has
+(Chrome itself would overwrite), with its SHA-256 and real type, and its pages rendered; the injected
+`IDownloadPublisher` then uploads it to the gateway, which gives it the `file_id` that `browser_view_file` takes.
 
 A click whose words look consequential (pay, send, delete ...) is refused by the ADW unless the request carries
 `"confirm": true`, which ChatGPT may set only after EG said so. Nothing here reads cookies, storage or passwords.
@@ -69,9 +71,16 @@ class IBrowserCommands( Protocol ):
     def start( self, operation: str, flags: dict[ str, str ], confirm: bool ) -> IRunningBrowserCommand: ...
 
 
+class IDownloadPublisher( Protocol ):
+    """Hands a download's saved files to the gateway for viewing; returns the details with file ids. Never raises."""
+    def publish( self, task: ClaimedTask, details: dict ) -> dict: ...
+
+
 class BrowserAgent:
-    def __init__( self, commands: IBrowserCommands, clock: IClock, poll_seconds: float = 0.5, deadline_seconds: float = 120.0 ) -> None:
+    def __init__( self, commands: IBrowserCommands, clock: IClock, poll_seconds: float = 0.5, deadline_seconds: float = 120.0,
+                  publisher: IDownloadPublisher | None = None ) -> None:
         self._commands, self._clock, self._poll, self._deadline = commands, clock, poll_seconds, deadline_seconds
+        self._publisher = publisher
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
         try:
@@ -120,7 +129,25 @@ class BrowserAgent:
             return AgentOutcome( kind=OutcomeKind.LEASE_LOST, performer=PERFORMER, summary="the gateway took the lease back" )
         if signal == "cancel" and what in READS:
             return AgentOutcome( kind=OutcomeKind.CANCELLED, performer=PERFORMER, summary="cancelled before it finished" )
-        return self._outcome( answer, what )
+        outcome = self._outcome( answer, what )
+        if what == "download" and outcome.kind == OutcomeKind.SUCCEEDED:
+            outcome = self._published( task, outcome )
+        return outcome
+
+    def _published( self, task: ClaimedTask, outcome: AgentOutcome ) -> AgentOutcome:
+        """A saved file ChatGPT cannot open is half a download: publish it, and say plainly when that failed."""
+        if self._publisher is None:
+            details = { **outcome.details, "inspectable": False,
+                        "inspect_problem": "this worker has no gateway publisher wired, so the file is only on the desktop" }
+            return outcome.model_copy( update={ "details": details })
+        details = self._publisher.publish( task, dict( outcome.details ))
+        summary, body = outcome.summary, outcome.body
+        if details.get( "inspectable" ):
+            ids = ", ".join( f"{ f.get( 'name' )} = { f.get( 'file_id' )}" for f in details.get( "files" ) or [])
+            body = f"{ body }\n\nView with browser_view_file: { ids }"
+        else:
+            body = f"{ body }\n\n{ details.get( 'inspect_problem', 'the file could not be published for viewing' )}"
+        return outcome.model_copy( update={ "details": details, "summary": summary, "body": body })
 
     def _wait( self, running: IRunningBrowserCommand, what: str, keep_alive: Callable[[], Signal ]) -> tuple[ dict, Signal ]:
         """Heartbeat until the ADW answers. A read may be stopped; a change that has started runs to its end."""
