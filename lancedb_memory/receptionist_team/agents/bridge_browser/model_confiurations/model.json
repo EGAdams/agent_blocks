@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for the browser: opens Chrome on EG's desktop, navigates, reads a page back, lists a form's controls with their selectors, chooses in a dropdown, types in a field, presses a control",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_browser",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and copies a selector; bridge_client/browser_plans.py builds the exact JSON prompt. Every change is read back and sent only after a yes. The same Bridge agent, worker adapter and Browser Control ADW that ChatGPT drives."
+}

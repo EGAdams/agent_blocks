@@ -25,6 +25,7 @@
     "bridge_printer",
     "bridge_scanner",
     "bridge_notes",
+    "bridge_browser",
     "object_inspector"
   ],
   "disabled": {}

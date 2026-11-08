@@ -86,7 +86,12 @@ The top-level areas are:
   `agent_bridge/docs/BROWSER_CONTROL.md` before changing it -- it holds the
   environment table, the failure causes, and which rows are verified end to end
   rather than only unit-tested. The agent-facing loop is the
-  `browser-form-control` skill.
+  `browser-form-control` skill. Toyota's half of that loop is her
+  `bridge_browser` route -- `receptionist_team/bridge_client/browser_plans.py`,
+  one Plan per operation in a registry, the same shape as `notes_plans.py` --
+  which reaches the *same* Bridge agent, worker and ADW ChatGPT drives rather
+  than a second browser mechanism. Written and tested offline on 2026-11-08;
+  no live run through her yet, so don't call it verified.
   `adws/browser_workflows/` is the click recorder and playback engine
   (read its `DESIGN.md` first). An MV3 extension (`chrome_extension/`,
   loaded unpacked from `%LOCALAPPDATA%\adw-browser-recorder` via

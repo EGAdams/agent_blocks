@@ -187,6 +187,11 @@ ROLE_BLURBS: dict[str, str] = {
         "highlights, creates, renames or moves, trashes and restores notes (permanent delete only from the trash, "
         "on EG's yes); also runs the Notes diagnostic marker"
     ),
+    "bridge_browser": (
+        "Chrome on your desktop through the Bridge: opens a page, goes somewhere, reads it back, lists a form's "
+        "controls with their selectors, chooses in a dropdown, types in a field, presses a control -- each after a "
+        "yes; it never types a password and never presses something that looks like paying or submitting"
+    ),
     "object_inspector": "answers from the object trace",
 }
 
@@ -227,6 +232,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_printer": "the Bridge's printer",
     "bridge_scanner": "the Bridge's scanner",
     "bridge_notes": "the Bridge's Notes",
+    "bridge_browser": "the Bridge's browser",
     "object_inspector": "our object inspector",
 }
 
@@ -270,6 +276,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_printer": "on that print job",
     "bridge_scanner": "on that scan",
     "bridge_notes": "on the notes",
+    "bridge_browser": "on that browser step",
     "object_inspector": "looking that up in the object trace",
 }
 
@@ -290,7 +297,7 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # only so that registering its folder doesn't land it on Sydney's desk.
 TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
                           "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
-                          "bridge_notes", "object_inspector")
+                          "bridge_notes", "bridge_browser", "object_inspector")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

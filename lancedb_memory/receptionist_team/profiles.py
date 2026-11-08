@@ -123,7 +123,7 @@ def _toyota_runner() -> IDelegationRunner:
             # for a yes (adapters/bridge_specialist_runner.py).
             **{name: BridgeSpecialistRunner(name)
                for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
-                            "bridge_notes")},
+                            "bridge_notes", "bridge_browser")},
             # The four inspection questions, answered from object_trace.service
             # (127.0.0.1:8790) with evidence; no model (adapters/inspection_runner.py).
             "object_inspector": ObjectInspectionRunner(),

@@ -4,7 +4,7 @@ Status (2026-11-07, checked by the runs quoted below): **registered on the produ
 live worker, deployed, and verified end to end through ChatGPT's own MCP connector.** Earlier revisions of this
 file said "not yet registered / not enabled" -- that is out of date: `bridge.php` on the host carries the
 `browser` agent, `~/.config/startrek_browser/enabled` exists on this box, and the form operations went out on
-2026-11-07 (deploy step 4). **Toyota has not been verified against the form operations** -- see Verification state.
+2026-11-07 (deploy step 4). Toyota now has her own route to every one of these operations (`receptionist_team/bridge_client/browser_plans.py`, 110 offline tests), but **it has not been driven against a real page yet** -- implemented and locally tested, not verified. See Verification state.
 
 ## What exists, what was reused
 
@@ -97,9 +97,16 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
    line 219 with `inspect`/`implement` and workspace `browser`.
 2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. **Done** -- that
    file exists (created 2026-11-07 17:01) and `systemctl --user is-active agent-bridge-worker` says `active`.
-3. Toyota: **still a follow-up, and the one real gap.** No code is needed for her to read status, but no
-   Toyota plan routes a form request to these operations and nobody has driven a form through her. A Toyota plan
-   shaped like `lancedb_memory/receptionist_team/.../notes_plans.py` is the next piece of work.
+3. Toyota: **written, not yet driven against a real page.** `lancedb_memory/receptionist_team/bridge_client/
+   browser_plans.py` is one Plan per operation in a registry, the same shape as `notes_plans.py`, reached through
+   the `bridge_browser` specialist (`specialists.py`'s `BrowserBuilder`) and the `agents/bridge_browser/` folder.
+   It is the same Bridge agent, worker adapter and ADW ChatGPT drives -- a second caller, not a second mechanism.
+   Code decides three things the model never does: the lane (`inspect` for reads, `implement` for changes), the
+   selector (it must be one of the three shapes `form_controls` emits, so a guessed selector asks for a
+   `form_controls` run instead), and that `confirm` is never set -- a consequential click gets the ADW's refusal
+   and that refusal is reported. A credential in the text or the label is refused here as well as in the ADW.
+   `receptionist_team/tests/test_bridge_browser_route.py` is 110 offline checks, including the prompts compared
+   field by field against the worker's own table. What remains is one live run through her.
 4. **The form operations: deployed 2026-11-07 with EG's approval.** They needed no registry or config change --
    the tools are code. What was done: the live `src/BrowserTools.php` and `src/McpEndpoint.php` were copied to
    `~/agent_bridge_backups/<timestamp>/` first, then those two files and `tests/browser_tests.php` were scp'd to
@@ -280,7 +287,7 @@ a fix is live. The worker runs straight out of the checkout, so for it "deployed
 | `select_option`, site-drawn combobox | yes | yes | yes | 2026-11-07 | **yes, via the MCP connector** -- task `t_a48c153161dfea200262b2af`, adw `3c3a7b8a`, "Chose 'Apple' ... it now shows 'Apple'". Also via the ADW on the W3C APG example (adw `709c1901`) |
 | `fill`, ordinary text field | yes | yes | yes | 2026-11-07 | yes, via the ADW (adw `0fb57906`), and the full Accela loop ended in `read` returning eight records |
 | `fill`, field with its own format or mask (date, `maxlength`, reformatting) | yes | yes | yes, at the CDP boundary (`cdp_browser/tests/test_cdp_unit.py`) | 2026-11-07 | **no.** No live run exists. No public https page with a native `<input type=date>` outside an iframe was found, and `checked_url` forbids `file:`/`data:`, so no page could be authored for it |
-| Toyota driving a form | yes | -- | -- | -- | **no.** Deploy step 3. She has no plan that routes to these operations |
+| Toyota driving a form | yes | yes | 110 route tests (`test_bridge_browser_route.py`) | n/a -- her code is local | **no.** No live run through her exists yet; the route is implemented and locally tested only |
 | A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
 | A file chooser | n/a | refused on purpose | yes | -- | same |
 
@@ -288,7 +295,7 @@ What the green suites do **not** prove: that a form on a real site works. A pass
 `active` worker are three different things from a visible, correct result in the page. Only the rows above marked
 "verified end to end" were actually driven through the real connector or the real ADW into the real Chrome.
 
-ChatGPT and Toyota are tracked separately on purpose: ChatGPT is verified, Toyota is not.
+ChatGPT and Toyota are tracked separately on purpose: ChatGPT is verified end to end, Toyota's route is written and tested offline but has never reached a real page.
 ChatGPT must refresh its connector to see `browser_form_controls`, `browser_select_option` and `browser_fill` --
 the gateway already serves them (`tools/list` returned **35** tools on 2026-11-07). If ChatGPT says it has no
 browser tools, that refresh is the first thing to check, not the gateway.

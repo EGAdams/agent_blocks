@@ -20,6 +20,7 @@ from typing import Protocol
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
+from .browser_plans import BROWSER_PLANS
 from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION_MODES
 from .notes_plans import NOTES_PLANS
 
@@ -87,6 +88,13 @@ class SpecialistForm(BaseModel):
     new_name: str | None = None       # notes: rename target
     trash_id: str | None = None       # notes: a trashed note, from trash_list
     known_revision: str | None = None  # notes: filled by code from the last read, never by the model
+    url: str | None = None            # browser: where to open or navigate
+    tab: str | None = None            # browser: a tab id, from browser tabs
+    css: str | None = None            # browser: one control's selector, from form_controls
+    label: str | None = None          # browser: what a control says on the screen
+    option_text: str | None = None    # browser: what the dropdown item says
+    value: str | None = None          # browser: a dropdown item's own token
+    limit: int | None = None          # browser: how many controls to list
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -261,6 +269,34 @@ class NotesBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class BrowserBuilder:
+    """browser: Chrome on EG's desktop -- open, navigate, read, tabs, click, and the three form operations.
+
+    Each operation is a Plan in `browser_plans.BROWSER_PLANS` (Strategy + Registry); this class only finds it.
+    This is the same Bridge agent, the same worker adapter and the same Browser Control ADW that ChatGPT drives,
+    so Toyota gains no operation of her own and no second browser mechanism exists. The ADW still re-checks every
+    request, refuses a consequential click that carries no authorization, and refuses a password field outright.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(BROWSER_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("browser.").removeprefix("browser_")
+        plan = BROWSER_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should I do in the browser: open a page, go somewhere, read it, list its "
+                              "form controls, choose in a dropdown, type in a field, or press something?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "browser"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -279,4 +315,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_printer", "printer", "the Bridge's printer", PrinterBuilder()),
     BridgeSpecialist("bridge_scanner", "scanner", "the Bridge's scanner", ScannerBuilder()),
     BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes", NotesBuilder()),
+    BridgeSpecialist("bridge_browser", "browser", "the Bridge's browser", BrowserBuilder()),
 )}

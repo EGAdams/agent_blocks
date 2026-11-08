@@ -39,8 +39,12 @@ Verified 2026-11-07, re-checked while writing this:
 
 Not demonstrated, and not to be claimed:
 
-- **Toyota has never driven a form.** She needs a plan that routes a form request to these operations
-  (deploy step 3, shaped like her `notes_plans.py`). ChatGPT and Toyota are tracked separately for this reason.
+- **Toyota's form route is written and tested offline, but has never reached a real page.**
+  `receptionist_team/bridge_client/browser_plans.py` (one Plan per operation, same shape as `notes_plans.py`),
+  the `bridge_browser` specialist, her `agents/bridge_browser/` folder, and 110 offline checks in
+  `tests/test_bridge_browser_route.py`. Same Bridge agent, worker and ADW ChatGPT drives -- a second caller, not
+  a second mechanism. Not to be called verified until one live run goes through her. ChatGPT and Toyota are
+  still tracked separately for this reason.
 - **No live run of a date / masked / `maxlength` field.** Covered only by CDP-boundary unit tests; no public
   https page with a native `<input type=date>` outside an iframe was found, and `checked_url` forbids
   `file:`/`data:` so one could not be authored.
@@ -61,16 +65,22 @@ Repo: `agent_blocks`, intended branch `main`, intended remote commit **the tip o
 |---|---|---|---|---|---|---|---|
 | `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | tip | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
 | `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | tip | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:53 EST |
-| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **behind by the whole of this shift** (`24b5286`, `938b1e5` and the documentation commits) | **not read** | 20:50 EST |
+| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222** | `main` | tip (fast-forwarded `0c54c81..d5c8f9f`, 21 files, 2230 insertions) | level | clean | 2026-11-08 21:03 EST |
 
-**Rosemary46 is not synchronized.** One read succeeded, then sshd went away: `Connection refused`, then
-`Connection timed out` on three retries. Recovery, when it is up:
-`ssh -p 22 adamsl@100.72.34.38 'cd ~/agent_blocks && git status --short && git fetch origin && git rev-list --left-right --count origin/main...HEAD && git pull --ff-only origin main'` —
-check the branch and the dirty list **before** pulling; it is several commits behind and its working tree is unknown.
+**Rosemary46 is synchronized** (fast-forwarded this shift; nothing was running out of that checkout, and its
+branch, HEAD, remote distance and dirty count were read before pulling). Two things about reaching it:
+**its sshd listens on 2222**, which `~/.ssh/config` already records for `100.72.34.38` — port 22 there is
+genuinely refused, so that is not a surprise default. And the first ssh after an idle period often times out
+while tailscale sets up a path; `tailscale ping -c 2 rosemary46-24` then retrying connects. Use a retry loop with
+a sentinel marker rather than treating one timeout as a dead host.
 
-Also note: `ssh desktop-shdbati` by **name** fails with `Host key verification failed` from this box (a stale or
-conflicting `known_hosts` entry). The tailscale IP `100.80.49.10` works. Do not blindly delete the entry — that
-mismatch has not been explained yet.
+`ssh desktop-shdbati` by **name** now works. The earlier `Host key verification failed` was *not* a stale or
+conflicting key: `ssh-keygen -F desktop-shdbati` (needed because `known_hosts` is hashed, so grep finds nothing)
+showed **no entry at all** for the short name or the FQDN, and a non-interactive ssh cannot prompt to accept an
+unknown host, so it fails instead of asking. Fixed by a `Host desktop-shdbati desktop-shdbati.tailb8fc54.ts.net`
+block in `~/.ssh/config` giving it `HostName 100.80.49.10` and `StrictHostKeyChecking accept-new`
+(backup: `~/.ssh/config.bak.20261108T015953Z`). No `known_hosts` entry was deleted — none needed to be. Short
+name, FQDN and the existing `desktop-shdbati-wsl` alias all return `DESKTOP-SHDBATI`.
 
 Gateway host is **not** a git checkout: it is a file mirror, synchronized by `scp` with a backup first. Git alone
 never deploys it. Databases, agent memory and credentials are likewise outside git — `bridge.php` on the host,
@@ -135,11 +145,14 @@ Treat that list as a map, not a claim that every link is finished.
 ## Next actions, in order
 
 1. **ChatGPT:** refresh the connector. (EG's, not an agent's.)
-2. **Rosemary46:** fast-forward `~/agent_blocks` once it answers ssh — command above.
-3. **Toyota:** give her a plan that routes a form request to `browser.form_controls` / `select_option` / `fill`
-   (deploy step 3 in the report), then verify her path separately from ChatGPT's.
-4. Optional: a live date-field run, if a suitable https page turns up; and an escalation threshold for a stuck
+2. **Toyota:** drive one form through her for real — ask her for the page's controls, set a dropdown, type a
+   field, press the page's own search button, read the results — and only then mark her row verified. Her code
+   and tests are done; what is missing is the live run.
+3. Optional: a live date-field run, if a suitable https page turns up; and an escalation threshold for a stuck
    browser task.
+4. Open question for EG, not changed on his behalf: every `implement` step of hers is still read back and waits
+   for a spoken yes, so a form is one yes per field. That protection was kept rather than relaxed for the form
+   loop; say the word if you want the loop hands-free.
 
 No decision or permission is outstanding. Commit and deploy were authorized in the session that did them
 (`24b5286` the work, `938b1e5` the deploy record, plus this documentation commit).
