@@ -52,14 +52,16 @@ Not demonstrated, and not to be claimed:
 
 ## Git synchronization (checked 2026-11-07, 20:48–20:52 EST)
 
-Repo: `agent_blocks`, intended branch `main`, intended remote commit **`30c47a4`** -- this documentation
-commit, on top of `938b1e5` (the deploy record) and `24b5286` (the work).
+Repo: `agent_blocks`, intended branch `main`, intended remote commit **the tip of `origin/main`** -- the code is
+`24b5286`, the deploy record `938b1e5`, and the rest of the tip is this documentation. EG's box and
+`DESKTOP-SHDBATI` were both verified level with the tip, clean of drift, at the times in the table; re-run
+`git fetch origin && git rev-list --left-right --count origin/main...HEAD` rather than trusting a hash written here.
 
 | Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
 |---|---|---|---|---|---|---|---|
-| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `30c47a4` | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
-| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | `30c47a4` | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:55 EST |
-| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **4 behind** (`24b5286`, `938b1e5`, `30c47a4` and this line's own commit missing) | **not read** | 20:50 EST |
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | tip | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | tip | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:53 EST |
+| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **behind by the whole of this shift** (`24b5286`, `938b1e5` and the documentation commits) | **not read** | 20:50 EST |
 
 **Rosemary46 is not synchronized.** One read succeeded, then sshd went away: `Connection refused`, then
 `Connection timed out` on three retries. Recovery, when it is up:
