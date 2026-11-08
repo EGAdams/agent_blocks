@@ -119,10 +119,11 @@ The top-level areas are:
   (`agent_bridge/gateway/src/RelayTools.php`, nine `chatgpt_*` MCP tools),
   the worker agent (`agent_bridge_worker/chatgpt_relay_agent.py`) and Toyota's
   `bridge_chatgpt` route (`receptionist_team/bridge_client/relay_plans.py`) all
-  pass their offline suites -- but the gateway files are not deployed to the
-  host, `~/.config/startrek_relay/enabled` does not exist yet (without it the
-  worker never registers the agent), and neither ChatGPT's nor Toyota's path
-  has carried a real message. Don't call those two verified. My own path is the
+  pass their offline suites, and the worker now registers the agent
+  (`~/.config/startrek_relay/enabled` exists) -- but the gateway files are not
+  deployed to the host, so ChatGPT cannot yet address a `chatgpt-relay` task,
+  and neither ChatGPT's nor Toyota's path has carried a real message. Don't
+  call those two verified. My own path is the
   `chatgpt-browser-relay` skill, which runs the ADW; the raw HTTP table in it
   is for debugging the relay itself, not for sending messages.
   `adws/browser_workflows/` is the click recorder and playback engine
