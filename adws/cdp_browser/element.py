@@ -22,7 +22,8 @@ _BOX = """function () {
   const r = this.getBoundingClientRect();
   const x = r.left + r.width / 2, y = r.top + r.height / 2;
   const hit = document.elementFromPoint(x, y);
-  return { x, y, width: r.width, height: r.height, clear: !!hit && (hit === this || this.contains(hit)) };
+  return { x, y, width: r.width, height: r.height, clear: !!hit && (hit === this || this.contains(hit)),
+           drawn: document.visibilityState === 'visible' };
 }"""
 
 _DISPLAYED = """function () {
@@ -132,7 +133,10 @@ class CdpElement:
         box = self._value( _BOX )
         if not box or not box.get( "width" ) or not box.get( "height" ):
             raise BrowserWorkflowError( "the element has no size on the page, so it cannot be clicked" )
-        if not box.get( "clear" ):
+        # A page Chrome is not drawing (window covered, screen locked) drops a dispatched
+        # mouse event without a word: the click "succeeds" and nothing happens. Measured on
+        # Accela's Search link, whose postback ran from this.click() and never from the mouse.
+        if not box.get( "clear" ) or box.get( "drawn" ) is False:
             self._value( "function () { this.click(); }" )
             return
         # No separate mouseMoved: Chrome holds its reply for a frame that a

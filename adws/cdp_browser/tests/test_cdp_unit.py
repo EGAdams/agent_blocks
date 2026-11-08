@@ -110,6 +110,37 @@ def test_a_filled_field_is_emptied_first_so_filling_replaces() -> None:
     assert CdpElement( channel, "node-1" ).fill( "new" ) == "new"
 
 
+class ClickChannel:
+    """A page answering `click`'s calls: `box` is what _BOX measures; `sent` records what was done."""
+
+    def __init__( self, box: dict ) -> None:
+        self.box, self.sent = box, []
+
+    def call( self, method: str, params: dict ) -> dict:
+        if method == "Input.dispatchMouseEvent":
+            self.sent.append( params[ "type" ])
+            return {}
+        source = params[ "functionDeclaration" ]
+        if "elementFromPoint" in source:
+            return { "result": { "value": self.box }}
+        if "this.click()" in source:
+            self.sent.append( "this.click" )
+        return { "result": { "value": "a" }}
+
+
+def test_a_click_on_a_page_chrome_is_drawing_is_a_real_mouse_press() -> None:
+    channel = ClickChannel({ "x": 5, "y": 5, "width": 10, "height": 10, "clear": True, "drawn": True })
+    CdpElement( channel, "node-1" ).click()
+    assert channel.sent == [ "mousePressed", "mouseReleased" ]
+
+
+def test_a_click_on_a_hidden_page_is_made_in_the_page_because_a_mouse_press_is_dropped() -> None:
+    """Accela's Search link, live: dispatched mouse events on a hidden tab did nothing at all."""
+    channel = ClickChannel({ "x": 5, "y": 5, "width": 10, "height": 10, "clear": True, "drawn": False })
+    CdpElement( channel, "node-1" ).click()
+    assert channel.sent == [ "this.click" ]
+
+
 class RecordingChannel:
     """Records the one Runtime.evaluate `find`/`body_text` sends, and answers with `answer`."""
 
