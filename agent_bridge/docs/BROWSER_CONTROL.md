@@ -125,7 +125,7 @@ All three re-run green on 2026-11-07 (20:48 EST, DESKTOP-2OBSQMC):
 
 ```bash
 cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp \
-    pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py      # 92 passed (85 + 7)
+    pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py      # 95 passed (88 + 7), 2 skipped
 cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent   # 21 passed
 cd agent_bridge/gateway && php tests/run_tests.php                          # 118 passed, 0 failed
 ```
@@ -282,12 +282,14 @@ a fix is live. The worker runs straight out of the checkout, so for it "deployed
 
 | Capability | Planned | Implemented | Tested locally | Deployed | Verified end to end |
 |---|---|---|---|---|---|
-| `form_controls` | yes | yes | 92 adws / 21 worker / 118 gateway | 2026-11-07 | **yes, via ChatGPT's MCP connector** -- task `t_e584e40c5345f2257fa294ea`, adw `bf9a03f4`, `verified: true` |
+| `form_controls` | yes | yes | 95 adws / 21 worker / 118 gateway | 2026-11-07 | **yes, via ChatGPT's MCP connector** -- task `t_e584e40c5345f2257fa294ea`, adw `bf9a03f4`, `verified: true` |
 | `select_option`, native `<select>` | yes | yes | yes | 2026-11-07 | yes, via the ADW on `aca-prod.accela.com/LARA/Cap/CapHome.aspx?module=OLSR` (adw `7d9c36b1`); Record Type = PLAT Records, confirmed by a second `form_controls` run |
 | `select_option`, site-drawn combobox | yes | yes | yes | 2026-11-07 | **yes, via the MCP connector** -- task `t_a48c153161dfea200262b2af`, adw `3c3a7b8a`, "Chose 'Apple' ... it now shows 'Apple'". Also via the ADW on the W3C APG example (adw `709c1901`) |
 | `fill`, ordinary text field | yes | yes | yes | 2026-11-07 | yes, via the ADW (adw `0fb57906`), and the full Accela loop ended in `read` returning eight records |
 | `fill`, field with its own format or mask (date, `maxlength`, reformatting) | yes | yes | yes, at the CDP boundary (`cdp_browser/tests/test_cdp_unit.py`) | 2026-11-07 | **no.** No live run exists. No public https page with a native `<input type=date>` outside an iframe was found, and `checked_url` forbids `file:`/`data:`, so no page could be authored for it |
 | Toyota driving a form | yes | yes | 110 route tests (`test_bridge_browser_route.py`) | n/a -- her code is local | **no.** No live run through her exists yet; the route is implemented and locally tested only |
+| A refused click naming the real selector | yes | yes | yes (3 tests in `browser_control/tests`) | n/a -- local ADW, picked up per task | yes, on `aca-prod.accela.com` PLATS-38123: Record Info menu (adw `aa19790c`) -> Record Details (`7c690ef0`) -> `#lnkMoreDetail` (`ed5fed1c`, `verified: true`), then `read` (`bf686264`) returned County KENT |
+| Reading a record's Attachments panel | yes | yes | yes | -- | yes, and the panel is **genuinely empty** on that record -- header, upload rules, upload widget, `fileRows` 0, and `#lnkViewRecordDocument` / `#lnkViewPeopleDocument` server-rendered `ACA_Hide`. **Open question, not a defect:** the session is anonymous, and ten plat records all look identical, so the DOM cannot distinguish "no scans attached" from "hidden from signed-out visitors". Signing in is EG's step; no agent here types a credential |
 | A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
 | A file chooser | n/a | refused on purpose | yes | -- | same |
 
@@ -299,6 +301,34 @@ ChatGPT and Toyota are tracked separately on purpose: ChatGPT is verified end to
 ChatGPT must refresh its connector to see `browser_form_controls`, `browser_select_option` and `browser_fill` --
 the gateway already serves them (`tools/list` returned **35** tools on 2026-11-07). If ChatGPT says it has no
 browser tools, that refresh is the first thing to check, not the gateway.
+
+## A refused click names the selector that works (2026-11-07)
+
+Accela's `PLATS-38123` record forced this. **Twelve** elements on that page contain the words "More Details" and
+**four** match exactly, while the control that actually opens the block -- `a#lnkMoreDetail`, an icon anchor with
+`title="Expand More Details"` and `href="javascript:void(0);"` -- carries **none of the text at all**. So
+click-by-text can never resolve to one, and taking the first match would press a heading and report success.
+ChatGPT spent three tasks on it, because the refusal said `ambiguous` and nothing else.
+
+`Click.perform` now appends `_targeting_hint` to its refusal. It treats `ambiguous`, `hidden` and `zero_size` as
+one mistake -- the words name several things on the screen, or the thing is in the page but not on it -- reads the
+page's own `form_controls`, and names the matching candidates **with their selectors**, telling the caller to
+repeat with `--css=<one of those>`. It never picks one; that is the point.
+
+Two things this does not change: the resolver still refuses rather than guessing, and a plain "nothing matched"
+gets no hint (there is nothing to name).
+
+Alongside it, `FORM_CONTROLS_JS`'s selector gained `a[onclick]`. Accela's "Record Details" tab anchor has no id,
+so `form_controls` could not see it -- which made the control that reveals an entire panel undiscoverable by any
+supported route. The pre-existing `acts` test still drops anchors that are only navigation.
+
+Three page facts from that record worth keeping, because each one reads as a different bug than it is:
+
+| What you see | What it actually is |
+|---|---|
+| `a:has-text('More Details')` returns `none` | `:has-text()` is a **Playwright** selector, not CSS. `querySelectorAll` raises `SyntaxError`, `find()` catches it and returns `[]`, so an invalid selector is indistinguishable from "nothing matched" |
+| A correct selector refuses as `hidden` / `zero_size` | the whole tab panel is `display:none` (`div#tab-record_detail.record-tab-content`); only the active panel has class `show`. Every ancestor is 0x0 and `body_text()` uses `innerText`, so the panel's ~9,700 characters are unreadable too |
+| A tab link that will not click | it is inside a `ul.dropdown-menu` with `display:none`. Two steps: click `a[title="Record Info menu, press tab to expand"]` first, then the tab |
 
 ## Telling failures apart (the distinctions that have wasted time)
 
