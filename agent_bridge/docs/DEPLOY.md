@@ -227,3 +227,26 @@ The ADW runs as a `uv run` subprocess per task, so a change under `adws/` takes 
   `adws/`-only commits take effect without a restart.
 - **Verified end to end through the live MCP endpoint** -- see the verification table in
   `BROWSER_CONTROL.md` (the two PLATS-38123 TIFFs, a PDF, a duplicate and two failures).
+
+## 2026-11-08 (night) — ChatGPT is told it can edit one paragraph of a note
+
+ChatGPT tried to change one paragraph of the deed by typing the whole 4,834-character note with
+`browser_fill`, and the gateway refused it (`text must be short text`, `MAX_VALUE`). The worker has had
+paragraph edits since 11-07 (`{"notes":"update", ..., "edits":[{"find","replace"}]}`, revision-checked,
+read back twice), but the host's registry still described `notes` as "Notes Diagnostic ... its own
+diagnostic note only (never the deed or any other note)", so ChatGPT never tried it.
+
+- **Config only**, no code: the `notes` entry's `display_name` (now `Notes`) and `description` in
+  `~/agent_bridge_data/bridge.php`, which lists read/search/update (find, line, section, append) and says
+  to use it instead of `browser_fill`. Backup: `~/agent_bridge_backups/notes_description_20261108T210822Z/`.
+- **Seeding**: `cd ~/agent_bridge/gateway && php bin/migrate.php ~/agent_bridge_data/bridge.php`. Pass
+  the path explicitly: with no argument it looks for `gateway/config/bridge.php`, which does not exist, and
+  exits 255 with no output.
+- **Verified through MCP** with ChatGPT's client: `list_available_agents` shows the new text; a `notes`
+  read of the deed succeeded (`t_5983028e5d774d02a4d7a273`); an `implement` update carrying a stale
+  revision was refused with nothing written (`t_6cad6da7b7da6abbb79b5448`, the file's sha256 unchanged).
+- **The deed edit itself** went through the dashboard's `POST /api/note-write` with `expected_revision`
+  (`6eca8961…` → `fdc02858…`): one line changed, as `diff` shows. The open Notes page in Chrome picked it
+  up within one 3-second poll with no reload. That paragraph lost its yellow review mark, and the other 10
+  marks stayed. A full page reload showed the same.
+- Rollback: copy the backup's `bridge.php` back and re-run the migrate command above.
