@@ -162,3 +162,12 @@ if __name__ == "__main__":
         test()
         print( "ok", test.__name__ )
     print( f"{ len( TESTS )} passed" )
+
+
+def test_dashboard_notes_is_one_implement_task_with_no_fields():
+    commands = FakeCommands( verified( "Chrome is open on the dashboard with the NOTES tab showing.", notes_active=True ))
+    out = run( commands, task({ "browser": "dashboard_notes" }, operation="implement" ))
+    assert commands.calls == [( "dashboard_notes", {}, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "notes_active" ] is True
+    refused = run( FakeCommands( verified()), task({ "browser": "dashboard_notes" }, operation="inspect" ))
+    assert refused.kind == OutcomeKind.REFUSED and "runs as implement" in refused.summary

@@ -364,3 +364,87 @@ class Close(BrowserOperation):
             return refused("I asked the browser to close that tab, but it is still listed.", browser=kind.name, verified=False)
         return ok(f"Closed tab {args['tab']}; {len(after)} tab(s) remain.", browser=kind.name, closed=target,
                   remaining=len(after), verified=True)
+
+
+# ---- browser.dashboard_notes: open Chrome, go to the dashboard, press NOTES, confirm it is showing -------------
+
+DASHBOARD_URL = "https://desktop-2obsqmc.tailb8fc54.ts.net/"
+NOTES_TAB_CSS = "button.tab[data-nav='main'][data-target='notes']"    # the dashboard's own NOTES button
+
+
+class NotesRequest(BrowserOperation):
+    """Phase 1 of browser.dashboard_notes: fix the destination. Nothing the caller sends can change it."""
+    name = "browser_notes_request"
+    description = "browser.dashboard_notes, phase 1: the destination is the ROL dashboard's NOTES tab"
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        return ok(f"Going to the Notes tab of {DASHBOARD_URL} in {kind.name}.", browser=kind.name,
+                  url=DASHBOARD_URL, css=NOTES_TAB_CSS, text="", label="", locators=[])
+
+
+class DashboardTab(BrowserOperation):
+    """Phase 4: the dashboard tab -- an open one is reused (no pile of duplicate tabs), else one is opened --
+    brought to the front and waited on until the page shows its NOTES button."""
+    name = "browser_dashboard_tab"
+    description = "browser.dashboard_notes, phase 4: find or open the dashboard tab and wait for it to load"
+    wait_seconds = 20.0
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        self._up(kind)
+        host = urlparse(DASHBOARD_URL).netloc
+        tab = next((t for t in self._plane.endpoint.pages(kind) if urlparse(t.url).netloc == host), None)
+        opened = tab is None
+        if opened:
+            tab = self._plane.endpoint.open_page(kind, DASHBOARD_URL)
+        self._plane.endpoint.activate(kind, tab.id)
+        deadline = self._plane.clock.monotonic() + self.wait_seconds
+        while True:
+            page = self._plane.attacher.attach(kind, tab.id)
+            try:
+                loaded, url, title = bool(page.find(NOTES_TAB_CSS)), page.current_url, page.title
+            finally:
+                page.release()
+            if loaded:
+                break
+            if self._plane.clock.monotonic() >= deadline:
+                return refused(f"The dashboard tab is at {safe_url(url)} ({title[:60]!r}) but never showed its NOTES tab "
+                               f"within {int(self.wait_seconds)}s -- the dashboard may be down or still loading.",
+                               browser=kind.name, tab=tab.id, verified=False, cause="dashboard_not_loaded")
+            self._plane.clock.sleep(1.0)
+        return ok(("Opened" if opened else "Found") + f" the dashboard tab at {safe_url(url)} and brought it to the front.",
+                  browser=kind.name, tab=tab.id, opened_tab=opened, url=safe_url(url))
+
+
+class NotesVerify(BrowserOperation):
+    """Phase 6: read the page back. Success means the dashboard's own NOTES button is the active tab, not that a
+    click was sent."""
+    name = "browser_notes_verify"
+    description = "browser.dashboard_notes, phase 6: read the page and confirm the NOTES tab is the active one"
+    wait_seconds = 5.0
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        self._up(kind)
+        deadline = self._plane.clock.monotonic() + self.wait_seconds
+        while True:
+            page = self._plane.attacher.attach(kind, args.get("tab") or None)
+            try:
+                found = page.find(NOTES_TAB_CSS)
+                classes = (found[0].get_attribute("class") or "").split() if found else []
+                url, title, front = safe_url(page.current_url), page.title, page.is_foreground()
+                text = re.sub(r"\s+", " ", page.body_text()).strip() if "active" in classes else ""
+            finally:
+                page.release()
+            if "active" in classes or self._plane.clock.monotonic() >= deadline:
+                break
+            self._plane.clock.sleep(0.5)
+        where = f" on your desktop in Windows session {args['session']}" if args.get("visible") else ""
+        if "active" not in classes:
+            return refused(f"I pressed NOTES, but the page at {url} does not show the Notes tab as active "
+                           f"(its classes: {' '.join(classes) or 'button not found'}).", browser=kind.name,
+                           url=url, title=title[:120], verified=False, cause="notes_not_active")
+        return ok(f"Chrome is open{where} on the dashboard ({url}) with the NOTES tab showing.",
+                  browser=kind.name, url=url, title=title[:120], notes_active=True, in_front=front,
+                  excerpt=text[:600], verified=True)

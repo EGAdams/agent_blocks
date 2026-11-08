@@ -97,7 +97,7 @@ def run(ops, name, **args): return ops[PUBLIC[name]].run(args)
 
 def test_every_documented_operation_is_registered(tmp_path):
     ops, _ = make(tmp_path)
-    assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read", "screenshot", "status", "close")}
+    assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read", "screenshot", "status", "close", "dashboard_notes")}
     assert all(op.description.startswith(name) for name, op in ((n, ops[v]) for n, v in PUBLIC.items()))
 
 
@@ -284,3 +284,74 @@ def test_a_visible_running_chrome_is_left_alone(tmp_path):
     ops, world = make(tmp_path, running=["chrome"])
     out = run(ops, "browser.open", url="https://b.example")
     assert out.ok and not world.shutdowns and not world.started and len(world.running["chrome"]) == 2
+
+
+# ---- browser.dashboard_notes --------------------------------------------------------------------------------
+
+from browser_control.operations import DASHBOARD_URL, NOTES_TAB_CSS
+
+
+class NotesButton(FakeElement):
+    """The dashboard's NOTES button: its class gains `active` only when it is clicked (unless `sticks` is False)."""
+    def __init__(self, sticks=True): super().__init__(text="NOTES", tag="button"); self.sticks = sticks
+    def get_attribute(self, name):
+        if name == "class": return "tab active" if self.clicked and self.sticks else "tab"
+        return super().get_attribute(name)
+
+
+def notes_world(tmp_path, **kw):
+    ops, world = make(tmp_path, **kw)
+    world.elements = [NotesButton()]
+    return ops, world
+
+
+def test_dashboard_notes_starts_chrome_on_the_dashboard_and_confirms_notes_is_active(tmp_path):
+    ops, world = notes_world(tmp_path)
+    out = run(ops, "browser.dashboard_notes")
+    assert out.ok and out.data["verified"] and out.data["notes_active"]
+    assert world.started == [("chrome", DASHBOARD_URL)] and world.elements[0].clicked
+    assert "NOTES tab showing" in out.line and "Windows session 1" in out.line
+    seq = ops["browser_dashboard_notes"]
+    assert [s.name for s in seq.steps] == ["browser_notes_request", "browser_launch", "browser_visibility",
+                                          "browser_dashboard_tab", "browser_click", "browser_notes_verify"]
+
+
+def test_dashboard_notes_reuses_an_open_dashboard_tab(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    world.running["chrome"].append(CdpTarget(id="chrome-dash", url=DASHBOARD_URL + "#notes", title="ROL"))
+    out = run(ops, "browser.dashboard_notes")
+    assert out.ok and not world.started and len(world.running["chrome"]) == 2
+    assert world.active == "chrome-dash" and out.data["tab"] == "chrome-dash" and out.data["opened_tab"] is False
+
+
+def test_dashboard_notes_opens_a_dashboard_tab_when_none_is_open(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    out = run(ops, "browser.dashboard_notes")
+    assert out.ok and out.data["opened_tab"] is True and world.running["chrome"][-1].url == DASHBOARD_URL
+
+
+def test_dashboard_notes_ignores_a_caller_supplied_destination(tmp_path):
+    ops, world = notes_world(tmp_path)
+    out = run(ops, "browser.dashboard_notes", url="https://evil.example/", css="#pay", text="Pay now")
+    assert out.ok and world.started == [("chrome", DASHBOARD_URL)] and out.data["css"] == NOTES_TAB_CSS
+
+
+def test_dashboard_notes_is_a_failure_when_notes_never_becomes_active(tmp_path):
+    ops, world = notes_world(tmp_path)
+    world.elements = [NotesButton(sticks=False)]
+    out = run(ops, "browser.dashboard_notes")
+    assert not out.ok and out.data["cause"] == "notes_not_active" and out.data["verified"] is False
+
+
+def test_dashboard_notes_is_a_failure_when_the_dashboard_never_loads(tmp_path):
+    ops, world = notes_world(tmp_path)
+    world.elements = []
+    out = run(ops, "browser.dashboard_notes")
+    assert not out.ok and out.data["cause"] == "dashboard_not_loaded"
+
+
+def test_dashboard_notes_stops_on_a_hidden_chrome_it_cannot_replace(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    world.session, world.closes = 0, False
+    out = run(ops, "browser.dashboard_notes")
+    assert not out.ok and out.data["cause"] == "hidden_session" and not world.elements[0].clicked

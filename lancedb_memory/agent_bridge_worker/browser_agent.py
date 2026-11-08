@@ -5,7 +5,10 @@ The prompt is JSON written by code (ChatGPT turns "open the browser" into it; To
     {"browser": "open", "url": "https://example.com", "target": "chrome"}   # Chrome is the only authorized browser
 
     inspect    read_only        status | tabs | read | screenshot
-    implement  workspace_write  open | navigate | refresh | select_tab | click | close      (workspace `browser`)
+    implement  workspace_write  open | navigate | refresh | select_tab | click | close | dashboard_notes   (workspace `browser`)
+
+`dashboard_notes` is the whole "open the browser and go to Notes": Chrome on the desktop, the ROL dashboard,
+the NOTES tab pressed, and the page read back to confirm NOTES is the active tab. It takes no fields.
 
 Each task becomes one run of `adws/adw_browser_control.py` (through `IBrowserCommands`), which is the Browser
 Control ADW: it has its own execution id (the ADW id), lifecycle log and object trace. This adapter only checks the
@@ -27,7 +30,7 @@ from .ports import IClock, Signal
 
 PERFORMER = "browser_control"
 READS     = frozenset({ "status", "tabs", "read", "screenshot" })
-WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close" })
+WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes" })
 #: request key -> the ADW flag it becomes. `target` is the browser (Chrome only); `browser` already names the operation.
 FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css" }
 REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",) }
