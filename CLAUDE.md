@@ -112,8 +112,19 @@ The top-level areas are:
   through `[data-content-search-unit-key]` and `[data-conversation-role]`) lives
   in that other repository. Tests: `cd adws && uv run --quiet --with pydantic
   --with pytest pytest -q chatgpt_relay/tests` -- 56, all offline, no Chrome and
-  no account. `relay.ask` is verified live end to end; the Bridge halves (worker,
-  gateway, Toyota route) are not written yet, so ChatGPT cannot reach it today.
+  no account. Read `adws/chatgpt_relay/DESIGN.md` before changing any of it --
+  it names each pattern and its file, the five rules enforced at every layer,
+  and the two timeouts that were measured rather than chosen. All three callers
+  are now built: `relay.ask` is verified live end to end, and ChatGPT's door
+  (`agent_bridge/gateway/src/RelayTools.php`, nine `chatgpt_*` MCP tools),
+  the worker agent (`agent_bridge_worker/chatgpt_relay_agent.py`) and Toyota's
+  `bridge_chatgpt` route (`receptionist_team/bridge_client/relay_plans.py`) all
+  pass their offline suites -- but the gateway files are not deployed to the
+  host, `~/.config/startrek_relay/enabled` does not exist yet (without it the
+  worker never registers the agent), and neither ChatGPT's nor Toyota's path
+  has carried a real message. Don't call those two verified. My own path is the
+  `chatgpt-browser-relay` skill, which runs the ADW; the raw HTTP table in it
+  is for debugging the relay itself, not for sending messages.
   `adws/browser_workflows/` is the click recorder and playback engine
   (read its `DESIGN.md` first). An MV3 extension (`chrome_extension/`,
   loaded unpacked from `%LOCALAPPDATA%\adw-browser-recorder` via

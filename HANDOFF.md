@@ -1,8 +1,47 @@
 # Handoff — current checkpoint
 
-**Shift:** Claude (Opus 5), ending 2026-11-07 ~23:40 EST
+**Shift:** Claude (Opus 5), ending 2026-11-08
 **Box:** `DESKTOP-2OBSQMC`, WSL2 Ubuntu-26.04, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`
 **Next reader:** Codex / ChatGPT / Claude / Toyota — read `AGENTS.md` first, then this, then the report it points at.
+
+## ChatGPT relay — rebuilt here, and reachable by all three callers
+
+The old relay was `~/letta-code/browser_tools/browser_server.py` driven by hand with `curl` (or by
+`~/server_tools/relay_message_to_chatgpt.py`). It is now `adws/adw_chatgpt_relay.py` over
+`adws/chatgpt_relay/`, and three callers reach the **same** ADW -- me, ChatGPT over the Star Trek Bridge,
+and Toyota. `browser_server.py` and the Chrome in front of it are unchanged; what was rebuilt is everything
+on this side of its HTTP.
+
+Read `adws/chatgpt_relay/DESIGN.md` first -- it names every GoF pattern and where it lives, the five rules
+that are enforced at every layer, and the two numbers that were measured rather than chosen.
+
+| layer | file | state |
+|---|---|---|
+| the operations | `adws/chatgpt_relay/` | **verified live.** `relay.ask` 7/7 phases, ADW id `5ea1a596`, `bati says: RELAY OK`, `settled: true` |
+| the ADW | `adws/adw_chatgpt_relay.py` | same run |
+| the worker agent | `lancedb_memory/agent_bridge_worker/chatgpt_relay_agent.py` + `adapters/chatgpt_relay_process.py` | 14 offline tests pass; registered in `adw_bridge_worker.py` behind `~/.config/startrek_relay/enabled`, which **does not exist yet** |
+| ChatGPT's door | `agent_bridge/gateway/src/RelayTools.php` (nine `chatgpt_*` tools) + `Bootstrap.php`, `McpEndpoint.php` | 13 gateway tests pass (131 total, 0 failed); **not deployed to the host** |
+| Toyota's door | `receptionist_team/bridge_client/relay_plans.py`, `agents/bridge_chatgpt/`, `tests/test_bridge_chatgpt_route.py` | 101 offline checks pass; **no live run through her** |
+| my door | `~/.claude/skills/chatgpt-browser-relay/SKILL.md` | rewritten to run the ADW; the raw HTTP table is kept only for debugging the relay itself |
+
+So: the relay works, and two of the three front doors are built and tested but have never carried a real
+message. Don't report either as verified.
+
+**Three things to finish, in this order.**
+
+1. `touch ~/.config/startrek_relay/enabled` (and `mkdir -p` its directory). Until that file exists the
+   worker does not register the agent at all, so every `chatgpt_*` tool answers "no such agent".
+2. Deploy the gateway files -- `RelayTools.php`, and the modified `Bootstrap.php` and `McpEndpoint.php` --
+   plus an `agents` entry for `chatgpt-relay` with workspace `chatgpt-relay` (one name, used as both; see
+   DESIGN.md's last section for why). Established procedure: scp with a backup under
+   `~/agent_bridge_backups/`, `php -l` under ea-php83, restart the worker. **This is outward-facing and
+   needs EG's yes first** -- I did not do it.
+3. One live message each way: ChatGPT asking a session something, and Toyota's `bridge_chatgpt` route.
+
+**Known, not fixed:** `receptionist_team/tests/test_latest_user.py`'s prompt-budget check fails --
+Toyota's system prompt plus `LIVE_CAPABILITIES` is 13341 characters against a 12500 ceiling. It was already
+over at 13002 before this work; `bridge_chatgpt`'s roster blurb added 339. The ceiling is real (Groq's 8000
+tokens *per minute*), so the fix is trimming her prompt, which is its own job.
 
 ## Michigan plat diagnostic — the "More Details" ambiguity, and the empty attachment list
 
