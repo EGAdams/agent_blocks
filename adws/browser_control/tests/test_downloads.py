@@ -9,7 +9,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from browser_control.filelinks import saved_extension
-from .test_operations import FakeElement, make, run
+from .test_operations import FakeElement, FakeLink, make, run
 
 
 class FakeFolder:
@@ -62,6 +62,17 @@ def a_file(tmp_path, name="0337201.tif", body=b"II*\x00rest-of-a-tiff"):
 
 
 # -- what lands -------------------------------------------------------------------
+
+
+def test_windows_interop_is_ensured_before_the_folder_is_asked_for(tmp_path):
+    """Finding the Downloads folder runs cmd.exe. Attaching to an open tab does not, so nothing had
+    ensured a WSL interop socket: under the Bridge worker cmd.exe exited 1 and the download was refused."""
+    link = FakeLink()
+    ops, world = make(tmp_path, link=link, running=["chrome"],
+                      downloads=(FakeFolder(), FakeWatcher([a_file(tmp_path)]), FakeVerifier()))
+    world.elements = [FakeElement(text="0337201.tif", attrs={"href": "/docs/0337201.tif"})]
+    out = run(ops, "browser.download", text="0337201.tif")
+    assert out.ok and link.ensured == 1
 
 
 def test_a_file_that_arrives_is_reported_with_its_name_and_size(tmp_path):

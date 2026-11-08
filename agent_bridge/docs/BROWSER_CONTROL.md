@@ -185,6 +185,25 @@ The rules, enforced in code:
 Timeouts: 60 s wait for the file, plus up to 15 s to find the folder, inside `BrowserAgent`'s 120 s deadline and
 `UvBrowserCommands`' 180 s hard limit.
 
+Two host causes, both found by running this through the live Bridge rather than by testing (the ADW from a
+shell worked all along -- a login shell has what a systemd user service does not):
+
+1. **No Windows PATH.** `shutil.which("cmd.exe")` answers `None` inside `agent-bridge-worker.service`, so the
+   folder could not be asked for at all. `CMD_EXE_PATHS` now names the two places cmd.exe lives on any Windows
+   install, and `windows_shell()` falls back to them.
+2. **No interop socket.** WSL gives each login shell its own `WSL_INTEROP`, and without one cmd.exe exits 1.
+   `Download` now calls `link.ensure()` -- the same probe `open` does before launching Chrome -- before asking
+   for the folder, because attaching to an already-open tab is plain HTTP and needs no interop, so nothing had
+   ensured one yet. `interop_environment()` in `download_directory.py` is the simpler fallback for callers that
+   have no `WslInteropLink` (Cashy, playback): the distro-wide `/run/WSL/1_interop`.
+
+And one bug in the waiting, which made a real download look like a failure: Chrome, given a folder over
+DevTools, **overwrites** a same-named file instead of adding "(1)", so `FolderDownloadWatcher`'s name-only
+snapshot saw the folder unchanged and the operation honestly reported that nothing had arrived. `before()` now
+takes a stamp per file -- name, size, mtime -- and a file counts as finished only once its stamp has stopped
+moving for one poll, because an overwrite is written in place and a truncated file must never be handed back
+as the download.
+
 ## Chrome only; host requirements (2026-11-07 fix)
 
 Chrome is the only authorized browser: Edge was removed from the table, aliases and defaults; any other name is
@@ -338,8 +357,8 @@ a fix is live. The worker runs straight out of the checkout, so for it "deployed
 | Toyota driving a form | yes | yes | 110 route tests (`test_bridge_browser_route.py`) | n/a -- her code is local | **no.** No live run through her exists yet; the route is implemented and locally tested only |
 | A refused click naming the real selector | yes | yes | yes (3 tests in `browser_control/tests`) | n/a -- local ADW, picked up per task | yes, on `aca-prod.accela.com` PLATS-38123: Record Info menu (adw `aa19790c`) -> Record Details (`7c690ef0`) -> `#lnkMoreDetail` (`ed5fed1c`, `verified: true`), then `read` (`bf686264`) returned County KENT |
 | Reading a record's Attachments panel | yes | yes | yes | -- | yes, and the panel is **genuinely empty** on that record -- header, upload rules, upload widget, `fileRows` 0, and `#lnkViewRecordDocument` / `#lnkViewPeopleDocument` server-rendered `ACA_Hide`. **Open question, not a defect:** the session is anonymous, and ten plat records all look identical, so the DOM cannot distinguish "no scans attached" from "hidden from signed-out visitors". Signing in is EG's step; no agent here types a credential |
-| `browser.download` saving a file | yes | yes (2026-11-08) | 15 adws / 2 worker / 1 gateway test | not yet | **yes, via the ADW** -- `adw_browser_download.py --css 'a[href$="docs-text.zip"]'` on `docs.python.org/3/download.html` (adw `b1b6c83c`): `Saved python-3.15-docs-text.zip (4757.7 KB) to C:\Users\NewUser\Downloads\BrowserRecorder.`, 4,871,863 bytes on disk, head `504b0304` (a real zip). Not yet through the connector, and not yet the Michigan `.tif` -- that needs EG signed in |
-| `browser.click` refusing a file link | yes | yes (2026-11-08) | yes | not yet | **yes, via the ADW** -- the same selector through `browser.click` answered `That saves a file (.zip), and a click cannot keep it`, with `use_instead: browser.download` (nothing was pressed) |
+| `browser.download` saving a file | yes | yes (2026-11-08) | 18 adws / 2 worker / 1 gateway test | 2026-11-08 | **yes, via the ADW** -- `adw_browser_download.py --css 'a[href$="docs-text.zip"]'` on `docs.python.org/3/download.html` (adw `b1b6c83c`): `Saved python-3.15-docs-text.zip (4757.7 KB) to C:\Users\NewUser\Downloads\BrowserRecorder.`, 4,871,863 bytes on disk, head `504b0304` (a real zip). **And through the live gateway** -- task `t_1e691faa592d251616670096`, adw `8255e094`, `verified: true`, the same file reported with its bytes and head. Not yet the Michigan `.tif` -- that needs EG signed in |
+| `browser.click` refusing a file link | yes | yes (2026-11-08) | yes | 2026-11-08 | **yes, via the ADW** -- the same selector through `browser.click` answered `That saves a file (.zip), and a click cannot keep it`, with `use_instead: browser.download` (nothing was pressed) |
 | A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
 | A file chooser | n/a | refused on purpose | yes | -- | same |
 

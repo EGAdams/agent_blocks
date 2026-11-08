@@ -161,6 +161,11 @@ uv run adws/adw_browser_download.py --css 'a[href$="docs-text.zip"]'
 4,871,863 bytes on disk, head `504b0304` — a real zip. The same selector through `browser.click`
 answered `That saves a file (.zip), and a click cannot keep it` and pressed nothing.
 
+The same request through the Bridge is verified too (task `t_1e691faa592d251616670096`, adw `8255e094`),
+which is what proved the three things the tests could not: a systemd service has no Windows `PATH` and no
+WSL interop socket, and Chrome **overwrites** a same-named download instead of adding "(1)" — so a repeat
+download used to be reported as "no file arrived".
+
 ## Live example (verified 2026-11-07)
 
 Michigan OLSR plat search, `https://aca-prod.accela.com/LARA/Cap/CapHome.aspx?module=OLSR`:

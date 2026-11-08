@@ -14,6 +14,36 @@ from ..errors import BrowserWorkflowError
 
 DOWNLOAD_DIR_ENV = "BROWSER_WORKFLOW_DOWNLOAD_DIR"
 
+#: Where cmd.exe is on any Windows install. A systemd user service inherits a plain PATH with none of
+#: WSL's Windows entries, so `which` finds nothing there even though interop itself works -- which is
+#: how a download from the Bridge worker failed while the same download from a shell succeeded.
+CMD_EXE_PATHS = ( "/mnt/c/Windows/System32/cmd.exe", "/mnt/c/WINDOWS/system32/cmd.exe" )
+
+#: WSL hands each login shell its own interop socket in WSL_INTEROP, and a Windows program cannot be
+#: started without one. A systemd user service is not a login shell, so it has no such variable, and
+#: cmd.exe there exits 1 -- the second half of the same Bridge-worker download failure. This is the
+#: socket WSL's init keeps for the whole distro, so it is the right one to fall back to. A caller that
+#: has `browser_control`'s WslInteropLink should ensure() first -- it probes every socket and can
+#: recover when this one belongs to a dead session; this is the fallback for everyone else.
+INTEROP_ENV   = "WSL_INTEROP"
+INIT_INTEROP  = "/run/WSL/1_interop"
+
+
+def interop_environment() -> dict[ str, str ]:
+    """This process's environment, with an interop socket added if it is missing one."""
+    environment = dict( os.environ )
+    if not environment.get( INTEROP_ENV ) and Path( INIT_INTEROP ).exists():
+        environment[ INTEROP_ENV ] = INIT_INTEROP
+    return environment
+
+
+def windows_shell() -> str:
+    """cmd.exe's path, or "" if this machine has no Windows side to ask."""
+    found = shutil.which( "cmd.exe" )
+    if found:
+        return found
+    return next(( path for path in CMD_EXE_PATHS if Path( path ).exists()), "" )
+
 
 class NativeDownloadDirectory:
     def __init__( self, settings_path: Path | None = None ) -> None:
@@ -30,9 +60,11 @@ class NativeDownloadDirectory:
             if not ( Path( override ).is_absolute() or PureWindowsPath( override ).is_absolute() ):
                 raise BrowserWorkflowError( f"download folder must be an absolute path on Chrome's machine ({ DOWNLOAD_DIR_ENV })" )
             return override
-        if shutil.which( "cmd.exe" ):
+        shell = windows_shell()
+        if shell:
             try:
-                result = subprocess.run([ "cmd.exe", "/c", "echo %USERPROFILE%" ], cwd="/mnt/c",
+                result = subprocess.run([ shell, "/c", "echo %USERPROFILE%" ], cwd="/mnt/c",
+                                         env=interop_environment(),
                                          capture_output=True, text=True, timeout=15, check=True )
                 profile = result.stdout.strip()
                 if not PureWindowsPath( profile ).is_absolute() or "%" in profile:

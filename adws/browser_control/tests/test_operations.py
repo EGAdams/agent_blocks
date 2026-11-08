@@ -95,8 +95,10 @@ class FakePage:
 
 
 class FakeLink:
-    def __init__(self, up=True, mode="mirrored"): self.up, self.mode = up, mode
-    def ensure(self): return (True, "") if self.up else (False, "WSL cannot start Windows programs from here")
+    def __init__(self, up=True, mode="mirrored"): self.up, self.mode, self.ensured = up, mode, 0
+    def ensure(self):
+        self.ensured += 1
+        return (True, "") if self.up else (False, "WSL cannot start Windows programs from here")
     def explain_unreachable(self, port): return f"networking is {self.mode}" if self.mode != "mirrored" else "nothing answered"
 
 

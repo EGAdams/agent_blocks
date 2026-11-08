@@ -189,3 +189,27 @@ every later task (diagnostics, Machine Ops, Notes) behind it. There are now two 
   systemctl --user daemon-reload && systemctl --user enable --now agent-bridge-worker-express`.
   The supervisor timer, the Worker Activity page and `adw_supervisor` each watch both lanes; a lane whose unit is not
   installed is shown as "not installed", not as a failure.
+
+## 2026-11-08 — the ChatGPT relay and browser downloads
+
+Deployed with EG's approval. The gateway tree on the host was replaced (`~/agent_bridge/gateway/`),
+`migrate.php` re-run, and both workers restarted.
+
+- **Backup first**: `~/agent_bridge_backups/pre_relay_download_20261108_084900` (gateway + `bridge.php`, 596 K).
+  The replaced tree is also kept in place at `~/agent_bridge/gateway.old_20261108`.
+- **Tests**: 132 gateway tests pass on the host under ea-php85, both in the staging directory and in place.
+- **New**: `RelayTools.php` (nine `chatgpt_*` tools) and `browser_download` in `BrowserTools.php`.
+  `migrate.php` reports "agents: 11 seeded"; `chatgpt-relay` is registered at index 10.
+- **Live `tools/list`**: 45 tools — 15 `browser_*` (including `browser_download`) and 9 `chatgpt_*`.
+- The browser agent's description was rewritten to list the three form operations and `download`; they had
+  been missing, which is why ChatGPT could not see what it already had.
+- `browser_download` is **verified end to end** through the connector: task `t_1e691faa592d251616670096`,
+  adw `8255e094`, `verified: true`, a 4,871,863-byte zip with head `504b0304` on disk.
+- The relay is **not** verified from either caller. `relay.ask` works from my own path (the ADW), and
+  ChatGPT's nine tools and Toyota's `bridge_chatgpt` route pass their offline suites, but neither has carried
+  a real message yet. Do not call those two paths verified.
+- Left on the host and still to be tidied: `~/deploy_20261108_src/`, `~/deploy_20261108_tests/`,
+  `~/agent_bridge/gateway.old_20261108`.
+
+The ADW runs as a `uv run` subprocess per task, so a change under `adws/` takes effect without restarting
+`agent-bridge-worker` or `agent-bridge-worker-express`.

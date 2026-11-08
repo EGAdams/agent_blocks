@@ -62,6 +62,11 @@ class Download(BrowserOperation):
             return refused(f"I did not click: {why}. Ask EG, then repeat with confirm=true.", browser=kind.name,
                            needs_confirmation=True, verified=False)
         folder, watcher, verifier = self._downloads()
+        # Asking Windows where its Downloads folder is means running cmd.exe, and that needs a WSL interop
+        # socket. Attaching to an already-open tab is plain HTTP and needs none, so nothing had ensured one
+        # yet: under the Bridge worker (a systemd service, no WSL_INTEROP) cmd.exe exited 1 and the download
+        # was refused. `link` finds a socket that works -- it is the same check `open` does before launching.
+        self._plane.link.ensure()
         try:
             directory = folder.resolve()
         except BrowserWorkflowError as exc:
