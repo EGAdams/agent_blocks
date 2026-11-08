@@ -39,7 +39,30 @@ released, never quit.
 
 ## How ChatGPT invokes it
 
-Agent `browser`, workspace `browser`. The prompt is JSON; ChatGPT turns the sentence into it:
+### Named MCP tools (2026-11-07)
+
+Root cause of "ChatGPT cannot open Chrome": the connector listed no browser tools. The browser agent was reachable
+only through the generic `submit_agent_task` with a hand-written JSON prompt, so ChatGPT concluded it had no browser
+(and the agent's description still said "Chrome or Edge"). The gateway now lists eleven `browser_*` tools
+(`gateway/src/BrowserTools.php`), each the same `browser` task written by the gateway and submitted with the
+caller's own credentials through `ClientTasks->submit`, so policy and client scopes apply unchanged:
+
+| Tool | ADW operation | Task |
+| --- | --- | --- |
+| `browser_open_dashboard_notes` | `browser.dashboard_notes` (request -> launch -> visibility -> dashboard_tab -> click -> notes_verify) | implement, no fields |
+| `browser_open` / `browser_navigate` / `browser_click` / `browser_select_tab` / `browser_refresh` / `browser_close_tab` | open / navigate / click / select_tab / refresh / close | implement |
+| `browser_read` / `browser_tabs` / `browser_status` | read / tabs / status | inspect |
+| `browser_get_result` | -- | reads a browser task's result |
+
+Each call waits up to `browser_wait_seconds` (default 20) for the worker's verified result; if not ready it returns
+`ready=false` and the task_id for `browser_get_result`. A failure carries the ADW's line, `cause`, `adw_id` and the
+task's recorded steps as `diagnostics`. Tools are listed only when the `browser` agent is configured, the gateway
+grants the operation's mode, and the caller's client scope allows agent/workspace `browser`.
+ChatGPT must refresh the connector to see them.
+
+### Raw task form
+
+Agent `browser`, workspace `browser`. The prompt is JSON:
 
 | Say | operation | prompt |
 | --- | --- | --- |
@@ -48,6 +71,7 @@ Agent `browser`, workspace `browser`. The prompt is JSON; ChatGPT turns the sent
 | "Refresh the page." | `implement` | `{"browser":"refresh"}` |
 | "Read what's on the screen." | `inspect` | `{"browser":"read"}` |
 | "Click the Notes button." | `implement` | `{"browser":"click","text":"Notes"}` |
+| "Open the browser and go to Notes." | `implement` | `{"browser":"dashboard_notes"}` (no other fields) |
 | tabs / select / screenshot / status / close | `inspect` for tabs, screenshot, status; `implement` for select_tab, close | `{"browser":"tabs"}`, `{"browser":"select_tab","tab":"2"}`, `{"browser":"close","tab":"2"}` |
 
 Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `confirm`.

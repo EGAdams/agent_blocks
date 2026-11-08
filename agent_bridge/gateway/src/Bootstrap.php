@@ -17,6 +17,7 @@ require_once __DIR__ . '/ScannerTools.php';
 require_once __DIR__ . '/WorkerScans.php';
 require_once __DIR__ . '/PrinterPolicy.php';
 require_once __DIR__ . '/PrinterTools.php';
+require_once __DIR__ . '/BrowserTools.php';
 require_once __DIR__ . '/McpEndpoint.php';
 require_once __DIR__ . '/OAuth.php';
 require_once __DIR__ . '/GatewayApp.php';
@@ -105,7 +106,9 @@ final class Bootstrap
                                   new ScannerTools($client, $store, $scanStore, $blobs, $scopes, $audit,
                                                    in_array('scan', $grants['operations'], true)),
                                   new PrinterTools($client, $printJobs, $printerScopes, $audit, $clock,
-                                                   in_array('print', $grants['operations'], true)));
+                                                   in_array('print', $grants['operations'], true)),
+                                  new BrowserTools($client, $clientScopes, $audit, $grants,
+                                                   (int) ($config['browser_wait_seconds'] ?? 20)));
         $scans  = new WorkerScans($store, $store, $scanStore, $blobs, $audit, (int) $config['lease_seconds']);
         return new GatewayApp($auth, $client, $worker, $mcp, new OAuthServer($settings, $oauth, $audit, $clock),
                               $maxBody, $settings->challenge(), (int) $config['max_result_body'], $scans, (int) $config['max_blob']);
