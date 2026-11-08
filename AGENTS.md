@@ -8,12 +8,19 @@
 - Avoid long explanations, repeated conclusions, and unnecessary formatting.
 - Use plain language. Explain technical terms only when they are necessary.
 
+## Current handoff
+
+`HANDOFF.md` in this directory is the current checkpoint: what the last shift
+changed, what was actually verified (as opposed to merely tested), the
+three-machine Git status, and the exact next action. Read it before starting
+work, and update it before finishing.
+
 ## Repository overview
 
 This workspace collects small, mostly independent experiments around agent
-systems. The root directory is a Git repository on `master`, and it also
-contains ignored nested Git repositories under `catherine_agent_sdk/` and
-`spa_documentation/`.
+systems. The root directory is a Git repository on `main` -- older revisions of
+this file said `master`. It also contains ignored nested Git repositories under
+`catherine_agent_sdk/` and `spa_documentation/`.
 
 The main areas are:
 

@@ -6,7 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A scratch/experiment workspace of independent "agent blocks" — small Python
 projects plus a set of agent system prompts. The workspace root is a Git
-repository on `master`. `catherine_agent_sdk/` and `spa_documentation/` are
+repository on `main` (earlier revisions of this file said `master`).
+`catherine_agent_sdk/` and `spa_documentation/` are
 ignored nested Git repositories with their own histories; `claude_agent/` and
 `prompt_templates/` are also standalone nested Git repositories but are
 currently untracked (not yet added to `.gitignore`) rather than ignored —
@@ -77,6 +78,15 @@ The top-level areas are:
   applies only if every suite stays green. Its runs land in the gitignored
   `adws/adw_data/mechanic/`; see
   `lancedb_memory/receptionist_team/agents/toyota_mechanic/README.md`.
+  `adws/browser_control/` is Browser Control, the operations ChatGPT and Toyota
+  reach over the Star Trek Bridge: open/navigate/read/click/tabs plus the three
+  form operations (`form_controls`, `select_option`, `fill`), each one an
+  `Operation` over an injected `ControlPlane`, driving Windows Chrome through
+  `adws/cdp_browser/` (DevTools, no WebDriver). Read
+  `agent_bridge/docs/BROWSER_CONTROL.md` before changing it -- it holds the
+  environment table, the failure causes, and which rows are verified end to end
+  rather than only unit-tested. The agent-facing loop is the
+  `browser-form-control` skill.
   `adws/browser_workflows/` is the click recorder and playback engine
   (read its `DESIGN.md` first). An MV3 extension (`chrome_extension/`,
   loaded unpacked from `%LOCALAPPDATA%\adw-browser-recorder` via

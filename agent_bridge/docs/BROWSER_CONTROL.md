@@ -1,7 +1,10 @@
 # Browser Control (ADW) -- ChatGPT and Toyota drive a browser on the Windows desktop
 
-Status: implemented and verified locally 2026-11-07. **Not yet registered on the production gateway** and
-**not enabled on the live worker** -- both are deploy steps (below).
+Status (2026-11-07, checked by the runs quoted below): **registered on the production gateway, enabled on the
+live worker, deployed, and verified end to end through ChatGPT's own MCP connector.** Earlier revisions of this
+file said "not yet registered / not enabled" -- that is out of date: `bridge.php` on the host carries the
+`browser` agent, `~/.config/startrek_browser/enabled` exists on this box, and the form operations went out on
+2026-11-07 (deploy step 4). **Toyota has not been verified against the form operations** -- see Verification state.
 
 ## What exists, what was reused
 
@@ -84,14 +87,19 @@ Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `l
 `value`, `limit`, `confirm`. (On the ADW command line a two-word flag is spelled with a dash: `--option-text`.)
 A task succeeds only if the ADW verified the operation (`details.verified`); the answer carries `details.adw_id`.
 
-## Deploy steps (not done)
+## Deploy steps (1, 2 and 4 done; 3 is a follow-up)
 
 1. **Gateway** (`bridge.php` on the host, then `php bin/migrate.php` to re-seed the registry; back up first as in
    DEPLOY.md). Add to `agents`:
    `['name' => 'browser', 'display_name' => 'Browser Control', 'description' => 'Opens and drives Chrome on EG\'s Windows desktop; every action is an ADW run.', 'operations' => ['inspect', 'implement'], 'workspaces' => ['browser'], 'write_workspaces' => ['browser']]`
    `implement` must be allowed for the client token, as for Notes.
-2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. (Off until then.)
-3. Toyota: no code needed for reading status; a Toyota plan like `notes_plans.py` is a follow-up.
+   **Done** (commit `0c54c81` shift): `grep -n "'browser'" ~/agent_bridge_data/bridge.php` on the host answers at
+   line 219 with `inspect`/`implement` and workspace `browser`.
+2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. **Done** -- that
+   file exists (created 2026-11-07 17:01) and `systemctl --user is-active agent-bridge-worker` says `active`.
+3. Toyota: **still a follow-up, and the one real gap.** No code is needed for her to read status, but no
+   Toyota plan routes a form request to these operations and nobody has driven a form through her. A Toyota plan
+   shaped like `lancedb_memory/receptionist_team/.../notes_plans.py` is the next piece of work.
 4. **The form operations: deployed 2026-11-07 with EG's approval.** They needed no registry or config change --
    the tools are code. What was done: the live `src/BrowserTools.php` and `src/McpEndpoint.php` were copied to
    `~/agent_bridge_backups/<timestamp>/` first, then those two files and `tests/browser_tests.php` were scp'd to
@@ -106,9 +114,21 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
 
 ## Tests
 
-`cd adws && ../lancedb_memory/.venv/bin/python -m pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py`
-(85 + 7), and `cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent` (21), and
-`cd agent_bridge/gateway && php tests/run_tests.php` (118).
+All three re-run green on 2026-11-07 (20:48 EST, DESKTOP-2OBSQMC):
+
+```bash
+cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp \
+    pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py      # 92 passed (85 + 7)
+cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent   # 21 passed
+cd agent_bridge/gateway && php tests/run_tests.php                          # 118 passed, 0 failed
+```
+
+`lancedb_memory/.venv` has **no pytest**, so the older spelling
+(`../lancedb_memory/.venv/bin/python -m pytest`) fails with `No module named pytest`. Use the `uv run` line above
+for the `adws` suites; the worker suite is a plain script and does run under that venv.
+
+These numbers say the rules are right. They say nothing about whether a form on a real site works -- that is the
+Verification state section.
 
 ## Chrome only; host requirements (2026-11-07 fix)
 
@@ -217,3 +237,82 @@ by tests at the CDP boundary (`cdp_browser/tests/test_cdp_unit.py`) rather than 
 
 Skill: `.claude/skills/browser-form-control/SKILL.md` -- the inspect -> select -> fill -> submit -> read loop, the
 cause table, and the never-list. It calls these ADWs; it does not reach past them.
+
+## Environment (checked 2026-11-07, 20:47 EST)
+
+Facts below were read off the machines, not remembered. Re-check the dated ones before trusting them.
+
+| Piece | Where it actually is |
+|---|---|
+| Development checkout (source of truth) | `DESKTOP-2OBSQMC`, WSL2 `Ubuntu-26.04`, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`, remote `git@github.com:EGAdams/agent_blocks.git` |
+| Gateway (deployed mirror) | shared host `tinman72@americansjewelry.com` **port 2222**, `~/agent_bridge/gateway/` (outside any docroot). Public base `https://bridge.americansjewelry.com/api/agent-bridge/v1`, MCP at `/mcp` |
+| Gateway config + registry | `/home1/tinman72/agent_bridge_data/bridge.php` -- **not in this repo**; `gateway/config/bridge.example.php` is only a template. Re-seed with `php bin/migrate.php` after editing |
+| Gateway backups | `/home1/tinman72/agent_bridge_backups/<label-or-timestamp>/`; the form-operations one is `browser_tools_20261108T001059Z` |
+| Worker | this box, systemd **user** unit `agent-bridge-worker` running `lancedb_memory/agent_bridge_worker/adw_bridge_worker.py --watch`. Enable flag `~/.config/startrek_browser/enabled` |
+| Browser | **Windows** Chrome (not WSL), debug port **9222** on Windows' `127.0.0.1`, profile `%LOCALAPPDATA%\adw-chrome-debug` of the signed-in user |
+| `localhost` | ambiguous here, and it has cost hours. WSL loopback != Windows loopback. Port 9222 is Windows'; it is reachable from WSL only with `networkingMode=mirrored` in `.wslconfig` |
+| Dashboard (the-factory) | this box, `:8765` (speech endpoints `POST /api/voice`, `POST /api/tts`) |
+| Other local ports seen listening | 8766, 8767-8772 (receptionist/Cashy sidecars; Cashy `:8770`), 8787, 8789, 8790 Object Debugger, 8791 `mcp-proxy`, 8792 Factory Ops. None were touched by this work |
+| Credentials | gateway client token and DB creds live in `bridge.php` on the host and in this box's environment/`.env` files. **Never copied into docs.** SSH to the host is key-based on port 2222 |
+
+Commands that matter:
+
+```bash
+systemctl --user restart agent-bridge-worker        # after any worker-side change
+systemctl --user is-active agent-bridge-worker      # "active" is necessary, not sufficient -- see below
+journalctl --user -u agent-bridge-worker -n 50      # why a task sat in the queue
+ssh -p 2222 tinman72@americansjewelry.com 'cd ~/agent_bridge/gateway && php tests/run_tests.php'
+# rollback of the form-operations deploy: copy src/BrowserTools.php and src/McpEndpoint.php
+# back out of ~/agent_bridge_backups/browser_tools_20261108T001059Z/ -- nothing else on the host changed.
+```
+
+Source vs deployed: the repo copy is the source of truth; the host copy is the mirror. They are **the same bytes
+today** -- `md5sum` of `src/BrowserTools.php` (`a69abac0982329d9879e5f887108629d`) and `src/McpEndpoint.php`
+(`266b2d7c61de81d5b0ca4f4ba1a2e861`) match on both sides, checked 2026-11-07. Compare them again before assuming
+a fix is live. The worker runs straight out of the checkout, so for it "deployed" means committed **and** restarted.
+
+## Verification state -- what was demonstrated, and what only passes tests
+
+| Capability | Planned | Implemented | Tested locally | Deployed | Verified end to end |
+|---|---|---|---|---|---|
+| `form_controls` | yes | yes | 92 adws / 21 worker / 118 gateway | 2026-11-07 | **yes, via ChatGPT's MCP connector** -- task `t_e584e40c5345f2257fa294ea`, adw `bf9a03f4`, `verified: true` |
+| `select_option`, native `<select>` | yes | yes | yes | 2026-11-07 | yes, via the ADW on `aca-prod.accela.com/LARA/Cap/CapHome.aspx?module=OLSR` (adw `7d9c36b1`); Record Type = PLAT Records, confirmed by a second `form_controls` run |
+| `select_option`, site-drawn combobox | yes | yes | yes | 2026-11-07 | **yes, via the MCP connector** -- task `t_a48c153161dfea200262b2af`, adw `3c3a7b8a`, "Chose 'Apple' ... it now shows 'Apple'". Also via the ADW on the W3C APG example (adw `709c1901`) |
+| `fill`, ordinary text field | yes | yes | yes | 2026-11-07 | yes, via the ADW (adw `0fb57906`), and the full Accela loop ended in `read` returning eight records |
+| `fill`, field with its own format or mask (date, `maxlength`, reformatting) | yes | yes | yes, at the CDP boundary (`cdp_browser/tests/test_cdp_unit.py`) | 2026-11-07 | **no.** No live run exists. No public https page with a native `<input type=date>` outside an iframe was found, and `checked_url` forbids `file:`/`data:`, so no page could be authored for it |
+| Toyota driving a form | yes | -- | -- | -- | **no.** Deploy step 3. She has no plan that routes to these operations |
+| A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
+| A file chooser | n/a | refused on purpose | yes | -- | same |
+
+What the green suites do **not** prove: that a form on a real site works. A passing test, a queued task, and an
+`active` worker are three different things from a visible, correct result in the page. Only the rows above marked
+"verified end to end" were actually driven through the real connector or the real ADW into the real Chrome.
+
+ChatGPT and Toyota are tracked separately on purpose: ChatGPT is verified, Toyota is not.
+ChatGPT must refresh its connector to see `browser_form_controls`, `browser_select_option` and `browser_fill` --
+the gateway already serves them (`tools/list` returned **35** tools on 2026-11-07). If ChatGPT says it has no
+browser tools, that refresh is the first thing to check, not the gateway.
+
+## Telling failures apart (the distinctions that have wasted time)
+
+| Symptom | What it is **not** | How to tell |
+|---|---|---|
+| A task never answers | not necessarily worker failure | it may be **queued behind a busy worker**. `journalctl --user -u agent-bridge-worker` shows the one it is on. `browser_get_result` with the task id is the right follow-up, not a second submit |
+| The local queue looks empty | not proof the gateway queue is | they are two different stores: the gateway's DB on the host, and this box's post office. Check both before saying a task vanished |
+| `is-active` says `active` | not proof the agent is reachable | the enable flag, the gateway registry entry, and the client token's scope are three more gates. A tool simply does not appear in `tools/list` if any of them is shut |
+| "control port never answered" | not a timeout to raise | two host causes, both diagnosed by `browser_control/link.py`: WSL interop has no working socket for a systemd service (`accept4 failed 110`, so `chrome.exe` never started), or WSL is in NAT mode and cannot reach Windows' 127.0.0.1:9222 at all. More waiting never fixes either |
+| Every check passed and nobody saw a window | not success | Chrome opened in Windows **session 0**, the hidden services desktop. That is why `browser.open` has a separate `browser_visibility` phase and the `hidden_session` cause |
+| `form_controls` shows a stale page | not a selector problem | the tab may have navigated or posted back. Run `form_controls` again; take selectors only from the latest run. A **guessed selector** is the commonest cause of a failed form step |
+| `no_options_shown` | not an empty list | a combobox that filters as you type: `fill` it first, then `select_option` |
+| A health or quota figure you could not read | not zero and not healthy | report it **unknown** |
+
+Trace for any run: the ADW id is the execution id. `adw.run:<id>` and `adw.phase:<id>:browser_<op>` are in the
+object trace (Object Debugger `recent` / `task`, `:8790`), and arguments plus result are in the SSSF lifecycle log
+`adws/adw_data/sssf.db` (`just phases <id>`). A refusal records its `cause` there, so a failed form step is
+reconstructable afterwards without re-running it.
+
+Monitoring coverage, stated honestly: each bridge call waits up to `browser_wait_seconds` (default 20) and then
+hands back `ready=false` plus the task id -- that is the whole timeout story; there are no retries and no progress
+events during a run. **No escalation threshold is configured for a failed or stuck browser task**, and none has
+been verified. Next action if that matters: raise it through `lancedb_memory/agent_comms`' alert path, the same way
+a failed post-office task already alerts its caller.

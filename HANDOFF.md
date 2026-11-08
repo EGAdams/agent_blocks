@@ -1,4 +1,149 @@
-# Handoff — Permanent Object Debugger Bridge Agent
+# Handoff — current checkpoint
+
+**Shift:** Claude (Opus 5), ending 2026-11-07 ~20:50 EST
+**Box:** `DESKTOP-2OBSQMC`, WSL2 Ubuntu-26.04, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`
+**Next reader:** Codex / ChatGPT / Claude / Toyota — read `AGENTS.md` first, then this, then the report it points at.
+
+## Objective and acceptance
+
+"Fix Star Trek Bridge browser controls — dropdowns and form fields," so **ChatGPT can operate website forms
+through traceable ADWs.** Accepted when ChatGPT, through its own connector, can list a page's form controls,
+set a dropdown, type into a field, submit with the page's own button, and read the result back — with every
+step an ADW run that has an id, a lifecycle log and an object trace, and with passwords and file choosers
+refused rather than worked around.
+
+## What changed, and what was actually demonstrated
+
+Three new operations (`browser.form_controls`, `browser.select_option`, `browser.fill`) plus three closed gaps:
+a dropdown the **site draws itself** (open it, click the item), a field that **takes no typed keys** (a date or
+masked input, told its value through the prototype setter so a framework notices), and a field that
+**reformats** what it is given (now a success with a note, not a mismatch). Two refusals stayed refusals on
+purpose: credential fields and file choosers.
+
+The full report — reused parts, the two opposite kinds of dropdown, every failure `cause`, the safety rules, the
+environment table, and a row-by-row planned → implemented → tested → deployed → **verified end to end** ladder —
+is **[`agent_bridge/docs/BROWSER_CONTROL.md`](agent_bridge/docs/BROWSER_CONTROL.md)**. Read that before changing
+any of it. The agent-facing loop is `.claude/skills/browser-form-control/SKILL.md`.
+
+Verified 2026-11-07, re-checked while writing this:
+
+- Suites green: `adws` **92** (`uv run ... pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py`;
+  note `lancedb_memory/.venv` has no pytest), worker **21**, gateway **118 passed, 0 failed** — locally **and**
+  on the host.
+- Deployed to the gateway host with a backup first (`~/agent_bridge_backups/browser_tools_20261108T001059Z/`);
+  `md5sum` of the two PHP files is identical on both sides today; `php -l` clean under ea-php83; worker restarted
+  and `active`.
+- **End to end through ChatGPT's real MCP connector:** `tools/list` → 35 tools including the three new ones;
+  `browser_form_controls` (task `t_e584e40c5345f2257fa294ea`, adw `bf9a03f4`) and `browser_select_option` on a
+  site-drawn combobox (task `t_a48c153161dfea200262b2af`, adw `3c3a7b8a`) both `verified: true`.
+
+Not demonstrated, and not to be claimed:
+
+- **Toyota has never driven a form.** She needs a plan that routes a form request to these operations
+  (deploy step 3, shaped like her `notes_plans.py`). ChatGPT and Toyota are tracked separately for this reason.
+- **No live run of a date / masked / `maxlength` field.** Covered only by CDP-boundary unit tests; no public
+  https page with a native `<input type=date>` outside an iframe was found, and `checked_url` forbids
+  `file:`/`data:` so one could not be authored.
+- **ChatGPT must refresh its connector** to see the three tools. The server already serves them. Nothing else is
+  pending on our side.
+- **No escalation threshold** is configured for a stuck or failed browser task — each call just returns
+  `ready=false` and a task id after `browser_wait_seconds` (default 20). Gap recorded in the report with the
+  next action.
+
+## Git synchronization (checked 2026-11-07, 20:48–20:52 EST)
+
+Repo: `agent_blocks`, intended branch `main`, intended remote commit **`938b1e5`**.
+
+| Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
+|---|---|---|---|---|---|---|---|
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `938b1e5` | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | `938b1e5` | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:48 EST |
+| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38` | not read | `0c54c81` | **2 behind** (`24b5286`, `938b1e5` missing) | **not read** | 20:50 EST |
+
+**Rosemary46 is not synchronized.** One read succeeded, then sshd went away: `Connection refused`, then
+`Connection timed out` on three retries. Recovery, when it is up:
+`ssh -p 22 adamsl@100.72.34.38 'cd ~/agent_blocks && git status --short && git fetch origin && git rev-list --left-right --count origin/main...HEAD && git pull --ff-only origin main'` —
+check the branch and the dirty list **before** pulling; it is two commits behind and its working tree is unknown.
+
+Also note: `ssh desktop-shdbati` by **name** fails with `Host key verification failed` from this box (a stale or
+conflicting `known_hosts` entry). The tailscale IP `100.80.49.10` works. Do not blindly delete the entry — that
+mismatch has not been explained yet.
+
+Gateway host is **not** a git checkout: it is a file mirror, synchronized by `scp` with a backup first. Git alone
+never deploys it. Databases, agent memory and credentials are likewise outside git — `bridge.php` on the host,
+the LanceDB stores, `adws/adw_data/*.db`, and the gitignored spreadsheet and mechanic run directories. Pushing
+commits preserves none of those.
+
+## Where this sits among the other projects
+
+Owners, so a change lands in the right repo:
+
+- **Star Trek Bridge** — gateway PHP in `agent_bridge/gateway/` (this repo, mirrored to the host); worker and
+  agent cards in `lancedb_memory/agent_bridge_worker/` + `lancedb_memory/agent_comms/`. Data flow:
+  ChatGPT → MCP `/mcp` → gateway → task row → worker (`--watch`) → `BrowserAgent` → `UvBrowserCommands` →
+  `adws/adw_browser_control.py` → CDP → Windows Chrome → verified result back up the same path.
+- **ADWs** — `adws/`. `adw_modules/` is shared and **not edited from here**. Browser Control is
+  `adws/browser_control/` over `adws/cdp_browser/`; the click recorder/playback is `adws/browser_workflows/`;
+  Cashy (bank navigation) is `adws/cashy/`. Each reads its own `DESIGN.md` first.
+- **the-factory dashboard / Notes / Worker Activity** — `/home/adamsl/the-factory` and
+  `/home/adamsl/letta-code/dashboard`, served on `:8765` on this box. Browser Control only *drives* it
+  (`browser.dashboard_notes`); it does not own it. **Notes reading, editing, saving, refreshing and persistence
+  were not exercised this shift** — `browser.dashboard_notes` proves only that the tab opens and NOTES is showing.
+- **Object Debugger** — `lancedb_memory/object_trace/`, HTTP on `:8790`. Every ADW run above is traceable there.
+- **Machine Ops / Factory Ops** — `:8792`, independent of the Bridge. Untouched.
+- **Supervisors / watchdogs** — runbook `/home/adamsl/letta-code/dashboard/docs/adw-supervisor.md`.
+- **Toyota / Receptionist, Mazda** — `lancedb_memory/receptionist_team/`. Toyota is the consumer that still has
+  no route to the form operations.
+- **Agent creation and maintenance** — `adws/adw_toyota_mechanic.py` + guard; runs land in
+  `adws/adw_data/mechanic/` (gitignored).
+- **Nonprofit finances, receipts, bank reconciliation, tax, probate** — `/home/adamsl/rol_finances` and the
+  `nonprofit_finance` MySQL books, read-only through `ReadOnlyBooks`. Generated sheets in
+  `adws/adw_data/spreadsheets/` (gitignored: regenerable, and real medical and payroll rows). Nothing in this
+  shift touched them, and **no deed or business document was modified.**
+- **Scanners / printers** — reached through the post office's cards, owned elsewhere.
+- **Raspberry Pi / HUB75 scoreboards** — separate product checkouts; see the
+  `scoreboard-checkout-migration` skill. Unrelated to this work.
+
+Treat that list as a map, not a claim that every link is finished.
+
+## Engineering decisions worth keeping
+
+- **Every user-facing automated action is an ADW**, including the simple ones, so it has an id, a lifecycle log
+  and an object trace. The skill invokes the ADWs; it never reaches past them into Selenium, Playwright, or
+  screenshot-and-guess.
+- **One class per rule, one per operation.** A new operation is a class plus a line in `catalog.ORDER`; a new way
+  of finding an element is a `register()` call, not an edit. Written against `I`-prefixed `Protocol`s
+  (say "interface", never "port"); Pydantic models for data crossing a boundary; the composition root is the only
+  place that names concretes.
+- **Chrome only**, on the Windows desktop, over CDP — no WebDriver. A window opened any other way has no debug
+  port and cannot be steered.
+- **Reuse before building.** `browser_session`, `browser_workflows`' resolver and consequence classifier,
+  `browser_workflow_adw`, and the existing gateway/worker/policy path were all reused unchanged;
+  `browser_workflows`' default strategy registry was deliberately left alone so the recorder keeps working.
+- **Verified means read back.** A step answers `verified: true` only when the ADW re-read the thing it claims,
+  and the worker treats `ok` with `verified: false` as a failure. A submitted form is never a result.
+- **Agents get no approvals and no secrets.** A consequential click needs `confirm` and EG's say-so in the
+  conversation; a password step stops. Both ChatGPT and Toyota must be able to use the Bridge — that constraint
+  stays.
+- **EG's working preferences:** commit and push straight to `main`, no branches; short, direct answers; avoid the
+  words "idempotent", "fail-closed", "canonical"; keep hands-free workflows working; don't re-ask for permission
+  already given.
+
+## Next actions, in order
+
+1. **ChatGPT:** refresh the connector. (EG's, not an agent's.)
+2. **Rosemary46:** fast-forward `~/agent_blocks` once it answers ssh — command above.
+3. **Toyota:** give her a plan that routes a form request to `browser.form_controls` / `select_option` / `fill`
+   (deploy step 3 in the report), then verify her path separately from ChatGPT's.
+4. Optional: a live date-field run, if a suitable https page turns up; and an escalation threshold for a stuck
+   browser task.
+
+No decision or permission is outstanding. Commit and deploy were authorized in the session that did them
+(`24b5286` the work, `938b1e5` the deploy record, plus this documentation commit).
+
+---
+
+# Earlier handoff — Permanent Object Debugger Bridge Agent
 
 **From:** Claude (Sonnet 5) shift ending 2026-11-06
 **To:** next shift (Codex, reads `AGENTS.md`)
