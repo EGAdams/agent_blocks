@@ -41,6 +41,65 @@ Toyota's system prompt plus `LIVE_CAPABILITIES` is 13341 characters against a 12
 over at 13002 before this work; `bridge_chatgpt`'s roster blurb added 339. The ceiling is real (Groq's 8000
 tokens *per minute*), so the fix is trimming her prompt, which is its own job.
 
+## browser.download — now works from the Bridge worker, not only from a shell (2026-11-08)
+
+**Objective:** EG said "we need downloads to work for sure. fix that and anything else. Also deploy after
+that fix," then redirected the design to a **dedicated download ADW** rather than overloading `browser.click`.
+
+**What changed, as its own operation (`adws/browser_control/downloads.py`, `browser.download` /
+`browser_download` / `adws/adw_browser_download.py`):** `browser.click` now refuses a link that saves a file
+and names `browser.download` instead (`use_instead`, `saves_file` in the refusal) -- so the other thirteen
+operations never gain the power to write files to EG's disk.
+
+**Three real causes, found only by comparing a systemd user service's environment against a login shell's --
+invisible to every offline test:**
+
+1. **No Windows PATH inside `agent-bridge-worker.service`** -- `shutil.which("cmd.exe")` was `None`. Fixed by
+   `CMD_EXE_PATHS` naming where cmd.exe lives on any Windows install (`adws/browser_workflows/playback/download_directory.py`).
+2. **No `WSL_INTEROP`** -- WSL hands each *login shell* its own interop socket; a systemd user service has
+   none, so cmd.exe exited 1. Attaching to an already-open tab is plain HTTP and needs no interop, so nothing
+   had called `WslInteropLink.ensure()` on that path. Fixed: `Download.perform` now calls
+   `self._plane.link.ensure()` before resolving the folder (`adws/browser_control/downloads.py`), the same
+   check `browser.open` already does before launching; `download_directory.py` keeps a simpler
+   `/run/WSL/1_interop` fallback (`interop_environment()`) for callers with no `WslInteropLink` (Cashy, playback).
+3. **Chrome overwrites a same-named download** instead of adding "(1)" -- so a repeat download left the folder
+   looking unchanged and was honestly reported as "no file arrived" over a file that actually landed. Fixed:
+   `FolderDownloadWatcher` in `adws/browser_workflows/playback/downloads.py` now snapshots a `stamp()` (name +
+   size + mtime) per file instead of a bare name, and a file counts as finished only once its stamp stops
+   moving for one poll -- so a truncated in-place rewrite is never handed back as the download.
+
+**Tested:** 9 new tests added (`browser_workflows/tests/test_downloads.py`, `browser_control/tests/test_downloads.py`,
+plus a `FakeLink.ensured` call counter in `test_operations.py`). Full suites green: `browser_control` +
+`cdp_browser` 115 passed/2 skipped, `browser_workflows` 117/5, `cashy` 37/3, `agent_bridge_worker` +
+`receptionist_team` bridge-browser route 228, gateway PHP 132/0.
+
+**Deployed and verified end to end through the live gateway**, not only locally: the local re-download of an
+already-present file (the overwrite case) reported `Saved python-3.15-docs-text.zip (4757.7 KB) to
+C:\Users\NewUser\Downloads\BrowserRecorder.` (adw `05ec5aa7`), and the same request through the Bridge --
+task `t_1e691faa592d251616670096`, adw `8255e094` -- came back `state: succeeded`, `ok: true`, `verified: true`,
+4,871,863 bytes, head `504b03040a000000`. `tools/list` on the live gateway now shows 45 tools, 15 of them
+`browser_*`, including `browser_download`.
+
+Docs updated to match: `agent_bridge/docs/BROWSER_CONTROL.md` (verification rows + the three causes),
+`agent_bridge/docs/DEPLOY.md` (new "2026-11-08 -- the ChatGPT relay and browser downloads" entry, with the
+backup path and host test counts), `.claude/skills/browser-form-control/SKILL.md` (download example section).
+
+**Not yet done, flagged rather than performed:** host cleanup of `~/deploy_20261108_src/`,
+`~/deploy_20261108_tests/` and `~/agent_bridge/gateway.old_20261108` (the real backup,
+`~/agent_bridge_backups/pre_relay_download_20261108_084900`, stays). Two things EG should know: `poll_settings.json`
+now has `active_hours: null`, so workers poll round the clock (~1440 GETs/day vs. ~900), narrowable from the
+dashboard's Poll Settings tab; and a 4.8 MB test zip is sitting in `C:\Users\NewUser\Downloads\BrowserRecorder`
+from these runs.
+
+**Still not verified -- do not call it so:** neither ChatGPT's nine `chatgpt_*` relay tools nor Toyota's
+`bridge_chatgpt` route has carried a real message. The Michigan `.tif` still cannot be the first live
+`browser.download` run -- Accela's attachments panel is empty for an anonymous session, so EG has to sign in
+first (see below); the probate deed is untouched.
+
+Committed and pushed to `main`: `18eb6f6` (the operation) and `97d30b1` (the Bridge-worker fix). Three
+pre-existing dirty paths were left alone on purpose, as before: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`,
+`adws/adw_interface_browser_open.py`, `catherine_agent_sdk`.
+
 ## Michigan plat diagnostic — the "More Details" ambiguity, and the empty attachment list
 
 The work order: ChatGPT could read the Accela OLSR record `PLATS-38123` ("FRALICK'S ADD.") through the Bridge but
@@ -178,24 +237,26 @@ Not demonstrated, and not to be claimed:
   `ready=false` and a task id after `browser_wait_seconds` (default 20). Gap recorded in the report with the
   next action.
 
-## Git synchronization (re-checked 2026-11-07, 23:30–23:40 EST)
+## Git synchronization (re-checked 2026-11-08, end of this shift)
 
 Repo: `agent_blocks`, intended branch `main`, intended remote commit **the tip of `origin/main`**. Hashes in the
-table below were true at the times given and go stale the moment they are written -- re-run
+table below were true at the time given and go stale the moment they are written -- re-run
 `git fetch origin && git rev-list --left-right --count origin/main...HEAD` on each machine rather than trusting
 one of them.
 
 | Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
 |---|---|---|---|---|---|---|---|
-| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `ea4d1ca` | **level, pushed** | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 23:38 EST |
-| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `/home/adamsl/agent_blocks`, WSL on that box | `main` | `d5c8f9f` | **2 behind** (`a0afda6`, `ea4d1ca`) — **pending checkout, not synchronized** | clean | 23:35 EST |
-| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222** | `main` | `d5c8f9f` | **2 behind** (same two) — **pending checkout, not synchronized** | clean | 23:37 EST |
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `97d30b1` | **level, pushed** | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | this shift |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `/home/adamsl/agent_blocks`, WSL on that box, reached via `ssh desktop-shdbati` | `main` | `d5c8f9f` | **13 behind** -- **pending checkout, not synchronized** | clean | this shift |
+| `Rosemary46` (Mom's) | -- | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222**, reached via `ssh 100.72.34.38` (the `rosemary46-24` alias refused on port 22 -- use the `100.72.34.38` host block, which already carries `Port 2222`) | `main` | `d5c8f9f` | **13 behind** -- **pending checkout, not synchronized** | clean | this shift |
 
-**Verified vs pending, stated plainly.** EG's box is verified level with `origin/main` and pushed. Both other
-machines were **reached and read this shift** — their branch, HEAD and dirty count are measured, not assumed —
-and both are **two commits behind**; nothing was pulled on them, so they are pending checkouts, not synchronized
-ones. `git -C ~/agent_blocks pull --ff-only` on each closes it. Nothing is running out of either checkout that
-this shift's commits affect, so being behind is not currently breaking anything.
+**Verified vs pending, stated plainly.** EG's box is verified level with `origin/main` and pushed (`97d30b1`).
+Both other machines were **reached and read this shift** -- their branch, HEAD and dirty count are measured,
+not assumed -- and both are now **13 commits behind** (up from 2 at the last check: the ChatGPT-relay work,
+the Accela frame-reading fix, and this shift's `browser.download` work all landed since). Nothing was pulled
+on them. `git -C ~/agent_blocks pull --ff-only` on each closes it. Nothing is running out of either checkout
+that these commits affect, so being behind is not currently breaking anything -- but it is growing, not
+shrinking, and should be pulled rather than left for a future shift to re-discover.
 
 Two things about reaching them:
 **Rosemary46's sshd listens on 2222**, which `~/.ssh/config` records for `100.72.34.38` — port 22 there is
@@ -275,18 +336,24 @@ Treat that list as a map, not a claim that every link is finished.
 
 ## Next actions, in order
 
-1. **ChatGPT:** refresh the connector. (EG's, not an agent's.)
-2. **Toyota:** drive one form through her for real — ask her for the page's controls, set a dropdown, type a
-   field, press the page's own search button, read the results — and only then mark her row verified. Her code
-   and tests are done; what is missing is the live run.
-3. Optional: a live date-field run, if a suitable https page turns up; and an escalation threshold for a stuck
-   browser task.
-4. Open question for EG, not changed on his behalf: every `implement` step of hers is still read back and waits
+1. **EG:** sign in to Accela before the Michigan plat `.tif` can be attempted -- the attachments panel is
+   genuinely empty for an anonymous session on all 10 surveyed OLSR records, so this is not something an agent
+   can work around.
+2. **EG, optional:** pull `main` on `desktop-shdbati` and `Rosemary46` (`git -C ~/agent_blocks pull --ff-only`)
+   -- both are 13 commits behind and clean, so a fast-forward is safe; and decide whether to delete the host
+   leftovers named above (`~/deploy_20261108_src/`, `~/deploy_20261108_tests/`, `~/agent_bridge/gateway.old_20261108`).
+3. **ChatGPT:** refresh the connector to see `browser_download` and the `chatgpt_*` relay tools, then send one
+   real message through the relay -- that is the one thing still needed to call either relay door verified.
+4. **Toyota:** one live run each through `bridge_browser` (a form, start to finish) and `bridge_chatgpt` (one
+   message) -- her code and tests are done for both; what is missing is the live run.
+5. Open question for EG, not changed on his behalf: every `implement` step of hers is still read back and waits
    for a spoken yes, so a form is one yes per field. That protection was kept rather than relaxed for the form
    loop; say the word if you want the loop hands-free.
 
-No decision or permission is outstanding. Commit and deploy were authorized in the session that did them
-(`24b5286` the work, `938b1e5` the deploy record, plus this documentation commit).
+No decision or permission is outstanding on completed work. Commit and deploy for the download fix were
+authorized by "we need downloads to work for sure. fix that and anything else. Also deploy after that fix,"
+and done in this session (`18eb6f6`, `97d30b1`, plus this documentation update). The relay's gateway deploy
+was authorized and done in the prior session of this same shift.
 
 ---
 
