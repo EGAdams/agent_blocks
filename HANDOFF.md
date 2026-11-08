@@ -1,8 +1,95 @@
 # Handoff — current checkpoint
 
-**Shift:** Claude (Opus 5), ending 2026-11-07 ~20:50 EST
+**Shift:** Claude (Opus 5), ending 2026-11-07 ~23:40 EST
 **Box:** `DESKTOP-2OBSQMC`, WSL2 Ubuntu-26.04, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`
 **Next reader:** Codex / ChatGPT / Claude / Toyota — read `AGENTS.md` first, then this, then the report it points at.
+
+## Michigan plat diagnostic — the "More Details" ambiguity, and the empty attachment list
+
+The work order: ChatGPT could read the Accela OLSR record `PLATS-38123` ("FRALICK'S ADD.") through the Bridge but
+could not press **More Details** ("ambiguous", three tasks spent on it), and a fresh read of **Attachments**
+returned upload rules and no filenames. Commit **`ea4d1ca`**.
+
+**Confirmed cause of the ambiguity.** The real control is **`a#lnkMoreDetail`** — an icon anchor with **empty
+text**, `title="Expand More Details"`, `href="javascript:void(0);"`, calling
+`ControlDisplay($get("TRMoreDetail"), $get("imgMoreDetail"), …)`. The visible words "More Details" belong to a
+*separate* `span#ctl00_PlaceHolderMain_PermitDetailList1_lblMoreDetail`. Twelve elements on the page contain that
+text and four match it exactly, so click-by-text can never resolve to one — and the one element that has to be
+pressed carries none of the text at all. Taking the first match would press a heading and report success.
+
+**Confirmed cause of the second failure.** `a:has-text('More Details')` is a **Playwright** selector, not CSS.
+`document.querySelectorAll` raises `SyntaxError`, and `CdpWorkflowBrowser.find()` catches `exceptionDetails` and
+returns `[]` — so an invalid selector is indistinguishable from "nothing matched". That is why it read as "none".
+
+**Confirmed cause of the invisibility.** `div#tab-record_detail.record-tab-content` was `display: none` — it is
+not the active tab panel. Every ancestor was 0×0, `body_text()` uses `innerText`, so the panel's 9,749 characters
+were unreadable, and the resolver rejects zero-size elements, so even a correct selector refuses until the panel
+is shown. The Record Details tab link itself lives in a `ul.dropdown-menu` with `display:none` under the visible
+`a[title="Record Info menu, press tab to expand"]` — a two-step: open the menu, then the tab.
+
+**What changed.** Two files, both in the existing ADW, no new mechanism:
+
+- `adws/browser_control/operations.py` — `Click.perform`'s refusal now appends a new `_targeting_hint`, which
+  reads the page's own `form_controls` and **names the candidates with their selectors**. `ambiguous`, `hidden`
+  and `zero_size` are the same mistake (the words name several things, or the thing is in the page but not on
+  it), so they get the same answer: run `browser.form_controls` and aim with the selector it reports. The loop
+  ChatGPT got stuck in was that the refusal said "ambiguous" and never said what to do next.
+- `adws/cdp_browser/forms.py` — `FORM_CONTROLS_JS`'s selector gained `a[onclick]`. Accela's "Record Details" tab
+  anchor has no id, so `form_controls` could not see it, which made the control that reveals a whole panel
+  impossible to find by any supported route. The pre-existing `acts` test still drops anchors that are only
+  navigation, and `cssFor` already emits `a[title="Record Details"]` for it.
+
+**Focused tests:** `cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp --with selenium pytest
+-q browser_control/tests cdp_browser/tests` → **95 passed, 2 skipped** (was 92/2). Three new tests cover the
+ambiguous path, the hidden path, and that a plain "found nothing" gets no targeting lecture.
+
+**Acceptance 1 — met, with ADW evidence.** Record Info menu (`aa19790c`) → Record Details (`7c690ef0`) →
+`#lnkMoreDetail` (`ed5fed1c`, `verified: true`); the toggler flipped to "Collapse More Details" and
+`TRMoreDetail` from `display:none` to `table-row`. Then `#lnkASI` (`b67a0748`), `#lnkParcelList` (`a659ef4f`),
+and `browser.read` (`bf686264`, 1080 chars) returned: **County KENT**, Subdivision **FRALICK'S ADD**, Section 31,
+Town 07N, Range 11W, Index Code 3372, **Number of Sheets 0**, "No parcel information".
+
+**Acceptance 2 — verified against the rendered page; this is NOT a Bridge limitation.** With `tab-attachments`
+active (`display:block`, class `show`, rect 1003×286, `ready: complete`, `pendingAjax: false`, no spinner), the
+panel holds only the section header, the upload rules and the upload widget. `attach.tables` was empty, `fileRows`
+was 0 page-wide, and the two links Accela renders when documents exist — `#lnkViewRecordDocument` and
+`#lnkViewPeopleDocument` — are both server-rendered with class `ACA_Hide` and `display:none`. Neither of the
+record's two Reports is a plat image.
+
+**Hypothesis, kept separate.** The session is **anonymous** (`#ctl00_HeaderNavigation_btnLogin` present, no
+logout, `$.global.isAdmin === false`). A survey of **10 distinct OLSR plat records** found the identical hidden
+state on every one. So the DOM **cannot distinguish** (a) the state attached no scans to these records from
+(b) ACA hides attachments from signed-out visitors. The decisive test is to sign in — **EG's step**: no agent
+here types a credential into a page.
+
+**Acceptance 3 — no plat image is reachable by this route, with negative evidence.** The MI_Plats ArcGIS
+ImageServer (`imagery.michigan.gov/server/rest/services/MI_Plats/ImageServer`) returned `features: []` for
+`UPPER(Name) LIKE '%FRALICK%'`, and for `%KENT%` only `kent_Rockford_Plat_1996.ers`. Official routes:
+**Kent County Register of Deeds**, 300 Monroe Ave NW, Grand Rapids, (616) 632-7610, online records back to
+30 Jan 1874 — that is where Liber 4 of Plats, Page 31 lives; and **LARA OLSR**, 517-241-6321 /
+bccolsr@michigan.gov. Note Michigan's own ACA Plat Data Search guide documents the download route as exactly
+"Record Info → Attachments" — the path that is empty here.
+
+**Acceptance 4 — the transport was never the defect.** "given:text=More Details: ambiguous" is the
+`RankedElementResolver`'s own message, so ChatGPT's connector reached the ADW correctly. Both workers are live:
+`agent-bridge-worker.service` and `agent-bridge-worker-express.service` active/running. **Toyota: still no live
+run** — her `bridge_browser` route remains implemented + 110 offline tests, tracked separately as before.
+
+**Acceptance 5 — partially resolved, and the deed stays untouched.** County **KENT** matches the deed;
+"FRALICK'S ADD" matches "FRALICK'S ADDITION"; Section 31 corroborates tax parcel 41-14-**31**-404-015. But the
+record states **no liber/page anywhere**, so **"Liber 4 of Plats, Page 31" is not confirmed** and PLATS-38123
+remains a *candidate* — the search returned **8 distinct Fralick plats** (PLATS-55826, 66207, 66208, 1698, 38123,
+38147, 37113, 47886). `~/notes/2026-11-03_draft-personal-representative-s-deed-of-distribution.md` was **read
+only**; its `[VERIFY: … "ACCORDING TO THE RECORDED PLAT THEREOF"]` highlight is deliberately left in place.
+
+**Remaining limitations.** (1) The sign-in question above. (2) `browser.click` on a record-number link reported
+`ok` with an empty `moved_to` and did not navigate (`7a540262`); those anchors are plain hrefs with no onclick and
+no target — worked around with `browser.navigate`, root cause not yet established (likely the element was out of
+view when the synthetic click was dispatched). (3) **Side effect to disclose:** tab 1's UI state changed — More
+Details, Application Information and Parcel Information are now expanded (the panel was returned to Attachments,
+its original active tab) — and tab 4, originally `about:blank`, now holds an Accela record page.
+
+## Previous checkpoint — Bridge browser form controls
 
 ## Objective and acceptance
 
@@ -54,25 +141,32 @@ Not demonstrated, and not to be claimed:
   `ready=false` and a task id after `browser_wait_seconds` (default 20). Gap recorded in the report with the
   next action.
 
-## Git synchronization (checked 2026-11-07, 20:48–20:52 EST)
+## Git synchronization (re-checked 2026-11-07, 23:30–23:40 EST)
 
-Repo: `agent_blocks`, intended branch `main`, intended remote commit **the tip of `origin/main`** -- the code is
-`24b5286`, the deploy record `938b1e5`, and the rest of the tip is this documentation. EG's box and
-`DESKTOP-SHDBATI` were both verified level with the tip, clean of drift, at the times in the table; re-run
-`git fetch origin && git rev-list --left-right --count origin/main...HEAD` rather than trusting a hash written here.
+Repo: `agent_blocks`, intended branch `main`, intended remote commit **the tip of `origin/main`**. Hashes in the
+table below were true at the times given and go stale the moment they are written -- re-run
+`git fetch origin && git rev-list --left-right --count origin/main...HEAD` on each machine rather than trusting
+one of them.
 
 | Machine | Role | Path / context | Branch | HEAD | vs `origin/main` | Dirty | Checked |
 |---|---|---|---|---|---|---|---|
-| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | tip | level, pushed | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 20:52 EST |
-| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `~/agent_blocks`, WSL on that box | `main` | tip | **level — fast-forwarded this shift from `7950cbe`, 23 behind** | clean | 20:53 EST |
-| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222** | `main` | tip (fast-forwarded `0c54c81..d5c8f9f`, 21 files, 2230 insertions) | level | clean | 2026-11-08 21:03 EST |
+| `DESKTOP-2OBSQMC` (EG) | development + bridge worker + debug Chrome | `/home/adamsl/agent_blocks`, WSL2 Ubuntu-26.04 | `main` | `ea4d1ca` | **level, pushed** | 3 **pre-existing, deliberately untouched** files: `adws/adw_data/mechanic_translator/mechanic_instruction.txt`, `adws/adw_interface_browser_open.py`, `catherine_agent_sdk` | 23:38 EST |
+| `DESKTOP-SHDBATI` (BATI Win10, Letta agents server) | Letta server + ChatGPT relay + maps tool | `/home/adamsl/agent_blocks`, WSL on that box | `main` | `d5c8f9f` | **2 behind** (`a0afda6`, `ea4d1ca`) — **pending checkout, not synchronized** | clean | 23:35 EST |
+| `Rosemary46` (Mom's) | — | `~/agent_blocks`, WSL at tailscale `100.72.34.38`, **sshd on port 2222** | `main` | `d5c8f9f` | **2 behind** (same two) — **pending checkout, not synchronized** | clean | 23:37 EST |
 
-**Rosemary46 is synchronized** (fast-forwarded this shift; nothing was running out of that checkout, and its
-branch, HEAD, remote distance and dirty count were read before pulling). Two things about reaching it:
-**its sshd listens on 2222**, which `~/.ssh/config` already records for `100.72.34.38` — port 22 there is
+**Verified vs pending, stated plainly.** EG's box is verified level with `origin/main` and pushed. Both other
+machines were **reached and read this shift** — their branch, HEAD and dirty count are measured, not assumed —
+and both are **two commits behind**; nothing was pulled on them, so they are pending checkouts, not synchronized
+ones. `git -C ~/agent_blocks pull --ff-only` on each closes it. Nothing is running out of either checkout that
+this shift's commits affect, so being behind is not currently breaking anything.
+
+Two things about reaching them:
+**Rosemary46's sshd listens on 2222**, which `~/.ssh/config` records for `100.72.34.38` — port 22 there is
 genuinely refused, so that is not a surprise default. And the first ssh after an idle period often times out
-while tailscale sets up a path; `tailscale ping -c 2 rosemary46-24` then retrying connects. Use a retry loop with
-a sentinel marker rather than treating one timeout as a dead host.
+while tailscale sets up a path — this shift `tailscale ping rosemary46-24` **timed out entirely** ("no reply")
+yet the second ssh attempt connected, so a failed tailscale ping is **not** evidence of a dead host. Use a retry
+loop with a sentinel marker. `desktop-shdbati` answered its ping over DERP (~60ms, no direct connection) and
+connected first try.
 
 `ssh desktop-shdbati` by **name** now works. The earlier `Host key verification failed` was *not* a stale or
 conflicting key: `ssh-keygen -F desktop-shdbati` (needed because `known_hosts` is hashed, so grep finds nothing)
