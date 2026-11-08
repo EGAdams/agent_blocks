@@ -57,6 +57,7 @@ caller's own credentials through `ClientTasks->submit`, so policy and client sco
 | `browser_open` / `browser_navigate` / `browser_click` / `browser_select_tab` / `browser_refresh` / `browser_close_tab` | open / navigate / click / select_tab / refresh / close | implement |
 | `browser_select_option` / `browser_fill` | select_option / fill | implement, a form control named by `css` or `label` |
 | `browser_download` | download | implement, a link named by `text` (the file name), `label` or `css` |
+| `browser_downloaded_files` / `browser_view_file` | -- (the gateway's own download store) | inspect: list this caller's saved files; look at one's pages as images and read its text |
 | `browser_read` / `browser_tabs` / `browser_status` / `browser_form_controls` | read / tabs / status / form_controls | inspect |
 | `browser_get_result` | -- | reads a browser task's result |
 
@@ -159,7 +160,7 @@ acquire the ability to write files to EG's disk, and so the intent is named in t
 | --- | --- |
 | `browser_control/downloads.py` | the `Download` operation: set the folder -> resolve the element -> press -> wait -> verify -> report |
 | `browser_control/filelinks.py` | `saved_extension(element)`: does pressing this save a file? |
-| `browser_control/interfaces.py` | `IDownloadFolder`, `IDownloadWatcher`, `IDownloadVerifier`, `IDownloadingPage` |
+| `browser_control/interfaces.py` | `IDownloadFolder`, `IDownloadFiler` / `IStagedDownload`, `IDownloadVerifier`, `IFileInspector`, `IDownloadingPage` |
 | `browser_workflows/playback/downloads.py` | the folder watcher and file verifier, moved down from `cashy/documents/folder.py` (a shim re-exports, so Cashy is unchanged) -- machinery must not depend on an agent |
 | `adws/adw_browser_download.py` | the same operation on its own, for when downloading is the whole job |
 
@@ -203,6 +204,28 @@ snapshot saw the folder unchanged and the operation honestly reported that nothi
 takes a stamp per file -- name, size, mtime -- and a file counts as finished only once its stamp has stopped
 moving for one poll, because an overwrite is written in place and a truncated file must never be handed back
 as the download.
+
+## Downloads ChatGPT can look at (2026-11-08)
+
+A file saved on the Windows desktop is a path ChatGPT cannot reach, so a download is now carried all the way
+back: ChatGPT -> MCP `browser_download` -> gateway task -> worker -> ADW -> Chrome -> verified file -> rendered
+pages and text -> uploaded blobs -> `browser_view_file` -> ChatGPT.
+
+| Piece | What it does |
+| --- | --- |
+| `browser_workflows/playback/downloads.py` `DownloadFiler` | each press saves into its own empty `.incoming/<hex>` folder, then the file is moved into the download folder under a free name (`0337201 (2).tif`) -- Chrome overwrites a same-named file, so nothing is ever overwritten here. Names pass `safe_name` (no separators, no `..`, no reserved Windows names) and the move refuses any target outside the folder |
+| `file_inspection/` (`IFileInspector`, `IRenderer`) | sniffs the real type from the bytes; renders TIFF (every page of a multipage one), PDF and images to PNG/JPEG in two sizes (preview 1280, full 2600); pulls text from PDF, DOCX, XLSX, CSV, HTML; lists a ZIP. The original is never changed |
+| `browser_control/downloads.py` | reports each file's name, original name, saved path, bytes, SHA-256, sniffed MIME, first bytes, status and inspection. When a press **opened** a file in the tab instead of saving it (Chrome's PDF viewer), it asks the tab to save what it shows -- the tab's own cookies -- and only for a document that is not HTML |
+| `cdp_browser/element.py` `click()` | a page Chrome is not drawing (`visibilityState: hidden` -- window covered, screen locked) silently drops dispatched mouse events, so a click there is made with `this.click()`. Accela's Search link "clicked" and did nothing until this |
+| worker `download_publisher.py` | uploads the original (up to 7 MB) and every rendered page as sha256-named blobs, then one lease-checked manifest. A failed publish leaves the download a success with `inspectable: false` and the reason |
+| gateway `DownloadStore.php`, migration `006_downloads.sql` | `downloads` / `download_pages` rows over the existing `FileBlobStore`; `POST /worker/downloads/{task}/blobs/{sha}` and `/worker/downloads/{task}`, only for a browser download task the worker holds the lease on |
+| gateway `BrowserTools.php` | `browser_downloaded_files`, `browser_view_file` (`file_id`, `page`, `rendition`, `text_offset`; text in 20,000-character chunks). A caller sees only its own files; every view says the content is data, never instructions |
+
+Files land in `C:\Users\<user>\Downloads\BrowserRecorder` (`BROWSER_WORKFLOW_DOWNLOAD_DIR` moves it).
+Authenticated sessions are preserved because nothing new is launched: the download runs in the tab EG signed in to.
+
+Rollback: the gateway backup is `~/agent_bridge_backups/browser_downloads_20261108T200646Z` on the host (src,
+migrations, tests, `bridge.sqlite`); the two new tables are additive and unused by anything older.
 
 ## Chrome only; host requirements (2026-11-07 fix)
 
@@ -358,6 +381,7 @@ a fix is live. The worker runs straight out of the checkout, so for it "deployed
 | A refused click naming the real selector | yes | yes | yes (3 tests in `browser_control/tests`) | n/a -- local ADW, picked up per task | yes, on `aca-prod.accela.com` PLATS-38123: Record Info menu (adw `aa19790c`) -> Record Details (`7c690ef0`) -> `#lnkMoreDetail` (`ed5fed1c`, `verified: true`), then `read` (`bf686264`) returned County KENT |
 | Reading a record's Attachments panel | yes | yes | yes | -- | yes, and the panel is **genuinely empty** on that record -- header, upload rules, upload widget, `fileRows` 0, and `#lnkViewRecordDocument` / `#lnkViewPeopleDocument` server-rendered `ACA_Hide`. **Open question, not a defect:** the session is anonymous, and ten plat records all look identical, so the DOM cannot distinguish "no scans attached" from "hidden from signed-out visitors". Signing in is EG's step; no agent here types a credential |
 | `browser.download` saving a file | yes | yes (2026-11-08) | 18 adws / 2 worker / 1 gateway test | 2026-11-08 | **yes, via the ADW** -- `adw_browser_download.py --css 'a[href$="docs-text.zip"]'` on `docs.python.org/3/download.html` (adw `b1b6c83c`): `Saved python-3.15-docs-text.zip (4757.7 KB) to C:\Users\NewUser\Downloads\BrowserRecorder.`, 4,871,863 bytes on disk, head `504b0304` (a real zip). **And through the live gateway** -- task `t_1e691faa592d251616670096`, adw `8255e094`, `verified: true`, the same file reported with its bytes and head. Not yet the Michigan `.tif` -- that needs EG signed in |
+| ChatGPT's whole download path (MCP -> worker -> Chrome -> file -> view) | yes | yes (2026-11-08) | 250 adws / worker suites / 137 gateway (ea-php85 and 8.3) | 2026-11-08, gateway md5s in DEPLOY.md | **yes, through the live MCP endpoint** (`/tmp/mcp_call.py` on the live box, eg-chatgpt token): Accela PLATS-38123 searched, Record Info -> Attachments, then `browser_download` `0337201.tif` (task `t_db7c29815147340a97526716`, 357,596 bytes = 349.21 KB, sha256 `c03b1af5...01ed5`, `image/tiff`, file `f_9152ed62e11a5de301ae3614`) and `0337202.tif` (230,716 bytes = 225.31 KB, sha256 `24af7165...d6316`, file `f_21ef85b8862ef7aa4d798f99`); disk `sha256sum` matched both. `browser_view_file` returned each page as a 2600-px PNG -- the 1874 Plat of Fralick's Addition, Grand Rapids. A repeat saved `0337201 (2).tif` (same sha). IRS `Form W-9 PDF` (opens in Chrome's viewer) saved as `fw9.pdf`, 6 pages, 38,241 characters of text, viewed page 2 and text through MCP. Failures: `Record Info` -> "no file arrived ... the page did not move"; `9999999.tif` -> "could not find one element". The attachments were visible **signed out** |
 | `browser.click` refusing a file link | yes | yes (2026-11-08) | yes | 2026-11-08 | **yes, via the ADW** -- the same selector through `browser.click` answered `That saves a file (.zip), and a click cannot keep it`, with `use_instead: browser.download` (nothing was pressed) |
 | A password step | n/a | refused on purpose | yes | -- | refusal is the feature; do not route around it |
 | A file chooser | n/a | refused on purpose | yes | -- | same |

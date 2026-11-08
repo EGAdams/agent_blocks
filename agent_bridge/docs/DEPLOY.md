@@ -213,3 +213,17 @@ Deployed with EG's approval. The gateway tree on the host was replaced (`~/agent
 
 The ADW runs as a `uv run` subprocess per task, so a change under `adws/` takes effect without restarting
 `agent-bridge-worker` or `agent-bridge-worker-express`.
+
+## 2026-11-08 (evening) — downloads ChatGPT can look at
+
+- **Backup first**: `~/agent_bridge_backups/browser_downloads_20261108T200646Z` (src, migrations, tests,
+  `bridge.sqlite`).
+- **Migration**: `006_downloads.sql` (`downloads`, `download_pages`), applied by `migrate.php`; additive.
+- **Tests**: 137 gateway tests pass on the host under ea-php85 and php 8.3, in staging and in place.
+- **Deployed md5s** (repo = host): `BrowserTools.php` `f83af6c9435b3b71c38ba7f68c578e84`,
+  `DownloadStore.php` `bfe7d04f683ab9b0cb11ae66155612a3`, `GatewayApp.php` `45b3850bd9d6cfc4a7a1d70447a88caf`.
+- **Live `tools/list`**: 47 tools, adding `browser_downloaded_files` and `browser_view_file`.
+- **Worker**: the live box pulled the new `download_publisher.py` and both units were restarted; later
+  `adws/`-only commits take effect without a restart.
+- **Verified end to end through the live MCP endpoint** -- see the verification table in
+  `BROWSER_CONTROL.md` (the two PLATS-38123 TIFFs, a PDF, a duplicate and two failures).

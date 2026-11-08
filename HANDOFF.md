@@ -4,6 +4,17 @@
 **Box:** `DESKTOP-2OBSQMC`, WSL2 Ubuntu-26.04, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`
 **Next reader:** Codex / ChatGPT / Claude / Toyota — read `AGENTS.md` first, then this, then the report it points at.
 
+## Browser downloads ChatGPT can look at — verified live through MCP (2026-11-08)
+
+ChatGPT can now save a file from a web page and look at it: `browser_download` -> `browser_view_file`
+(`browser_downloaded_files` lists earlier ones). The whole path, ChatGPT -> MCP -> worker -> ADW -> Chrome ->
+verified file -> rendered pages -> gateway -> ChatGPT, was tested through the live MCP endpoint, not only offline:
+both PLATS-38123 TIFFs (349.21 KB and 225.31 KB, checksums matched on disk, pages viewed: the 1874 Fralick's
+Addition plat), a PDF from a link that opens in Chrome's viewer, a duplicate (`0337201 (2).tif`), and two
+failures. Details, md5s and rollback: `agent_bridge/docs/BROWSER_CONTROL.md` ("Downloads ChatGPT can look at")
+and `agent_bridge/docs/DEPLOY.md`. Two fixes came out of the live run: a click on a tab Chrome is not drawing
+(`visibilityState: hidden`) now uses `this.click()`, and a PDF that opens in the viewer is saved from it.
+
 ## ChatGPT relay — rebuilt here, and reachable by all three callers
 
 The old relay was `~/letta-code/browser_tools/browser_server.py` driven by hand with `curl` (or by

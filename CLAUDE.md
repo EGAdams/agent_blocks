@@ -83,7 +83,9 @@ The top-level areas are:
   form operations (`form_controls`, `select_option`, `fill`), and `download`,
   each one an `Operation` over an injected `ControlPlane`, driving Windows
   Chrome through `adws/cdp_browser/` (DevTools, no WebDriver). `download` is
-  separate from `click` on purpose: Chrome writes a file only when a download
+  separate from `click` on purpose (each saved file is checksummed, typed from its
+  bytes, never overwritten -- a repeat is `name (2).ext` -- and rendered by
+  `adws/file_inspection/` so ChatGPT views it with `browser_view_file`): Chrome writes a file only when a download
   folder has been set for the session, so a click on a `.tif` link reported a
   successful click over an empty folder -- `click` now refuses a file link and
   names `download` instead, and the other thirteen operations never gain the

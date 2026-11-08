@@ -106,8 +106,14 @@ On the command line a two-word flag is spelled with a dash (`--option-text`); in
    (`C:\Users\<user>\Downloads\BrowserRecorder`, moved by `BROWSER_WORKFLOW_DOWNLOAD_DIR`). It is
    `verified: true` only when a file actually arrived, Chrome finished writing it, and it is not empty
    or mislabelled. **Nothing arriving is reported as nothing arriving**, and the answer says whether
-   the page navigated instead — that tells you which half failed. Read the file from
-   `/mnt/c/...` afterwards; that is a separate step.
+   the page navigated instead — that tells you which half failed. A link that opens a PDF in
+   Chrome's viewer is saved from the viewer, so it still counts as a download.
+
+   Each file also carries its SHA-256, real MIME type (from the bytes) and a rendering of its pages.
+   Through the Bridge the answer gives a `file_id` per file: **look at it with `browser_view_file`**
+   (`page`, `rendition` preview/full, `text_offset` for long text), and list earlier ones with
+   `browser_downloaded_files`. A repeat download is saved as `name (2).ext`, never over the first.
+   From a shell, read the file from `/mnt/c/...`.
 
 6. **Read the result, and only then say what happened.**
 
