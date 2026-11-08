@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from .browser_plans import BROWSER_PLANS
 from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION_MODES
 from .notes_plans import NOTES_PLANS
+from .relay_plans import RELAY_PLANS
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
 WRITE_FRAME = ("Request relayed by Toyota, the receptionist; EG confirmed it out loud before it was sent. "
@@ -95,6 +96,13 @@ class SpecialistForm(BaseModel):
     option_text: str | None = None    # browser: what the dropdown item says
     value: str | None = None          # browser: a dropdown item's own token
     limit: int | None = None          # browser: how many controls to list
+    instance: str | None = None       # chatgpt relay: which session, from its session list
+    message: str | None = None        # chatgpt relay: what to say
+    settle: str | None = None         # chatgpt relay: how to decide the reply is finished
+    hops: int | None = None           # chatgpt relay: how many relays this message has already crossed
+    origin: str | None = None         # chatgpt relay: which session it came from, so it never goes back there
+    no_wait: bool | None = None       # chatgpt relay: deliver and end, without waiting for a reply
+    last: int | None = None           # chatgpt relay: how many turns of the thread to read
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -297,6 +305,35 @@ class BrowserBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class ChatGptBuilder:
+    """chatgpt_relay: one message into a standing, signed-in ChatGPT session on EG's machine, and its reply back.
+
+    Each operation is a Plan in `relay_plans.RELAY_PLANS` (Strategy + Registry); this class only finds it. This
+    is the same Bridge agent, the same worker adapter and the same relay ADW that ChatGPT drives, so Toyota
+    gains no operation of her own and no second relay exists. Nothing here can close that browser -- it is
+    signed in, and closing it costs the login -- and the relay still re-checks every request on its side,
+    refuses a credential outright, and refuses a new chat that carries no authorization.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(RELAY_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("relay.").removeprefix("chatgpt_")
+        plan = RELAY_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should I do with ChatGPT: ask it something, read the thread back, see which "
+                              "sessions I can reach, or start its browser?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "chatgpt-relay"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -316,4 +353,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_scanner", "scanner", "the Bridge's scanner", ScannerBuilder()),
     BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes", NotesBuilder()),
     BridgeSpecialist("bridge_browser", "browser", "the Bridge's browser", BrowserBuilder()),
+    BridgeSpecialist("bridge_chatgpt", "chatgpt-relay", "the Bridge's ChatGPT relay", ChatGptBuilder()),
 )}

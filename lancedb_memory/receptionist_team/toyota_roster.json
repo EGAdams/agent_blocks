@@ -26,6 +26,7 @@
     "bridge_scanner",
     "bridge_notes",
     "bridge_browser",
+    "bridge_chatgpt",
     "object_inspector"
   ],
   "disabled": {}

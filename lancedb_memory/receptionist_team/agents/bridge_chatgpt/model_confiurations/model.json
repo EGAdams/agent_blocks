@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for the ChatGPT relay: lists the signed-in ChatGPT sessions, asks one of them something and waits for the finished reply, reads a thread, types or sends without doing both",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_chatgpt",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and the session name; bridge_client/relay_plans.py builds the exact JSON prompt. Every change is read back and sent only after a yes. The same Bridge agent, worker adapter and relay ADW (adws/adw_chatgpt_relay.py) that ChatGPT drives."
+}
