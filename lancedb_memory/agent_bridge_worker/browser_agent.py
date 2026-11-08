@@ -4,8 +4,16 @@ The prompt is JSON written by code (ChatGPT turns "open the browser" into it; To
 
     {"browser": "open", "url": "https://example.com", "target": "chrome"}   # Chrome is the only authorized browser
 
-    inspect    read_only        status | tabs | read | screenshot
-    implement  workspace_write  open | navigate | refresh | select_tab | click | close | dashboard_notes   (workspace `browser`)
+    inspect    read_only        status | tabs | read | screenshot | form_controls
+    implement  workspace_write  open | navigate | refresh | select_tab | click | close | dashboard_notes
+                                select_option | fill                                      (workspace `browser`)
+
+`form_controls` is how a form is operated without guessing: it lists the page's fields, dropdowns (with every
+option) and buttons, each with the selector to pass back as `css`. `select_option` chooses an item in a dropdown
+(by `option_text` or `value`) -- an item in a list is never clicked, because Chrome draws the open list outside
+the page and nothing on it can be reached. It works a list the site draws itself too (role=combobox and the
+like): the ADW opens that one and clicks the item inside it, which is the opposite act for the same request.
+`fill` types `text` into one ordinary field, including a date or masked field that takes no typed keys.
 
 `dashboard_notes` is the whole "open the browser and go to Notes": Chrome on the desktop, the ROL dashboard,
 the NOTES tab pressed, and the page read back to confirm NOTES is the active tab. It takes no fields.
@@ -29,11 +37,14 @@ from .models import AgentOutcome, ClaimedTask, OutcomeKind
 from .ports import IClock, Signal
 
 PERFORMER = "browser_control"
-READS     = frozenset({ "status", "tabs", "read", "screenshot" })
-WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes" })
-#: request key -> the ADW flag it becomes. `target` is the browser (Chrome only); `browser` already names the operation.
-FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css" }
-REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",) }
+READS     = frozenset({ "status", "tabs", "read", "screenshot", "form_controls" })
+WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes",
+                        "select_option", "fill" })
+#: request key -> the ADW flag it becomes (the ADW spells a two-word flag with a dash: --option-text).
+#: `target` is the browser (Chrome only); `browser` already names the operation.
+FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css",
+              "option_text": "option-text", "value": "value", "limit": "limit" }
+REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",), "fill": ("text",) }
 MAX_VALUE = 500
 
 
@@ -76,7 +87,8 @@ class BrowserAgent:
         flags: dict[ str, str ] = {}
         for key, flag in FLAGS.items():
             value = request.get( key )
-            if value is None or value == "":
+            # An empty `text` is how a field is emptied, so `fill` keeps it; everywhere else it means nothing.
+            if value is None or ( value == "" and not ( key == "text" and what == "fill" )):
                 continue
             if not isinstance( value, ( str, int )) or isinstance( value, bool ) or len( str( value )) > MAX_VALUE:
                 return self._refused( f"{ key } must be short text" )
@@ -86,6 +98,10 @@ class BrowserAgent:
             return self._refused( f"{ what } needs: " + ", ".join( missing ))
         if what == "click" and not any( k in flags for k in ( "text", "label", "css" )):
             return self._refused( "click needs text, label or css" )
+        if what in ( "select_option", "fill" ) and not any( k in flags for k in ( "css", "label" )):
+            return self._refused( f"{ what } needs css (from form_controls, best) or label; for { what }, text is not a locator" )
+        if what == "select_option" and not any( k in flags for k in ( "option-text", "value" )):
+            return self._refused( "select_option needs option_text (what the item says) or value" )
         if keep_alive() != "continue":
             return AgentOutcome( kind=OutcomeKind.CANCELLED, performer=PERFORMER, summary="cancelled before it started" )
         try:

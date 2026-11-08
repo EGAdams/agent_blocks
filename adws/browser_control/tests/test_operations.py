@@ -23,13 +23,55 @@ class FakeClock:
 
 
 class FakeElement:
-    def __init__(self, text="Notes", tag="a", kind=""): self.text, self.tag_name, self._kind, self.clicked = text, tag, kind, False
-    def get_attribute(self, name): return self._kind if name == "type" else None
-    def is_displayed(self): return True
-    def is_enabled(self): return True
+    """A node. `selectors=None` answers to every query (what the click tests want); a set answers
+    only to those, so a form test can have two controls on one page."""
+
+    def __init__(self, text="Notes", tag="a", kind="", selectors=None, attrs=None, options=None,
+                 value="", shown=True, enabled=True, size=10, needs_open=None, sets=None):
+        self.text, self.tag_name, self._kind, self.clicked = text, tag, kind, False
+        self.selectors, self.shown, self.enabled, self.size = selectors, shown, enabled, size
+        self.attrs = dict(attrs or {})
+        self.option_rows = [dict(o) for o in (options or [])]
+        self.held, self.typed, self.chose = value, None, None
+        # A site's own dropdown: its items are in the page only while it is open (`needs_open`), and
+        # clicking one is what puts its words into the control (`sets`).
+        self.needs_open, self.sets = needs_open, sets
+
+    def matches(self, selector):
+        if self.needs_open is not None and not self.needs_open.clicked:
+            return False
+        if self.selectors is None:
+            return True
+        return selector in self.selectors or any(p.strip() in self.selectors for p in selector.split(","))
+
+    def get_attribute(self, name):
+        if name == "type" and "type" not in self.attrs: return self._kind
+        return self.attrs.get(name)
+    def is_displayed(self): return self.shown
+    def is_enabled(self): return self.enabled
     @property
-    def rect(self): return {"x": 0, "y": 0, "width": 10, "height": 10}
-    def click(self): self.clicked = True
+    def rect(self): return {"x": 0, "y": 0, "width": self.size, "height": self.size}
+    def click(self):
+        self.clicked = True
+        if self.sets is not None:
+            self.sets[0].held = self.sets[1]
+
+    # -- the form primitives CdpElement provides -----------------------------------
+    def value(self): return self.held
+    def options(self): return [dict(o) for o in self.option_rows]
+    def choose(self, value):
+        hit = next((o for o in self.option_rows if o.get("value") == value), None)
+        if hit is None or hit.get("disabled"): return None
+        for o in self.option_rows: o["selected"] = o is hit
+        self.chose = value
+        return self.stuck if self.stuck is not None else value
+    stuck = None
+    def fill(self, text):
+        self.typed = text
+        self.held = self.shaped(text) if self.shaped is not None else (text if self.caps is None else text[:self.caps])
+        return self.held
+    caps = None
+    shaped = None    # a field with its own format or its own mask: what it ends up holding
 
 
 class FakePage:
@@ -41,7 +83,8 @@ class FakePage:
     def body_text(self): return "Hello\n\n\n\nWorld"
     def capture_png(self, path): Path(path).write_bytes(b"\x89PNG..."); return True
     def is_foreground(self): return self.world.active == self.tab.id
-    def find(self, css): return list(self.world.elements)
+    def find(self, css): return [e for e in self.world.elements if e.matches(css)]
+    def form_controls(self, limit=60): return self.world.controls
     def release(self): self.released = True
 
 
@@ -56,6 +99,7 @@ class FakeWorld:
     def __init__(self, running=(), launches=True):
         self.running, self.launches, self.started = {n: [CdpTarget(id=f"{n}-1", url="https://a.example/x?token=SECRET", title="A")] for n in running}, launches, []
         self.elements, self.reloads, self.active, self.closed = [FakeElement()], 0, None, []
+        self.controls = {"total": 0, "controls": []}
         self.shutdowns, self.closes, self.session, self.start_session, self.known = [], True, 1, 1, True
     # IBrowserStarter
     def start(self, kind, url):
@@ -97,7 +141,9 @@ def run(ops, name, **args): return ops[PUBLIC[name]].run(args)
 
 def test_every_documented_operation_is_registered(tmp_path):
     ops, _ = make(tmp_path)
-    assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read", "screenshot", "status", "close", "dashboard_notes")}
+    assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read",
+                                                    "screenshot", "status", "close", "dashboard_notes",
+                                                    "form_controls", "select_option", "fill")}
     assert all(op.description.startswith(name) for name, op in ((n, ops[v]) for n, v in PUBLIC.items()))
 
 
@@ -355,3 +401,427 @@ def test_dashboard_notes_stops_on_a_hidden_chrome_it_cannot_replace(tmp_path):
     world.session, world.closes = 0, False
     out = run(ops, "browser.dashboard_notes")
     assert not out.ok and out.data["cause"] == "hidden_session" and not world.elements[0].clicked
+
+
+# ---- the form operations ----------------------------------------------------------------------------
+
+def dropdown(selectors=("#ddl", "select"), **more):
+    """A Record Type list like Accela's, PLAT Records among its options."""
+    rows = [{"position": 1, "value": "", "text": "--Select--", "selected": True, "disabled": False},
+            {"position": 2, "value": "OLSR/PLAT/NA/NA", "text": "PLAT Records", "selected": False, "disabled": False},
+            {"position": 3, "value": "OLSR/CORNER/NA/NA", "text": "CORNER Records", "selected": False, "disabled": False},
+            {"position": 4, "value": "OLSR/OLD/NA/NA", "text": "Retired Records", "selected": False, "disabled": True}]
+    return FakeElement(text="", tag="select", selectors=set(selectors), options=rows,
+                       attrs={"aria-label": "Record Type:", "id": "ddl"}, **more)
+
+
+def field(selectors=("#txt", "input"), kind="text", attrs=None, **more):
+    named = {"aria-label": "Project Name:", "id": "txt", **(attrs or {})}
+    return FakeElement(text="", tag="input", kind=kind, selectors=set(selectors), attrs=named, **more)
+
+
+def test_select_option_chooses_by_visible_text_and_proves_it(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="PLAT Records")
+    assert out.ok and out.data["verified"] and out.data["selected_value"] == "OLSR/PLAT/NA/NA"
+    assert world.elements[0].chose == "OLSR/PLAT/NA/NA" and "confirms it" in out.line
+
+
+def test_select_option_chooses_by_value(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", value="OLSR/CORNER/NA/NA")
+    assert out.ok and out.data["selected"] == "CORNER Records" and out.data["position"] == 3
+
+
+def test_select_option_forgives_a_form_label_the_plain_click_locator_would_miss(tmp_path):
+    """The page says "Record Type:"; a person says "Record Type". That mismatch is why a label
+    that is plainly on the screen used to find nothing."""
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", label="Record Type", option_text="PLAT Records")
+    assert out.ok and out.data["selected"] == "PLAT Records"
+
+
+def test_select_option_lists_the_options_when_none_match(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="Plat Maps")
+    assert not out.ok and out.data["cause"] == "no_such_option" and not out.data["verified"]
+    assert "PLAT Records" in out.line and len(out.data["options"]) == 4 and world.elements[0].chose is None
+
+
+def test_select_option_refuses_an_ambiguous_request_instead_of_guessing(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="Records")
+    assert not out.ok and "matches 3 options" in out.line and world.elements[0].chose is None
+
+
+def test_select_option_refuses_a_disabled_option(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="Retired Records")
+    assert not out.ok and "disabled" in out.line and world.elements[0].chose is None
+
+
+def test_select_option_refuses_a_disabled_dropdown(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown(enabled=False)]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "disabled" and "disabled" in out.line
+
+
+def test_select_option_refuses_two_matching_controls(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown(), dropdown()]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "ambiguous_control" and "browser.form_controls" in out.line
+
+
+def test_select_option_says_so_when_a_control_is_not_there(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", css="#nope", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "control_not_found" and out.data["attempts"]
+
+
+def test_select_option_refuses_something_that_is_not_a_dropdown(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field()]
+    out = run(ops, "browser.select_option", css="#txt", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "not_a_dropdown"
+
+
+def test_select_option_reports_a_list_that_did_not_keep_the_choice(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    list_ = dropdown()
+    list_.stuck = ""                      # the page puts it straight back
+    world.elements = [list_]
+    out = run(ops, "browser.select_option", css="#ddl", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "not_accepted" and not out.data["verified"]
+
+
+def test_select_option_is_honest_when_choosing_reloaded_the_form(tmp_path):
+    """A dropdown that posts the form back replaces the document, so the second read is gone.
+    The choice is still verified -- the list reported its own value as it changed."""
+    ops, world = make(tmp_path, running=["chrome"])
+    list_ = dropdown()
+    world.elements = [list_]
+
+    def gone(value, _original=list_.choose):
+        landed = _original(value)
+        world.elements = []
+        return landed
+    list_.choose = gone
+    out = run(ops, "browser.select_option", css="#ddl", option_text="PLAT Records")
+    assert out.ok and out.data["verified"] and "no longer there" in out.line
+
+
+def test_fill_types_into_a_field_and_reads_it_back(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field()]
+    out = run(ops, "browser.fill", css="#txt", text="Fralick's Addition")
+    assert out.ok and out.data["verified"] and out.data["value"] == "Fralick's Addition"
+    assert world.elements[0].typed == "Fralick's Addition"
+
+
+def test_fill_replaces_rather_than_appends(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(value="old text")]
+    out = run(ops, "browser.fill", css="#txt", text="new")
+    assert out.ok and world.elements[0].held == "new"
+
+
+def test_fill_works_a_search_input(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(kind="search")]
+    assert run(ops, "browser.fill", css="#txt", text="plats").ok
+
+
+def test_fill_never_touches_a_password_field(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="", tag="input", kind="password", selectors={"#pw", "input"},
+                                 attrs={"id": "pw"})]
+    out = run(ops, "browser.fill", css="#pw", text="hunter2")
+    assert not out.ok and out.data["cause"] == "credential_field" and world.elements[0].typed is None
+    assert "hunter2" not in out.line and "password" in out.line
+
+
+def test_fill_refuses_a_field_whose_name_says_credential(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="", tag="input", kind="text", selectors={"#t", "input"},
+                                 attrs={"id": "t", "name": "ctl00$one_time_code"})]
+    out = run(ops, "browser.fill", css="#t", text="123456")
+    assert not out.ok and out.data["cause"] == "credential_field" and world.elements[0].typed is None
+
+
+def test_fill_refuses_a_hidden_token_field(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="", tag="input", kind="hidden", selectors={"#vs", "input"},
+                                 attrs={"id": "vs"}, shown=False)]
+    out = run(ops, "browser.fill", css="#vs", text="x")
+    assert not out.ok and out.data["cause"] == "not_visible" and world.elements[0].typed is None
+
+
+def test_fill_refuses_a_read_only_field(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(attrs={"id": "txt", "readonly": "readonly"})]
+    out = run(ops, "browser.fill", css="#txt", text="x")
+    assert not out.ok and out.data["cause"] == "readonly" and world.elements[0].typed is None
+
+
+def test_fill_sends_a_checkbox_to_click_and_a_dropdown_to_select_option(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(kind="checkbox")]
+    out = run(ops, "browser.fill", css="#txt", text="x")
+    assert not out.ok and out.data["cause"] == "not_editable" and "browser.click" in out.line
+    world.elements = [dropdown()]
+    out = run(ops, "browser.fill", css="#ddl", text="x")
+    assert not out.ok and "browser.select_option" in out.line
+
+
+def test_fill_never_puts_a_file_into_a_page(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(kind="file")]
+    out = run(ops, "browser.fill", css="#txt", text="/etc/passwd")
+    assert not out.ok and out.data["cause"] == "not_editable"
+
+
+def test_fill_reports_a_field_that_changed_what_was_typed(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    short = field()
+    short.caps = 4
+    world.elements = [short]
+    out = run(ops, "browser.fill", css="#txt", text="Fralick's Addition")
+    assert not out.ok and out.data["cause"] == "value_differs" and out.data["value"] == "Fral"
+    assert not out.data["verified"] and "Nothing was submitted" in out.line
+
+
+def test_a_form_operation_needs_a_control_named(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field()]
+    out = run(ops, "browser.fill", text="x")
+    assert not out.ok and "--css" in out.line and "--label" in out.line
+    out = run(ops, "browser.fill", css="#txt")
+    assert not out.ok and "--text" in out.line
+
+
+def test_form_operations_target_a_tab_by_its_stable_id(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.running["chrome"].append(CdpTarget(id="chrome-2", url="https://b.example/f", title="Form"))
+    world.elements = [dropdown()]
+    out = run(ops, "browser.select_option", tab="chrome-2", css="#ddl", option_text="PLAT Records")
+    assert out.ok and world.page.tab.id == "chrome-2"
+    assert not run(ops, "browser.fill", tab="chrome-9", css="#txt", text="x").ok
+
+
+def test_form_controls_lists_fields_dropdowns_and_buttons(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.controls = {"total": 3, "controls": [
+        {"role": "dropdown", "tag": "select", "id": "ddl", "label": "Record Type:", "css": "#ddl",
+         "options": [{"position": 1, "value": "", "text": "--Select--", "selected": True},
+                     {"position": 2, "value": "OLSR/PLAT/NA/NA", "text": "PLAT Records"}],
+         "selected": "--Select--", "selected_value": ""},
+        {"role": "text", "tag": "input", "type": "text", "id": "txt", "label": "Project Name:", "css": "#txt"},
+        {"role": "button", "tag": "a", "label": "Search", "css": "#btnSearch", "text": "Search"}]}
+    out = run(ops, "browser.form_controls")
+    assert out.ok and out.data["verified"] and out.data["total"] == 3
+    assert "'Record Type:' css=#ddl" in out.data["listing"] and "'PLAT Records'=value 'OLSR/PLAT/NA/NA'" in out.data["listing"]
+    assert "[button] 'Search'" in out.data["listing"]
+    assert out.data["controls"][0]["options"][1]["text"] == "PLAT Records"
+
+
+def test_form_controls_reports_a_page_with_nothing_to_operate(tmp_path):
+    ops, _ = make(tmp_path, running=["chrome"])
+    out = run(ops, "browser.form_controls")
+    assert out.ok and out.data["total"] == 0 and "no fields" in out.line
+
+
+def test_form_controls_marks_a_credential_field_as_never_filled(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.controls = {"total": 1, "controls": [{"role": "password", "tag": "input", "type": "password",
+                                                "id": "pw", "label": "Password", "css": "#pw", "secret": True}]}
+    out = run(ops, "browser.form_controls")
+    assert out.ok and "NEVER filled or read" in out.data["listing"] and out.data["controls"][0]["secret"]
+
+
+def test_form_controls_limit_is_a_number_within_bounds(tmp_path):
+    ops, _ = make(tmp_path, running=["chrome"])
+    assert run(ops, "browser.form_controls", limit="40").ok
+    assert not run(ops, "browser.form_controls", limit="lots").ok
+
+
+def test_a_click_on_a_dropdown_item_now_says_which_operation_to_use(tmp_path):
+    """The original failure: PLAT Records is an <option>, which Chrome gives no box, so no
+    resolver can ever reach it. Instead of "I could not find one clickable element", point at
+    the operation that can."""
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = []
+    world.controls = {"total": 1, "controls": [
+        {"role": "dropdown", "tag": "select", "css": "#ddl", "label": "Record Type:",
+         "options": [{"position": 2, "value": "OLSR/PLAT/NA/NA", "text": "PLAT Records"}]}]}
+    out = run(ops, "browser.click", text="PLAT Records")
+    assert not out.ok and "browser.select_option" in out.line and "#ddl" in out.line
+
+
+# ---- a dropdown the site draws itself ---------------------------------------------------------------
+# Opposite act, same operation: a native <option> has no box and is chosen by value, while a site's own
+# item is a node the page lays out, so it has a box, is clicked, and is not in the page until it opens.
+
+def site_dropdown(attrs=None, items=("PLAT Records", "CORNER Records"), owns=False):
+    """A role=combobox trigger and the items it shows once opened. Returns (trigger, [items])."""
+    named = {"role": "combobox", "aria-expanded": "false", "id": "combo", **(attrs or {})}
+    if owns:
+        named["aria-controls"] = "combo-list"
+    trigger = FakeElement(text="--Select--", tag="div", selectors={"#combo", "[role=combobox]"}, attrs=named)
+    scope = {"[role=option]", '[id="combo-list"] [role=option]'} if owns else {"[role=option]"}
+    shown = [FakeElement(text=t, tag="div", selectors=scope, attrs={"role": "option", "data-value": t.split()[0]},
+                         needs_open=trigger, sets=(trigger, t)) for t in items]
+    return trigger, shown
+
+
+def test_select_option_works_a_dropdown_the_site_draws_itself(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    world.elements = [trigger, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert out.ok and out.data["verified"] and out.data["site_drawn"] is True
+    assert trigger.clicked and items[0].clicked and not items[1].clicked
+    assert out.data["selected"] == "PLAT Records" and "PLAT Records" in out.line
+
+
+def test_a_site_drawn_list_is_opened_before_its_items_are_read(tmp_path):
+    """The items are not in the page until the control is open, so reading them first finds nothing
+    and clicking blind would hit empty space."""
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    world.elements = [trigger, *items]
+    assert not items[0].matches("[role=option]")        # nothing to find before it opens
+    assert run(ops, "browser.select_option", css="#combo", option_text="CORNER Records").ok
+    assert items[1].matches("[role=option]")
+
+
+def test_a_site_drawn_list_prefers_the_list_it_says_is_its_own(tmp_path):
+    """Two of these on one form: aria-controls keeps the choice inside the right one."""
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown(owns=True)
+    other = FakeElement(text="PLAT Records", tag="div", selectors={"[role=option]"},
+                        attrs={"role": "option"})      # another control's item, already showing
+    world.elements = [trigger, other, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert out.ok and items[0].clicked and not other.clicked
+
+
+def test_a_site_drawn_list_that_shows_no_items_says_so(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, _ = site_dropdown(items=())
+    world.elements = [trigger]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "no_options_shown" and "browser.fill" in out.line
+
+
+def test_a_site_drawn_list_lists_what_it_does_offer(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    world.elements = [trigger, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="Deeds")
+    assert not out.ok and out.data["cause"] == "no_such_option"
+    assert "'PLAT Records'" in out.line and not items[0].clicked
+
+
+def test_a_site_drawn_list_that_shows_something_else_afterwards_is_not_a_success(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    items[0].sets = (trigger, "CORNER Records")        # the widget put a different item in
+    world.elements = [trigger, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "did_not_stick" and "CORNER Records" in out.line
+
+
+def test_a_site_drawn_list_with_nothing_to_read_back_is_reported_unverified(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    trigger.text = ""
+    items[0].sets = None                               # the control shows no text of its own
+    world.elements = [trigger, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert items[0].clicked and out.data["verified"] is False and "cannot prove" in out.line
+
+
+def test_a_site_drawn_choice_reads_back_from_the_item_it_points_at(tmp_path):
+    """Some widgets leave the trigger blank and name the chosen item with aria-activedescendant."""
+    ops, world = make(tmp_path, running=["chrome"])
+    trigger, items = site_dropdown()
+    trigger.text = ""
+    items[0].sets = None
+    items[0].attrs["id"] = "opt-plat"
+    items[0].selectors.add('[id="opt-plat"]')
+    trigger.attrs["aria-activedescendant"] = "opt-plat"
+    world.elements = [trigger, *items]
+    out = run(ops, "browser.select_option", css="#combo", option_text="PLAT Records")
+    assert out.ok and out.data["verified"] and "PLAT Records" in out.line
+
+
+def test_something_with_no_list_about_it_is_still_not_a_dropdown(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [FakeElement(text="hello", tag="div", selectors={"#d"}, attrs={"id": "d"})]
+    out = run(ops, "browser.select_option", css="#d", option_text="PLAT Records")
+    assert not out.ok and out.data["cause"] == "not_a_dropdown" and "browser.form_controls" in out.line
+
+
+def test_form_controls_says_which_dropdowns_the_site_draws_itself(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.controls = {"total": 1, "controls": [{"role": "dropdown", "tag": "div", "css": "#combo",
+                                                "label": "Record Type:", "site_drawn": True,
+                                                "selected": "--Select--"}]}
+    out = run(ops, "browser.form_controls")
+    assert out.ok and "the site draws this list itself" in out.line and "now '--Select--'" in out.line
+
+
+# ---- a field with its own format or its own mask ----------------------------------------------------
+
+def test_fill_accepts_a_field_that_puts_its_own_punctuation_in(tmp_path):
+    """A phone field that answers "(616) 555-1212" took "6165551212" -- same text, its own shape."""
+    ops, world = make(tmp_path, running=["chrome"])
+    masked = field()
+    masked.shaped = lambda typed: "(616) 555-1212"
+    world.elements = [masked]
+    out = run(ops, "browser.fill", css="#txt", text="6165551212")
+    assert out.ok and out.data["verified"] and out.data["value"] == "(616) 555-1212"
+    assert "reformatted" in out.line
+
+
+def test_fill_tells_a_date_field_what_format_it_wants(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    picker = field(kind="date")
+    picker.shaped = lambda typed: ""                   # a date input ignores anything but YYYY-MM-DD
+    world.elements = [picker]
+    out = run(ops, "browser.fill", css="#txt", text="31/12/2025")
+    assert not out.ok and out.data["cause"] == "wrong_format" and "YYYY-MM-DD" in out.line
+
+
+def test_fill_fills_a_date_field_given_the_format_it_wants(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    world.elements = [field(kind="date")]
+    out = run(ops, "browser.fill", css="#txt", text="2025-12-31")
+    assert out.ok and out.data["verified"] and out.data["value"] == "2025-12-31"
+
+
+def test_fill_calls_a_length_limit_what_it_is(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    short = field(attrs={"maxlength": "4"})
+    short.caps = 4
+    world.elements = [short]
+    out = run(ops, "browser.fill", css="#txt", text="Fralick's Addition")
+    assert not out.ok and out.data["cause"] == "truncated" and "at most 4 characters" in out.line
+
+
+def test_fill_says_when_a_field_took_no_text_at_all(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    stubborn = field()
+    stubborn.shaped = lambda typed: ""
+    world.elements = [stubborn]
+    out = run(ops, "browser.fill", css="#txt", text="Fralick's Addition")
+    assert not out.ok and out.data["cause"] == "refused_text" and "still empty" in out.line

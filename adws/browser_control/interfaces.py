@@ -1,7 +1,7 @@
 """What the operations need from the machine, as Protocols (say "interface", never "port")."""
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Any, Protocol
 
 from cdp_browser.interfaces import CdpTarget
 from .models import BrowserKind, BrowserPlacement
@@ -26,6 +26,28 @@ class IBrowserEndpoint(Protocol):
     def shutdown(self, kind: BrowserKind) -> None: ...                 # close the whole browser (Browser.close)
 
 
+class IFormElement(Protocol):
+    """One form control, as the two form operations need it.
+
+    Beyond browser_workflows' IWorkflowElement (text, tag, attributes, displayed, enabled) a
+    control is asked for its options and told its new value or text. An `<option>` is never
+    clicked -- Chrome gives it no box -- so `choose` is how a native dropdown is worked. A
+    dropdown the site draws itself is clicked open instead, and `value` is how its choice reads back.
+    """
+    @property
+    def text(self) -> str: ...
+    @property
+    def tag_name(self) -> str: ...
+    def get_attribute(self, name: str) -> str | None: ...
+    def is_displayed(self) -> bool: ...
+    def is_enabled(self) -> bool: ...
+    def click(self) -> None: ...                            # a site's own dropdown is opened, and its items clicked
+    def value(self) -> str: ...                             # what the control shows now (never a secret field's)
+    def options(self) -> list[dict[str, Any]]: ...          # a dropdown's items, in order; empty for anything else
+    def choose(self, value: str) -> str | None: ...         # select the option with this exact value, firing input+change
+    def fill(self, text: str) -> str: ...                   # replace the field's text; returns the value afterwards
+
+
 class IPageSession(Protocol):
     """One attached tab. The CDP browser satisfies this as it stands."""
     @property
@@ -38,6 +60,7 @@ class IPageSession(Protocol):
     def is_foreground(self) -> bool: ...
     def capture_png(self, path: str) -> bool: ...
     def find(self, css_selector: str) -> list: ...
+    def form_controls(self, limit: int = 60) -> dict[str, Any]: ...   # {"total": n, "controls": [...]}, no field's text
     def release(self) -> None: ...
 
 

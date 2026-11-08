@@ -8,7 +8,7 @@ from . import operations as ops
 from .plane import ControlPlane, default_plane
 
 ORDER = [ops.Open, ops.Navigate, ops.Refresh, ops.Tabs, ops.SelectTab, ops.Click, ops.Read, ops.Screenshot,
-         ops.Status, ops.Close]
+         ops.Status, ops.Close, ops.FormControls, ops.SelectOption, ops.Fill]
 
 #: "browser.open" (the Bridge's spelling) -> the ADW operation name.
 PUBLIC = {cls.name.replace("browser_", "browser."): cls.name for cls in ORDER}

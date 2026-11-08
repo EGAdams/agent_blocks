@@ -8,9 +8,13 @@
     cd /home/adamsl/agent_blocks && uv run adws/adw_browser_control.py browser.open --url https://example.com
     uv run adws/adw_browser_control.py browser.tabs
     uv run adws/adw_browser_control.py browser.click --text "Notes"
+    uv run adws/adw_browser_control.py browser.form_controls
+    uv run adws/adw_browser_control.py browser.select_option --css "#ddlType" --option_text "PLAT Records"
+    uv run adws/adw_browser_control.py browser.fill --css "#txtName" --text "Fralick's Addition"
 
 Operations: browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
             browser.click  browser.read  browser.screenshot  browser.status  browser.close
+            browser.form_controls  browser.select_option  browser.fill
 
 It reuses what exists: browser_session starts the Windows Chrome with a DevTools port,
 cdp_browser drives the page (no Selenium, no driver), browser_workflows finds the element and
@@ -34,9 +38,12 @@ FLAGS = [
     Flag( "browser", "chrome (the only authorized browser; anything else is refused)" ),
     Flag( "url", "an http(s) address (open, navigate)" ),
     Flag( "tab", "a tab number or id from browser.tabs (select_tab, close; optional elsewhere)" ),
-    Flag( "text", "the element's visible text (click)" ),
-    Flag( "label", "the element's label or aria-label (click)" ),
-    Flag( "css", "a CSS selector (click)" ),
+    Flag( "text", "the element's visible text (click), or the words to type (fill)" ),
+    Flag( "label", "the element's label or aria-label (click, select_option, fill)" ),
+    Flag( "css", "a CSS selector, best taken from browser.form_controls (click, select_option, fill)" ),
+    Flag( "option_text", "the dropdown item as it reads on the screen (select_option)" ),
+    Flag( "value", "the dropdown item's own value, matched exactly (select_option)" ),
+    Flag( "limit", "how many controls to list, 1-200, default 60 (form_controls)" ),
     Flag( "confirm", "EG has approved a consequential click", kind="bool" ),
 ]
 

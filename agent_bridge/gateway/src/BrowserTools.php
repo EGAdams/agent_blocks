@@ -38,13 +38,17 @@ final class BrowserTools
         'browser_read'                 => ['read', 'inspect', ['tab'], []],
         'browser_tabs'                 => ['tabs', 'inspect', [], []],
         'browser_status'               => ['status', 'inspect', [], []],
+        'browser_form_controls'        => ['form_controls', 'inspect', ['tab', 'limit'], []],
+        'browser_select_option'        => ['select_option', 'implement', ['css', 'label', 'option_text', 'value', 'tab'], []],
+        'browser_fill'                 => ['fill', 'implement', ['css', 'label', 'text', 'tab'], ['text']],
         'browser_get_result'           => [null, 'inspect', ['task_id'], ['task_id']],
     ];
     /** What a result may carry back from the worker's details: facts, never page secrets (the ADW strips those). */
     const DETAIL_KEYS = ['adw_id', 'cause', 'url', 'title', 'tabs', 'tab', 'session', 'desktops', 'visible', 'started',
                          'replaced_hidden', 'opened_tab', 'notes_active', 'in_front', 'clicked', 'moved_to',
                          'needs_confirmation', 'redirected', 'browsers', 'remaining', 'excerpt', 'text', 'truncated',
-                         'version'];
+                         'version', 'controls', 'listing', 'total', 'shown', 'options', 'selected', 'selected_value',
+                         'position', 'note', 'typed', 'value', 'field', 'wanted', 'attempts', 'site_drawn'];
 
     /** @var ClientTasks */  private $client;
     /** @var ClientScopes */ private $scopes;
@@ -145,7 +149,9 @@ final class BrowserTools
     {
         $out = [];
         foreach ($allowed as $key) {
-            if (!array_key_exists($key, $args) || $args[$key] === null || $args[$key] === '') {
+            // An empty `text` is how browser_fill empties a field; everywhere else an empty value means nothing was given.
+            if (!array_key_exists($key, $args) || $args[$key] === null
+                || ($args[$key] === '' && !($key === 'text' && $op === 'fill'))) {
                 continue;
             }
             $value = $args[$key];
@@ -155,7 +161,7 @@ final class BrowserTools
                 }
                 continue;
             }
-            if (is_int($value) && $key === 'tab') {
+            if (is_int($value) && ($key === 'tab' || $key === 'limit')) {
                 $value = (string) $value;
             }
             if (!is_string($value) || mb_strlen($value) > self::MAX_VALUE) {
@@ -170,6 +176,13 @@ final class BrowserTools
         }
         if ($op === 'click' && !isset($out['text']) && !isset($out['label']) && !isset($out['css'])) {
             throw new BridgeError(422, 'invalid_argument', 'browser_click needs text, label or css');
+        }
+        // A form control is named by css or label only: `text` is the words to type, not what to look for.
+        if (($op === 'fill' || $op === 'select_option') && !isset($out['css']) && !isset($out['label'])) {
+            throw new BridgeError(422, 'invalid_argument', 'browser_' . $op . ' needs css (from browser_form_controls, best) or label');
+        }
+        if ($op === 'select_option' && !isset($out['option_text']) && !isset($out['value'])) {
+            throw new BridgeError(422, 'invalid_argument', 'browser_select_option needs option_text or value');
         }
         return $out;
     }
@@ -306,6 +319,46 @@ final class BrowserTools
             'browser_status' => ['title' => 'Is Chrome running?',
                 'description' => 'Whether Chrome is up with its control port, its version and how many tabs.' . $after,
                 'inputSchema' => $object([], []), 'annotations' => $read],
+            'browser_form_controls' => ['title' => 'List the page\'s form controls',
+                'description' => 'What the page offers a person to operate, so you never guess a selector: every field, '
+                               . 'dropdown (with all its options and the one now chosen) and button, each with its label, '
+                               . 'its id/name and the css to pass back to browser_select_option, browser_fill or '
+                               . 'browser_click, plus whether it is visible and enabled. Credential fields come back marked '
+                               . 'secret and are never filled or read; hidden token fields are not listed at all. Call this '
+                               . 'first whenever you have to work a form. A dropdown marked site_drawn is one the site draws '
+                               . 'itself: its items are not in the page until it opens, so browser_select_option opens it.' . $after,
+                'inputSchema' => $object(['limit' => ['type' => 'integer', 'description' => 'How many controls to list, 1-200 (default 60)']] + $tab, []),
+                'annotations' => $read],
+            'browser_select_option' => ['title' => 'Choose an item in a dropdown',
+                'description' => 'Selects one item in an HTML dropdown and reads the list back to prove it took. Name the '
+                               . 'dropdown with css (from browser_form_controls, best) or label, and the item with '
+                               . 'option_text (what it says on the screen) or value (its exact value). Use this, not '
+                               . 'browser_click: Chrome draws an open list outside the page, so the items in it have no '
+                               . 'position and cannot be clicked. An item that matches two options is reported, never '
+                               . 'guessed between. This works on a dropdown the site draws itself too (a combobox widget): '
+                               . 'that one is opened and the item inside it clicked, which is why browser_form_controls '
+                               . 'shows no options for it. If it answers that the list showed no items, it is a combobox '
+                               . 'that filters as you type: browser_fill it first, then choose.' . $after,
+                'inputSchema' => $object(['css' => ['type' => 'string', 'description' => 'The dropdown\'s CSS selector, from browser_form_controls'],
+                                          'label' => ['type' => 'string', 'description' => 'The words beside the dropdown on the page'],
+                                          'option_text' => ['type' => 'string', 'description' => 'The item as it reads on the screen, e.g. PLAT Records'],
+                                          'value' => ['type' => 'string', 'description' => 'The item\'s own value, matched exactly']] + $tab, []),
+                'annotations' => $acts],
+            'browser_fill' => ['title' => 'Type into a form field',
+                'description' => 'Replaces what is in one ordinary text, search or textarea field with your text, then reads '
+                               . 'the field back to prove it took. Name the field with css (from browser_form_controls, best) '
+                               . 'or label; text is the words to type. Never a password, one-time code or other credential '
+                               . 'field -- those are refused. A field that takes no typed keys (a date picker, a masked '
+                               . 'field) is told its value outright, and a field that puts its own punctuation in counts as '
+                               . 'filled: 6165551212 coming back as (616) 555-1212 is a success. A date input accepts only '
+                               . 'YYYY-MM-DD (month YYYY-MM, time HH:MM); giving it another format is refused with the format '
+                               . 'named. Filling a field submits nothing: press the search or submit '
+                               . 'control with browser_click afterwards.' . $after,
+                'inputSchema' => $object(['css' => ['type' => 'string', 'description' => 'The field\'s CSS selector, from browser_form_controls'],
+                                          'label' => ['type' => 'string', 'description' => 'The words beside the field on the page'],
+                                          'text' => ['type' => 'string', 'description' => 'The words to type (empty empties the field)']] + $tab,
+                                        ['text']),
+                'annotations' => $acts],
             'browser_get_result' => ['title' => 'Get a browser action\'s result',
                 'description' => 'The verified result of a browser_* call that returned ready=false, with diagnostics (the '
                                . 'ADW execution id, the cause and the recorded steps) when it failed. Waits up to about 20 seconds.',

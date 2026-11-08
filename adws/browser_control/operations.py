@@ -1,8 +1,9 @@
-"""The ten Browser Control operations. Each is one `Operation` (browser_workflows' base class, so
+"""The thirteen Browser Control operations. Each is one `Operation` (browser_workflows' base class, so
 the ADW harness runs it as a lifecycle phase and the object trace records it) over a ControlPlane.
 
     browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
     browser.click browser.read      browser.screenshot browser.status browser.close
+    browser.form_controls  browser.select_option  browser.fill
 
 Every result is verified, not assumed: `open` waits until the DevTools port answers and lists a tab,
 `navigate` reports the URL the tab ended on, `close` re-lists the tabs. Nothing here reads cookies,
@@ -20,10 +21,16 @@ from browser_workflows.normalizing.consequences import KeywordConsequenceClassif
 from browser_workflows.operations.common import Operation, OperationOutcome, locators_from, ok, refused
 from browser_workflows.playback.locating import RankedElementResolver, default_strategy_registry
 
-from .models import BrowserKind, TabView
+from .forms import (OptionMatcher, SecretFieldGuard, TypedValueCheck, WidgetDropdown, form_locators_from,
+                    form_strategy_registry, looks_site_drawn, same_characters)
+from .models import BrowserKind, FormControlView, OptionView, TabView
 from .plane import ControlPlane, checked_url
 
 MAX_READ_CHARS = 20000
+MAX_CONTROLS = 200
+#: What a person can type into. Anything else is a click (checkbox, radio, submit) or refused (file).
+TYPEABLE = ("", "text", "search", "email", "tel", "url", "number", "date", "month", "week", "time",
+            "datetime-local", "color", "range")
 
 
 def safe_url(url: str) -> str:
@@ -272,7 +279,8 @@ class Click(BrowserOperation):
             element, resolution = self._resolver.resolve(page, candidates)
             if element is None:
                 tried = ", ".join(f"{a.label}: {a.outcome}" for a in resolution.attempts)
-                return refused(f"I could not find one clickable element for that ({tried}).",
+                return refused(f"I could not find one clickable element for that ({tried})."
+                               + self._dropdown_hint(page, hint),
                                browser=kind.name, verified=False)
             if element.tag_name == "input" and (element.get_attribute("type") or "").lower() == "password":
                 return refused("That is a password field; I do not touch those.", browser=kind.name, verified=False)
@@ -285,6 +293,27 @@ class Click(BrowserOperation):
         moved = safe_url(after) if after != before else ""
         return ok(f"Clicked {label!r}" + (f"; the page moved to {moved}." if moved else "."),
                   browser=kind.name, clicked=label, moved_to=moved, winner=resolution.winner, verified=True)
+
+    @staticmethod
+    def _dropdown_hint(page, wanted: str) -> str:
+        """The commonest reason a click finds nothing: what was asked for is an item inside a dropdown.
+        Chrome draws the open list with the OS, so those items have no box on the page and no resolver
+        can reach them. Say so, and name the operation that can."""
+        asked = " ".join(wanted.split()).rstrip(":*").strip().casefold()
+        if not asked:
+            return ""
+        try:
+            found = page.form_controls(MAX_CONTROLS)
+        except Exception:
+            return ""
+        for control in (found or {}).get("controls") or []:
+            for option in control.get("options") or []:
+                said = " ".join(str(option.get("text") or "").split()).casefold()
+                if said and (said == asked or asked in said):
+                    return (f" {option.get('text')!r} is an item in the dropdown {control.get('css')} -- an item in a "
+                            "list is never clicked (Chrome draws the open list outside the page). "
+                            f"Use browser.select_option --css={control.get('css')} --option-text={option.get('text')!r}.")
+        return ""
 
 
 class Read(BrowserOperation):
@@ -364,6 +393,291 @@ class Close(BrowserOperation):
             return refused("I asked the browser to close that tab, but it is still listed.", browser=kind.name, verified=False)
         return ok(f"Closed tab {args['tab']}; {len(after)} tab(s) remain.", browser=kind.name, closed=target,
                   remaining=len(after), verified=True)
+
+
+# ---- the form operations: see what is on the page, choose from a list, type in a field ----------------------
+#
+# browser.click cannot work a dropdown and never could: Chrome gives an <option> a 0x0 box (the open
+# list is drawn by Windows, not by the page), so every element resolver rejects them as zero-size.
+# A list is not clicked, it is told its new value -- these operations resolve the <select> itself.
+
+
+class FormControls(BrowserOperation):
+    """What the page offers a person to operate, so the next call names a control instead of guessing one."""
+    name = "browser_form_controls"
+    description = ("browser.form_controls: the page's fields, dropdowns (with every option and the one chosen) "
+                   "and buttons, each with a stable selector and whether it can be operated")
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        page = self._page(kind, args)
+        try:
+            found = page.form_controls(self._limit(args))
+            url, title = safe_url(page.current_url), page.title
+        finally:
+            page.release()
+        controls = [FormControlView.model_validate(c) for c in (found or {}).get("controls") or []]
+        total = int((found or {}).get("total") or len(controls))
+        if not controls:
+            return ok(f"{title[:80]!r} at {url} has no fields, dropdowns or buttons on it.", browser=kind.name,
+                      url=url, title=title[:120], total=0, shown=0, controls=[], listing="", verified=True)
+        shown = sum(1 for c in controls if c.visible)
+        listing = "\n".join(self._describe(c) for c in controls)
+        more = f" ({total - len(controls)} more not listed; raise limit)" if total > len(controls) else ""
+        return ok(f"{title[:80]!r} at {url}: {total} control(s), {shown} of them on the screen{more}.\n{listing}",
+                  browser=kind.name, url=url, title=title[:120], total=total, shown=len(controls),
+                  controls=[c.model_dump() for c in controls], listing=listing, verified=True)
+
+    @staticmethod
+    def _limit(args: dict[str, Any]) -> int:
+        try:
+            wanted = int(args.get("limit") or 60)
+        except (TypeError, ValueError):
+            raise BrowserWorkflowError(f"--limit takes a number, not {args.get('limit')!r}")
+        return max(1, min(wanted, MAX_CONTROLS))
+
+    @staticmethod
+    def _describe(control: FormControlView) -> str:
+        """One line a person (or a model choosing its next call) can act on without reading the JSON."""
+        state = [] if control.visible else ["not on the screen"]
+        state += [] if control.enabled else ["disabled"]
+        state += ["read-only"] if control.readonly else []
+        state += ["required"] if control.required else []
+        state += ["holds something"] if control.filled else []
+        state += ["NEVER filled or read: it may be a credential"] if control.secret else []
+        state += ([f"now {control.selected!r}" if control.selected else "nothing chosen yet",
+                   "the site draws this list itself: select_option opens it, its items are not in the page yet"]
+                  if control.site_drawn else [])
+        name = control.label or control.text or control.name or control.id or "(unnamed)"
+        line = f"[{control.role}] {name!r} css={control.css}" + (f" -- {', '.join(state)}" if state else "")
+        if control.options:
+            items = " | ".join(f"{o.text!r}=value {o.value!r}" + (" (disabled)" if o.disabled else "")
+                               for o in control.options[:30])
+            line += (f"\n    {len(control.options)} option(s), now {control.selected or 'nothing'!r}: {items}"
+                     + (" | ..." if len(control.options) > 30 else ""))
+        return line
+
+
+class FormOperation(BrowserOperation):
+    """Shared by select_option and fill: find the one named control, and never touch a credential field.
+
+    Aimed by --css or --label only. The label match forgives a form's punctuation ("Record Type:" is
+    "Record Type"), which the plain click locator does not, and which is why a label that is plainly on
+    the screen used to find nothing.
+    """
+    destructive = True
+
+    def __init__(self, plane: ControlPlane) -> None:
+        super().__init__(plane)
+        self._resolver = RankedElementResolver(form_strategy_registry())
+        self._guard = SecretFieldGuard()
+
+    def _control(self, page, args: dict[str, Any], **facts: Any):
+        """(element, None) when exactly one usable control is named; (None, the refusal) otherwise."""
+        element, resolution = self._resolver.resolve(page, form_locators_from(args))
+        if element is None:
+            return None, refused(self._why_not(resolution), verified=False, cause=self._cause(resolution),
+                                 attempts=[a.model_dump() for a in resolution.attempts], **facts)
+        why = self._guard.reason(element)
+        if why:
+            return None, refused(f"I did not touch that field: {why}.", verified=False, cause="credential_field", **facts)
+        return element, None
+
+    @staticmethod
+    def _cause(resolution) -> str:
+        outcomes = {a.outcome for a in resolution.attempts}
+        for outcome, cause in (("disabled", "disabled"), ("ambiguous", "ambiguous_control"),
+                               ("hidden", "not_visible"), ("zero_size", "not_visible")):
+            if outcome in outcomes:
+                return cause
+        return "control_not_found"
+
+    def _why_not(self, resolution) -> str:
+        tried = ", ".join(f"{a.label}: {a.outcome}" + (f" ({a.count})" if a.count > 1 else "")
+                          for a in resolution.attempts)
+        advice = {
+            "disabled": "That control is on the page but disabled, so nothing can be done with it yet -- "
+                        "something earlier on the form may have to be set first.",
+            "ambiguous": "More than one control matches that. Run browser.form_controls and pass the css it gives.",
+            "hidden": "That control is on the page but not showing, so it cannot be operated.",
+            "zero_size": "That control is on the page but not showing, so it cannot be operated.",
+        }
+        outcomes = {a.outcome for a in resolution.attempts}
+        extra = next((advice[o] for o in ("disabled", "ambiguous", "hidden", "zero_size") if o in outcomes),
+                     "Run browser.form_controls to see what is on the page, then pass the css it gives.")
+        return f"I could not find one form control for that ({tried}). {extra}"
+
+
+class SelectOption(FormOperation):
+    """browser.select_option: choose an item in a dropdown and prove the list took it."""
+    name = "browser_select_option"
+    description = ("browser.select_option: choose one item in a dropdown by what it says (option_text) or by its "
+                   "value, then read the list back to prove it took")
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        wanted_value = str(args.get("value") or "")
+        wanted_text = str(args.get("option_text") or "")
+        page = self._page(kind, args)
+        try:
+            facts = dict(browser=kind.name, url=safe_url(page.current_url))
+            element, no = self._control(page, args, **facts)
+            if no is not None:
+                return no
+            if element.tag_name != "select":
+                return self._site_drawn(page, element, wanted_value, wanted_text, **facts)
+            options = [OptionView.model_validate(o) for o in element.options()]
+            option, why = OptionMatcher().choose(options, wanted_value, wanted_text)
+            if option is None:
+                return refused(f"I did not change the list: {why}", verified=False, cause="no_such_option",
+                               options=[o.model_dump() for o in options], **facts)
+            landed = element.choose(option.value)
+            chosen, note = self._read_back(page, args)
+        finally:
+            page.release()
+        asked = f"{option.text!r} (value {option.value!r})"
+        if landed != option.value:
+            return refused(f"The list would not take {asked}: it still holds {landed!r}.", verified=False,
+                           cause="not_accepted", wanted=option.value, selected_value=landed or "", **facts)
+        if chosen is not None and chosen.value != option.value:
+            return refused(f"I chose {asked}, but the page put the list back to {chosen.text!r} -- something on the "
+                           "form overrode it.", verified=False, cause="did_not_stick",
+                           wanted=option.value, selected_value=chosen.value, **facts)
+        confirmed = "the page confirms it" if chosen is not None else note
+        return ok(f"Chose {asked} in that dropdown; {confirmed}.", selected=option.text, selected_value=option.value,
+                  position=option.position, note=note, verified=True, **facts)
+
+    def _site_drawn(self, page, element, wanted_value: str, wanted_text: str, **facts: Any) -> OperationOutcome:
+        """A list the site draws itself, which is the opposite act to a native one and the same
+        operation to the caller: its items are nodes the page lays out, so they have real boxes and
+        are clicked -- but only after the control is opened, because until then they are not in the
+        page at all. That is why browser.click on the item alone could never work either."""
+        if not looks_site_drawn(element):
+            return refused(f"That is a <{element.tag_name}> with nothing about it that says it holds a list "
+                           "(no combobox role, no popup, no list of its own). Run browser.form_controls to see "
+                           "what is on the page.", verified=False, cause="not_a_dropdown", **facts)
+        widget = WidgetDropdown()
+        items = widget.open(page, element)
+        options = widget.read(items)
+        if not options:
+            return refused("I opened that dropdown and it put no items on the page, so there was nothing to "
+                           "choose. It may need a word typed into it first (browser.fill) before it offers any.",
+                           verified=False, cause="no_options_shown", site_drawn=True, **facts)
+        item, option, why = widget.choose(items, options, wanted_value, wanted_text)
+        if option is None:
+            return refused(f"I did not change the list: {why}", verified=False, cause="no_such_option",
+                           options=[o.model_dump() for o in options], site_drawn=True, **facts)
+        item.click()
+        showing = self._showing(page, element)
+        found = dict(selected=option.text, selected_value=option.value, position=option.position,
+                     site_drawn=True, **facts)
+        if not showing:
+            return ok(f"I clicked {option.text!r} in that site-drawn dropdown, but the control shows no text of "
+                      "its own, so I cannot prove it took. Confirm with browser.read.", verified=False,
+                      note="nothing to read the choice back from", **found)
+        if not same_characters(option.text, showing) and option.text.casefold() not in showing.casefold():
+            return refused(f"I clicked {option.text!r} in that site-drawn dropdown, but it is showing "
+                           f"{showing!r} instead.", verified=False, cause="did_not_stick",
+                           note=f"showing {showing!r}", **found)
+        return ok(f"Chose {option.text!r} in that site-drawn dropdown; it now shows {showing!r}.",
+                  verified=True, note=f"showing {showing!r}", **found)
+
+    @staticmethod
+    def _showing(page, element) -> str:
+        """What a site's own dropdown says it holds now: the text in the control, or the item it
+        points at with aria-activedescendant. Empty means there is nothing to read it back from."""
+        try:
+            said = " ".join((element.value() or element.text or "").split())[:160]
+        except BrowserWorkflowError:
+            said = ""
+        if said:
+            return said
+        pointed = (element.get_attribute("aria-activedescendant") or "").strip()
+        if not pointed or '"' in pointed:
+            return ""
+        for node in page.find(f'[id="{pointed}"]'):
+            words = " ".join((node.text or "").split())[:160]
+            if words:
+                return words
+        return ""
+
+    def _read_back(self, page, args: dict[str, Any]) -> tuple[OptionView | None, str]:
+        """Ask the page again what the list holds. Plenty of dropdowns post the form back when they
+        change, which replaces the document and takes the element with it: that is said, not guessed at.
+        The value `choose` returns is already a read of the list after its change event, so a reload
+        does not leave the result unverified -- it only leaves the second opinion unavailable."""
+        try:
+            element, _ = self._resolver.resolve(page, form_locators_from(args))
+            if element is None:
+                return None, "choosing it reloaded the form, so the list itself is no longer there to re-read"
+            chosen = next((o for o in [OptionView.model_validate(o) for o in element.options()] if o.selected), None)
+            if chosen is None:
+                return None, "the list reports nothing selected afterwards"
+            return chosen, ""
+        except BrowserWorkflowError as exc:
+            return None, f"the page changed while I read the list back ({exc})"
+
+
+class Fill(FormOperation):
+    """browser.fill: type into one ordinary field and prove the field holds it."""
+    name = "browser_fill"
+    description = ("browser.fill: type text into one ordinary field (--text is what to type), then read the field "
+                   "back to prove it took. Never a password or other credential field")
+    #: Typing is tried first and the field is told its value only if the keys got nowhere, so a field
+    #: with its own format (a date input) or its own mask (a phone field) is filled rather than refused.
+    _check = TypedValueCheck()
+
+    def perform(self, args: dict[str, Any]) -> OperationOutcome:
+        kind = self._kind(args)
+        if args.get("text") is None:
+            return refused("Say what to type: --text. (For browser.fill, text is the words to type; the field "
+                           "itself is named by --css or --label.)")
+        wanted = str(args["text"])
+        page = self._page(kind, args)
+        try:
+            facts = dict(browser=kind.name, url=safe_url(page.current_url))
+            element, no = self._control(page, args, **facts)
+            if no is not None:
+                return no
+            unusable = self._unusable(element)
+            if unusable:
+                return refused(unusable[0], verified=False, cause=unusable[1], **facts)
+            value = element.fill(wanted)
+            verdict = self._check.verdict(wanted, value, element)
+            # What the caller called it, if they named it: a form's aria-label is often just the id again.
+            where = str(args.get("label") or args.get("css") or element.get_attribute("name")
+                        or element.get_attribute("id") or element.tag_name)[:80]
+        finally:
+            page.release()
+        if verdict.ok and not verdict.note:
+            return ok(f"Typed {wanted!r} into {where!r}; the field reads it back.", typed=wanted, value=value,
+                      field=where, note="", verified=True, **facts)
+        if verdict.ok:
+            return ok(f"Typed {wanted!r} into {where!r}: {verdict.note}.", typed=wanted, value=value,
+                      field=where, note=verdict.note, verified=True, **facts)
+        return refused(f"I typed {wanted!r} into {where!r}, but {verdict.note}. Nothing was submitted.",
+                       typed=wanted, value=value, field=where, note=verdict.note, verified=False,
+                       cause=verdict.cause, **facts)
+
+    @staticmethod
+    def _unusable(element) -> tuple[str, str] | None:
+        """Why this control is not something a person types words into."""
+        tag = element.tag_name
+        kind = (element.get_attribute("type") or "").lower()
+        editable = element.get_attribute("contenteditable")
+        if element.get_attribute("readonly") is not None or (element.get_attribute("aria-readonly") or "") == "true":
+            return "That field is read-only: the page does not let anyone type in it.", "readonly"
+        if tag == "select":
+            return "That is a dropdown -- use browser.select_option for it.", "not_editable"
+        if tag == "input" and kind in ("checkbox", "radio", "submit", "button", "reset", "image"):
+            return f"That is a {kind} input, not a text field -- use browser.click for it.", "not_editable"
+        if tag == "input" and kind == "file":
+            return "That is a file chooser; I never put files into a web page.", "not_editable"
+        if tag == "input" and kind not in TYPEABLE:
+            return f"I do not type into a {kind!r} input.", "not_editable"
+        if tag not in ("input", "textarea") and editable not in ("", "true"):
+            return f"A <{tag}> is not a field a person types into.", "not_editable"
+        return None
 
 
 # ---- browser.dashboard_notes: open Chrome, go to the dashboard, press NOTES, confirm it is showing -------------

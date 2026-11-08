@@ -43,3 +43,52 @@ class BrowserPlacement(BaseModel):
     @property
     def visible(self) -> bool:
         return self.found and self.session != 0 and self.session in self.desktops
+
+
+class OptionView(BaseModel):
+    """One item of a dropdown, as data. A `<select>`'s choices are on the screen, so none of this is private."""
+    position: int = 0
+    value:    str = ""
+    text:     str = ""
+    selected: bool = False
+    disabled: bool = False
+
+
+class FormControlView(BaseModel):
+    """One control a person could operate, with the stable ways of naming it and whether it can be operated now.
+
+    `role` is text | password | dropdown | checkbox | radio | button | editable. A field's typed text is never
+    here: a password field comes back `secret` and empty, and every other field says only whether it holds
+    something (`filled`). A dropdown carries its options and the one chosen now, which is what makes
+    browser.select_option possible without guessing.
+    """
+    role:     str
+    tag:      str = ""
+    type:     str = ""
+    name:     str = ""
+    id:       str = ""
+    label:    str = ""
+    css:      str = ""
+    text:     str = ""                 # a button's caption only
+    visible:  bool = True
+    enabled:  bool = True
+    readonly: bool = False
+    required: bool = False
+    secret:   bool = False
+    filled:   bool = False
+    options:  list[OptionView] = []
+    selected:       str = ""           # the chosen option's text
+    selected_value: str = ""
+    #: A dropdown the site draws itself (role=combobox, aria-haspopup) rather than a <select>. Its items
+    #: exist in the page only while it is open, so `options` is empty here and select_option opens it first.
+    site_drawn: bool = False
+
+
+class FillVerdict(BaseModel):
+    """Did the field take what was typed? `ok` False is a refusal with this `cause`; `note` is the
+    sentence that says what the field actually did, whether it took the text or not."""
+    model_config = ConfigDict(frozen=True)
+
+    ok:    bool
+    cause: str = ""
+    note:  str = ""

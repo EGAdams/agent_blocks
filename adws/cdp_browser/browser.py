@@ -4,8 +4,9 @@ One page channel (the tab being driven) and, opened only when downloads are
 configured, one browser channel -- kept open until release, because Chrome
 forgets a download folder when the session that set it goes away.
 
-Beyond IBrowserAdapter it offers the three things a person steering by
-conversation needs: `go_back`, `open_tab` and `target_id`.
+Beyond IBrowserAdapter it offers the things a person steering by conversation
+needs: `go_back`, `open_tab`, `target_id`, and `form_controls` -- the page's
+operable controls, so a caller chooses a selector instead of guessing one.
 """
 from __future__ import annotations
 
@@ -21,6 +22,7 @@ from browser_workflows.playback.selenium_browser import INTERACTIVE_JS
 
 from .channel import CdpCommandError
 from .element import GROUP, CdpElement
+from .forms import FORM_CONTROLS_JS
 from .interfaces import CdpTarget, ICdpChannel, ICdpConnector, ITargetDirectory
 from .targets import pinned
 
@@ -182,6 +184,15 @@ class CdpWorkflowBrowser:
     def interactive_elements( self, limit: int = 60 ) -> list[ ElementSummary ]:
         rows = self._evaluate( f"(function () {{ { INTERACTIVE_JS } }})({ int( limit ) })" ) or []
         return [ ElementSummary.model_validate( r ) for r in rows ]
+
+    def form_controls( self, limit: int = 60 ) -> dict[ str, Any ]:
+        """What this page offers a person to operate: every input, dropdown (with its options and
+        the one chosen now), checkbox and button, each with a stable selector and whether it can be
+        operated. `{ "total": n, "controls": [ ... ] }`; hidden inputs are left out and no field's
+        typed text is ever read. Additive, like `reload` and `capture_png`: reading the controls is
+        what stops a caller guessing a selector."""
+        found = self._evaluate( FORM_CONTROLS_JS.replace( "LIMIT", str( int( limit ))))
+        return found if isinstance( found, dict ) else { "total": 0, "controls": []}
 
     # -- ITabs --------------------------------------------------------------------
 

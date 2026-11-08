@@ -30,6 +30,61 @@ _DISPLAYED = """function () {
   return !!(r.width && r.height) && s.visibility !== 'hidden' && s.display !== 'none';
 }"""
 
+#: A dropdown's own options, as data. Nothing here is a secret: a <select>'s choices are on the screen.
+_OPTIONS = """function () {
+  return Array.from(this.options || []).map(function (o, i) {
+    return { position: i + 1, value: o.value, text: (o.text || '').trim().replace(/\\s+/g, ' ').slice(0, 160),
+             selected: !!o.selected, disabled: !!o.disabled };
+  });
+}"""
+
+#: Pick the option with exactly this value and tell the page, the way a person's choice does
+#: (input, then change). Returns the list's value afterwards, or null when there is no such option.
+_CHOOSE = """function (wanted) {
+  const hit = Array.from(this.options || []).find(o => o.value === wanted);
+  if (!hit || hit.disabled) return null;
+  this.value = hit.value;
+  this.dispatchEvent(new Event('input', { bubbles: true }));
+  this.dispatchEvent(new Event('change', { bubbles: true }));
+  return this.value;
+}"""
+
+#: Empty the field first, so filling replaces rather than appends. False means it holds no text at all.
+_EMPTY = """function () {
+  this.focus();
+  if (this.isContentEditable) { this.textContent = ''; return true; }
+  if (!('value' in this) || typeof this.value !== 'string') return false;
+  this.value = '';
+  this.dispatchEvent(new Event('input', { bubbles: true }));
+  return true;
+}"""
+
+#: Tell the field its value outright, for a field that will not take typed keys at all (a date input
+#: wants YYYY-MM-DD, a masked field may swallow the keys). The assignment goes through the prototype's
+#: own setter, because a framework that watches its inputs installs one on the node itself and caches
+#: the last value it saw there -- going round that is what makes React and friends notice the change.
+_ASSIGN = """function (wanted) {
+  if (this.isContentEditable) { this.textContent = wanted; }
+  else {
+    const proto = this instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype
+                : this instanceof HTMLInputElement ? HTMLInputElement.prototype
+                : this instanceof HTMLSelectElement ? HTMLSelectElement.prototype : null;
+    const own = proto && Object.getOwnPropertyDescriptor(proto, 'value');
+    if (own && own.set) own.set.call(this, wanted);
+    else if ('value' in this) this.value = wanted;
+    else return null;
+  }
+  this.dispatchEvent(new Event('input', { bubbles: true }));
+  this.dispatchEvent(new Event('change', { bubbles: true }));
+  return this.isContentEditable ? (this.textContent || '') : String(this.value == null ? '' : this.value);
+}"""
+
+#: After typing: a change event (Input.insertText only fires input), then the value the field ended up with.
+_SETTLE = """function () {
+  this.dispatchEvent(new Event('change', { bubbles: true }));
+  return this.isContentEditable ? (this.textContent || '') : String(this.value == null ? '' : this.value);
+}"""
+
 
 class CdpElement:
     def __init__( self, channel: ICdpChannel, object_id: str ) -> None:
@@ -97,6 +152,49 @@ class CdpElement:
 
     def focus( self ) -> None:
         self._value( "function () { this.focus(); }" )
+
+    # -- form controls ------------------------------------------------------------
+
+    def options( self ) -> list[ dict[ str, Any ]]:
+        """The <option>s of a dropdown, in order. A node that is not a list has none.
+
+        An <option> is never clicked: Chrome gives it a 0x0 box (the open list is drawn by
+        Windows, not the page), so every element resolver rejects it. The list is told its
+        new value instead, which is what `choose` does."""
+        return list( self._value( _OPTIONS ) or [])
+
+    def choose( self, value: str ) -> str | None:
+        """Select the option with exactly this value, firing input and change.
+        Returns the list's value afterwards; None when it has no such (enabled) option."""
+        chosen = self._value( _CHOOSE, value )
+        return None if chosen is None else str( chosen )
+
+    def value( self ) -> str:
+        """What the field is showing now: its value, or its text when it is a node a person edits.
+        A site's own dropdown keeps the chosen item here, which is how that choice is read back."""
+        return str( self._value( "function () { return this.value != null ? String(this.value)"
+                                " : (this.innerText ?? this.textContent ?? ''); }" ) or "" )
+
+    def fill( self, text: str ) -> str:
+        """Replace what is in the field with `text` and return the value it ended up with.
+
+        Typing comes first, with Input.insertText -- real key input, so a framework watching for
+        it sees it. A field that refuses keys outright (a date input, a masked field) is then told
+        its value directly; that second attempt only wins if it got exactly what was asked for, or
+        if typing got nothing at all, because a field that reformats what is typed is doing its job
+        and its version is the one a person would have ended up with."""
+        if not self._value( _EMPTY ):
+            raise BrowserWorkflowError( "that element holds no text, so nothing could be typed into it" )
+        if text:
+            self._cdp.call( "Input.insertText", { "text": text })
+        typed = str( self._value( _SETTLE ) or "" )
+        if typed == text:
+            return typed
+        assigned = self._value( _ASSIGN, text )
+        if assigned is None:
+            return typed
+        assigned = str( assigned )
+        return assigned if ( assigned == text or not typed ) else typed
 
     # -- plumbing -----------------------------------------------------------------
 

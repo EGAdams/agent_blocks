@@ -23,9 +23,10 @@ own default handler can never be steered afterwards, so `default` means Chrome w
 
 `adws/adw_browser_control.py <operation> [flags]` -- one operation per run, `--json-out` for the outcome.
 Operations: `browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab  browser.click
-browser.read  browser.screenshot  browser.status  browser.close`. Package: `adws/browser_control/`
-(`operations.py`, `catalog.py`, `plane.py`, `interfaces.py`, `models.py`). Each operation is an `Operation` over an
-injected `ControlPlane`; a new one is a class plus a line in `catalog.ORDER`.
+browser.read  browser.screenshot  browser.status  browser.close  browser.form_controls  browser.select_option
+browser.fill`. Package: `adws/browser_control/` (`operations.py`, `catalog.py`, `plane.py`, `interfaces.py`,
+`models.py`, `forms.py`). Each operation is an `Operation` over an injected `ControlPlane`; a new one is a class
+plus a line in `catalog.ORDER`.
 
 Tracing: the ADW id is the execution id. Each run is an `adw.run:<id>` object with an `adw.phase:<id>:browser_<op>`
 child in the object trace (Object Debugger `recent`/`task`), with timestamps, status, and on refusal the reason.
@@ -43,7 +44,7 @@ released, never quit.
 
 Root cause of "ChatGPT cannot open Chrome": the connector listed no browser tools. The browser agent was reachable
 only through the generic `submit_agent_task` with a hand-written JSON prompt, so ChatGPT concluded it had no browser
-(and the agent's description still said "Chrome or Edge"). The gateway now lists eleven `browser_*` tools
+(and the agent's description still said "Chrome or Edge"). The gateway now lists fourteen `browser_*` tools
 (`gateway/src/BrowserTools.php`), each the same `browser` task written by the gateway and submitted with the
 caller's own credentials through `ClientTasks->submit`, so policy and client scopes apply unchanged:
 
@@ -51,7 +52,8 @@ caller's own credentials through `ClientTasks->submit`, so policy and client sco
 | --- | --- | --- |
 | `browser_open_dashboard_notes` | `browser.dashboard_notes` (request -> launch -> visibility -> dashboard_tab -> click -> notes_verify) | implement, no fields |
 | `browser_open` / `browser_navigate` / `browser_click` / `browser_select_tab` / `browser_refresh` / `browser_close_tab` | open / navigate / click / select_tab / refresh / close | implement |
-| `browser_read` / `browser_tabs` / `browser_status` | read / tabs / status | inspect |
+| `browser_select_option` / `browser_fill` | select_option / fill | implement, a form control named by `css` or `label` |
+| `browser_read` / `browser_tabs` / `browser_status` / `browser_form_controls` | read / tabs / status / form_controls | inspect |
 | `browser_get_result` | -- | reads a browser task's result |
 
 Each call waits up to `browser_wait_seconds` (default 20) for the worker's verified result; if not ready it returns
@@ -74,7 +76,12 @@ Agent `browser`, workspace `browser`. The prompt is JSON:
 | "Open the browser and go to Notes." | `implement` | `{"browser":"dashboard_notes"}` (no other fields) |
 | tabs / select / screenshot / status / close | `inspect` for tabs, screenshot, status; `implement` for select_tab, close | `{"browser":"tabs"}`, `{"browser":"select_tab","tab":"2"}`, `{"browser":"close","tab":"2"}` |
 
-Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `confirm`.
+| "What's on this form?" | `inspect` | `{"browser":"form_controls","limit":120}` |
+| "Set Record Type to PLAT Records." | `implement` | `{"browser":"select_option","css":"#ddlGSPermitType","option_text":"PLAT Records"}` |
+| "Type Fralick's Addition in Project Name." | `implement` | `{"browser":"fill","css":"#txtGSProjectName","text":"Fralick's Addition"}` |
+
+Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `option_text`,
+`value`, `limit`, `confirm`. (On the ADW command line a two-word flag is spelled with a dash: `--option-text`.)
 A task succeeds only if the ADW verified the operation (`details.verified`); the answer carries `details.adw_id`.
 
 ## Deploy steps (not done)
@@ -85,11 +92,16 @@ A task succeeds only if the ADW verified the operation (`details.verified`); the
    `implement` must be allowed for the client token, as for Notes.
 2. **Worker**: `touch ~/.config/startrek_browser/enabled`, restart `agent-bridge-worker`. (Off until then.)
 3. Toyota: no code needed for reading status; a Toyota plan like `notes_plans.py` is a follow-up.
+4. The form operations need no registry or config change -- the tools are code. Deploying them is: copy
+   `gateway/src/BrowserTools.php` and `gateway/src/McpEndpoint.php` to the host, restart
+   `agent-bridge-worker` (the worker's `browser_agent.py` changed), and have ChatGPT refresh the connector so
+   `browser_form_controls`, `browser_select_option` and `browser_fill` appear in its tool list.
 
 ## Tests
 
-`cd adws && ../lancedb_memory/.venv/bin/python -m pytest -q browser_control/tests` (18), and
-`cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent` (12).
+`cd adws && ../lancedb_memory/.venv/bin/python -m pytest -q browser_control/tests cdp_browser/tests/test_cdp_unit.py`
+(85 + 7), and `cd lancedb_memory && .venv/bin/python -m agent_bridge_worker.tests.test_browser_agent` (21), and
+`cd agent_bridge/gateway && php tests/run_tests.php` (118).
 
 ## Chrome only; host requirements (2026-11-07 fix)
 
@@ -120,3 +132,81 @@ remotely that was session 0, the hidden services desktop. Every check passed and
 
 PowerShell gets each script as `-EncodedCommand`, and the URL travels inside it base64-encoded, so no URL can
 change what the script does. The debug profile is `%LOCALAPPDATA%\adw-chrome-debug` of the signed-in user.
+
+## The form operations: form_controls, select_option, fill (2026-11-07)
+
+ChatGPT could open Chrome, read a page and press a button, but could not work Michigan's plat-search form.
+Three causes, all in Browser Control rather than in that site:
+
+1. **An `<option>` cannot be clicked, ever.** Chrome draws an open dropdown with Windows, not with the page, so
+   every `<option>` has a 0x0 box. `RankedElementResolver._judge` filters zero-size elements, so
+   `browser.click --text "PLAT Records"` could only ever answer "I could not find one clickable element". A list
+   is not clicked; it is told its new value.
+2. **Nothing listed a page's form controls**, so a caller had to guess CSS selectors (`cdp_browser`'s
+   `interactive_elements` existed for diagnostics but was never exposed).
+3. **`LabelStrategy` compares a label exactly**, so the page's "Record Type:" never matched "Record Type".
+
+| Operation | Takes | Verifies by |
+|---|---|---|
+| `browser.form_controls` | `tab`, `limit` (1-200, default 60) | reading the DOM; `verified` is always true (it only looks) |
+| `browser.select_option` | `css` or `label`, and `option_text` or `value`, `tab` | a `<select>`: the value it reports after its `change` event, then a second resolve-and-read of the list. A site-drawn list: the words the control shows afterwards (or the item its `aria-activedescendant` points at) |
+| `browser.fill` | `css` or `label`, `text`, `tab` | the value the field reports after `Input.insertText` and its `change` event, judged by `TypedValueCheck` |
+
+Where the parts live:
+
+- `adws/cdp_browser/forms.py` -- `FORM_CONTROLS_JS`, the DOM read. Stable names first (`label[for]`, then
+  `aria-label`, `aria-labelledby`, a wrapping `<label>`, `placeholder`, `title`), dropping any candidate that is
+  just the element's own id or name (ASP.NET forms set `aria-label` to the id) or that is a `javascript:` href.
+  `cssFor` prefers `#id`, then a unique `[name]`/`[data-testid]`/`[aria-label]` attribute selector, and only then
+  an `nth-of-type` path. Hidden inputs are not listed at all; no field's typed text is ever read -- a field
+  reports only *whether* it holds something.
+- `adws/cdp_browser/element.py` -- `options()`, `choose(value)` (sets the value, fires `input` then `change`, and
+  returns the list's value afterwards: the in-call verification), `value()` (what a control shows now, which is how
+  a site-drawn choice reads back), `fill(text)` (empty, `Input.insertText`, `change`, read the value; a field that
+  took nothing is then told its value through `HTMLInputElement.prototype`'s own setter, which is what makes a
+  framework's value tracker notice -- that second attempt wins only if it got exactly what was asked for, or if
+  typing got nothing at all, so a field that reformats keeps its own version).
+- `adws/browser_control/forms.py` -- the rules, no browser: `FormLabelStrategy` (forgives a form's `:`/`*` and
+  case, matches a label that starts with the words, and counts one node once so a control never reads as
+  ambiguous), `form_strategy_registry()` (re-registers `label` for these operations only, leaving
+  `browser_workflows`' default registry as the recorder and playback expect it), `form_locators_from`,
+  `SecretFieldGuard`, `OptionMatcher`, `WidgetDropdown` (a list the site draws itself: open it, read the items it
+  put in the page, click the one asked for -- items under the control's own `aria-controls`/`aria-owns` list first,
+  every clause of the scope scoped to it), `looks_site_drawn`, and `TypedValueCheck` (which mismatch this is:
+  reformatted and therefore taken, truncated by a `maxlength`, the wrong format for a date/time/colour input, or
+  refused outright).
+- `adws/browser_control/operations.py` -- `FormControls`, `FormOperation` (resolve one control, then the guard),
+  `SelectOption`, `Fill`. `Click`'s failure now checks whether the wanted text is an `<option>` and, if so, names
+  `browser.select_option` and the dropdown's selector.
+
+Safety: `SecretFieldGuard` refuses a `password` or `hidden` input, an `autocomplete` of
+`current-password`/`new-password`/`one-time-code`/`cc-csc`, and any control whose id, name, aria-label,
+placeholder or title contains password, passwd, pwd, passcode, pin, otp, onetime, mfa, 2fa, totp, secret, token,
+apikey, cvv, cvc, ssn, "security code" or "security answer" -- with the word that did it, so a false positive is
+obvious. `fill` also refuses a file chooser, a read-only field, and a checkbox/radio/submit (those are
+`browser.click`). An option or a control that matches twice is reported with both, never guessed between.
+The consequential-click confirmation is unchanged: filling a form submits nothing, and the submit button is
+still a `browser.click`.
+
+Failure `cause`s (also in the `browser-form-control` skill): `control_not_found`, `ambiguous_control`,
+`not_visible`, `disabled`, `no_such_option`, `not_a_dropdown`, `not_editable`, `readonly`, `credential_field`,
+`value_differs`, `did_not_stick`, `not_accepted`, `no_options_shown` (a site's own list opened empty: it filters
+as you type, so `fill` it first), `truncated`, `wrong_format`, `refused_text`.
+
+The two kinds of dropdown are one operation to the caller and opposite acts underneath. A native `<option>` has no
+box and is chosen by value; an item in a list the site draws itself is a node the page lays out, so it has a box,
+is clicked, and is not in the page at all until the control opens -- which is why `browser.click` on the item
+alone could never work for either. `form_controls` marks the second kind `site_drawn`, shows no options for it,
+and says what it holds now.
+
+Live, through the ADW, on `aca-prod.accela.com/LARA/Cap/CapHome.aspx?module=OLSR`: `form_controls` listed 25
+controls with correct labels; `select_option` set Record Type to PLAT Records (`OLSR/PLAT/NA/NA`) and a separate
+`form_controls` run confirmed it; `fill` typed a project name; `click` on `#ctl00_PlaceHolderMain_btnNewSearch`
+submitted; `read` returned the eight matching records. The site-drawn path, live on the W3C APG select-only
+combobox example: `form_controls` (adw `94e47652`) named it `#combo1` and marked it site-drawn with no options;
+`select_option --css=#combo1 --option-text=Blueberry` (adw `709c1901`) answered "it now shows 'Blueberry'"; a
+separate `form_controls` run confirmed "now 'Blueberry'". A field with its own format or its own mask is covered
+by tests at the CDP boundary (`cdp_browser/tests/test_cdp_unit.py`) rather than by a live run.
+
+Skill: `.claude/skills/browser-form-control/SKILL.md` -- the inspect -> select -> fill -> submit -> read loop, the
+cause table, and the never-list. It calls these ADWs; it does not reach past them.

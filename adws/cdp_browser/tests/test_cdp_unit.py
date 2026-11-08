@@ -8,6 +8,7 @@ import pytest
 
 from browser_session.models import DebugEndpoint
 from browser_workflows.errors import BrowserWorkflowError
+from cdp_browser.element import CdpElement
 from cdp_browser.choosers import FirstPageChooser, PreferredTargetChooser
 from cdp_browser.interfaces import CdpTarget
 from cdp_browser.targets import HttpTargetDirectory, LoopbackOnly, pinned
@@ -63,3 +64,46 @@ def test_websocket_reassembles_continuations_and_long_frames() -> None:
     assert ws.recv_text() == "hello"
     assert ws.recv_text() == "x" * 70000
     ws.close()
+
+
+class FakeChannel:
+    """A page that answers CDP calls. `holds` is the field's value; `takes_keys` False is a field
+    that ignores typed input the way a date input ignores "31/12/2025" -- it stays empty."""
+
+    def __init__( self, takes_keys: bool = True, shapes = None ) -> None:
+        self.holds, self.takes_keys, self.shapes, self.typed = "", takes_keys, shapes, []
+
+    def call( self, method: str, params: dict ) -> dict:
+        if method == "Input.insertText":
+            self.typed.append( params[ "text" ])
+            if self.takes_keys:
+                self.holds = self.shapes( params[ "text" ]) if self.shapes else params[ "text" ]
+            return {}
+        source = params[ "functionDeclaration" ]
+        given = [ a[ "value" ] for a in params.get( "arguments", [])]
+        if "this.focus()" in source and "this.value = ''" in source:          # _EMPTY
+            self.holds = ""
+            return { "result": { "value": True }}
+        if "Object.getOwnPropertyDescriptor" in source:                        # _ASSIGN
+            self.holds = self.shapes( given[ 0 ]) if self.shapes else given[ 0 ]
+            return { "result": { "value": self.holds }}
+        return { "result": { "value": self.holds }}                            # _SETTLE and reads
+
+
+def test_a_field_that_ignores_typed_keys_is_told_its_value_outright() -> None:
+    """A date input takes no keys: filling it used to leave it empty and report a mismatch."""
+    channel = FakeChannel( takes_keys=False )
+    assert CdpElement( channel, "node-1" ).fill( "2025-12-31" ) == "2025-12-31"
+    assert channel.typed == [ "2025-12-31" ]                                   # typing is still tried first
+
+
+def test_a_field_that_reformats_what_is_typed_keeps_its_own_version() -> None:
+    """The mask is the field doing its job, so the typed result wins over a blunt assignment."""
+    channel = FakeChannel( shapes=lambda t: "(616) 555-1212" if t == "6165551212" else t )
+    assert CdpElement( channel, "node-1" ).fill( "6165551212" ) == "(616) 555-1212"
+
+
+def test_a_filled_field_is_emptied_first_so_filling_replaces() -> None:
+    channel = FakeChannel()
+    channel.holds = "old"
+    assert CdpElement( channel, "node-1" ).fill( "new" ) == "new"

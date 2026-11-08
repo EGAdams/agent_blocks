@@ -156,6 +156,72 @@ def test_the_uv_adapter_builds_a_fixed_argv_and_values_cannot_become_options():
     raise AssertionError( "an unknown operation must not become a command" )
 
 
+def test_form_controls_is_an_inspect_task_and_carries_the_selectors_back():
+    """The fix for guessed CSS selectors: the agent is told what is on the page before it operates it."""
+    controls = [{ "role": "dropdown", "css": "#ddl", "label": "Record Type:",
+                  "options": [{ "position": 2, "value": "OLSR/PLAT/NA/NA", "text": "PLAT Records" }]}]
+    commands = FakeCommands( verified( "that page has 25 control(s).", total=25, controls=controls ))
+    out = run( commands, task({ "browser": "form_controls", "limit": 80 }, operation="inspect" ))
+    assert commands.calls == [( "form_controls", { "limit": "80" }, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "controls" ][ 0 ][ "css" ] == "#ddl"
+    assert run( commands, task({ "browser": "form_controls" }, operation="implement" )).kind == OutcomeKind.REFUSED
+
+
+def test_select_option_is_an_implement_task_named_by_css_or_label():
+    commands = FakeCommands( verified( "Chose 'PLAT Records' (value 'OLSR/PLAT/NA/NA') in that dropdown; the page confirms it.",
+                                       selected="PLAT Records", selected_value="OLSR/PLAT/NA/NA" ))
+    out = run( commands, task({ "browser": "select_option", "css": "#ddl", "option_text": "PLAT Records" }))
+    assert commands.calls == [( "select_option", { "css": "#ddl", "option-text": "PLAT Records" }, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "selected" ] == "PLAT Records"
+    assert run( commands, task({ "browser": "select_option", "value": "x" })).kind == OutcomeKind.REFUSED
+    assert run( commands, task({ "browser": "select_option", "css": "#ddl" })).kind == OutcomeKind.REFUSED
+
+
+def test_a_dropdown_item_is_never_asked_for_with_text():
+    """`text` is what to type, not what to choose: a request that confuses them is refused here rather
+    than finding the wrong control."""
+    refused = run( FakeCommands( verified()), task({ "browser": "select_option", "text": "PLAT Records" }))
+    assert refused.kind == OutcomeKind.REFUSED and "not a locator" in refused.summary
+
+
+def test_fill_needs_both_a_control_and_the_words_to_type():
+    commands = FakeCommands( verified( "Typed \'Fralick\'s Addition\' into \'Project Name:\'; the field reads it back.",
+                                       value="Fralick's Addition" ))
+    out = run( commands, task({ "browser": "fill", "css": "#txt", "text": "Fralick's Addition" }))
+    assert commands.calls == [( "fill", { "css": "#txt", "text": "Fralick's Addition" }, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED
+    assert run( commands, task({ "browser": "fill", "css": "#txt" })).kind == OutcomeKind.REFUSED
+    assert run( commands, task({ "browser": "fill", "text": "x" })).kind == OutcomeKind.REFUSED
+
+
+def test_an_empty_fill_is_how_a_field_is_emptied():
+    """Everywhere else an empty value means nothing was given; for fill it is a real instruction."""
+    commands = FakeCommands( verified( "Typed '' into 'Project Name:'; the field reads it back.", value="" ))
+    out = run( commands, task({ "browser": "fill", "css": "#txt", "text": "" }))
+    assert commands.calls == [( "fill", { "css": "#txt", "text": "" }, False )] and out.kind == OutcomeKind.SUCCEEDED
+
+
+def test_a_refused_credential_field_is_a_failure_and_the_words_never_come_back():
+    answer = { "ok": False, "adw_id": "beef0001",
+               "line": "I did not touch that field: that is a password field, and I never touch those.",
+               "data": { "verified": False, "cause": "credential_field" }}
+    out = run( FakeCommands( answer ), task({ "browser": "fill", "css": "#pw", "text": "hunter2" }))
+    assert out.kind == OutcomeKind.FAILED and not out.retryable and out.details[ "cause" ] == "credential_field"
+    assert "hunter2" not in out.summary and "hunter2" not in out.body
+
+
+def test_an_unverified_form_result_is_never_reported_as_done():
+    """"the form was submitted" is not "it worked": only the ADW's own verification counts."""
+    answer = { "ok": True, "adw_id": "beef0002", "line": "the list still holds ''.", "data": { "verified": False }}
+    assert run( FakeCommands( answer ), task({ "browser": "select_option", "css": "#ddl", "value": "x" })).kind == OutcomeKind.FAILED
+
+
+def test_a_form_operation_names_its_tab_by_the_stable_id():
+    commands = FakeCommands( verified( "Chose it.", selected="PLAT Records" ))
+    run( commands, task({ "browser": "select_option", "css": "#ddl", "value": "v", "tab": "D4E512DAA70B7741" }))
+    assert commands.calls[ 0 ][ 1 ][ "tab" ] == "D4E512DAA70B7741"
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 if __name__ == "__main__":
     for test in TESTS:

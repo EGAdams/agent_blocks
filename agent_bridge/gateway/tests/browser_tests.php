@@ -25,7 +25,8 @@ function browserCall(World $w, string $tool, array $args = [], ?string $token = 
 
 const BROWSER_TOOLS = ['browser_open_dashboard_notes', 'browser_open', 'browser_navigate', 'browser_click',
                        'browser_select_tab', 'browser_refresh', 'browser_close_tab', 'browser_read', 'browser_tabs',
-                       'browser_status', 'browser_get_result'];
+                       'browser_status', 'browser_form_controls', 'browser_select_option', 'browser_fill',
+                       'browser_get_result'];
 
 test('browser: every browser_* tool is listed when the agent exists and implement is on', function () {
     $names = toolNames(browserWorld());
@@ -41,7 +42,9 @@ test('browser: no browser tools without the browser agent, and only reads withou
     $w = browserWorld(['allowed_operations' => ['inspect', 'explain', 'search_memory'], 'allowed_modes' => ['read_only']]);
     $names = toolNames($w);
     ok(in_array('browser_read', $names, true) && in_array('browser_status', $names, true), 'reads listed');
+    ok(in_array('browser_form_controls', $names, true), 'looking at a form is a read');
     ok(!in_array('browser_open_dashboard_notes', $names, true) && !in_array('browser_click', $names, true), 'no actions');
+    ok(!in_array('browser_select_option', $names, true) && !in_array('browser_fill', $names, true), 'no form writing');
     eq(true, browserCall($w, 'browser_open_dashboard_notes')['isError']);
 });
 
@@ -112,6 +115,66 @@ test('browser: arguments are checked and become the prompt fields', function () 
     eq(['browser' => 'click', 'text' => 'NOTES', 'tab' => '2'], json_decode($prompt, true), 'confirm only when true');
     $read = browserCall($w, 'browser_read')['structuredContent']['task_id'];
     eq('read_only', $w->call('GET', "/tasks/$read", $w->client)->json['approval_mode']);
+});
+
+test('browser: a dropdown and a field are named by css or label, and the item by option_text or value', function () {
+    $w = browserWorld();
+    eq(true, browserCall($w, 'browser_select_option', ['option_text' => 'PLAT Records'])['isError'], 'needs the dropdown');
+    eq(true, browserCall($w, 'browser_select_option', ['css' => '#ddl'])['isError'], 'needs the item');
+    eq(true, browserCall($w, 'browser_fill', ['text' => 'Fralick\'s Addition'])['isError'], 'fill needs the field');
+    eq(true, browserCall($w, 'browser_fill', ['css' => '#txt'])['isError'], 'fill needs the words to type');
+    $id = browserCall($w, 'browser_select_option',
+                      ['css' => '#ddlGSPermitType', 'option_text' => 'PLAT Records', 'tab' => 2])['structuredContent']['task_id'];
+    list($prompt) = claimTask($w, $id);
+    eq(['browser' => 'select_option', 'css' => '#ddlGSPermitType', 'option_text' => 'PLAT Records', 'tab' => '2'],
+       json_decode($prompt, true), 'the gateway writes the prompt');
+    $fill = browserCall($w, 'browser_fill', ['css' => '#txtGSProjectName', 'text' => ''])['structuredContent']['task_id'];
+    list($typed) = claimTask($w, $fill);
+    eq(['browser' => 'fill', 'css' => '#txtGSProjectName', 'text' => ''], json_decode($typed, true), 'an empty fill empties the field');
+    $look = browserCall($w, 'browser_form_controls', ['limit' => 80])['structuredContent']['task_id'];
+    eq('read_only', $w->call('GET', "/tasks/$look", $w->client)->json['approval_mode']);
+    list($asked) = claimTask($w, $look);
+    eq(['browser' => 'form_controls', 'limit' => '80'], json_decode($asked, true), 'limit arrives as text');
+});
+
+test('browser: a form result carries the controls and the verified choice, and never a page secret', function () {
+    $w  = browserWorld();
+    $id = browserCall($w, 'browser_form_controls')['structuredContent']['task_id'];
+    list(, $lease) = claimTask($w, $id);
+    completeTask($w, $id, $lease, ['browser' => 'form_controls', 'ok' => true, 'verified' => true, 'adw_id' => 'c0ffee11',
+                                   'total' => 25, 'controls' => [['role' => 'dropdown', 'css' => '#ddl', 'label' => 'Record Type:',
+                                                                  'options' => [['value' => 'OLSR/PLAT/NA/NA', 'text' => 'PLAT Records']]]],
+                                   'listing' => "[dropdown] 'Record Type:' css=#ddl", 'viewstate' => 'never-copied']);
+    $s = browserCall($w, 'browser_get_result', ['task_id' => $id])['structuredContent'];
+    eq(true, $s['verified']);
+    eq(25, $s['total']);
+    eq('#ddl', $s['controls'][0]['css']);
+    ok(strpos($s['listing'], 'Record Type:') !== false, 'the listing comes back');
+    ok(!isset($s['viewstate']), 'only known detail keys are copied');
+});
+
+test('browser: a choice in a site-drawn dropdown comes back saying which kind of list it was', function () {
+    $w  = browserWorld();
+    $id = browserCall($w, 'browser_select_option', ['css' => '#combo', 'option_text' => 'PLAT Records'])['structuredContent']['task_id'];
+    list(, $lease) = claimTask($w, $id);
+    completeTask($w, $id, $lease, ['browser' => 'select_option', 'ok' => true, 'verified' => true, 'adw_id' => 'ab12cd34',
+                                   'selected' => 'PLAT Records', 'site_drawn' => true, 'note' => "showing 'PLAT Records'"]);
+    $s = browserCall($w, 'browser_get_result', ['task_id' => $id])['structuredContent'];
+    eq(true, $s['verified']);
+    eq(true, $s['site_drawn']);
+    eq('PLAT Records', $s['selected']);
+});
+
+test('browser: a refused credential field is not a success and says why', function () {
+    $w  = browserWorld();
+    $id = browserCall($w, 'browser_fill', ['css' => '#pw', 'text' => 'something'])['structuredContent']['task_id'];
+    list(, $lease) = claimTask($w, $id);
+    completeTask($w, $id, $lease, ['browser' => 'fill', 'ok' => false, 'verified' => false, 'adw_id' => 'deadbee5',
+                                   'cause' => 'credential_field'], false);
+    $s = browserCall($w, 'browser_get_result', ['task_id' => $id])['structuredContent'];
+    eq(false, $s['verified']);
+    eq('credential_field', $s['cause']);
+    ok(strpos($s['next'], 'do not claim') !== false, 'tells the caller not to claim it typed');
 });
 
 test('browser: get_result reads only the caller\'s own browser tasks', function () {
