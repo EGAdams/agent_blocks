@@ -113,6 +113,8 @@ class Dashboard:
                 self.open_note, choice.clicked = choice.text_content, False
         if self.back.clicked:
             self.open_note, self.back.clicked = None, False
+        if self.notes.clicked:
+            self.notes.attrs["class"], self.notes.clicked = "tab active", False
         title = FakeElement(text=self.open_note or "", tag="h3", selectors={EDITOR_TITLE}, shown=bool(self.open_note))
         landing = [] if self.open_note else self.choices
         return [self.notes, title, self.back] + landing
@@ -197,3 +199,19 @@ def test_notes_state_waits_for_the_notes_button_to_be_laid_out_after_a_reload(tm
     ops, _ = notes_world(tmp_path, dash)
     out = run(ops, "browser.notes_state", note=DEED, reload=True)
     assert out.ok and dash.open_note == DEED, out.line
+
+
+def test_notes_state_presses_notes_again_until_the_notes_page_opens(tmp_path):
+    """Right after a reload the dashboard draws NOTES before its scripts bind the handler, so the first press
+    does nothing (in a hidden window it is this.click()). The reader presses until the button is active."""
+    dash = Dashboard()
+    dash.notes.attrs["class"] = "tab"
+    presses = {"n": 0}
+    def click():
+        presses["n"] += 1
+        if presses["n"] >= 2:                                           # the handler is bound by the second press
+            dash.notes.attrs["class"] = "tab active"
+    dash.notes.click = click
+    ops, _ = notes_world(tmp_path, dash)
+    out = run(ops, "browser.notes_state", note=DEED, reload=True)
+    assert out.ok and dash.open_note == DEED and presses["n"] == 2, out.line

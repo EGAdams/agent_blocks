@@ -52,6 +52,20 @@ def _shown(page, css: str) -> bool:
     return any(element.is_displayed() for element in page.find(css))
 
 
+def _notes_view_open(page) -> bool:
+    """One look for `_until`: True once the NOTES button is the active one; otherwise press it if it is laid out.
+    Pressed again on every look because a press can be lost: right after a reload the button is drawn before the
+    dashboard's scripts have bound its handler, and in a hidden window the press is `this.click()`, which then
+    does nothing. NOTES only navigates, so a second press is harmless."""
+    found = [element for element in page.find(NOTES_TAB_CSS) if element.is_displayed()]
+    if not found:
+        return False
+    if "active" in (found[0].get_attribute("class") or "").split():
+        return True
+    found[0].click()
+    return False
+
+
 class NotesState(BrowserOperation):
     name = "browser_notes_state"
     description = ("browser.notes_state: open one note on the dashboard's Notes page and read which of its lines "
@@ -103,9 +117,8 @@ class NotesState(BrowserOperation):
 
     def _open_note(self, kind, tab, note: str) -> OperationOutcome | None:
         if not self._showing(kind, tab, note):
-            if not self._until(kind, tab, lambda p: _shown(p, NOTES_TAB_CSS)):
-                return self._stuck(kind, "the dashboard never showed its NOTES button", "notes_tab_missing")
-            self._press_if_present(kind, tab, NOTES_TAB_CSS, only_if_inactive=True)
+            if not self._until(kind, tab, _notes_view_open):
+                return self._stuck(kind, "the dashboard's NOTES button did not open the Notes page", "notes_tab_missing")
             self._press_if_present(kind, tab, BACK, only_if_displayed=True)
             if not self._until(kind, tab, lambda p: bool(p.find(CHOICE))):   # found: a closed category is revealed below
                 return self._stuck(kind, "the Notes page never listed its notes", "notes_not_listed")
