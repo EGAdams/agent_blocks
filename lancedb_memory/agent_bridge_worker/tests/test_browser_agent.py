@@ -304,6 +304,56 @@ def test_a_publish_that_fails_keeps_the_download_but_says_it_cannot_be_viewed():
     assert "could not be published for viewing" in out.body
 
 
+class FlakyUploader( FakeUploader ):
+    """The live box's network drops for seconds at a time (`[Errno 101] Network is unreachable`, 2026-11-09)."""
+    def __init__( self, outages, status=0 ):
+        super().__init__()
+        self.outages, self.status, self.attempts = outages, status, 0
+
+    def upload_download_blob( self, task_id, sha256, data ):
+        self.attempts += 1
+        if self.outages > 0:
+            self.outages -= 1
+            from agent_bridge_worker.ports import GatewayError
+            raise GatewayError( self.status, "unreachable", "[Errno 101] Network is unreachable" )
+        super().upload_download_blob( task_id, sha256, data )
+
+
+def publish_with( uploader, files ):
+    from agent_bridge_worker.download_publisher import DownloadPublisher
+    waits = []
+    publisher = DownloadPublisher( uploader, sleep=waits.append )
+    commands = FakeCommands( verified( "Saved 0337201.tif (0.0 KB).", files=files ))
+    agent = BrowserAgent( commands, FakeClock(), poll_seconds=0.1, publisher=publisher )
+    return agent.run( task({ "browser": "download", "text": "0337201.tif" }), Path( "." ), lambda: "continue" ), waits
+
+
+def test_a_network_blip_while_publishing_is_retried_and_the_file_becomes_viewable():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        uploader = FlakyUploader( outages=2 )
+        out, waits = publish_with( uploader, [ a_downloaded_file( Path( tmp ))])
+    assert out.details[ "inspectable" ] is True and out.details[ "files" ][ 0 ][ "file_id" ]
+    assert len( waits ) == 2 and len( uploader.manifests ) == 1
+
+
+def test_a_refusal_from_the_gateway_is_not_retried():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        uploader = FlakyUploader( outages=5, status=409 )
+        out, waits = publish_with( uploader, [ a_downloaded_file( Path( tmp ))])
+    assert out.details[ "inspectable" ] is False and waits == [] and uploader.attempts == 1
+
+
+def test_an_outage_that_outlasts_the_retries_is_reported_with_how_often_it_was_tried():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        uploader = FlakyUploader( outages=99 )
+        out, waits = publish_with( uploader, [ a_downloaded_file( Path( tmp ))])
+    assert out.details[ "inspectable" ] is False and "4 attempts" in out.details[ "inspect_problem" ]
+    assert sum( waits ) <= 30
+
+
 def test_a_file_that_changed_after_hashing_is_not_published_under_the_old_checksum():
     import tempfile
     with tempfile.TemporaryDirectory() as tmp:

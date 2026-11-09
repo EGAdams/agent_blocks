@@ -13,10 +13,17 @@ text lives with the file at the gateway and is returned by `browser_view_file`.
 A bytes-on-disk mismatch (the file changed after the ADW hashed it) is refused, not uploaded under the
 old checksum, and a publish that fails leaves the download a success with `inspectable: false` and
 the reason, because the file *was* saved -- it is the viewing that did not happen.
+
+A publish is retried (`RETRY_WAITS`) when the gateway could not be reached or answered 5xx/429: the
+live box's network drops for seconds at a time (`[Errno 101] Network is unreachable`, 2026-11-09), and
+one blip used to strand a good download where ChatGPT could not see it. Retrying is safe because blobs
+are content-addressed and the gateway's manifest write replaces the task's rows under deterministic
+file ids. A refusal (any other 4xx -- a lost lease, a bad field) is never retried.
 """
 from __future__ import annotations
 
 import hashlib
+import time
 from collections.abc import Callable
 from pathlib import Path
 
@@ -29,11 +36,19 @@ MAX_BLOB = 7_340_032
 #: Text sent per file. The gateway stores at most this much and says when it was cut.
 MAX_TEXT = 100_000
 PAGE_KEYS = ( "page", "rendition", "mime", "width", "height", "bytes", "sha256" )
+#: Seconds waited before each retry of a transient failure: four attempts, under 15 s in all, well
+#: inside the task lease the manifest still has to present.
+RETRY_WAITS = ( 2.0, 4.0, 8.0 )
+
+
+def _transient( exc: Exception ) -> bool:
+    return isinstance( exc, GatewayError ) and ( exc.status == 0 or exc.status == 429 or exc.status >= 500 )
 
 
 class DownloadPublisher:
-    def __init__( self, uploader: IDownloadUploader, read: Callable[[ Path ], bytes ] = Path.read_bytes ) -> None:
-        self._uploader, self._read = uploader, read
+    def __init__( self, uploader: IDownloadUploader, read: Callable[[ Path ], bytes ] = Path.read_bytes,
+                  sleep: Callable[[ float ], None ] = time.sleep ) -> None:
+        self._uploader, self._read, self._sleep = uploader, read, sleep
 
     def publish( self, task: ClaimedTask, details: dict ) -> dict:
         """`details` with each file given a `file_id` (and `inspectable`), or the whole set marked
@@ -41,14 +56,18 @@ class DownloadPublisher:
         files = [ f for f in details.get( "files" ) or [] if isinstance( f, dict )]
         if not files:
             return details
-        try:
-            sent = [ self._upload( task, index, f ) for index, f in enumerate( files )]
-            answer = self._uploader.post_downloads( task.task_id, { "task_id": task.task_id,
-                                                                    "lease_token": task.lease_token, "files": sent })
-        except ( GatewayError, OSError, ValueError ) as exc:
-            reason = f"{ type( exc ).__name__ }: { str( exc )[ :240 ]}"
-            return { **details, "files": [ self._summary( f ) for f in files ], "inspectable": False,
-                     "inspect_problem": f"the file was saved but could not be published for viewing ({ reason })" }
+        for attempt in range( 1, len( RETRY_WAITS ) + 2 ):
+            try:
+                sent, answer = self._send_all( task, files )
+                break
+            except ( GatewayError, OSError, ValueError ) as exc:
+                if _transient( exc ) and attempt <= len( RETRY_WAITS ):
+                    self._sleep( RETRY_WAITS[ attempt - 1 ])
+                    continue
+                tries = f" after { attempt } attempts" if attempt > 1 else ""
+                reason = f"{ type( exc ).__name__ }: { str( exc )[ :240 ]}{ tries }"
+                return { **details, "files": [ self._summary( f ) for f in files ], "inspectable": False,
+                         "inspect_problem": f"the file was saved but could not be published for viewing ({ reason })" }
         ids = { int( row.get( "idx", -1 )): str( row.get( "file_id", "" ))
                 for row in answer.get( "files" ) or [] if isinstance( row, dict )}
         out = []
@@ -58,6 +77,13 @@ class DownloadPublisher:
             summary[ "original_stored" ] = sent[ index ][ "original_stored" ]
             out.append( summary )
         return { **details, "files": out, "inspectable": all( f[ "file_id" ] for f in out )}
+
+    def _send_all( self, task: ClaimedTask, files: list[ dict ]) -> tuple[ list[ dict ], dict ]:
+        """Every blob, then the one manifest that names them. Safe to repeat: see the module docstring."""
+        sent = [ self._upload( task, index, f ) for index, f in enumerate( files )]
+        answer = self._uploader.post_downloads( task.task_id, { "task_id": task.task_id,
+                                                                "lease_token": task.lease_token, "files": sent })
+        return sent, answer
 
     def _upload( self, task: ClaimedTask, index: int, f: dict ) -> dict:
         inspection = f.get( "inspection" ) if isinstance( f.get( "inspection" ), dict ) else {}
