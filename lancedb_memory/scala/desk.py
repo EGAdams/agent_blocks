@@ -83,7 +83,7 @@ class ScalaDesk:
             verdict = verdict.model_copy( update={ "folder": UNSURE, "reason":
                 "looks financial, but Mazda's turn was skipped as not financial; "
                 f"needs a person: { verdict.reason }" })
-        sure = verdict.method in ( Method.RULES, Method.OPERATOR ) or verdict.confidence >= HAIKU_THRESHOLD
+        sure = self.is_sure( verdict )
         try:
             if sure and self._cabinet.is_allowed( verdict.folder ):
                 destination, created = self._cabinet.file( image, verdict.folder, sha256 )
@@ -98,6 +98,11 @@ class ScalaDesk:
             why = f"suggested { verdict.folder!r}, which Scala may not create; { why }"
         return self.outcome( image, sha256, Decision.INBOX, verdict=verdict,
                               destination=str( destination ), reason=why )
+
+    @staticmethod
+    def is_sure( verdict: Classification ) -> bool:
+        """Sure enough to file without asking: a rule, a person, or Haiku at >= 0.70."""
+        return verdict.method in ( Method.RULES, Method.OPERATOR ) or verdict.confidence >= HAIKU_THRESHOLD
 
     # -- all of it ------------------------------------------------------------
 

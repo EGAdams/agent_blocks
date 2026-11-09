@@ -19,7 +19,7 @@ import re
 from pathlib import Path
 from typing import Callable
 
-from .models import FINANCE, UNSURE, Classification, Method
+from .models import FINANCE, NOT_ASKED, UNSURE, Classification, Method
 
 DEFAULT_MODEL = "claude-haiku-5-5"
 MAX_OCR_CHARS = 4000
@@ -54,8 +54,8 @@ class HaikuClassifier:
         try:
             reply = asyncio.run( asyncio.wait_for( self._ask( task ), self._timeout ))
         except Exception as exc:  # noqa: BLE001 -- a failed call is an answer, not a crash
-            return Classification( folder=UNSURE, confidence=0.0, method=Method.HAIKU,
-                                   reason=f"Haiku could not be asked: { type( exc ).__name__ }: { exc }"[ :300 ])
+            return Classification( folder=UNSURE, confidence=0.0, method=Method.HAIKU, answered=False,
+                                   reason=f"{ NOT_ASKED }: { type( exc ).__name__ }: { exc }"[ :300 ])
         return parse_reply( reply )
 
     async def _ask( self, task: str ) -> str:

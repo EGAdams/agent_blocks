@@ -19,12 +19,13 @@ sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 2 ]))
 
 from scala.cabinet import FilingCabinet
 from scala.desk import ScalaDesk
-from scala.haiku import parse_reply
+from scala.haiku import HaikuClassifier, parse_reply
 from scala.ledger import InMemoryScalaLedger, JsonlScalaLedger, summary
 from scala.mazda_verdicts import RecentReportVerdicts
 from scala.questions import ( AnswerRequest, InMemoryLessonBook, InMemoryQuestionBook, JsonlQuestionBook,
                               QuestionDesk, QuestionState, lessons_for_prompt, read_answer )
-from scala.models import FINANCE, UNSURE, Classification, Decision, Method
+from scala.models import FINANCE, NOT_ASKED, UNSURE, Classification, Decision, Method
+from scala.retry import QuestionRetry
 from scala.rules import RuleClassifier
 from scala.watch import ScanWatcher, Watermark
 
@@ -365,6 +366,79 @@ async def test_answer_adw_files_and_checks_off_the_to_do():
         assert line_file.read_text().startswith( "Scala filed question #1 under bills_511/water (new folder)" )
         assert store.items()[ 0 ].state.value == "done" and store.items()[ 0 ].added_by == "scala"
         assert ( tmp / "home" / "lessons.jsonl" ).exists()
+
+
+# -- asking again when Haiku was never reached --------------------------------
+
+def failed_ask_question( tmp: Path ):
+    """A scan whose Haiku call died: inbox, asked about, quoting the error."""
+    failed = FakeHaiku( Classification( folder=UNSURE, confidence=0.0, method=Method.HAIKU, answered=False,
+                                        reason=f"{ NOT_ASKED }: CLIJSONDecodeError: message over 1 MiB" ))
+    desk, ledger, _ = desk_for( tmp, WATER_THIN, haiku=failed )
+    outcome = desk.handle( make_scan( tmp ))
+    assert outcome.decision is Decision.INBOX
+    lessons, asker = InMemoryLessonBook(), FakeAsker()
+    cabinet = FilingCabinet( tmp / "cabinet" )
+    questions = QuestionDesk( InMemoryQuestionBook(), lessons, asker, cabinet, ledger )
+    question = questions.ask( outcome, WATER_THIN )
+    retry = QuestionRetry( desk, questions, cabinet )
+    return retry, questions, question, failed, lessons, asker, ledger
+
+
+async def test_a_failed_haiku_call_says_so_in_its_classification():
+    def render( fields: dict[ str, str ]) -> str:
+        return "task"
+    classifier = HaikuClassifier( "system", render, timeout_sec=0.0 )
+    verdict = classifier.classify( "text", Path( "missing.jpg" ), ())
+    assert verdict.answered is False and verdict.reason.startswith( NOT_ASKED ), verdict
+    assert parse_reply( '{"folder": "bills_511/gas", "confidence": 0.9}' ).answered is True
+
+
+async def test_asked_again_and_sure_it_is_filed_and_checked_off_without_a_lesson():
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path( raw )
+        retry, questions, question, haiku, lessons, asker, ledger = failed_ask_question( tmp )
+        assert questions.unclassified() == [ question ]
+        haiku.answer = Classification( folder="bills_511/water", confidence=0.85, method=Method.HAIKU,
+                                       reason="a city water bill" )
+        lines = retry.retry_all()
+        assert lines[ 0 ].startswith( "Scala filed question #7 under bills_511/water (new folder) on her own" ), lines
+        assert len( list(( tmp / "cabinet" / "bills_511" / "water" ).iterdir())) == 1
+        assert not Path( question.scan ).exists() and asker.closed == [ 7 ]
+        assert lessons.lessons == [], "EG taught nothing, so nothing is remembered as his"
+        assert ledger.outcomes[ -1 ].decision is Decision.FILED and ledger.outcomes[ -1 ].method is Method.HAIKU
+        assert questions.open_questions() == [] and retry.retry_all()[ 0 ].startswith( "Scala has no questions" )
+
+
+async def test_asked_again_and_unsure_it_waits_with_what_it_looks_like_now():
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path( raw )
+        retry, questions, question, haiku, lessons, asker, _ = failed_ask_question( tmp )
+        haiku.answer = Classification( folder="documents_511/probate", confidence=0.5, method=Method.HAIKU,
+                                       reason="a death certificate" )
+        line = retry.retry_all()[ 0 ]
+        assert line.startswith( "#7 still needs EG: a death certificate; best guess documents_511/probate" ), line
+        waiting = questions.open_questions()
+        assert len( waiting ) == 1 and NOT_ASKED not in waiting[ 0 ].looked_like
+        assert questions.unclassified() == [] and Path( question.scan ).exists() and asker.closed == []
+
+
+async def test_asked_again_and_still_unreachable_nothing_changes():
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path( raw )
+        retry, questions, question, haiku, _, asker, _ = failed_ask_question( tmp )
+        line = retry.retry_all()[ 0 ]
+        assert "still could not be asked" in line and haiku.calls == 2
+        assert questions.unclassified() == [ question ] and asker.closed == []
+
+
+async def test_asked_again_as_finance_it_is_not_filed_by_scala():
+    with tempfile.TemporaryDirectory() as raw:
+        tmp = Path( raw )
+        retry, questions, question, haiku, _, _, _ = failed_ask_question( tmp )
+        haiku.answer = Classification( folder=FINANCE, confidence=0.95, method=Method.HAIKU, reason="a receipt" )
+        assert "looks financial" in retry.retry_all()[ 0 ]
+        assert Path( question.scan ).exists() and len( questions.open_questions()) == 1
 
 
 if __name__ == "__main__":

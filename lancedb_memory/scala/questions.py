@@ -30,7 +30,7 @@ from pydantic import BaseModel, ConfigDict
 
 from .interfaces import IFilingCabinet, IScalaLedger
 from .ledger import default_home
-from .models import UNSURE, Decision, FilingOutcome, Method
+from .models import NOT_ASKED, UNSURE, Classification, Decision, FilingOutcome, Method
 
 
 class QuestionState( str, Enum ):
@@ -273,10 +273,36 @@ class QuestionDesk:
                 return f"Scala's question #{ question.number } was already answered: it went under { question.folder }."
         return self._file( question, request.folder )
 
-    def _file( self, question: Question, folder: str ) -> str:
+    # -- asking again, when the first ask never reached the model ---------------
+
+    def unclassified( self ) -> list[ Question ]:
+        """Open questions whose page Haiku never actually saw (the call itself failed)."""
+        return [ q for q in self.open_questions() if q.looked_like.startswith( NOT_ASKED )]
+
+    def image_of( self, question: Question ) -> Path | None:
+        """The page to read: Scala's inbox copy, else Mazda's staged original."""
+        for candidate in ( Path( question.scan ), Path( question.source )):
+            if candidate.is_file():
+                return candidate
+        return None
+
+    def file_as_classified( self, question: Question, verdict: Classification ) -> str:
+        """Haiku placed it on a second ask: file it, check the to-do off, teach nothing (EG didn't say)."""
+        return self._file( question, verdict.folder, method=verdict.method, confidence=verdict.confidence,
+                           reason=f"asked again for question #{ question.number }: { verdict.reason }"[ :300 ],
+                           taught=False )
+
+    def revise( self, question: Question, looked_like: str ) -> Question:
+        """Replace what the page looked like, so the waiting list stops quoting a stale error."""
+        revised = question.model_copy( update={ "looked_like": looked_like })
+        self._book.put( revised )
+        return revised
+
+    def _file( self, question: Question, folder: str, method: Method = Method.OPERATOR,
+               confidence: float = 1.0, reason: str = "", taught: bool = True ) -> str:
         inbox_copy = Path( question.scan )
-        image = inbox_copy if inbox_copy.is_file() else Path( question.source )
-        if not image.is_file():
+        image = self.image_of( question )
+        if image is None:
             return f"Scala can't find the scan for question #{ question.number } any more ({ inbox_copy.name }), so nothing was filed."
         try:
             destination, created = self._cabinet.file( image, folder, question.sha256 )
@@ -287,15 +313,18 @@ class QuestionDesk:
         now = datetime.now().astimezone()
         self._ledger.record( FilingOutcome(
             at=now, source=question.source, sha256=question.sha256, decision=Decision.FILED, folder=folder,
-            destination=str( destination ), method=Method.OPERATOR, confidence=1.0,
-            reason=f"EG answered question #{ question.number }", created_folder=created ))
+            destination=str( destination ), method=method, confidence=confidence,
+            reason=reason or f"EG answered question #{ question.number }", created_folder=created ))
         self._book.put( question.model_copy( update={ "state": QuestionState.ANSWERED, "folder": folder,
                                                       "answered_at": now }))
+        self._asker.close( question.number )
+        new = " (new folder)" if created else ""
+        if not taught:
+            return ( f"Scala filed question #{ question.number } under { folder }{ new } on her own "
+                     f"({ method.value }, { confidence:.2f}) and checked it off the to-do list." )
         if question.hints:                      # a page with no words read teaches Haiku nothing
             self._lessons.add( Lesson( folder=folder, looked_like=question.looked_like, hints=question.hints,
                                        taught_at=now ))
-        self._asker.close( question.number )
-        new = " (new folder)" if created else ""
         remember = ( " She'll remember that pages like it go there." if question.hints
                      else " The page had no words she could read, so there's nothing to remember from it." )
         return ( f"Scala filed question #{ question.number } under { folder }{ new } and checked it off the "

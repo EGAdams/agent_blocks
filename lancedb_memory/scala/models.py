@@ -28,6 +28,10 @@ class Decision( str, Enum ):
 FINANCE = "finance"
 #: The answer that means "I can't tell".
 UNSURE = "unsure"
+#: How a classifier's reason starts when the model was never reached (a crash, a
+#: timeout, an oversized stream message). Questions asked before `answered`
+#: existed are recognised by it, so they can be asked again.
+NOT_ASKED = "Haiku could not be asked"
 
 
 class CategoryRule( BaseModel ):
@@ -47,6 +51,7 @@ class Classification( BaseModel ):
     confidence: float = Field( ge=0.0, le=1.0 )
     method:     Method
     reason:     str = ""
+    answered:   bool = True                 # False: the model was never reached, so ask again later
 
 
 class FilingOutcome( BaseModel ):
