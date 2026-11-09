@@ -49,6 +49,9 @@ def sniff_mime( path: Path ) -> str:
         return "image/bmp"
     if head.startswith( b"PK\x03\x04" ):
         return _zip_kind( path )
+    if head.startswith( b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" ):    # OLE2: .doc, .xls -- which one is inside
+        from .legacy import ole_kind
+        return ole_kind( path )
     if _looks_textual( head ):
         if _looks_html( head ):
             return "text/html"

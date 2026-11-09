@@ -120,3 +120,56 @@ def test_unknown_binary_gets_a_note( tmp_path: Path ) -> None:
     blob.write_bytes( bytes( range( 256 )))
     result = default_inspector( tmp_path / "out" ).inspect( blob, SHA )
     assert result.kind == "binary" and result.pages == []
+
+
+# -- Word 97 and Excel 97: the old binary formats, read as text, never run ---------------------
+FIXTURES = Path( __file__ ).resolve().parent / "fixtures"
+
+
+def test_an_old_word_document_is_sniffed_from_its_streams_and_its_text_read( tmp_path: Path ) -> None:
+    pytest.importorskip( "olefile" )
+    source = tmp_path / "download.bin"                      # no telling extension: the streams decide
+    source.write_bytes(( FIXTURES / "deed.doc" ).read_bytes())
+    assert sniff_mime( source ) == "application/msword"
+    result = default_inspector( tmp_path / "out" ).inspect( source, SHA )
+    assert result.kind == "document" and result.page_count == 1
+    assert result.text == "Fralick's Addition, Liber 4 of Plats, Page 31.\nLot 12 and Lot 13."
+
+
+def test_unicode_pieces_and_a_table_come_out_as_lines_and_tabs( tmp_path: Path ) -> None:
+    pytest.importorskip( "olefile" )
+    result = default_inspector( tmp_path / "out" ).inspect( FIXTURES / "table.doc", SHA )
+    assert result.text == "Deed of Distribution — Łódź test\nGrantee\tShare\nEG\t½\nEnd."
+
+
+def test_an_old_spreadsheet_is_every_sheet_as_csv( tmp_path: Path ) -> None:
+    pytest.importorskip( "olefile" )
+    pytest.importorskip( "xlrd" )
+    source = FIXTURES / "plats.xls"
+    assert sniff_mime( source ) == "application/vnd.ms-excel"
+    result = default_inspector( tmp_path / "out" ).inspect( source, SHA )
+    assert result.kind == "spreadsheet" and result.page_count == 1
+    assert result.text.splitlines()[ :3 ] == [ "[sheet plats]", "Parcel,Liber,Page", "41-13-25-101-012,4,31" ]
+
+
+def test_an_encrypted_or_damaged_word_document_is_a_note_never_a_guess() -> None:
+    from file_inspection.legacy import LegacyDocError, doc_text
+    word = bytearray( 0x400 )
+    word[ 0:2 ] = b"\xec\xa5"
+    word[ 0x0A:0x0C ] = ( 0x0100 ).to_bytes( 2, "little" )
+    with pytest.raises( LegacyDocError, match="encrypted" ):
+        doc_text( bytes( word ), { "0Table": b"" })
+    word[ 0x0A:0x0C ] = b"\x00\x00"
+    with pytest.raises( LegacyDocError ):
+        doc_text( bytes( word ), { "0Table": b"" })
+    with pytest.raises( LegacyDocError, match="no FIB" ):
+        doc_text( b"\x00" * 0x400, {})
+
+
+def test_an_ole_file_that_is_neither_is_not_called_word( tmp_path: Path ) -> None:
+    olefile = pytest.importorskip( "olefile" )
+    from file_inspection.legacy import ole_kind
+    junk = tmp_path / "x.doc"
+    junk.write_bytes( b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 600 )
+    assert ole_kind( junk ) == "application/x-ole-storage"
+    assert olefile.isOleFile( str( FIXTURES / "deed.doc" ))

@@ -1,7 +1,7 @@
 #!/usr/bin/env -S uv run
 # /// script
 # requires-python = ">=3.12"
-# dependencies = ["pydantic", "python-dotenv", "pyyaml", "rich", "selenium", "pillow", "pymupdf", "openpyxl"]
+# dependencies = ["pydantic", "python-dotenv", "pyyaml", "rich", "selenium", "pillow", "pymupdf", "openpyxl", "olefile", "xlrd"]
 # ///
 """ADW Browser Control -- one traceable browser operation per run.
 

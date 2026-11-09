@@ -11,6 +11,7 @@ from pathlib import Path
 
 from .archive import SafeZipUnpacker
 from .interfaces import IArchiveUnpacker, IRenderer
+from .legacy import LegacyExcelRenderer, LegacyWordRenderer
 from .models import ArchiveMember, Inspection
 from .renderers import DocxRenderer, PdfRenderer, RasterRenderer, TextRenderer, XlsxRenderer, ZipRenderer
 from .sniff import sniff_mime
@@ -66,4 +67,4 @@ class FileInspector:
 def default_inspector( root: Path ) -> FileInspector:
     """The composition root for inspection: the only place that names the renderers."""
     return FileInspector( root, [ RasterRenderer(), PdfRenderer(), TextRenderer(), DocxRenderer(), XlsxRenderer(),
-                                  ZipRenderer()], SafeZipUnpacker())
+                                  LegacyWordRenderer(), LegacyExcelRenderer(), ZipRenderer()], SafeZipUnpacker())
