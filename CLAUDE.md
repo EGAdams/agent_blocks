@@ -158,6 +158,21 @@ The top-level areas are:
   `cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp
   pytest -q browser_workflows/tests`. Prefix `BW_E2E=1` and add `--with
   selenium` to run the real-Chrome record/replay test.
+  `adws/adw_deploy.py` is the Deployment ADW (read `adws/deployment/DESIGN.md`
+  first): deploy, restart, health, logs, history and rollback over the fixed
+  project table in `adws/deployment/projects.json` (`dashboard` in place over
+  `~/letta-code`, `agent_blocks` by fast-forward `git pull`, `bridge_sandbox`,
+  and `gateway` for health only). A request names an operation and a project,
+  never a path or a command. Every run has an ADW id, a run record and a ledger
+  line under `~/.local/share/adw_deploy`, and a deploy whose health check fails
+  puts the previous release back by itself. ChatGPT reaches it as Bridge agent
+  `deploy` (protected: only `toyota-bridge`/`chatgpt-bridge` may submit), through
+  `lancedb_memory/agent_bridge_worker/deploy_agent.py`, and Toyota reaches it
+  through her `bridge_deploy` route (`bridge_client/deploy_plans.py`). Verified
+  live through MCP on 2026-11-08: `agent_blocks` and `dashboard` deploys, and a
+  `bridge_sandbox` deploy and rollback round trip. Toyota's route is tested
+  offline only. A check runs under the ADW's own `uv` interpreter, so name an
+  absolute interpreter (`/usr/bin/python3`, or a `.venv`) whenever its imports matter.
   `adws/cashy/` is Cashy, the banking navigation agent (read its
   `DESIGN.md` first). She reads the debug Chrome's DOM over `adws/cdp_browser/`
   (DevTools protocol, no screenshots, no Selenium or Playwright), waits for
