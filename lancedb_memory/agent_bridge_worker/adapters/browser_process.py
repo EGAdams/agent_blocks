@@ -14,7 +14,9 @@ import tempfile
 import time
 from pathlib import Path
 
-from ..browser_agent import READS, WRITES, BrowserCommandFailed
+from ..browser_agent import READS, SWITCHES, WRITES, BrowserCommandFailed
+
+SWITCH_FLAGS = frozenset( SWITCHES.values())
 
 ADW_ID = re.compile( r"adw_id: ([0-9a-f]{8})" )
 
@@ -62,7 +64,9 @@ class UvBrowserCommands:
         if operation not in READS | WRITES:
             raise BrowserCommandFailed( f"no such browser operation { operation }" )
         argv = [ str( self._uv ), "run", "--quiet", str( self._adw ), f"browser.{ operation }" ]
-        argv += [ f"--{ name }={ value }" for name, value in sorted( flags.items())]
+        # An empty value is an on/off switch (`reload`), passed by its name alone; `fill`'s empty text is a value.
+        argv += [ f"--{ name }" if value == "" and name in SWITCH_FLAGS else f"--{ name }={ value }"
+                  for name, value in sorted( flags.items())]
         if confirm:
             argv.append( "--confirm" )
         return argv + [ f"--json-out={ result }" ]

@@ -25,6 +25,7 @@ from browser_workflows.operations.common import Operation, OperationOutcome, loc
 from browser_workflows.playback.locating import RankedElementResolver, default_strategy_registry
 
 from .filelinks import saved_extension
+from .highlights import blinking, classify_page
 from .forms import (OptionMatcher, SecretFieldGuard, TypedValueCheck, WidgetDropdown, form_locators_from,
                     form_strategy_registry, looks_site_drawn, same_characters)
 from .models import BrowserKind, FormControlView, OptionView, TabView
@@ -368,19 +369,28 @@ class Click(BrowserOperation):
 
 class Read(BrowserOperation):
     name = "browser_read"
-    description = "browser.read: the visible text of the page (never form values, cookies or storage)"
+    description = ("browser.read: the visible text of the page, and which of it is highlighted or blinking "
+                   "(never form values, cookies or storage)")
 
     def perform(self, args: dict[str, Any]) -> OperationOutcome:
         kind = self._kind(args)
         page = self._page(kind, args)
+        probe = getattr(page, "highlights", None)
         try:
             text, url, title = page.body_text(), safe_url(page.current_url), page.title
+            found = probe("", 40, int(args.get("sample_ms") or 1500)) if probe else {}
         finally:
             page.release()
         text = re.sub(r"\n{3,}", "\n\n", text).strip()
         clipped = len(text) > MAX_READ_CHARS
-        return ok(f"{title[:80]!r} at {url}: {len(text)} characters of visible text.", browser=kind.name, url=url,
-                  title=title[:120], text=text[:MAX_READ_CHARS], truncated=clipped, verified=True)
+        states = classify_page(found or {})
+        lit = blinking(states)
+        said = f"{title[:80]!r} at {url}: {len(text)} characters of visible text."
+        if states:
+            said += (f" {len(states)} highlighted item{'s' if len(states) != 1 else ''}"
+                     + (f"; blinking: {'; '.join(repr(s.text[:120]) for s in lit)}." if lit else ", none blinking."))
+        return ok(said, browser=kind.name, url=url, title=title[:120], text=text[:MAX_READ_CHARS], truncated=clipped,
+                  highlights=[s.model_dump() for s in states], blinking=[s.text for s in lit], verified=True)
 
 
 class Screenshot(BrowserOperation):

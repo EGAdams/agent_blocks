@@ -93,6 +93,13 @@ class SpecialistForm(BaseModel):
     new_name: str | None = None       # notes: rename target
     trash_id: str | None = None       # notes: a trashed note, from trash_list
     known_revision: str | None = None  # notes: filled by code from the last read, never by the model
+    item_id: str | None = None        # notes review: r- + 10 hex, from what's blinking or the open items
+    replace: str | None = None        # notes review: the item's new words
+    evidence: str | None = None       # notes review: the record that shows an item is resolved
+    approval: str | None = None       # notes review: what EG said, in their own words, approving a resolve
+    snapshot_id: str | None = None    # notes review: s- + 10 hex, from the note's undo snapshots
+    until: str | None = None          # notes review watch: clear | change | active_change
+    advance: bool | None = None       # notes review: after resolving, blink the next item (rollback: undo later ones too)
     url: str | None = None            # browser: where to open or navigate
     tab: str | None = None            # browser: a tab id, from browser tabs
     css: str | None = None            # browser: one control's selector, from form_controls
@@ -289,7 +296,7 @@ class NotesBuilder:
         plan = NOTES_PLANS.get(what)
         if plan is None:
             raise FormProblem("What should I do with the notes: list or search them, read one, change one, "
-                              "highlight, create, rename, trash or restore one?")
+                              "highlight, create, rename, trash or restore one, or review what's blinking?")
 
         def problem(spoken: str) -> None:
             raise FormProblem(spoken)

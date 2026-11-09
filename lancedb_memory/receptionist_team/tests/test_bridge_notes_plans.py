@@ -45,7 +45,7 @@ CASES = {
 
 
 async def test_every_operation_builds_the_exact_prompt_and_the_right_lane():
-    assert set(CASES) | {"status", "marker_write", "marker_clear"} == set(NOTES_PLANS)
+    assert set(CASES) | set(REVIEW_CASES) | {"status", "marker_write", "marker_clear"} == set(NOTES_PLANS)
     for op, (kwargs, prompt, needs_yes) in CASES.items():
         req, said = B.build(SpecialistForm(operation=op, **kwargs), NOTES)
         assert json.loads(req.prompt) == prompt, op
@@ -53,6 +53,90 @@ async def test_every_operation_builds_the_exact_prompt_and_the_right_lane():
         assert (req.operation == "implement") is needs_yes, op
         if needs_yes:
             assert said, op
+
+
+ITEM = "r-514098ba03"
+SNAP = "s-0123456789"
+REVIEW_CASES = {
+    "review_inspect":              (dict(note_id=DEED), {"notes": "review_inspect", "id": DEED}, False),
+    "review_get_active_highlight": (dict(note_id=DEED), {"notes": "review_get_active_highlight", "id": DEED}, False),
+    "review_verify":               (dict(note_id=DEED), {"notes": "review_verify", "id": DEED}, False),
+    "review_snapshots":            (dict(note_id=DEED, limit=5), {"notes": "review_snapshots", "id": DEED, "limit": 5}, False),
+    "review_watch":                (dict(note_id=DEED, until="clear", limit=30),
+                                    {"notes": "review_watch", "id": DEED, "until": "clear", "timeout": 30}, False),
+    "review_stop_blink":           (dict(note_id=DEED), {"notes": "review_stop_blink", "id": DEED}, True),
+    "review_activate":             (dict(note_id=DEED, item_id=ITEM, expected_revision=REV),
+                                    {"notes": "review_activate", "id": DEED, "item_id": ITEM, "expected_revision": REV}, True),
+    "review_activate_next":        (dict(note_id=DEED), {"notes": "review_activate_next", "id": DEED}, True),
+    "review_edit":                 (dict(note_id=DEED, item_id=ITEM, replace="[VERIFY Liber 4]", expected_revision=REV),
+                                    {"notes": "review_edit", "id": DEED, "item_id": ITEM, "replace": "[VERIFY Liber 4]",
+                                     "expected_revision": REV}, True),
+    "review_mark_resolved":        (dict(note_id=DEED, item_id=ITEM, expected_revision=REV, evidence="plat image page 31",
+                                         replace="Liber 4 of Plats, Page 31.", advance=True),
+                                    {"notes": "review_mark_resolved", "id": DEED, "item_id": ITEM, "expected_revision": REV,
+                                     "evidence": "plat image page 31", "replace": "Liber 4 of Plats, Page 31.",
+                                     "advance": True}, True),
+    "review_rollback":             (dict(note_id=DEED, snapshot_id=SNAP, expected_revision=REV, advance=True),
+                                    {"notes": "review_rollback", "id": DEED, "snapshot_id": SNAP, "expected_revision": REV,
+                                     "chain": True}, True),
+}
+
+
+async def test_every_review_operation_builds_the_worker_prompt_in_its_lane():
+    for op, (kwargs, prompt, needs_yes) in REVIEW_CASES.items():
+        req, said = B.build(SpecialistForm(operation=op, **kwargs), NOTES)
+        assert json.loads(req.prompt) == prompt, op
+        assert req.needs_confirmation is needs_yes and (req.operation == "implement") is needs_yes, op
+        if needs_yes:
+            assert said, op
+
+
+async def test_resolving_says_on_what_grounds_and_an_edit_says_it_stays_open():
+    _, said = B.build(SpecialistForm(**{**REVIEW_CASES["review_mark_resolved"][0], "operation": "review_mark_resolved"}), NOTES)
+    assert "plat image page 31" in said and "yes confirms" in said
+    _, said = B.build(SpecialistForm(operation="review_mark_resolved", note_id=DEED, item_id=ITEM, expected_revision=REV,
+                                     approval="EG: yes, that one is settled"), NOTES)
+    assert "because you said" in said
+    _, said = B.build(SpecialistForm(**{**REVIEW_CASES["review_edit"][0], "operation": "review_edit"}), NOTES)
+    assert "stays open" in said
+
+
+async def test_a_review_change_that_cannot_be_safe_is_refused_before_anything_is_sent():
+    bad = (dict(operation="review_inspect"),                                                   # no note
+           dict(operation="review_edit", note_id=DEED, item_id=ITEM, replace="x"),              # never read
+           dict(operation="review_edit", note_id=DEED, item_id=ITEM, expected_revision=REV),    # no new words
+           dict(operation="review_activate", note_id=DEED, item_id="line 9"),
+           dict(operation="review_mark_resolved", note_id=DEED, item_id=ITEM, expected_revision=REV),   # no grounds
+           dict(operation="review_rollback", note_id=DEED, expected_revision=REV),
+           dict(operation="review_rollback", note_id=DEED, snapshot_id="../x", expected_revision=REV),
+           dict(operation="review_watch", note_id=DEED),
+           dict(operation="review_watch", note_id=DEED, until="forever"))
+    for kwargs in bad:
+        try:
+            B.build(SpecialistForm(**kwargs), NOTES)
+            raise AssertionError(kwargs)
+        except FormProblem:
+            pass
+
+
+async def test_a_review_answer_is_remembered_so_the_next_change_carries_its_revision():
+    from types import SimpleNamespace
+    runner = BridgeSpecialistRunner("bridge_notes", filler=object(), pending=object(), notices=object())
+    fresh = "e" * 64
+    run = SimpleNamespace(request=SimpleNamespace(agent="notes", prompt=json.dumps({"notes": "review_inspect", "id": DEED})),
+                          result=SimpleNamespace(succeeded=True, body=json.dumps({"said": "x", "id": DEED, "revision": fresh,
+                                                                                  "active_item_id": ITEM})))
+    runner._remember_revision(run)
+    for op in ("review_edit", "review_mark_resolved", "review_rollback", "review_stop_blink"):
+        form = SpecialistForm(operation=op, note_id=DEED, expected_revision="f" * 64)
+        runner._attach_revision(form)
+        assert form.expected_revision == fresh, op
+    form = SpecialistForm(operation="review_edit", note_id=DEED, item_id="active", replace="[VERIFY x]")
+    runner._attach_revision(form)
+    assert form.item_id == ITEM                                   # "the blinking one" is the id last reported
+    form = SpecialistForm(operation="review_edit", note_id="never_read.md", item_id="active")
+    runner._attach_revision(form)
+    assert form.item_id is None                                   # nothing reported: the plan asks which item
 
 
 async def test_purge_says_it_is_permanent_and_that_yes_is_the_authorization():

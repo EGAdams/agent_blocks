@@ -258,4 +258,5 @@ def _speak(result) -> str:
 # Toyota's one desk: shared by her route override, her Bridge runners and her alert inbox.
 PENDING = PendingBridgeRequests()
 NOTE_REVISIONS = NoteRevisions()
+NOTE_ACTIVE_ITEMS = NoteRevisions()   # the review item each note last answered as blinking, same rules
 NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True)

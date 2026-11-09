@@ -404,6 +404,25 @@ def test_all_the_text_together_fits_the_gateways_budget_and_short_files_keep_the
     assert all( f[ "text" ].encode( "utf-8" ).decode( "utf-8" ) for f in sent[ 1: ])
 
 
+def test_notes_state_is_a_read_that_names_a_note_and_may_reload():
+    note = "2026-11-03_draft-personal-representative-s-deed-of-distribution.md"
+    commands = FakeCommands( verified( "Line 11 blinks; its text stays visible.", blinking=[ "VERIFY PLAT" ], revision="a" * 64 ))
+    out = run( commands, task({ "browser": "notes_state", "note": note, "reload": True }, operation="inspect" ))
+    assert out.kind == OutcomeKind.SUCCEEDED and commands.calls == [( "notes_state", { "note": note, "reload": "" }, False )]
+    assert out.details[ "blinking" ] == [ "VERIFY PLAT" ]
+    assert run( FakeCommands( verified()), task({ "browser": "notes_state" }, operation="inspect" )).kind == OutcomeKind.REFUSED
+    for bad in ({ "note": "../etc/passwd" }, { "note": note, "reload": "yes" }):
+        out = run( FakeCommands( verified()), task({ "browser": "notes_state", **bad }, operation="inspect" ))
+        assert out.kind == OutcomeKind.REFUSED, bad
+    assert run( FakeCommands( verified()), task({ "browser": "notes_state", "note": note })).kind == OutcomeKind.REFUSED
+
+
+def test_a_switch_is_passed_by_its_name_alone():
+    argv = UvBrowserCommands( Path( "/uv" ), Path( "/adw.py" ), Path( "." )).argv(
+        "notes_state", { "note": "a.md", "reload": "" }, False, "/tmp/r.json" )
+    assert "--reload" in argv and "--note=a.md" in argv and "--reload=" not in argv
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 if __name__ == "__main__":
     for test in TESTS:
@@ -428,3 +447,4 @@ def test_download_takes_a_bare_url_in_place_of_a_locator():
     out = run( commands, task({ "browser": "download", "url": url }))
     assert commands.calls == [( "download", { "url": url }, False )]
     assert out.kind == OutcomeKind.SUCCEEDED
+

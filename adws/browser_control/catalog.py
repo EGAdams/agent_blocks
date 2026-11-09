@@ -6,6 +6,7 @@ from browser_workflows.operations.common import Operation
 
 from . import operations as ops
 from .downloads import Download
+from .notes_page import NotesState
 from .plane import ControlPlane, default_plane
 
 ORDER = [ops.Open, ops.Navigate, ops.Refresh, ops.Tabs, ops.SelectTab, ops.Click, ops.Read, ops.Screenshot,
@@ -14,11 +15,13 @@ ORDER = [ops.Open, ops.Navigate, ops.Refresh, ops.Tabs, ops.SelectTab, ops.Click
 #: "browser.open" (the Bridge's spelling) -> the ADW operation name.
 PUBLIC = {cls.name.replace("browser_", "browser."): cls.name for cls in ORDER}
 PUBLIC["browser.dashboard_notes"] = "browser_dashboard_notes"
+PUBLIC["browser.notes_state"] = NotesState.name
 
 
 def browser_control_operations(plane: ControlPlane | None = None) -> dict[str, Operation]:
     """browser.open is three phases, each traced on its own: launch -> visibility -> open.
-    browser.dashboard_notes is six: request -> launch -> visibility -> dashboard_tab -> click -> verify."""
+    browser.dashboard_notes is six: request -> launch -> visibility -> dashboard_tab -> click -> verify.
+    browser.notes_state is four: launch -> visibility -> dashboard_tab -> notes_state."""
     plane = plane or default_plane()
     table: dict[str, Operation] = {cls.name: cls(plane) for cls in ORDER}
     table[ops.Open.name] = OperationSequence(ops.Open.name, ops.Open.description,
@@ -27,4 +30,7 @@ def browser_control_operations(plane: ControlPlane | None = None) -> dict[str, O
         "browser_dashboard_notes", "browser.dashboard_notes: open Chrome on the desktop, go to the dashboard, press NOTES, confirm it",
         [ops.NotesRequest(plane), ops.Launch(plane), ops.Visibility(plane), ops.DashboardTab(plane), ops.Click(plane),
          ops.NotesVerify(plane)])
+    table[NotesState.name] = OperationSequence(
+        NotesState.name, NotesState.description,
+        [ops.Launch(plane), ops.Visibility(plane), ops.DashboardTab(plane), NotesState(plane)])
     return table

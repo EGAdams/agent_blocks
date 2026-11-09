@@ -4,7 +4,7 @@ The prompt is JSON written by code (ChatGPT turns "open the browser" into it; To
 
     {"browser": "open", "url": "https://example.com", "target": "chrome"}   # Chrome is the only authorized browser
 
-    inspect    read_only        status | tabs | read | screenshot | form_controls
+    inspect    read_only        status | tabs | read | screenshot | form_controls | notes_state (note, reload)
     implement  workspace_write  open | navigate | refresh | select_tab | click | close | dashboard_notes
                                 select_option | fill | download                           (workspace `browser`)
 
@@ -14,6 +14,10 @@ option) and buttons, each with the selector to pass back as `css`. `select_optio
 the page and nothing on it can be reached. It works a list the site draws itself too (role=combobox and the
 like): the ADW opens that one and clicks the item inside it, which is the opposite act for the same request.
 `fill` types `text` into one ordinary field, including a date or masked field that takes no typed keys.
+
+`notes_state` opens one note on the dashboard's Notes page and reads what it blinks: the line, whether its text stays
+visible while the background blinks, and the revision the page holds (`reload` first, to check what survived a
+refresh). It changes nothing on the note. The Notes Review ADW runs it to check the page agrees with a saved edit.
 
 `dashboard_notes` is the whole "open the browser and go to Notes": Chrome on the desktop, the ROL dashboard,
 the NOTES tab pressed, and the page read back to confirm NOTES is the active tab. It takes no fields.
@@ -40,6 +44,7 @@ A click whose words look consequential (pay, send, delete ...) is refused by the
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
@@ -48,14 +53,17 @@ from .models import AgentOutcome, ClaimedTask, OutcomeKind
 from .ports import IClock, Signal
 
 PERFORMER = "browser_control"
-READS     = frozenset({ "status", "tabs", "read", "screenshot", "form_controls" })
+READS     = frozenset({ "status", "tabs", "read", "screenshot", "form_controls", "notes_state" })
 WRITES    = frozenset({ "open", "navigate", "refresh", "select_tab", "click", "close", "dashboard_notes",
                         "select_option", "fill", "download" })
 #: request key -> the ADW flag it becomes (the ADW spells a two-word flag with a dash: --option-text).
 #: `target` is the browser (Chrome only); `browser` already names the operation.
 FLAGS     = { "target": "browser", "url": "url", "tab": "tab", "text": "text", "label": "label", "css": "css",
-              "option_text": "option-text", "value": "value", "limit": "limit" }
-REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",), "fill": ("text",) }
+              "option_text": "option-text", "value": "value", "limit": "limit", "note": "note", "sample_ms": "sample-ms" }
+#: request keys that are on/off switches: passed to the ADW by name alone, and only when true.
+SWITCHES  = { "reload": "reload" }
+REQUIRED  = { "navigate": ("url",), "select_tab": ("tab",), "close": ("tab",), "fill": ("text",), "notes_state": ("note",) }
+NOTE_NAME = re.compile( r"[A-Za-z0-9][A-Za-z0-9._-]{0,200}\.md" )
 MAX_VALUE = 500
 
 
@@ -99,7 +107,7 @@ class BrowserAgent:
             return self._refused( f"{ what } runs as { expected }, not { task.operation }" )
         if str( request.get( "target", "chrome" )).strip().lower() not in ( "chrome", "default", "google chrome" ):
             return self._refused( "Chrome is the only authorized browser; no other browser is launched" )
-        unknown = set( request ) - set( FLAGS ) - { "browser", "confirm" }
+        unknown = set( request ) - set( FLAGS ) - set( SWITCHES ) - { "browser", "confirm" }
         if unknown:
             return self._refused( "unknown field(s): " + ", ".join( sorted( str( k )[ :20 ] for k in unknown )))
         flags: dict[ str, str ] = {}
@@ -111,6 +119,13 @@ class BrowserAgent:
             if not isinstance( value, ( str, int )) or isinstance( value, bool ) or len( str( value )) > MAX_VALUE:
                 return self._refused( f"{ key } must be short text" )
             flags[ flag ] = str( value )
+        for key, flag in SWITCHES.items():
+            if key in request and not isinstance( request[ key ], bool ):
+                return self._refused( f"{ key } is true or false" )
+            if request.get( key ) is True:
+                flags[ flag ] = ""                      # the command adapter passes an empty value as a bare switch
+        if "note" in flags and not NOTE_NAME.fullmatch( flags[ "note" ]):
+            return self._refused( "note is a note's file name, e.g. 2026-11-03_draft.md" )
         missing = [ k for k in REQUIRED.get( what, ()) if FLAGS[ k ] not in flags ]
         if missing:
             return self._refused( f"{ what } needs: " + ", ".join( missing ))

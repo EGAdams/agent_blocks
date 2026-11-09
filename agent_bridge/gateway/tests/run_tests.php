@@ -844,6 +844,7 @@ require __DIR__ . '/printer_tests.php';
 require __DIR__ . '/browser_tests.php';
 require __DIR__ . '/download_tests.php';
 require __DIR__ . '/relay_tests.php';
+require __DIR__ . '/notes_tests.php';
 
 // ---- run -------------------------------------------------------------------
 

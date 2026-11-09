@@ -23,6 +23,7 @@ from browser_workflows.playback.selenium_browser import INTERACTIVE_JS
 from .channel import CdpCommandError
 from .element import GROUP, CdpElement
 from .forms import FORM_CONTROLS_JS
+from .highlights import HIGHLIGHTS_JS, TEXT_DIGEST_JS
 from .interfaces import CdpTarget, ICdpChannel, ICdpConnector, ITargetDirectory
 from .targets import pinned
 
@@ -243,6 +244,21 @@ class CdpWorkflowBrowser:
         found = self._evaluate( FORM_CONTROLS_JS.replace( "LIMIT", str( int( limit ))))
         return found if isinstance( found, dict ) else { "total": 0, "controls": []}
 
+    def highlights( self, root_css: str = "", limit: int = 40, sample_ms: int = 1500 ) -> dict[ str, Any ]:
+        """Every highlighted element under `root_css` (the body when empty): its text, classes,
+        computed style, running animations with their keyframes, and its background sampled every
+        100 ms for `sample_ms`. `{ "root_found": bool, "items": [ ... ] }`. Additive, like
+        `form_controls`: it is what lets a caller see *which* line blinks without being told."""
+        script = ( HIGHLIGHTS_JS.replace( "ROOT", json.dumps( root_css or "" ))
+                   .replace( "LIMIT", str( int( limit ))).replace( "SAMPLE_MS", str( int( sample_ms ))))
+        found = self._evaluate_async( script, timeout_seconds=10.0 + sample_ms / 1000.0 )
+        return found if isinstance( found, dict ) else { "root_found": False, "items": []}
+
+    def text_digest( self, css: str ) -> dict[ str, Any ]:
+        """The sha256 and length of a field's value, hashed in the page; the text itself never leaves it."""
+        found = self._evaluate_async( TEXT_DIGEST_JS.replace( "CSS_SELECTOR", json.dumps( css )))
+        return found if isinstance( found, dict ) else { "found": False }
+
     # -- ITabs --------------------------------------------------------------------
 
     def tabs( self ) -> list[ TabInfo ]:
@@ -309,6 +325,15 @@ class CdpWorkflowBrowser:
 
     def _evaluate( self, expression: str ) -> Any:
         result = self._page.call( "Runtime.evaluate", { "expression": expression, "returnByValue": True })
+        if "exceptionDetails" in result:
+            details = result[ "exceptionDetails" ]
+            raise BrowserWorkflowError( str( details.get( "exception", {}).get( "description" )
+                                             or details.get( "text", "script error" ))[ :200 ])
+        return result.get( "result", {}).get( "value" )
+
+    def _evaluate_async( self, expression: str, timeout_seconds: float = 30.0 ) -> Any:
+        result = self._page.call( "Runtime.evaluate", { "expression": expression, "returnByValue": True,
+                                                         "awaitPromise": True }, timeout_seconds=timeout_seconds )
         if "exceptionDetails" in result:
             details = result[ "exceptionDetails" ]
             raise BrowserWorkflowError( str( details.get( "exception", {}).get( "description" )

@@ -360,9 +360,15 @@ class CommandRegistry:
         return sorted( self._by_name )
 
 
-def default_registry() -> CommandRegistry:
+def default_registry( review=None ) -> CommandRegistry:
+    """Every notes Command. `review` (an INotesReviewCommands) adds the review operations; without it they are
+    simply not offered, and a request for one is refused by name."""
     registry = CommandRegistry()
     for command in ( ListNotes(), SearchNotes(), ReadNote(), ReadHighlights(), ListTrash(), RefreshNote(),
                      UpdateNote(), ChangeHighlights(), CreateNote(), RenameNote(), TrashNote(), RestoreNote(), PurgeNote()):
         registry.register( command )
+    if review is not None:
+        from .review import review_commands
+        for command in review_commands( review ):
+            registry.register( command )
     return registry

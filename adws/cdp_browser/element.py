@@ -146,6 +146,13 @@ class CdpElement:
             self._cdp.call( "Input.dispatchMouseEvent",
                             { "type": kind, "x": x, "y": y, "button": "left", "clickCount": 1 })
 
+    def reveal( self ) -> None:
+        """Open every closed `<details>` around the element and scroll it into view, so a control
+        inside a collapsed section can be clicked like any other. Nothing is pressed."""
+        self._value( "function () { for ( let n = this.parentElement; n; n = n.parentElement )"
+                     " if ( n.tagName === 'DETAILS' && !n.open ) n.open = true;"
+                     " this.scrollIntoView({ block: 'center' }); }" )
+
     def clear( self ) -> None:
         self._value( "function () { this.focus(); if ('value' in this) { this.value = '';"
                      " this.dispatchEvent(new Event('input', { bubbles: true })); } }" )

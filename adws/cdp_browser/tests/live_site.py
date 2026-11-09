@@ -16,6 +16,20 @@ PAGES = {
     "/statements": b"""<html><head><title>Statements</title></head><body>
       <h1>Your statements</h1><a href="/file.pdf" id="dl">September 2025 statement</a></body></html>""",
     "/file.pdf": b"%PDF-1.4 test",
+    # The dashboard's own deed-review rules (css/dashboard.css), so the highlight probe is tested
+    # against the animation the Notes page really runs.
+    "/notes": b"""<html><head><title>Notes</title><style>
+      .notes-preview .notes-highlight-yellow { background: #fff59d; }
+      .notes-preview .notes-deed-review-active-line {
+        animation: notes-active-deed-warning 1.4s steps(2, jump-none) infinite; }
+      @keyframes notes-active-deed-warning {
+        0%, 49% { background-color: #fff59d; } 50%, 100% { background-color: transparent; } }
+      .fade { animation: fade 1s infinite; } @keyframes fade { 0% { opacity: 1; } 100% { opacity: 0; } }
+      </style></head><body><textarea id="t">saved text</textarea><div id="p" class="notes-preview">
+      <p>Plain words.</p>
+      <p><mark class="notes-highlight-yellow notes-deed-review-active-line">[VERIFY PLAT RECORD REFERENCE: Liber 4]</mark></p>
+      <p><mark class="notes-highlight-yellow notes-deed-review-verify">[VERIFY TITLE EXCEPTIONS: list]</mark></p>
+      <p><span class="fade blink-text">gone</span></p></div></body></html>""",
 }
 
 

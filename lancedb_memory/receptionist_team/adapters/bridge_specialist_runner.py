@@ -140,7 +140,12 @@ class BridgeSpecialistRunner:
         return self._send(request)
 
     #: Notes operations that must name the revision a read returned. Code supplies it, never the model.
-    REVISION_CHECKED = ("update", "highlight", "rename", "trash")
+    REVISION_CHECKED = ("update", "highlight", "rename", "trash", "review_stop_blink", "review_activate",
+                        "review_activate_next", "review_edit", "review_mark_resolved", "review_rollback")
+
+    #: Review operations whose item may be "the one blinking": code fills in the id the last review answer gave.
+    ITEM_CHECKED = ("review_activate", "review_activate_next", "review_edit", "review_mark_resolved", "review_watch")
+    ACTIVE_WORDS = ("active", "blinking", "current", "this")
 
     def _attach_revision(self, form) -> None:
         """A change carries the revision code remembered from the last read, never the model's.
@@ -152,11 +157,14 @@ class BridgeSpecialistRunner:
             form.expected_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
         elif form.note_id and what == "refresh":
             form.known_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
+        if form.note_id and what in self.ITEM_CHECKED and (form.item_id or "").strip().lower() in self.ACTIVE_WORDS:
+            form.item_id = desk.NOTE_ACTIVE_ITEMS.get(form.note_id.strip())     # "the blinking one", as last reported
 
     def _remember_revision(self, run) -> None:
         """After a read or update that finished, keep the note's revision for the next update."""
         import json
         from ..bridge_client import desk
+        from ..bridge_client.notes_plans import REVISION
         request, result = run.request, run.result
         if request is None or result is None or request.agent != "notes" or not result.succeeded:
             return
@@ -166,6 +174,11 @@ class BridgeSpecialistRunner:
             if what in ("read", "refresh", "update", "highlight") and body.get("id") == asked.get("id") \
                     and (what in ("read", "refresh") or body.get("verified")):
                 desk.NOTE_REVISIONS.remember(body["id"], body["revision"])
+            elif str(what).startswith("review_") and body.get("id") == asked.get("id") \
+                    and REVISION.fullmatch(str(body.get("revision", ""))):
+                desk.NOTE_REVISIONS.remember(body["id"], body["revision"])     # the review ADW read it back
+                if body.get("active_item_id"):
+                    desk.NOTE_ACTIVE_ITEMS.remember(body["id"], body["active_item_id"])
             elif what in ("create", "rename", "restore") and body.get("verified") and body.get("filename"):
                 desk.NOTE_REVISIONS.remember(body["filename"], body["revision"])   # a new or renamed note
         except (ValueError, TypeError, KeyError, AttributeError):

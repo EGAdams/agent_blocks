@@ -20,6 +20,7 @@ require_once __DIR__ . '/PrinterPolicy.php';
 require_once __DIR__ . '/PrinterTools.php';
 require_once __DIR__ . '/BrowserTools.php';
 require_once __DIR__ . '/RelayTools.php';
+require_once __DIR__ . '/NotesTools.php';
 require_once __DIR__ . '/McpEndpoint.php';
 require_once __DIR__ . '/OAuth.php';
 require_once __DIR__ . '/GatewayApp.php';
@@ -114,7 +115,9 @@ final class Bootstrap
                                                    (int) ($config['browser_wait_seconds'] ?? 20), null,
                                                    $downloadStore, $blobs),
                                   new RelayTools($client, $clientScopes, $audit, $grants,
-                                                 (int) ($config['relay_wait_seconds'] ?? 45)));
+                                                 (int) ($config['relay_wait_seconds'] ?? 45)),
+                                  [new NotesTools($client, $clientScopes, $audit, $grants,
+                                                  (int) ($config['notes_wait_seconds'] ?? 30))]);
         $scans  = new WorkerScans($store, $store, $scanStore, $blobs, $audit, (int) $config['lease_seconds']);
         return new GatewayApp($auth, $client, $worker, $mcp, new OAuthServer($settings, $oauth, $audit, $clock),
                               $maxBody, $settings->challenge(), (int) $config['max_result_body'], $scans, (int) $config['max_blob'],

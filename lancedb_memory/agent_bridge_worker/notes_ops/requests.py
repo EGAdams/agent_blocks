@@ -13,7 +13,13 @@ MAX_EDITS = 50
 
 OPERATIONS = ( "status", "marker_write", "marker_clear",
                "list", "search", "read", "highlights", "trash_list", "refresh",
-               "update", "highlight", "create", "rename", "trash", "restore", "purge" )
+               "update", "highlight", "create", "rename", "trash", "restore", "purge",
+               # the review operations (review.py), each one run of the Notes Review ADW
+               "review_inspect", "review_get_active_highlight", "review_verify", "review_snapshots", "review_watch",
+               "review_stop_blink", "review_activate", "review_activate_next", "review_edit", "review_mark_resolved",
+               "review_rollback" )
+ITEM_ID     = r"^r-[0-9a-f]{10}$"
+SNAPSHOT_ID = r"^s-[0-9a-f]{10}$"
 
 
 class NoteEdit( BaseModel ):
@@ -65,6 +71,21 @@ class NotesRequest( BaseModel ):
     new_name:          str | None = Field( default=None, min_length=1, max_length=120 )
     trash_id:          str | None = Field( default=None, pattern=TRASH_ID )
     authorization:     str | None = Field( default=None, max_length=400 )
+    # -- review operations (review.py) --
+    item_id:           str | None = Field( default=None, pattern=ITEM_ID )            # from review_inspect
+    replace:           str | None = Field( default=None, min_length=1, max_length=2000 )
+    evidence:          str | None = Field( default=None, min_length=1, max_length=1000 )
+    approval:          str | None = Field( default=None, min_length=1, max_length=1000 )
+    advance:           bool | None = None
+    page:              bool | None = None
+    no_page:           bool | None = None
+    expect_item_id:    str | None = Field( default=None, pattern=ITEM_ID )
+    snapshot_id:       str | None = Field( default=None, pattern=SNAPSHOT_ID )
+    chain:             bool | None = None
+    until:             Literal[ "clear", "change", "active_change" ] | None = None
+    timeout:           float | None = Field( default=None, ge=1, le=600 )
+    interval:          float | None = Field( default=None, ge=1, le=60 )
+    limit:             int | None = Field( default=None, ge=1, le=100 )
 
     def given( self ) -> set[ str ]:
         """The optional fields this request actually set (everything except `notes`)."""

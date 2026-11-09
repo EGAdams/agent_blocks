@@ -46,9 +46,15 @@ Every operation is a Command object (`notes_ops/commands.py`) found in a Command
 Facade that validates a prompt, picks the Command, and turns what can go wrong into one honest outcome:
 
     inspect    list [query, category] | search | read | highlights | trash_list | refresh (id, known_revision)
+               review_inspect | review_get_active_highlight | review_verify | review_snapshots | review_watch
     implement  update (edits: find / line / section, or text) | highlight (marks: add / recolor / clear)
                create | rename (new_name, category 0-10; 0 = none) | trash | restore | purge
                purge is permanent: only from the trash, only with the exact authorization sentence.
+               review_stop_blink | review_activate | review_activate_next | review_edit | review_mark_resolved |
+               review_rollback
+
+The review_* operations (notes_ops/review.py) are what blinks on a note and why: each is one run of the Notes
+Review ADW (adws/adw_notes_review.py), which applies its own guards and keeps an undo point for every write.
 """
 from __future__ import annotations
 
@@ -109,6 +115,8 @@ class NotesAgent:
                                   '"edits": [{"find": "<exact text>", "replace": "<text>"}]} ; operations: '
                                   + ", ".join( list( DIAGNOSTIC ) + self._commands.names()))
         command = self._commands.get( request.notes )
+        if command is None and request.notes not in DIAGNOSTIC:
+            return self._refused( f"{ request.notes } is not offered by this worker (the Notes Review ADW is not wired here)" )
         wanted_operation = DIAGNOSTIC.get( request.notes ) or ( command.operation if command else "" )
         if wanted_operation != task.operation:
             return self._refused( f"{ request.notes } runs as { wanted_operation }, not { task.operation }" )
@@ -119,7 +127,7 @@ class NotesAgent:
         if keep_alive() != "continue":
             return AgentOutcome( kind=OutcomeKind.CANCELLED, performer=PERFORMER, summary="cancelled before it started" )
         if command is not None:
-            return self._invoke( command, task, request )
+            return self._invoke( command, task, request, keep_alive )
         try:
             if request.notes == "status":
                 return self._status( request.marker )
@@ -139,12 +147,12 @@ class NotesAgent:
             return "marker_write needs a marker"
         return None
 
-    def _invoke( self, command, task: ClaimedTask, request: NotesRequest ) -> AgentOutcome:
+    def _invoke( self, command, task: ClaimedTask, request: NotesRequest, keep_alive=None ) -> AgentOutcome:
         """Run one Command, and turn every way it can fail into one outcome (the Facade's job)."""
         if self._bridge is None:
             self._log( task, "auth_failed", filename=request.id or "", detail="no Notes token is provisioned on this machine" )
             return self._refused( "the Notes interface token is not provisioned on this machine" )
-        ctx = NotesContext( self._bridge, self._endpoint, self._activity )
+        ctx = NotesContext( self._bridge, self._endpoint, self._activity, keep_alive )
         try:
             return command.execute( ctx, task, request )
         except NotesDenied as exc:

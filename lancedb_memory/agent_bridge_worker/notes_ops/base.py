@@ -70,8 +70,11 @@ class INotesEndpoint( Protocol ):
 class NotesContext:
     """Facade over the collaborators a command needs, so a command takes one argument, not four."""
 
-    def __init__( self, gateway: INotesGateway, endpoint: INotesEndpoint, activity: INotesActivity | None ) -> None:
+    def __init__( self, gateway: INotesGateway, endpoint: INotesEndpoint, activity: INotesActivity | None,
+                  keep_alive=None ) -> None:
         self.gateway, self.endpoint, self._activity = gateway, endpoint, activity
+        # The task's heartbeat (returns "continue" | "cancel" | "lost"); a long command calls it while it waits.
+        self.keep_alive = keep_alive or ( lambda: "continue" )
 
     def log( self, task: ClaimedTask, event: str, **fields: str ) -> None:
         if self._activity is not None:

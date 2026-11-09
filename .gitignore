@@ -73,5 +73,7 @@ adws/adw_data/object_trace.db*
 .playwright-mcp/
 lancedb_memory/receptionist_team/voice_metrics.log
 adws/adw_data/browser_control/
+# notes_review: undo snapshots hold whole notes (the probate deed among them) and the activity log
+adws/adw_data/notes_review/
 # Deployment ADW: the deploy agent's scratch workspace (runs, releases live in ~/.local/share/adw_deploy)
 adws/adw_data/deployment/

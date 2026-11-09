@@ -92,6 +92,7 @@ RELAY_ADW       = _HERE / "adw_chatgpt_relay.py"
 DEPLOY_ENABLED  = Path.home() / ".config" / "startrek_deploy" / "enabled"     # the Deployment ADW is off until this exists
 DEPLOY_WORKDIR  = _HERE / "adw_data" / "deployment" / "workspace"           # the `deploy` workspace: empty, nothing runs in it
 DEPLOY_ADW      = _HERE / "adw_deploy.py"
+NOTES_REVIEW_ADW = _HERE / "adw_notes_review.py"                               # the notes review_* operations
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
 NOTES_URL       = os.environ.get( "NOTES_ENDPOINT_URL", "http://127.0.0.1:8765" )     # the dashboard, loopback
@@ -180,6 +181,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
+    from agent_bridge_worker.adapters.notes_review_process import UvNotesReviewCommands
+    from agent_bridge_worker.notes_ops.commands import default_registry as notes_registry
     from agent_bridge_worker.adapters.printer_process import UvPrinterCommands
     from agent_bridge_worker.redaction import SecretScanner
     from agent_bridge_worker.write_session import ScopedWriteSession
@@ -255,8 +258,11 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # file they are refused as "not provisioned" and only the diagnostic operations run.
         bridge = ( HttpNotesBridge( NOTES_URL, load_scan_token( NOTES_TOKEN_FILE ))
                    if NOTES_TOKEN_FILE.exists() else None )
+        # The review_* operations (what blinks, stop it, edit it, resolve it, undo) are each one run of the Notes
+        # Review ADW, which reads the same token file and keeps its own guards and undo points.
+        review = UvNotesReviewCommands( UV, NOTES_REVIEW_ADW, _HERE.parent )
         agents[ "notes" ]  = NotesAgent( FilesystemNotesStore( NOTES_DIR ), HttpNotesEndpoint( NOTES_URL ), bridge,
-                                         JsonlNotesActivity( NOTES_ACTIVITY ))
+                                         JsonlNotesActivity( NOTES_ACTIVITY ), notes_registry( review=review ))
         offered[ "notes" ] = { "inspect": False, "implement": True }
         self_contained.add( "notes" )
     if BROWSER_ENABLED.exists():                        # the Browser Control ADW is off until EG creates the flag file

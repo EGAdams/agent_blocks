@@ -179,6 +179,22 @@ The top-level areas are:
   `bridge_sandbox` deploy and rollback round trip. Toyota's route is tested
   offline only. A check runs under the ADW's own `uv` interpreter, so name an
   absolute interpreter (`/usr/bin/python3`, or a `.venv`) whenever its imports matter.
+  `adws/notes_review/` is Notes Review (read its `DESIGN.md` first): what is
+  blinking in one of EG's notes, stop it, make another item blink, edit,
+  resolve, move to the next item, undo, verify, watch -- eleven `notes.*`
+  operations, each its own `adw_notes_<op>.py` over `adw_notes_review.py`.
+  It writes only through the dashboard's token-protected Notes interface, five
+  guards stop a write (stale revision, other lines touched, resolving without
+  evidence or EG's approval, an edit that quietly resolves, a still-open line
+  marked resolved), and every write keeps a whole-note undo snapshot in the
+  gitignored `adws/adw_data/notes_review/`. ChatGPT reaches it as the `notes_*`
+  MCP tools (`agent_bridge/gateway/src/NotesTools.php`, the first subclass of
+  the `AgentTaskTools` Template Method) and Toyota through her `bridge_notes`
+  route's `REVIEW_PLANS`; both go to the Bridge `notes` agent's `review_*`
+  operations, which run the ADW. `adw_notes_highlight_watch.py` is retired in
+  place; `adw_notes_watch.py` replaced it. Tests: `cd adws && uv run --with
+  pytest --with pydantic pytest -q notes_review/tests`, all against a
+  synthetic deed -- the real deed is never committed.
   `adws/cashy/` is Cashy, the banking navigation agent (read its
   `DESIGN.md` first). She reads the debug Chrome's DOM over `adws/cdp_browser/`
   (DevTools protocol, no screenshots, no Selenium or Playwright), waits for

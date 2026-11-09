@@ -154,7 +154,7 @@ def run(ops, name, **args): return ops[PUBLIC[name]].run(args)
 def test_every_documented_operation_is_registered(tmp_path):
     ops, _ = make(tmp_path)
     assert set(PUBLIC) == {f"browser.{n}" for n in ("open", "navigate", "refresh", "tabs", "select_tab", "click", "read",
-                                                    "screenshot", "status", "close", "dashboard_notes",
+                                                    "screenshot", "status", "close", "dashboard_notes", "notes_state",
                                                     "form_controls", "select_option", "fill", "download")}
     assert all(op.description.startswith(name) for name, op in ((n, ops[v]) for n, v in PUBLIC.items()))
 

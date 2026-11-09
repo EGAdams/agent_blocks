@@ -93,7 +93,10 @@ CatalogFactory = Callable[[ WorkflowKit, TerminalConsole ], dict[ str, IOperatio
 
 
 def run_browser_operation( name: str, description: str, argv: list[ str ], flags: list[ Flag ],
-                           catalog: CatalogFactory = operations, default_transport: str = "selenium" ) -> int:
+                           catalog: CatalogFactory = operations, default_transport: str = "selenium",
+                           stamp_adw_id: bool = False ) -> int:
+    """`stamp_adw_id` hands the run's ADW id to the operation as `adw_id` and puts it in the outcome's data,
+    for operations whose answer must name the execution that produced it (notes_review's)."""
     parsed = _parser( description, flags, default_transport ).parse_args( argv )
     args   = { f.key: getattr( parsed, f.key ) for f in flags if getattr( parsed, f.key ) is not None }
     log: ILifecycleLog = PrintLifecycleLog()
@@ -103,12 +106,16 @@ def run_browser_operation( name: str, description: str, argv: list[ str ], flags
     run      = SessionRunFactory( log ).create( cfg, parsed.adw_id )
     executor = ManualContextPhaseExecutor( log )
     op       = catalog( WorkflowKit( transport=parsed.transport ), TerminalConsole())[ name ]
+    if stamp_adw_id:
+        args[ "adw_id" ] = run.adw_id
 
     def as_phase( step: IOperation, step_args: dict[ str, Any ]) -> OperationOutcome:
         return executor.execute( run, BrowserOperationPhase( step, step_args, log ))
 
     steps   = getattr( op, "steps", None )
     outcome = op.run( args, step_runner=as_phase ) if steps else as_phase( op, args )
+    if stamp_adw_id:
+        outcome = outcome.model_copy( update={ "data": { **outcome.data, "adw_id": run.adw_id }})
 
     if parsed.message_out:
         Path( parsed.message_out ).write_text( outcome.line + "\n" )

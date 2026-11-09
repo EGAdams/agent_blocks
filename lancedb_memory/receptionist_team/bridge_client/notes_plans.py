@@ -261,8 +261,151 @@ class PurgeNote:
                      "and saying yes is your authorization.")
 
 
+ITEM_ID = re.compile(r"r-[0-9a-f]{10}")
+SNAPSHOT_ID = re.compile(r"s-[0-9a-f]{10}")
+WATCH_UNTIL = ("clear", "change", "active_change")
+
+
+def _item_id(form, problem, required: bool = True) -> str | None:
+    item = (form.item_id or "").strip().lower()
+    if not item and not required:
+        return None
+    if not ITEM_ID.fullmatch(item):
+        problem("Which item? Ask me what's blinking or what is still open, and I'll have its id.")
+    return item
+
+
+class ReviewPlan:
+    """One review_* operation of the Notes Review ADW (the worker's `notes_ops/review.py` TABLE, mirrored).
+
+    The ADW applies the guards; this only shapes the request. A revision is required for anything that changes
+    words or undoes; for a focus-only change (stop, activate, next) it is sent when code remembers one.
+    """
+
+    def __init__(self, name: str, operation: str, said, revision: str = "", item: str = "") -> None:
+        self.name, self.operation = name, operation
+        self._said, self._revision, self._item = said, revision, item
+
+    def build(self, form, problem):
+        note_id = _note_id(form, problem)
+        req: dict = {"notes": self.name, "id": note_id}
+        if self._item:
+            item = _item_id(form, problem, required=self._item == "required")
+            if item:
+                req["item_id"] = item
+        if self._revision == "required":
+            req["expected_revision"] = _revision(form, note_id, problem)
+        elif self._revision == "optional" and REVISION.fullmatch((form.expected_revision or "").strip().lower()):
+            req["expected_revision"] = form.expected_revision.strip().lower()
+        self.extra(form, req, problem)
+        return req, self._said(note_id, req)
+
+    def extra(self, form, req, problem) -> None:
+        pass
+
+
+class ReviewEdit(ReviewPlan):
+    def __init__(self) -> None:
+        super().__init__("review_edit", "implement", lambda n, r: (
+            f'I\'ll change item {r["item_id"]} in {n} to read "{words(r["replace"], 120)}". '
+            "It stays open (an edit never resolves an item), and an undo snapshot is kept."),
+            revision="required", item="required")
+
+    def extra(self, form, req, problem) -> None:
+        if not (form.replace or "").strip():
+            problem("What should that item say instead?")
+        req["replace"] = form.replace
+
+
+class ReviewMarkResolved(ReviewPlan):
+    def __init__(self) -> None:
+        super().__init__("review_mark_resolved", "implement", self._sentence, revision="required", item="required")
+
+    @staticmethod
+    def _sentence(note_id, req) -> str:
+        why = (f'on the evidence "{words(req["evidence"], 100)}"' if "evidence" in req
+               else f'because you said "{words(req["approval"], 100)}"')
+        new = f', replacing it with "{words(req["replace"], 100)}"' if "replace" in req else ""
+        nxt = " and move the blink to the next open item" if req.get("advance") else ""
+        return (f"I'll mark item {req['item_id']} in {note_id} resolved {why}{new}{nxt}. "
+                "An undo snapshot is kept. Saying yes confirms that.")
+
+    def extra(self, form, req, problem) -> None:
+        evidence, approval = (form.evidence or "").strip(), (form.approval or "").strip()
+        if not (evidence or approval):
+            problem("What shows it is resolved? Tell me the record that settles it, or say in your own words "
+                    "that you approve marking it resolved.")
+        if evidence:
+            req["evidence"] = evidence
+        if approval:
+            req["approval"] = approval
+        if (form.replace or "").strip():
+            req["replace"] = form.replace
+        if form.advance:
+            req["advance"] = True
+
+
+class ReviewRollback(ReviewPlan):
+    def __init__(self) -> None:
+        super().__init__("review_rollback", "implement", lambda n, r: (
+            f"I'll put {n} back exactly as it was in snapshot {r['snapshot_id']}"
+            + (", undoing every later review change too" if r.get("chain") else "")
+            + ". It refuses if someone has edited the note since."), revision="required")
+
+    def extra(self, form, req, problem) -> None:
+        snap = (form.snapshot_id or "").strip().lower()
+        if not SNAPSHOT_ID.fullmatch(snap):
+            problem("Which snapshot? Ask me to list the note's undo snapshots first.")
+        req["snapshot_id"] = snap
+        if form.advance:          # "and everything after it": the form's one yes/no extra, reused
+            req["chain"] = True
+
+
+class ReviewWatch(ReviewPlan):
+    def __init__(self) -> None:
+        super().__init__("review_watch", "inspect", lambda n, r: "", item="optional")
+
+    def extra(self, form, req, problem) -> None:
+        until = (form.until or "").strip().lower()
+        if until not in WATCH_UNTIL:
+            problem("Watch until what: the highlight clears, the note changes, or the blink moves?")
+        req["until"] = until
+        if form.limit:
+            req["timeout"] = max(1, min(int(form.limit), 600))
+
+
+class ReviewSnapshots(ReviewPlan):
+    def __init__(self) -> None:
+        super().__init__("review_snapshots", "inspect", lambda n, r: "")
+
+    def extra(self, form, req, problem) -> None:
+        if form.limit:
+            req["limit"] = max(1, min(int(form.limit), 100))
+
+
+REVIEW_PLANS: tuple = (
+    ReviewPlan("review_inspect", "inspect", lambda n, r: ""),
+    ReviewPlan("review_get_active_highlight", "inspect", lambda n, r: ""),
+    ReviewPlan("review_verify", "inspect", lambda n, r: ""),
+    ReviewSnapshots(),
+    ReviewWatch(),
+    ReviewPlan("review_stop_blink", "implement", lambda n, r: (
+        f"I'll stop the blinking in {n}. No words change and every highlight stays; an undo snapshot is kept."),
+        revision="optional"),
+    ReviewPlan("review_activate", "implement", lambda n, r: f"I'll make item {r['item_id']} blink in {n}.",
+               revision="optional", item="required"),
+    ReviewPlan("review_activate_next", "implement", lambda n, r: (
+        f"I'll move the blink in {n} to the next open item" + (f" after {r['item_id']}" if "item_id" in r else "")
+        + "."), revision="optional", item="optional"),
+    ReviewEdit(),
+    ReviewMarkResolved(),
+    ReviewRollback(),
+)
+
+
 NOTES_PLANS: dict[str, INotesPlan] = {p.name: p for p in (
     Diagnostic("status", "inspect"), Diagnostic("marker_write", "implement"), Diagnostic("marker_clear", "implement"),
     ListNotes(), SearchNotes(), ReadNote(), ReadHighlights(), ListTrash(), RefreshNote(),
     UpdateNote(), ChangeHighlights(), CreateNote(), RenameNote(), TrashNote(), RestoreNote(), PurgeNote(),
+    *REVIEW_PLANS,
 )}

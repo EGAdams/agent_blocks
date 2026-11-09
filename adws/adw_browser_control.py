@@ -12,10 +12,16 @@
     uv run adws/adw_browser_control.py browser.select_option --css "#ddlType" --option_text "PLAT Records"
     uv run adws/adw_browser_control.py browser.fill --css "#txtName" --text "Fralick's Addition"
     uv run adws/adw_browser_control.py browser.download --text "0337201.tif"
+    uv run adws/adw_browser_control.py browser.notes_state --note "2026-11-03_draft.md" [--reload]
 
 Operations: browser.open  browser.navigate  browser.refresh  browser.tabs  browser.select_tab
             browser.click  browser.read  browser.screenshot  browser.status  browser.close
             browser.form_controls  browser.select_option  browser.fill  browser.download
+            browser.dashboard_notes  browser.notes_state
+
+browser.read also reports which text on the page is highlighted and which highlight is blinking
+(classes, computed style, running animations and a sampled background), and browser.notes_state
+opens one note on the dashboard's Notes page and reads its blinking line and its revision.
 
 browser.download is the one that saves a file. A click cannot: Chrome writes a download only when a
 folder has been set for the session, which that operation does and browser.click deliberately does not,
@@ -51,6 +57,9 @@ FLAGS = [
     Flag( "value", "the dropdown item's own value, matched exactly (select_option)" ),
     Flag( "limit", "how many controls to list, 1-200, default 60 (form_controls)" ),
     Flag( "confirm", "EG has approved a consequential click", kind="bool" ),
+    Flag( "note", "a note's file name on the dashboard's Notes page (notes_state)" ),
+    Flag( "reload", "reload the page first, to check what survived a refresh (notes_state)", kind="bool" ),
+    Flag( "sample_ms", "how long to watch the highlights' backgrounds, ms, default 1500 (read, notes_state)", kind="int" ),
 ]
 
 if __name__ == "__main__":
