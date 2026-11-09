@@ -203,3 +203,43 @@ def test_a_command_chrome_never_answers_says_so_rather_than_failing_to_format_th
 
     with pytest.raises( BrowserWorkflowError, match="did not answer Page.reload within 0s" ):
         WebSocketCdpChannel( Silent()).call( "Page.reload", timeout_seconds=0.01 )
+
+
+class StuckLoadingPage:
+    """A tab whose reload parses the page but never finishes its embedded pages (readyState stays
+    "interactive"), the way the dashboard behaves in a hidden window while its iframes load."""
+
+    def __init__( self ) -> None:
+        self.marked = True
+
+    def call( self, method: str, params: dict | None = None, timeout_seconds: float = 30.0 ) -> dict:
+        if method == "Page.reload":
+            self.marked = False                                                # a new document
+            return {}
+        expression = ( params or {}).get( "expression", "" )
+        if expression.startswith( "window." ):
+            self.marked = True
+            return { "result": { "value": True }}
+        if expression.startswith( "!!window." ):
+            return { "result": { "value": self.marked }}
+        if expression == "document.readyState":
+            return { "result": { "value": "interactive" }}
+        return {}
+
+    def close( self ) -> None:
+        pass
+
+
+def _stuck_browser( timeout: float ) -> CdpWorkflowBrowser:
+    class Connector:
+        def connect( self, url: str ) -> StuckLoadingPage:
+            return StuckLoadingPage()
+    return CdpWorkflowBrowser( DebugEndpoint( port=9222 ),
+                               CdpTarget( id="t", url="https://x.example/", webSocketDebuggerUrl="ws://127.0.0.1:9222/devtools/page/t" ),
+                               directory=None, connector=Connector(), load_timeout_seconds=timeout )
+
+
+def test_a_reload_can_wait_for_the_document_without_its_embedded_pages() -> None:
+    _stuck_browser( timeout=5.0 ).reload( ready="interactive" )             # returns: the document is there
+    with pytest.raises( BrowserWorkflowError, match="did not finish loading" ):
+        _stuck_browser( timeout=0.5 ).reload()                                 # "complete" still means complete

@@ -63,7 +63,7 @@ class NotesState(BrowserOperation):
         if args.get("reload"):
             page = self._plane.attacher.attach(kind, tab)
             try:
-                page.reload()
+                page.reload(ready="interactive")      # the Notes tab is waited for below; iframes are not
             finally:
                 page.release()
             if not self._until(kind, tab, lambda p: bool(p.find(NOTES_TAB_CSS))):

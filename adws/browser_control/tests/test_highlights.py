@@ -126,7 +126,9 @@ def notes_world(tmp_path, dash, found=None):
         page = original(kind, tab_id)
         page.text_digest = lambda css: {"found": True, "chars": 3000 if dash.open_note else 0, "sha256": "bec6" + "0" * 60}
         page.highlights = lambda root, limit, ms: found or {"root_found": True, "items": []}
-        page.reload = lambda: setattr(dash, "reloads", dash.reloads + 1)
+        def reload(ready="complete"):
+            dash.reloads, dash.reload_ready = dash.reloads + 1, ready
+        page.reload = reload
         return page
     world.attach = attach
     return ops, world
@@ -151,6 +153,7 @@ def test_notes_state_goes_back_from_another_note_and_reloads_when_asked(tmp_path
     ops, _ = notes_world(tmp_path, dash)
     out = run(ops, "browser.notes_state", note=DEED, reload=True)
     assert out.ok and dash.open_note == DEED and dash.reloads == 1 and out.data["reloaded"]
+    assert dash.reload_ready == "interactive", "the embedded pages are not waited for; the Notes tab is"
     assert out.data["active"] is None and "Nothing in it is blinking" in out.line
 
 

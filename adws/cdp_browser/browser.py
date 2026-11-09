@@ -102,6 +102,10 @@ _SAVE_SHOWN = """(() => {
 })()"""
 
 
+#: The document.readyState values that count as having reached a wanted state.
+_AT_LEAST = { "complete": ( "complete", ), "interactive": ( "interactive", "complete" )}
+
+
 class CdpWorkflowBrowser:
     def __init__( self, endpoint: DebugEndpoint, target: CdpTarget,
                   directory: ITargetDirectory, connector: ICdpConnector,
@@ -177,11 +181,15 @@ class CdpWorkflowBrowser:
         # No loaderId means a same-document move (a #fragment): nothing is replaced.
         self._wait_replaced( allow_same_document=not result.get( "loaderId" ))
 
-    def reload( self ) -> None:
-        """Reload the tab as it stands (Page.reload), and wait for the new document."""
+    def reload( self, ready: str = "complete" ) -> None:
+        """Reload the tab as it stands (Page.reload), and wait for the new document to reach `ready`.
+        "interactive" is the page's own document parsed, without waiting for every image and iframe:
+        a caller that then waits for its own element should ask for that, because a page that embeds
+        other pages (the dashboard does) can take far longer than the load timeout to finish them in a
+        hidden tab."""
         self._mark()
         self._page.call( "Page.reload", { "ignoreCache": False })
-        self._wait_replaced( allow_same_document=False )
+        self._wait_replaced( allow_same_document=False, ready=ready )
 
     def is_foreground( self ) -> bool:
         """Does the page itself say it is the visible tab? (document.visibilityState)"""
@@ -357,7 +365,7 @@ class CdpWorkflowBrowser:
         except BrowserWorkflowError:
             pass
 
-    def _wait_replaced( self, allow_same_document: bool ) -> None:
+    def _wait_replaced( self, allow_same_document: bool, ready: str = "complete" ) -> None:
         """Until a new, fully loaded document is in the tab. A move that may stay
         in the same document (history.back() to a #fragment) is accepted once
         the page has been complete for a second without being replaced."""
@@ -370,6 +378,6 @@ class CdpWorkflowBrowser:
             except BrowserWorkflowError:
                 continue                                # mid-replacement
             settled_in_place = allow_same_document and time.monotonic() - start > 1.0
-            if ( replaced or settled_in_place ) and self.ready_state() == "complete":
+            if ( replaced or settled_in_place ) and self.ready_state() in _AT_LEAST[ ready ]:
                 return
         raise BrowserWorkflowError( f"the page did not finish loading within { round( self._timeout ) }s" )

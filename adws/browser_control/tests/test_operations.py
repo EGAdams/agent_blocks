@@ -79,7 +79,7 @@ class FakePage:
         self.world, self.tab, self.released = world, tab, False
         self.current_url, self.title, self.visible = tab.url, tab.title, True
     def navigate(self, url): self.tab.url = self.current_url = url; self.title = self.tab.title = "Arrived"
-    def reload(self): self.world.reloads += 1
+    def reload(self, ready="complete"): self.world.reloads += 1
     def body_text(self): return "Hello\n\n\n\nWorld"
     def capture_png(self, path): Path(path).write_bytes(b"\x89PNG..."); return True
     def is_foreground(self): return self.world.active == self.tab.id
