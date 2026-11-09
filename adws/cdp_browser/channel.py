@@ -36,7 +36,7 @@ class WebSocketCdpChannel:
         while True:
             left = deadline - time.monotonic()
             if left <= 0:
-                raise BrowserWorkflowError( f"Chrome did not answer { method } within { timeout_seconds:.0f }s" )
+                raise BrowserWorkflowError( f"Chrome did not answer { method } within { round( timeout_seconds ) }s" )
             self._ws.settimeout( left )
             try:
                 message = json.loads( self._ws.recv_text())

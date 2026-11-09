@@ -347,7 +347,7 @@ class CdpWorkflowBrowser:
             if self.ready_state() == "complete":
                 return
             time.sleep( 0.2 )
-        raise BrowserWorkflowError( f"the page did not finish loading within { self._timeout:.0f }s" )
+        raise BrowserWorkflowError( f"the page did not finish loading within { round( self._timeout ) }s" )
 
     def _mark( self ) -> None:
         """Tag the current document, so a wait can tell when it has been replaced
@@ -372,4 +372,4 @@ class CdpWorkflowBrowser:
             settled_in_place = allow_same_document and time.monotonic() - start > 1.0
             if ( replaced or settled_in_place ) and self.ready_state() == "complete":
                 return
-        raise BrowserWorkflowError( f"the page did not finish loading within { self._timeout:.0f }s" )
+        raise BrowserWorkflowError( f"the page did not finish loading within { round( self._timeout ) }s" )

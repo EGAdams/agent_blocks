@@ -189,3 +189,17 @@ def test_body_text_reads_frames_too_and_says_which_frame() -> None:
     assert _browser( channel ).body_text() == "page text"
     assert "contentDocument" in channel.expression
     assert "[frame " in channel.expression                                     # each frame's text is labelled
+
+
+def test_a_command_chrome_never_answers_says_so_rather_than_failing_to_format_the_message():
+    """2026-11-09: `{ timeout_seconds:.0f }` (bracket spacing inside a format spec) raised ValueError, so the
+    real cause -- Chrome did not answer -- never reached the caller."""
+    from cdp_browser.channel import WebSocketCdpChannel
+
+    class Silent:
+        def send_text( self, text ): pass
+        def settimeout( self, seconds ): pass
+        def recv_text( self ): raise socket.timeout()
+
+    with pytest.raises( BrowserWorkflowError, match="did not answer Page.reload within 0s" ):
+        WebSocketCdpChannel( Silent()).call( "Page.reload", timeout_seconds=0.01 )

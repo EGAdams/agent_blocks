@@ -95,7 +95,7 @@ async def repl( settings: Settings, persist: bool ) -> None:
         if not reply.text:
             print( "( empty reply)" )
 
-    print( f"\n\nSession cost: ${ cost.total_cost_usd:.6f }   "
+    print( f"\n\nSession cost: ${ format( cost.total_cost_usd, ".6f" ) }   "
            f"in={ cost.total_input_tokens } out={ cost.total_output_tokens }" )
 
 
