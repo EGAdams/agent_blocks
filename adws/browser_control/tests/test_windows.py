@@ -7,7 +7,7 @@ import re
 import pytest
 
 from browser_control.models import BROWSERS
-from browser_control.windows import InteractiveTaskStarter, WindowsSessionProbe, windows_path
+from browser_control.windows import InteractiveTaskStarter, RetryingPowerShell, WindowsSessionProbe, windows_path
 
 CHROME = BROWSERS["chrome"]
 
@@ -49,3 +49,30 @@ def test_placement_parsing():
     assert hidden.known and not hidden.visible and hidden.desktops == [1]
     broken = WindowsSessionProbe(FakePowerShell(-1, "TimeoutExpired")).placement(CHROME)
     assert not broken.known and "TimeoutExpired" in broken.reason
+
+
+STALL = (1, "<3>WSL (1845265 - ) ERROR: UtilAcceptVsock:281: accept4 failed 110")
+
+
+class ScriptedPowerShell:
+    def __init__(self, *answers): self.answers, self.calls = list(answers), 0
+    def __call__(self, script): self.calls += 1; return self.answers.pop(0)
+
+
+def test_an_interop_stall_is_tried_again_and_the_placement_still_read():
+    ps = ScriptedPowerShell(STALL, STALL, (0, '{"found":true,"pid":17488,"session":1,"desktops":[1]}'))
+    p = WindowsSessionProbe(RetryingPowerShell(ps)).placement(CHROME)
+    assert ps.calls == 3 and p.known and p.found and p.session == 1
+
+
+def test_only_a_stall_is_retried_and_only_so_often():
+    real_failure = ScriptedPowerShell((1, "Get-CimInstance : Access denied"))
+    assert RetryingPowerShell(real_failure)("x") == (1, "Get-CimInstance : Access denied") and real_failure.calls == 1
+    stuck = ScriptedPowerShell(STALL, STALL, STALL, (0, "never reached"))
+    assert RetryingPowerShell(stuck, attempts=3)("x") == STALL and stuck.calls == 3
+
+
+def test_the_launch_is_never_retried():
+    ps = ScriptedPowerShell(STALL, (0, "STARTED"))
+    ok, why = InteractiveTaskStarter(ps, exists=lambda p: True).start(CHROME, "about:blank")
+    assert not ok and ps.calls == 1, "a stalled launch is reported, not repeated"

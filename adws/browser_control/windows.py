@@ -40,6 +40,29 @@ def run_powershell(script: str, timeout: float = 45.0) -> tuple[int, str]:
     return done.returncode, (done.stdout or "").strip() or (done.stderr or "").strip()[:300]
 
 
+#: What WSL prints when a Windows program's stdio never connected back -- the program did not start at all.
+VSOCK_STALL = "UtilAcceptVsock"
+
+
+class RetryingPowerShell:
+    """Decorator over a PowerShell callable, for read-only scripts only. On the live box (2026-11-09) about one
+    Windows call in three, over any interop socket, stalls 10 s in `UtilAcceptVsock: accept4 failed 110` before
+    PowerShell runs anything; the next call usually goes through. So a stall is tried again, and every other
+    answer -- success or a real failure from the script -- is passed on as it came. Never wrap a script with an
+    effect (the launch): a stall there is not proof that nothing ran."""
+
+    def __init__(self, inner: PowerShell, attempts: int = 3) -> None:
+        self._inner, self._attempts = inner, max(1, attempts)
+
+    def __call__(self, script: str) -> tuple[int, str]:
+        code, out = self._inner(script)
+        for _ in range(self._attempts - 1):
+            if code == 0 or VSOCK_STALL not in out:
+                break
+            code, out = self._inner(script)
+        return code, out
+
+
 def windows_path(wsl_path: str) -> str:
     """/mnt/c/Program Files/x.exe -> C:\\Program Files\\x.exe"""
     parts = PurePosixPath(wsl_path).parts
@@ -100,10 +123,11 @@ class InteractiveTaskStarter:
 
 
 class WindowsSessionProbe:
-    """IWindowSessions: which Windows session holds the Chrome on this debug port, and which sessions have a desktop."""
+    """IWindowSessions: which Windows session holds the Chrome on this debug port, and which sessions have a desktop.
+    The query only reads, so an interop stall is retried (RetryingPowerShell)."""
 
-    def __init__(self, powershell: PowerShell = run_powershell) -> None:
-        self._ps = powershell
+    def __init__(self, powershell: PowerShell | None = None) -> None:
+        self._ps = powershell or RetryingPowerShell(run_powershell)
 
     def placement(self, kind: BrowserKind) -> BrowserPlacement:
         code, out = self._ps(PLACEMENT_SCRIPT.replace("__PORT__", str(int(kind.port))))
