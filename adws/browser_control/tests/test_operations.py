@@ -371,6 +371,19 @@ def test_open_will_not_claim_visibility_it_could_not_check(tmp_path):
     assert run(ops, "browser.open").data["cause"] == "visibility_unknown"
 
 
+def test_a_known_placement_counts_while_interop_is_stalled(tmp_path):
+    """RememberedPlacement can answer for the same Chrome while WSL cannot start a Windows program; a known
+    answer is used, and only an unknown one with no link is refused."""
+    ops, world = make(tmp_path, link=FakeLink(up=False), running=["chrome"])
+    steps = [s.name for s in ops["browser_notes_state"].steps]
+    visibility = ops["browser_notes_state"].steps[steps.index("browser_visibility")]
+    seen = visibility.perform({"browser": "chrome"})
+    assert seen.ok and seen.data["session"] == 1, seen.line
+    world.known = False
+    unseen = visibility.perform({"browser": "chrome"})
+    assert not unseen.ok and unseen.data["cause"] == "visibility_unknown" and "WSL cannot start" in unseen.line
+
+
 def test_a_visible_running_chrome_is_left_alone(tmp_path):
     ops, world = make(tmp_path, running=["chrome"])
     out = run(ops, "browser.open", url="https://b.example")

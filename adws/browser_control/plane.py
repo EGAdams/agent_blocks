@@ -28,6 +28,7 @@ from .interfaces import (IBrowserCatalog, IBrowserEndpoint, IBrowserStarter, ICl
                          IWindowSessions, IWindowsLink)
 from .link import WslInteropLink
 from .models import ALIASES, BROWSERS, BrowserKind
+from .placements import CdpBrowserProcess, RememberedPlacement
 from .windows import InteractiveTaskStarter, WindowsSessionProbe
 
 ALLOWED_SCHEMES = ("http", "https")
@@ -155,7 +156,9 @@ def default_plane() -> ControlPlane:
     root = Path(__file__).resolve().parent.parent / "adw_data" / "browser_control" / "screenshots"
     folder = NativeDownloadDirectory(remember=root.parent / "windows_download_dir.txt")
     return ControlPlane(StaticBrowserCatalog(), InteractiveTaskStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
-                        SystemClock(), WslInteropLink(), root, sessions=WindowsSessionProbe(),
+                        SystemClock(), WslInteropLink(), root,
+                        sessions=RememberedPlacement(WindowsSessionProbe(), CdpBrowserProcess(),
+                                                     root.parent / "placements.json"),
                         folder=folder, filer=DownloadFiler(), verifier=FileDownloadVerifier(),
                         inspector=default_inspector(root.parent / "inspections"))
 

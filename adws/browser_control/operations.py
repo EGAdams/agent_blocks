@@ -147,10 +147,10 @@ class Visibility(BrowserOperation):
             return refused(f"I can't check where {kind.name} opened, so I won't say you can see it.",
                            browser=kind.name, verified=False, cause="visibility_unknown")
         linked, why = self._plane.link.ensure()
-        if not linked:
+        where = self._plane.sessions.placement(kind)          # may be remembered for this Chrome: no Windows call
+        if not linked and not where.known:
             return refused(f"{kind.name} is running, but I couldn't ask Windows whether it is on your screen: {why}",
                            browser=kind.name, verified=False, cause="visibility_unknown")
-        where = self._plane.sessions.placement(kind)
         facts = dict(browser=kind.name, pid=where.pid, session=where.session, desktops=where.desktops)
         if not where.known:
             return refused(f"{kind.name} is running, but I couldn't confirm it is on your screen: {where.reason}",

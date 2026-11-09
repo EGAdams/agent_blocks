@@ -82,6 +82,12 @@ class IWindowsLink(Protocol):
     def explain_unreachable(self, port: int) -> str: ...
 
 
+class IBrowserProcess(Protocol):
+    """The process id of the browser (not a tab or helper) owning a debug port, asked of the browser itself.
+    0 when it cannot say. Never raises."""
+    def pid(self, kind: BrowserKind) -> int: ...
+
+
 class IWindowSessions(Protocol):
     """Which Windows session the debug browser is in, and which sessions a person can see. Never raises."""
     def placement(self, kind: BrowserKind) -> BrowserPlacement: ...
