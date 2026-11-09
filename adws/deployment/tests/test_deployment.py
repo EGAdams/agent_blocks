@@ -205,6 +205,9 @@ def test_requests_name_only_configured_things(world):
     assert world["run"]("deploy", project="elsewhere", reason="x").data["refused"]
     assert world["run"]("deploy", project="watch", reason="x").data["refused"]
     assert world["run"]("deploy", project="web", reason="").data["refused"]
+    preview = world["run"]("deploy", project="web", dry_run=True)        # a preview records nothing, so needs no reason
+    assert preview.ok and not preview.data.get("refused"), preview.line
+    assert world["run"]("status", project="web").data["latest_release"] is None
     assert world["run"]("restart", project="web", unit="sshd.service").data["refused"]
     assert world["run"]("logs", project="web", unit="sshd.service").data["refused"]
     assert world["run"]("explode", project="web").data["refused"]

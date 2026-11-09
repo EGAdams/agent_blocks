@@ -64,7 +64,7 @@ class Deploy:
     def run(self, deps: Deps, req: DeployRequest, project: Project) -> OperationResult:
         if project.source == "none":
             raise Refused(f"{project.name} is not deployable from here; health and logs only")
-        if not req.reason.strip():
+        if not req.reason.strip() and not req.dry_run:      # a preview records nothing, so needs no reason
             raise Refused("say what is being deployed (reason), so the record shows why")
         with deps.lock.hold(project.name):
             if project.source == "in_place":
