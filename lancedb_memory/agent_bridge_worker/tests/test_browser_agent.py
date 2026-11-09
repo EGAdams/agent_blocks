@@ -419,3 +419,12 @@ def test_dashboard_notes_is_one_implement_task_with_no_fields():
     assert out.kind == OutcomeKind.SUCCEEDED and out.details[ "notes_active" ] is True
     refused = run( FakeCommands( verified()), task({ "browser": "dashboard_notes" }, operation="inspect" ))
     assert refused.kind == OutcomeKind.REFUSED and "runs as implement" in refused.summary
+
+
+def test_download_takes_a_bare_url_in_place_of_a_locator():
+    commands = FakeCommands( verified( "Saved 0337201.tif (84.2 KB) to C:\\Users\\eg\\Downloads\\BrowserRecorder.",
+                                       files=[ { "name": "0337201.tif", "bytes": 86234 } ] ))
+    url = "https://plats.example/files/0337201.tif"
+    out = run( commands, task({ "browser": "download", "url": url }))
+    assert commands.calls == [( "download", { "url": url }, False )]
+    assert out.kind == OutcomeKind.SUCCEEDED

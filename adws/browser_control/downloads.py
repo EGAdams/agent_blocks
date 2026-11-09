@@ -24,11 +24,21 @@ is then moved into the download folder under a free name (`0337201 (2).tif`). An
 is something a reader can look at:** each one is reported with its SHA-256 and its real type (from
 its bytes, so a sign-in page saved as `.tif` is caught), and `file_inspection` renders its pages
 to images and pulls its text, which the Bridge worker publishes so ChatGPT can view them.
+
+**A bare address works too** (`url` in place of text/label/css), for a file that no link on any open
+page names -- a scanned plat sheet's direct address, a statement link from an email. It is asked for
+in a tab of its own (the caller's tab is never moved), in the same signed-in Chrome, so the site sees
+the person's own session and no cookie or password passes through here. What comes back is held to
+the same rule: a file that saved, or a plain statement that none did. A web page in its place is
+never kept as the download; if that page asks for a password it is left open and brought to the front
+for EG to sign in -- reported as `sign_in_required`, never worked around -- and any other page is
+closed again. The address's query string can carry a token, so only scheme, host and path are reported.
 """
 from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from browser_workflows.errors import BrowserWorkflowError
 from browser_workflows.models import RecordedAction
@@ -41,7 +51,7 @@ from file_inspection.sniff import sniff_mime
 
 from .interfaces import IDownloadFiler, IDownloadFolder, IDownloadVerifier
 from .operations import BrowserOperation, safe_url
-from .plane import ControlPlane
+from .plane import ControlPlane, checked_url
 
 #: How long to wait for Chrome to finish writing. A scanned plat sheet is a few hundred KB over a
 #: slow government host; a bank statement can be slower. Beyond this it is reported as not arrived,
@@ -53,8 +63,8 @@ HEAD_BYTES = 8
 
 class Download(BrowserOperation):
     name = "browser_download"
-    description = ("browser.download: press one element (text, label or css) and keep the file it saves, "
-                   "reporting the name, size, SHA-256 and real type, never overwriting an earlier file, and "
+    description = ("browser.download: press one element (text, label or css) -- or ask for a bare http(s) "
+                   "address (url) in a tab of its own -- and keep the file it saves, reporting the name, size, SHA-256 and real type, never overwriting an earlier file, and "
                    "rendering its pages for viewing. A click that saves nothing is never called a download")
     #: It writes a file to EG's machine, so it is recorded as a change, not a reading.
     destructive = True
@@ -66,22 +76,22 @@ class Download(BrowserOperation):
 
     def perform(self, args: dict[str, Any]) -> OperationOutcome:
         kind = self._kind(args)
+        if args.get("url"):
+            if any(args.get(k) for k in ("css", "label", "text")):
+                return refused("give either an address (url) or something on the page to press (text, label or "
+                               "css), not both -- I will not guess which one you meant.", browser=kind.name,
+                               verified=False)
+            return self._from_url(kind, args)
         candidates = locators_from(args)
         hint = " ".join(str(args.get(k) or "") for k in ("text", "label"))
         why = self._classifier.reason(RecordedAction(action_type="click", metadata={"text": hint}))
         if why and not args.get("confirm"):
             return refused(f"I did not click: {why}. Ask EG, then repeat with confirm=true.", browser=kind.name,
                            needs_confirmation=True, verified=False)
-        folder, filer, verifier = self._downloads()
-        # Asking Windows where its Downloads folder is means running cmd.exe, and that needs a WSL interop
-        # socket. Attaching to an already-open tab is plain HTTP and needs none, so nothing had ensured one
-        # yet: under the Bridge worker (a systemd service, no WSL_INTEROP) cmd.exe exited 1 and the download
-        # was refused. `link` finds a socket that works -- it is the same check `open` does before launching.
-        self._plane.link.ensure()
-        try:
-            directory = folder.resolve()
-        except BrowserWorkflowError as exc:
-            return refused(f"I cannot tell Chrome where to save: {exc}", browser=kind.name, verified=False)
+        prepared = self._prepare(kind)
+        if isinstance(prepared, OperationOutcome):
+            return prepared
+        directory, filer, verifier = prepared
         page = self._page(kind, args)
         configure = getattr(page, "configure_downloads", None)
         if configure is None:
@@ -131,12 +141,107 @@ class Download(BrowserOperation):
                            f"{WAIT_SECONDS:.0f}s.{why} browser.read shows what the tab holds now.",
                            browser=kind.name, clicked=label, moved_to=moved, download_directory=directory,
                            unfinished=leftovers, verified=False)
+        return self._report(kind, kept, verifier, directory, f"I pressed {label!r}", clicked=label, moved_to=moved)
+
+    def _prepare(self, kind: Any) -> tuple[str, IDownloadFiler, IDownloadVerifier] | OperationOutcome:
+        """The download folder (Chrome's spelling), the filer and the verifier -- or the refusal saying why not."""
+        folder, filer, verifier = self._downloads()
+        # Asking Windows where its Downloads folder is means running cmd.exe, and that needs a WSL interop
+        # socket. Attaching to an already-open tab is plain HTTP and needs none, so nothing had ensured one
+        # yet: under the Bridge worker (a systemd service, no WSL_INTEROP) cmd.exe exited 1 and the download
+        # was refused. `link` finds a socket that works -- it is the same check `open` does before launching.
+        self._plane.link.ensure()
+        try:
+            return folder.resolve(), filer, verifier
+        except BrowserWorkflowError as exc:
+            return refused(f"I cannot tell Chrome where to save: {exc}", browser=kind.name, verified=False)
+
+    def _from_url(self, kind: Any, args: dict[str, Any]) -> OperationOutcome:
+        """Ask for `url` in a tab of its own and keep the file it answers with (see the module docstring)."""
+        try:
+            url = checked_url(args.get("url"))
+        except BrowserWorkflowError as exc:
+            return refused(f"I did not ask for that address: {exc}.", browser=kind.name, verified=False)
+        shown = safe_url(url)
+        why = self._classifier.reason(RecordedAction(action_type="click", metadata={"text": urlparse(url).path}))
+        if why and not args.get("confirm"):
+            return refused(f"I did not ask for {shown}: {why}. Ask EG, then repeat with confirm=true.",
+                           browser=kind.name, needs_confirmation=True, verified=False)
+        prepared = self._prepare(kind)
+        if isinstance(prepared, OperationOutcome):
+            return prepared
+        directory, filer, verifier = prepared
+        self._up(kind)
+        tab = self._plane.endpoint.open_page(kind, "about:blank")
+        keep_tab, kept, leftovers, failure, title, sign_in = False, [], [], "", "", False
+        page = self._plane.attacher.attach(kind, tab.id)
+        configure = getattr(page, "configure_downloads", None)
+        try:
+            if configure is None:
+                return refused("this browser cannot be told where to save downloads, so I will not ask for a file "
+                               "and then guess whether it arrived.", browser=kind.name, verified=False)
+            try:
+                staged = filer.stage(directory)
+            except OSError as exc:
+                return refused(f"I cannot make a folder to save into under {directory}: {exc}", browser=kind.name,
+                               download_directory=directory, verified=False)
+            try:
+                configure(staged.chrome_dir)
+                before = staged.before()
+                try:
+                    page.navigate(url)
+                except BrowserWorkflowError as exc:     # Chrome ends a navigation that became a download with
+                    failure = str(exc)                  # net::ERR_ABORTED -- so only a missing file decides
+                saved = staged.wait_new(before, WAIT_SECONDS)
+                if not saved and self._save_shown(page):    # a PDF shown in Chrome's viewer
+                    saved = staged.wait_new(before, WAIT_SECONDS)
+                kept = staged.keep(saved)
+                if not kept:
+                    title = (page.title or "")[:80]
+                    sign_in = self._asks_for_password(page)
+                    keep_tab = sign_in
+            finally:
+                try:
+                    configure(directory)
+                except Exception:
+                    pass
+                leftovers = staged.finish()
+        finally:
+            page.release()
+            if keep_tab:
+                self._plane.endpoint.activate(kind, tab.id)
+            else:
+                try:
+                    self._plane.endpoint.close_page(kind, tab.id)
+                except BrowserWorkflowError:
+                    pass
+        if kept:
+            return self._report(kind, kept, verifier, directory, f"I asked for {shown}", url=shown)
+        partial = [n for n in leftovers if n.endswith(".crdownload")]
+        base = dict(browser=kind.name, url=shown, download_directory=directory, unfinished=leftovers, verified=False)
+        if partial:
+            return refused(f"I asked for {shown} and a download started ({', '.join(partial)}), but Chrome had not "
+                           f"finished it within {WAIT_SECONDS:.0f}s; it is left in {staged.chrome_dir} rather than "
+                           "reported as saved.", **base)
+        if sign_in:
+            return refused(f"{shown} answered with a sign-in page ({title!r}), not a file. I did not sign in and "
+                           f"will not: it is open in tab {tab.id} for EG to sign in, and then this download can be "
+                           "asked for again.", cause="sign_in_required", needs_person=True, tab=tab.id, **base)
+        if failure and "ERR_ABORTED" not in failure:
+            return refused(f"Chrome could not fetch {shown}: {failure.split(': ', 1)[-1][:160]}. Nothing was saved.",
+                           cause="fetch_failed", **base)
+        return refused(f"{shown} answered with a web page ({title!r}), not a file, so nothing was saved. "
+                       "browser.open shows the page if that is what was wanted.", cause="not_a_file", **base)
+
+    def _report(self, kind: Any, kept: list[KeptFile], verifier: IDownloadVerifier, directory: str, did: str,
+                **extra: Any) -> OperationOutcome:
+        """The files that arrived, described, checked, and -- for an archive -- unpacked."""
         files = [self._describe(k, verifier) for k in kept]
         bad = [f["problem"] for f in files if f["problem"]]
         if bad:
-            return refused(f"I pressed {label!r} and a file arrived, but {' '.join(bad)}. It is kept, under "
+            return refused(f"{did} and a file arrived, but {' '.join(bad)}. It is kept, under "
                            f"{self._listing(files)}, so the page it really is can be read.", browser=kind.name,
-                           clicked=label, download_directory=directory, files=files, verified=False)
+                           download_directory=directory, files=files, verified=False, **extra)
         renamed = [f for f in files if f["renamed"]]
         line = f"Saved {self._listing(files)} to {directory}."
         if renamed:
@@ -145,8 +250,15 @@ class Download(BrowserOperation):
         files, unpacked = self._with_members(files)
         if unpacked:
             line += " " + unpacked
-        return ok(line, browser=kind.name, clicked=label, moved_to=moved, download_directory=directory,
-                  files=files, verified=True)
+        return ok(line, browser=kind.name, download_directory=directory, files=files, verified=True, **extra)
+
+    @staticmethod
+    def _asks_for_password(page: Any) -> bool:
+        """A visible password box is the sign of a sign-in page. Its value is never read."""
+        try:
+            return any(e.is_displayed() for e in page.find('input[type="password"]'))
+        except BrowserWorkflowError:
+            return False
 
     @staticmethod
     def _save_shown(page: Any) -> bool:

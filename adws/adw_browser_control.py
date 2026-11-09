@@ -42,7 +42,7 @@ from browser_control.catalog import PUBLIC, browser_control_operations
 
 FLAGS = [
     Flag( "browser", "chrome (the only authorized browser; anything else is refused)" ),
-    Flag( "url", "an http(s) address (open, navigate)" ),
+    Flag( "url", "an http(s) address (open, navigate, download)" ),
     Flag( "tab", "a tab number or id from browser.tabs (select_tab, close; optional elsewhere)" ),
     Flag( "text", "the element's visible text (click), or the words to type (fill)" ),
     Flag( "label", "the element's label or aria-label (click, select_option, fill)" ),

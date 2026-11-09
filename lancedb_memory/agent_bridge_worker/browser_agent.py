@@ -28,7 +28,8 @@ downloaded file only when a folder has been set for the session, so a `click` on
 answered "Clicked '0337201.tif'." over an empty folder -- a true sentence about a failed job. `download` sets the
 folder, presses the element, waits for Chrome to finish writing and reports the file's name, size and first bytes;
 nothing arriving is reported as nothing arriving, never as a download. `click` now refuses a file link outright and
-names this operation. It takes the same locators as `click` (`css` best, else `label` or `text`), and because it
+names this operation. It takes the same locators as `click` (`css` best, else `label` or `text`) -- or `url`, a
+bare address of the file, asked for in a tab of its own with the same signed-in session -- and because it
 writes to EG's disk it is an `implement`, never an `inspect`. Each file is saved under a name nothing else has
 (Chrome itself would overwrite), with its SHA-256 and real type, and its pages rendered; the injected
 `IDownloadPublisher` then uploads it to the gateway, which gives it the `file_id` that `browser_view_file` takes.
@@ -113,8 +114,10 @@ class BrowserAgent:
         missing = [ k for k in REQUIRED.get( what, ()) if FLAGS[ k ] not in flags ]
         if missing:
             return self._refused( f"{ what } needs: " + ", ".join( missing ))
-        if what in ( "click", "download" ) and not any( k in flags for k in ( "text", "label", "css" )):
-            return self._refused( f"{ what } needs text, label or css" )
+        if what == "click" and not any( k in flags for k in ( "text", "label", "css" )):
+            return self._refused( "click needs text, label or css" )
+        if what == "download" and not any( k in flags for k in ( "text", "label", "css", "url" )):
+            return self._refused( "download needs text, label or css (something on the page to press), or url (a bare address)" )
         if what in ( "select_option", "fill" ) and not any( k in flags for k in ( "css", "label" )):
             return self._refused( f"{ what } needs css (from form_controls, best) or label; for { what }, text is not a locator" )
         if what == "select_option" and not any( k in flags for k in ( "option-text", "value" )):

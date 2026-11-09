@@ -136,6 +136,23 @@ test('browser: a download is its own tool, named like a click, and keeps the fil
     ok(strpos($s['download_directory'], 'BrowserRecorder') !== false, 'and where it landed');
 });
 
+test('browser: a download can be a bare address instead of something to press', function () {
+    $w = browserWorld();
+    eq(true, browserCall($w, 'browser_download', ['url' => 'https://plats.example/0337201.tif', 'text' => 'x'])['isError'],
+       'url and a locator together are refused');
+    eq(true, browserCall($w, 'browser_download', ['url' => 'file:///etc/passwd'])['isError'], 'only http(s)');
+    eq(true, browserCall($w, 'browser_click', ['url' => 'https://plats.example/0337201.tif'])['isError'],
+       'a click still needs something to press');
+    $id = browserCall($w, 'browser_download', ['url' => 'https://plats.example/0337201.tif'])['structuredContent']['task_id'];
+    list($prompt, $lease) = claimTask($w, $id);
+    eq(['browser' => 'download', 'url' => 'https://plats.example/0337201.tif'], json_decode($prompt, true));
+    completeTask($w, $id, $lease, ['browser' => 'download', 'ok' => false, 'verified' => false, 'cause' => 'sign_in_required',
+                                   'needs_person' => true, 'tab' => 'ABC', 'url' => 'https://plats.example/0337201.tif']);
+    $s = browserCall($w, 'browser_get_result', ['task_id' => $id])['structuredContent'];
+    eq('sign_in_required', $s['cause']);
+    eq(true, $s['needs_person'], 'the caller is told a person is needed');
+});
+
 test('browser: a dropdown and a field are named by css or label, and the item by option_text or value', function () {
     $w = browserWorld();
     eq(true, browserCall($w, 'browser_select_option', ['option_text' => 'PLAT Records'])['isError'], 'needs the dropdown');

@@ -89,7 +89,9 @@ The top-level areas are:
   folder has been set for the session, so a click on a `.tif` link reported a
   successful click over an empty folder -- `click` now refuses a file link and
   names `download` instead, and the other thirteen operations never gain the
-  power to write files to EG's disk. `adws/adw_browser_download.py` is the same
+  power to write files to EG's disk. `download` also takes a bare http(s) `url` in place of
+  a link (asked for in a tab of its own; a sign-in page is left open for EG as `sign_in_required`).
+  `adws/adw_browser_download.py` is the same
   operation on its own; verified live on 2026-11-08 (adw `b1b6c83c`). A downloaded ZIP is unpacked one level
   (`adws/file_inspection/archive.py`; programs, scripts, nested archives, encrypted entries and symlinks stay
   in) and each member is published as its own file, at most 20 per download -- verified live through MCP on

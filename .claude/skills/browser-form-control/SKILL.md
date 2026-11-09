@@ -99,6 +99,12 @@ On the command line a two-word flag is spelled with a dash (`--option-text`); in
    over an empty folder, a true sentence about a failed job. `browser.click` now **refuses** a file
    link and names this operation instead (`saves_file`, `use_instead` in the answer).
 
+   **No link to press?** If you already have the file's own address, give it instead of a locator:
+   `--url 'https://www.irs.gov/pub/irs-pdf/fw9.pdf'` (Bridge: `browser_download` with `url`). It is asked for
+   in a tab of its own in the same signed-in Chrome; your tab is not moved. If the address answers with a
+   sign-in page, nothing is saved, the answer is `cause: sign_in_required` (`needs_person: true`) and that
+   page is left open for EG -- **ask EG to sign in, never try it yourself**, then repeat the download.
+
    `--text` is the best locator here, because the link's visible text is the file name — and on an
    ASP.NET postback link (`javascript:__doPostBack(...)`) it is the *only* place the name appears.
 

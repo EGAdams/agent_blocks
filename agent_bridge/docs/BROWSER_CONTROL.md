@@ -56,7 +56,7 @@ caller's own credentials through `ClientTasks->submit`, so policy and client sco
 | `browser_open_dashboard_notes` | `browser.dashboard_notes` (request -> launch -> visibility -> dashboard_tab -> click -> notes_verify) | implement, no fields |
 | `browser_open` / `browser_navigate` / `browser_click` / `browser_select_tab` / `browser_refresh` / `browser_close_tab` | open / navigate / click / select_tab / refresh / close | implement |
 | `browser_select_option` / `browser_fill` | select_option / fill | implement, a form control named by `css` or `label` |
-| `browser_download` | download | implement, a link named by `text` (the file name), `label` or `css` |
+| `browser_download` | download | implement, a link named by `text` (the file name), `label` or `css` -- or `url`, a bare http(s) address asked for in a tab of its own |
 | `browser_downloaded_files` / `browser_view_file` | -- (the gateway's own download store) | inspect: list this caller's saved files; look at one's pages as images and read its text |
 | `browser_read` / `browser_tabs` / `browser_status` / `browser_form_controls` | read / tabs / status / form_controls | inspect |
 | `browser_get_result` | -- | reads a browser task's result |
@@ -85,6 +85,7 @@ Agent `browser`, workspace `browser`. The prompt is JSON:
 | "Set Record Type to PLAT Records." | `implement` | `{"browser":"select_option","css":"#ddlGSPermitType","option_text":"PLAT Records"}` |
 | "Type Fralick's Addition in Project Name." | `implement` | `{"browser":"fill","css":"#txtGSProjectName","text":"Fralick's Addition"}` |
 | "Download that .tif." | `implement` | `{"browser":"download","text":"0337201.tif"}` |
+| "Download https://www.irs.gov/pub/irs-pdf/fw9.pdf." | `implement` | `{"browser":"download","url":"https://www.irs.gov/pub/irs-pdf/fw9.pdf"}` |
 
 Optional fields: `target` (chrome only), `url`, `tab` (number or id), `text`, `label`, `css`, `option_text`,
 `value`, `limit`, `confirm`. (On the ADW command line a two-word flag is spelled with a dash: `--option-text`.)
@@ -225,6 +226,26 @@ pages and text -> uploaded blobs -> `browser_view_file` -> ChatGPT.
 
 Files land in `C:\Users\<user>\Downloads\BrowserRecorder` (`BROWSER_WORKFLOW_DOWNLOAD_DIR` moves it).
 Authenticated sessions are preserved because nothing new is launched: the download runs in the tab EG signed in to.
+
+### A bare address, with no link to press (2026-11-09)
+
+`browser_download` with `url` instead of `text`/`label`/`css` asks for that address in a **new tab of its own**
+in the same signed-in Chrome, so EG's cookies go with it and the caller's tab is never moved. What follows is
+the same staging, verification, rendering and publishing as a pressed link (`Download._from_url`, sharing
+`_prepare` and `_report` with the press path). The outcomes:
+
+| what came back | answer | the tab |
+|---|---|---|
+| a file (a navigation that became a download answers `net::ERR_ABORTED`, which is not a failure) | `verified: true`, `url` | closed |
+| a PDF shown in Chrome's viewer | saved from the viewer, `verified: true` | closed |
+| a page with a visible password field | `cause: sign_in_required`, `needs_person: true`, `tab` | **left open and brought forward for EG** -- never signed into |
+| any other page | `cause: not_a_file` | closed |
+| DNS/connection error | `cause: fetch_failed` with Chrome's error | closed |
+
+Only http/https with a host is accepted (worker `checked_url`, gateway and Toyota check it too); the query string
+is never reported back (`safe_url` keeps scheme://host/path). A consequential-looking path still needs `confirm`.
+`url` together with a locator is refused by the ADW and the gateway; Toyota's plan lets a locator win, because
+her form filler tends to copy the page's own address beside a link name.
 
 Rollback: the gateway backup is `~/agent_bridge_backups/browser_downloads_20261108T200646Z` on the host (src,
 migrations, tests, `bridge.sqlite`); the two new tables are additive and unused by anything older.

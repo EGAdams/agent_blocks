@@ -275,6 +275,10 @@ class Download:
     name, operation = "download", "implement"
 
     def build(self, form, problem):
+        #: Something to press wins over a url: the filler often copies the page's own address beside a link's name.
+        url = str(form.url or "").strip()
+        if url and not (form.text or form.css or form.label):
+            return self._from_url(url, problem)
         #: Unlike the other plans this one accepts `text` as the locator, because what a person says is the
         #: file name, and that is also the link's visible text -- Accela's .tif links carry it nowhere else.
         said_text = str(form.text or "").strip()
@@ -286,6 +290,16 @@ class Download:
             req["tab"] = tab
         return req, (f"I'll press {_named(locator)} and wait for the file to finish saving, then tell you its name "
                      "and size. If nothing arrives, I'll say that rather than call it downloaded.")
+
+    @staticmethod
+    def _from_url(url, problem):
+        """A bare address: the workflow asks for it in a tab of its own, so no tab is named and nothing is pressed.
+        A sign-in page is left open on the desktop for EG, never signed into."""
+        if not URL.fullmatch(url):
+            problem("That doesn't look like a file's web address. Give me one starting with https://.")
+        return {"browser": "download", "url": url}, (
+            f"I'll ask for {words(url.split('?')[0], 120)} in a tab of its own in your Chrome and wait for the file to "
+            "finish saving. If the site wants you to sign in, I'll leave that page open for you and save nothing.")
 
 
 BROWSER_PLANS: dict[str, IBrowserPlan] = {p.name: p for p in (

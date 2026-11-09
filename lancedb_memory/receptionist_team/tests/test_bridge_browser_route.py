@@ -69,6 +69,17 @@ for name, plan in BROWSER_PLANS.items():
     check(f"the worker offers {name}", lane is not None, "the worker's table has no such operation")
     check(f"{name} is sent in the worker's lane", plan.operation == lane, f"{plan.operation} != {lane}")
 
+# -- a download from a bare address --------------------------------------------
+req, said = build(operation="download", url="https://www.irs.gov/pub/irs-pdf/fw9.pdf?token=SECRET")
+check("a bare-address download sends only the url",
+      asked(req) == {"browser": "download", "url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf?token=SECRET"}, asked(req))
+check("a bare-address download waits for a yes", req.needs_confirmation)
+check("the read-back never speaks the query", "SECRET" not in said and "sign in" in said, said)
+req, _ = build(operation="download", url="https://x.example/list.aspx", text="a.pdf")
+check("something to press wins over the page's own address",
+      asked(req) == {"browser": "download", "text": "a.pdf"}, asked(req))
+check("only an http(s) address", "https://" in refused(operation="download", url="ftp://x.example/a.pdf"))
+
 req, _ = build(operation="form_controls", tab="A1B2C3", limit=120)
 check("form_controls carries the tab and the limit",
       asked(req) == {"browser": "form_controls", "tab": "A1B2C3", "limit": 120}, asked(req))

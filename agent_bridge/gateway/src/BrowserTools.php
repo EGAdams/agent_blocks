@@ -32,7 +32,7 @@ final class BrowserTools
         'browser_open'                 => ['open', 'implement', ['url'], []],
         'browser_navigate'             => ['navigate', 'implement', ['url', 'tab'], ['url']],
         'browser_click'                => ['click', 'implement', ['text', 'label', 'css', 'tab', 'confirm'], []],
-        'browser_download'             => ['download', 'implement', ['text', 'label', 'css', 'tab', 'confirm'], []],
+        'browser_download'             => ['download', 'implement', ['text', 'label', 'css', 'url', 'tab', 'confirm'], []],
         'browser_select_tab'           => ['select_tab', 'implement', ['tab'], ['tab']],
         'browser_refresh'              => ['refresh', 'implement', ['tab'], []],
         'browser_close_tab'            => ['close', 'implement', ['tab'], ['tab']],
@@ -57,7 +57,7 @@ final class BrowserTools
                          'version', 'controls', 'listing', 'total', 'shown', 'options', 'selected', 'selected_value',
                          'position', 'note', 'typed', 'value', 'field', 'wanted', 'attempts', 'site_drawn',
                          'files', 'download_directory', 'saves_file', 'use_instead', 'inspectable', 'inspect_problem',
-                         'unfinished'];
+                         'unfinished', 'needs_person'];
 
     /** @var ClientTasks */  private $client;
     /** @var ClientScopes */ private $scopes;
@@ -197,8 +197,21 @@ final class BrowserTools
                 throw new BridgeError(422, 'invalid_argument', 'browser ' . $op . ' needs ' . $key);
             }
         }
-        if (($op === 'click' || $op === 'download') && !isset($out['text']) && !isset($out['label']) && !isset($out['css'])) {
-            throw new BridgeError(422, 'invalid_argument', 'browser_' . ($op === 'click' ? 'click' : 'download') . ' needs text, label or css');
+        if ($op === 'click' && !isset($out['text']) && !isset($out['label']) && !isset($out['css'])) {
+            throw new BridgeError(422, 'invalid_argument', 'browser_click needs text, label or css');
+        }
+        // A download is something on the page to press, or a bare address -- one or the other, never both.
+        if ($op === 'download') {
+            $located = isset($out['text']) || isset($out['label']) || isset($out['css']);
+            if (!$located && !isset($out['url'])) {
+                throw new BridgeError(422, 'invalid_argument', 'browser_download needs text, label or css (something on the page to press), or url');
+            }
+            if ($located && isset($out['url'])) {
+                throw new BridgeError(422, 'invalid_argument', 'browser_download takes url or text/label/css, not both');
+            }
+            if (isset($out['url']) && !preg_match('#^https?://[^\s/?\#]+#i', $out['url'])) {
+                throw new BridgeError(422, 'invalid_argument', 'url must be an http or https address');
+            }
         }
         // A form control is named by css or label only: `text` is the words to type, not what to look for.
         if (($op === 'fill' || $op === 'select_option') && !isset($out['css']) && !isset($out['label'])) {
@@ -402,9 +415,12 @@ final class BrowserTools
                 'inputSchema' => $object(['text' => ['type' => 'string'], 'label' => ['type' => 'string'],
                                           'css' => ['type' => 'string'], 'confirm' => ['type' => 'boolean']] + $tab, []),
                 'annotations' => $acts],
-            'browser_download' => ['title' => 'Download a file the page offers',
+            'browser_download' => ['title' => 'Download a file',
                 'description' => 'Presses one link or button that saves a file -- named by its visible text (the file name as '
-                               . 'the row shows it), its label, or a CSS selector -- waits for Chrome to finish writing, and '
+                               . 'the row shows it), its label, or a CSS selector -- or, given url instead, asks for that bare '
+                               . 'http(s) address in a tab of its own in the same signed-in Chrome (your tab is not moved). '
+                               . 'If the address answers with a sign-in page, nothing is saved, cause=sign_in_required, and the '
+                               . 'page is left open for EG to sign in: ask EG, never try to sign in yourself. It waits for Chrome to finish writing, and '
                                . 'reports the file\'s name, size in bytes and first bytes, plus the folder it landed in. Use '
                                . 'this, not browser_click, for anything that saves: a click cannot keep a file, because Chrome '
                                . 'writes a download only when a folder has been set for the session, so clicking a .tif or a '
@@ -421,6 +437,7 @@ final class BrowserTools
                 'inputSchema' => $object(['text' => ['type' => 'string', 'description' => 'The link\'s visible text, e.g. the file name as the page shows it'],
                                           'label' => ['type' => 'string'],
                                           'css' => ['type' => 'string', 'description' => 'A CSS selector for the link or button, best from browser_form_controls'],
+                                          'url' => ['type' => 'string', 'description' => 'Instead of text/label/css: the file\'s own http(s) address'],
                                           'confirm' => ['type' => 'boolean']] + $tab, []),
                 'annotations' => $acts],
             'browser_select_tab' => ['title' => 'Bring a tab to the front',

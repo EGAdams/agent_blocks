@@ -310,3 +310,106 @@ def test_clicking_a_file_link_is_refused_and_names_the_download_operation(tmp_pa
     out = run(ops, "browser.click", text="0337201.tif")
     assert not out.ok and out.data["use_instead"] == "browser.download"
     assert out.data["saves_file"] == "tif" and world.elements[0].clicked is False
+
+
+# -- a bare address -----------------------------------------------------------------
+
+PLAT_URL = "https://plats.example/files/0337201.tif?session=SECRET"
+
+
+def test_a_bare_address_is_saved_in_a_tab_of_its_own_and_the_callers_tab_is_not_moved(tmp_path):
+    ops, world, watcher = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
+    out = run(ops, "browser.download", url=PLAT_URL)
+    assert out.ok and out.data["verified"] is True and out.data["files"][0]["name"] == "0337201.tif"
+    assert world.running["chrome"][0].url == "https://a.example/x?token=SECRET", "the caller's tab moved"
+    assert world.page.tab.id == "chrome-2" and world.page.current_url == PLAT_URL
+    assert world.closed == ["chrome-2"] and world.page.released
+    assert world.download_dirs == [watcher.chrome_dir, FakeFolder().directory]
+    assert "SECRET" not in out.line and out.data["url"].startswith("https://plats.example/files/0337201.tif")
+
+
+def test_a_navigation_chrome_aborts_because_it_became_a_download_still_counts(tmp_path):
+    from browser_workflows.errors import BrowserWorkflowError
+    ops, world, _ = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
+    original = world.attach
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        def aborted(url):
+            raise BrowserWorkflowError(f"could not open {url}: net::ERR_ABORTED")
+        page.navigate = aborted
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url=PLAT_URL)
+    assert out.ok and out.data["verified"] is True
+
+
+def test_an_address_showing_a_pdf_saves_what_the_viewer_shows(tmp_path):
+    pdf = a_file(tmp_path, "fw9.pdf", b"%PDF-1.7 rest")
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    arrivals = iter([[], [pdf]])
+    watcher.wait_new = lambda before, timeout_seconds=30.0: next(arrivals)
+    original = world.attach
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        page.save_shown_file = lambda: True
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url="https://irs.example/pub/fw9.pdf")
+    assert out.ok and out.data["files"][0]["mime"] == "application/pdf"
+
+
+def test_a_sign_in_page_is_left_open_for_eg_and_never_called_the_file(tmp_path):
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    world.elements = [FakeElement(text="", attrs={"type": "password"})]
+    world.elements[0].matches = lambda css: "password" in css
+    out = run(ops, "browser.download", url=PLAT_URL)
+    assert not out.ok and out.data["cause"] == "sign_in_required" and out.data["needs_person"] is True
+    assert world.closed == [] and world.active == "chrome-2" and out.data["tab"] == "chrome-2"
+    assert "did not sign in" in out.line and "SECRET" not in out.line
+
+
+def test_an_ordinary_web_page_is_not_a_file_and_its_tab_is_closed(tmp_path):
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    world.elements = []
+    out = run(ops, "browser.download", url="https://plats.example/search")
+    assert not out.ok and out.data["cause"] == "not_a_file" and world.closed == ["chrome-2"]
+
+
+def test_a_fetch_chrome_could_not_make_says_why(tmp_path):
+    from browser_workflows.errors import BrowserWorkflowError
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    world.elements = []
+    original = world.attach
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        def unresolved(url):
+            raise BrowserWorkflowError(f"could not open {url}: net::ERR_NAME_NOT_RESOLVED")
+        page.navigate = unresolved
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url=PLAT_URL)
+    assert not out.ok and out.data["cause"] == "fetch_failed" and "ERR_NAME_NOT_RESOLVED" in out.line
+    assert "SECRET" not in out.line
+
+
+def test_only_http_addresses_are_asked_for(tmp_path):
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    for bad in ("file:///C:/Windows/win.ini", "javascript:alert(1)", "chrome://settings"):
+        out = run(ops, "browser.download", url=bad)
+        assert not out.ok and "http or https" in out.line
+    assert len(world.running["chrome"]) == 1, "no tab may open for a refused address"
+
+
+def test_an_address_and_an_element_together_are_refused(tmp_path):
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    out = run(ops, "browser.download", url=PLAT_URL, text="0337201.tif")
+    assert not out.ok and "not both" in out.line and len(world.running["chrome"]) == 1
+
+
+def test_a_consequential_address_needs_confirmation(tmp_path):
+    ops, world, _ = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
+    out = run(ops, "browser.download", url="https://bank.example/pay-now/statement.pdf")
+    assert not out.ok and out.data.get("needs_confirmation") is True and len(world.running["chrome"]) == 1

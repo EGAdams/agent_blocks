@@ -8,6 +8,7 @@
     cd /home/adamsl/agent_blocks && uv run adws/adw_browser_download.py --css "a#attachmentList_gdvAttachmentList_ctl02_lnkFileName"
     uv run adws/adw_browser_download.py --text "0337201.tif" --tab 1
     uv run adws/adw_browser_download.py --label "Download statement" --confirm
+    uv run adws/adw_browser_download.py --url "https://example.gov/plats/0337201.tif"
 
 This is the operation browser.click is deliberately not. Chrome writes a downloaded file only
 when a download folder has been set for the session, and browser.click never sets one -- so a
@@ -47,6 +48,7 @@ FLAGS = [
     Flag( "css", "a CSS selector for the link or button that saves the file (best, from browser.form_controls)" ),
     Flag( "label", "the element's label or aria-label" ),
     Flag( "text", "the element's visible text, e.g. the file name as the page shows it" ),
+    Flag( "url", "instead of an element: a bare http(s) address of the file, asked for in a tab of its own" ),
     Flag( "confirm", "EG has approved a consequential press", kind="bool" ),
 ]
 
