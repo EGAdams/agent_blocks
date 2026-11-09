@@ -25,3 +25,16 @@ class Inspection(BaseModel):
     text: str = ""
     text_truncated: bool = False
     note: str = ""                      # what could not be done, said plainly (no viewer, too many pages ...)
+    members: list[ "ArchiveMember" ] = Field( default_factory=list )   # an archive's unpacked files, each inspected
+
+
+class ArchiveMember(BaseModel):
+    """One file safely unpacked from a downloaded archive (`archive.SafeZipUnpacker`), and what it is."""
+    name: str                           # its path inside the archive
+    path: str                           # where it was written on this machine (never executable)
+    bytes: int
+    sha256: str
+    inspection: Inspection              # never has members of its own: one level of unpacking only
+
+
+Inspection.model_rebuild()

@@ -113,6 +113,10 @@ On the command line a two-word flag is spelled with a dash (`--option-text`); in
    Through the Bridge the answer gives a `file_id` per file: **look at it with `browser_view_file`**
    (`page`, `rendition` preview/full, `text_offset` for long text), and list earlier ones with
    `browser_downloaded_files`. A repeat download is saved as `name (2).ext`, never over the first.
+   A ZIP is unpacked one level: each readable member comes back as a file of its own with its own
+   `file_id` (programs, scripts, nested archives and encrypted entries stay in, and the archive's text
+   says why). At most 20 files are published per download. Toyota answers "what have you downloaded"
+   and "read file f_..." herself, from her own downloads only, as text.
    From a shell, read the file from `/mnt/c/...`.
 
 6. **Read the result, and only then say what happened.**

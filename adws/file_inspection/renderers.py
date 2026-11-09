@@ -208,7 +208,7 @@ class XlsxRenderer:
 
 
 class ZipRenderer:
-    """An archive's table of contents. It is never unpacked."""
+    """An archive's table of contents. Unpacking, when wanted, is FileInspector's IArchiveUnpacker, not this."""
 
     def handles( self, mime: str ) -> bool:
         return mime == "application/zip"
@@ -217,5 +217,5 @@ class ZipRenderer:
         with zipfile.ZipFile( source ) as archive:
             entries = archive.infolist()
         lines = [ f"{ e.file_size:>12,}  { e.filename }" for e in entries ]
-        clipped, cut = _clip( f"{ len( entries ) } entries (not unpacked):\n" + "\n".join( lines ))
+        clipped, cut = _clip( f"{ len( entries ) } entries:\n" + "\n".join( lines ))
         return Inspection( kind="archive", mime=mime, page_count=len( entries ), text=clipped, text_truncated=cut )

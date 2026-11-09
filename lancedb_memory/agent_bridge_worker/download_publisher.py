@@ -14,6 +14,12 @@ A bytes-on-disk mismatch (the file changed after the ADW hashed it) is refused, 
 old checksum, and a publish that fails leaves the download a success with `inspectable: false` and
 the reason, because the file *was* saved -- it is the viewing that did not happen.
 
+One download can be many files -- an archive's safely unpacked members follow it as files of their
+own -- so two of the gateway's per-task limits are kept here rather than tripped there: at most
+`MAX_FILES` are published (the rest stay on disk, named in the task as not published), and all their
+text together fits `TEXT_BUDGET` bytes, shared out so a short file keeps all of its text and the long
+ones split what is left. Each file says when its text was cut.
+
 A publish is retried (`RETRY_WAITS`) when the gateway could not be reached or answered 5xx/429: the
 live box's network drops for seconds at a time (`[Errno 101] Network is unreachable`, 2026-11-09), and
 one blip used to strand a good download where ChatGPT could not see it. Retrying is safe because blobs
@@ -39,6 +45,25 @@ PAGE_KEYS = ( "page", "rendition", "mime", "width", "height", "bytes", "sha256" 
 #: Seconds waited before each retry of a transient failure: four attempts, under 15 s in all, well
 #: inside the task lease the manifest still has to present.
 RETRY_WAITS = ( 2.0, 4.0, 8.0 )
+#: The gateway's per-task limits (WorkerDownloads::MAX_FILES, MAX_TEXT = 204800 bytes), with room to spare.
+MAX_FILES = 20
+TEXT_BUDGET = 200_000
+
+
+def text_allowances( texts: list[ str ], budget: int = TEXT_BUDGET ) -> list[ int ]:
+    """Bytes of UTF-8 text each file may send: smallest first, each taking its share of what is left."""
+    sizes = [ len( t.encode( "utf-8" )) for t in texts ]
+    out, left = [ 0 ] * len( texts ), budget
+    order = sorted( range( len( texts )), key=lambda i: sizes[ i ])
+    for n, i in enumerate( order ):
+        out[ i ] = min( sizes[ i ], left // ( len( order ) - n ))
+        left -= out[ i ]
+    return out
+
+
+def clip_utf8( text: str, limit: int ) -> str:
+    data = text.encode( "utf-8" )
+    return text if len( data ) <= limit else data[ :limit ].decode( "utf-8", "ignore" )
 
 
 def _transient( exc: Exception ) -> bool:
@@ -53,9 +78,13 @@ class DownloadPublisher:
     def publish( self, task: ClaimedTask, details: dict ) -> dict:
         """`details` with each file given a `file_id` (and `inspectable`), or the whole set marked
         `inspectable: false` with the reason. Never raises for a gateway or file problem."""
-        files = [ f for f in details.get( "files" ) or [] if isinstance( f, dict )]
-        if not files:
+        everything = [ f for f in details.get( "files" ) or [] if isinstance( f, dict )]
+        if not everything:
             return details
+        files, held = everything[ :MAX_FILES ], everything[ MAX_FILES: ]
+        kept_back = [{ **self._summary( f ), "published": False,
+                       "note": f"not published: one download publishes at most { MAX_FILES } files; it is on the "
+                               f"desktop at { f.get( 'path' )}" } for f in held ]
         for attempt in range( 1, len( RETRY_WAITS ) + 2 ):
             try:
                 sent, answer = self._send_all( task, files )
@@ -66,7 +95,7 @@ class DownloadPublisher:
                     continue
                 tries = f" after { attempt } attempts" if attempt > 1 else ""
                 reason = f"{ type( exc ).__name__ }: { str( exc )[ :240 ]}{ tries }"
-                return { **details, "files": [ self._summary( f ) for f in files ], "inspectable": False,
+                return { **details, "files": [ self._summary( f ) for f in files ] + kept_back, "inspectable": False,
                          "inspect_problem": f"the file was saved but could not be published for viewing ({ reason })" }
         ids = { int( row.get( "idx", -1 )): str( row.get( "file_id", "" ))
                 for row in answer.get( "files" ) or [] if isinstance( row, dict )}
@@ -76,16 +105,20 @@ class DownloadPublisher:
             summary[ "file_id" ] = ids.get( index, "" )
             summary[ "original_stored" ] = sent[ index ][ "original_stored" ]
             out.append( summary )
-        return { **details, "files": out, "inspectable": all( f[ "file_id" ] for f in out )}
+        inspectable = all( f[ "file_id" ] for f in out )
+        return { **details, "files": out + kept_back, "inspectable": inspectable }
 
     def _send_all( self, task: ClaimedTask, files: list[ dict ]) -> tuple[ list[ dict ], dict ]:
         """Every blob, then the one manifest that names them. Safe to repeat: see the module docstring."""
-        sent = [ self._upload( task, index, f ) for index, f in enumerate( files )]
+        texts = [ str(( f.get( "inspection" ) or {}).get( "text" ) or "" )[ :MAX_TEXT ] if isinstance( f.get( "inspection" ), dict )
+                  else "" for f in files ]
+        allow = text_allowances( texts )
+        sent = [ self._upload( task, index, f, allow[ index ]) for index, f in enumerate( files )]
         answer = self._uploader.post_downloads( task.task_id, { "task_id": task.task_id,
                                                                 "lease_token": task.lease_token, "files": sent })
         return sent, answer
 
-    def _upload( self, task: ClaimedTask, index: int, f: dict ) -> dict:
+    def _upload( self, task: ClaimedTask, index: int, f: dict, text_bytes: int = TEXT_BUDGET ) -> dict:
         inspection = f.get( "inspection" ) if isinstance( f.get( "inspection" ), dict ) else {}
         original_stored = False
         if 0 < int( f.get( "bytes" ) or 0 ) <= MAX_BLOB:
@@ -95,12 +128,13 @@ class DownloadPublisher:
         for page in inspection.get( "pages" ) or []:
             self._blob( task, Path( str( page[ "path" ])), str( page[ "sha256" ]))
             pages.append({ k: page.get( k ) for k in PAGE_KEYS })
-        text = str( inspection.get( "text" ) or "" )
+        whole = str( inspection.get( "text" ) or "" )
+        text = clip_utf8( whole[ :MAX_TEXT ], text_bytes )
         return { "idx": index, "name": f.get( "name" ), "original_name": f.get( "original_name" ),
                  "saved_path": f.get( "chrome_path" ) or f.get( "path" ), "mime": f.get( "mime" ),
                  "bytes": f.get( "bytes" ), "sha256": f.get( "sha256" ), "original_stored": original_stored,
                  "kind": inspection.get( "kind" ) or "binary", "page_count": inspection.get( "page_count" ) or 0,
-                 "text": text[ :MAX_TEXT ], "text_truncated": bool( inspection.get( "text_truncated" )) or len( text ) > MAX_TEXT,
+                 "text": text, "text_truncated": bool( inspection.get( "text_truncated" )) or len( text ) < len( whole ),
                  "note": str( inspection.get( "note" ) or "" )[ :500 ], "pages": pages }
 
     def _blob( self, task: ClaimedTask, path: Path, sha256: str ) -> None:

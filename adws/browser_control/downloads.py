@@ -142,6 +142,9 @@ class Download(BrowserOperation):
         if renamed:
             line += " " + " ".join(f"A file named {f['original_name']} was already there, so this one is "
                                    f"{f['name']}." for f in renamed)
+        files, unpacked = self._with_members(files)
+        if unpacked:
+            line += " " + unpacked
         return ok(line, browser=kind.name, clicked=label, moved_to=moved, download_directory=directory,
                   files=files, verified=True)
 
@@ -179,6 +182,30 @@ class Download(BrowserOperation):
         if inspector is not None and size:
             out["inspection"] = inspector.inspect(path, digest).model_dump()
         return out
+
+    @staticmethod
+    def _with_members(files: list[dict[str, Any]]) -> tuple[list[dict[str, Any]], str]:
+        """Each archive's safely unpacked files (file_inspection's SafeZipUnpacker) listed after it as files
+        of their own, so each can be published and viewed like any download. The archive's own entry keeps
+        only a count; nothing in a member was run, and programs and nested archives were never written out."""
+        out: list[dict[str, Any]] = []
+        said: list[str] = []
+        for f in files:
+            inspection = f.get("inspection") or {}
+            members = inspection.get("members") or []
+            if inspection:
+                f = {**f, "inspection": {k: v for k, v in inspection.items() if k != "members"},
+                     "unpacked_members": len(members)}
+            out.append(f)
+            for m in members:
+                out.append({"original_name": f"{f['name']} > {m['name']}", "name": Path(m["name"]).name,
+                            "path": m["path"], "chrome_path": "", "renamed": False, "bytes": m["bytes"],
+                            "sha256": m["sha256"], "mime": m["inspection"]["mime"], "head": "",
+                            "status": "unpacked", "problem": "", "from_archive": f["name"],
+                            "archive_member": m["name"], "inspection": m["inspection"]})
+            if inspection.get("kind") == "archive":
+                said.append(f"From {f['name']}: {inspection.get('note') or 'nothing unpacked'}.")
+        return out, " ".join(said)
 
     @staticmethod
     def _listing(files: list[dict[str, Any]]) -> str:

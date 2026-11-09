@@ -143,8 +143,12 @@ class BrowserAgent:
         details = self._publisher.publish( task, dict( outcome.details ))
         summary, body = outcome.summary, outcome.body
         if details.get( "inspectable" ):
-            ids = ", ".join( f"{ f.get( 'name' )} = { f.get( 'file_id' )}" for f in details.get( "files" ) or [])
+            files = details.get( "files" ) or []
+            ids = ", ".join( f"{ f.get( 'name' )} = { f.get( 'file_id' )}" for f in files if f.get( "file_id" ))
             body = f"{ body }\n\nView with browser_view_file: { ids }"
+            held = [ f for f in files if f.get( "published" ) is False ]
+            if held:
+                body += f"\n{ len( held ) } more file(s) are on the desktop only (one download publishes at most 20)."
         else:
             body = f"{ body }\n\n{ details.get( 'inspect_problem', 'the file could not be published for viewing' )}"
         return outcome.model_copy( update={ "details": details, "summary": summary, "body": body })

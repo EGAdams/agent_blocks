@@ -134,6 +134,25 @@ def test_each_file_is_inspected_when_an_inspector_is_wired(tmp_path):
     assert out.data["files"][0]["inspection"]["page_count"] == 1
 
 
+def test_an_archives_unpacked_files_follow_it_as_files_of_their_own(tmp_path):
+    import zipfile
+    from file_inspection.inspector import default_inspector
+    archive = tmp_path / "plats.zip"
+    with zipfile.ZipFile(archive, "w") as z:
+        z.writestr("deeds/notes.txt", "Liber 4 of Plats, page 31")
+        z.writestr("setup.exe", b"MZ")
+    ops, *_ = wired(tmp_path, arriving=[archive], inspector=default_inspector(tmp_path / "insp"), running=("chrome",))
+    out = run(ops, "browser.download", text="0337201.tif")
+    assert out.ok, out.line
+    first, member = out.data["files"]
+    assert first["name"] == "plats.zip" and first["unpacked_members"] == 1
+    assert "members" not in first["inspection"] and first["inspection"]["kind"] == "archive"
+    assert member["name"] == "notes.txt" and member["from_archive"] == "plats.zip"
+    assert member["archive_member"] == "deeds/notes.txt" and member["status"] == "unpacked"
+    assert member["inspection"]["kind"] == "text" and "Liber 4" in member["inspection"]["text"]
+    assert "From plats.zip: unpacked 1 file(s); 1 left in the archive." in out.line
+
+
 def test_an_unfinished_download_is_named_not_called_saved(tmp_path):
     ops, *_ = wired(tmp_path, leftovers=["0337201.tif.crdownload"], running=("chrome",))
     out = run(ops, "browser.download", text="0337201.tif")

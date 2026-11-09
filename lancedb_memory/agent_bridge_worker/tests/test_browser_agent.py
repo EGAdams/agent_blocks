@@ -365,6 +365,45 @@ def test_a_file_that_changed_after_hashing_is_not_published_under_the_old_checks
     assert uploader.blobs == [] and uploader.manifests == []
 
 
+def a_text_file( tmp: Path, name: str, text: str ) -> dict:
+    import hashlib
+    path = tmp / name
+    path.write_text( text, encoding="utf-8" )
+    return { "name": name, "original_name": f"docs.zip > { name }", "path": str( path ), "chrome_path": "",
+             "bytes": path.stat().st_size, "sha256": hashlib.sha256( path.read_bytes()).hexdigest(), "mime": "text/plain",
+             "status": "unpacked", "from_archive": "docs.zip",
+             "inspection": { "kind": "text", "mime": "text/plain", "page_count": 0, "text": text, "note": "", "pages": []}}
+
+
+def test_an_archive_with_more_members_than_the_gateway_takes_publishes_twenty_and_names_the_rest():
+    import tempfile
+    with tempfile.TemporaryDirectory() as tmp:
+        files = [ a_text_file( Path( tmp ), f"m{ i:02d}.txt", f"member { i }" ) for i in range( 24 )]
+        uploader = FakeUploader()
+        out = run_publishing( uploader, files )
+    assert len( uploader.manifests[ 0 ][ "files" ]) == 20
+    assert out.details[ "inspectable" ] is True and len( out.details[ "files" ]) == 24
+    held = [ f for f in out.details[ "files" ] if f.get( "published" ) is False ]
+    assert [ f[ "name" ] for f in held ] == [ "m20.txt", "m21.txt", "m22.txt", "m23.txt" ]
+    assert "m23.txt" not in out.body.split( "View with browser_view_file:" )[ 1 ].split( "\n" )[ 0 ]
+    assert "4 more file(s) are on the desktop only" in out.body
+
+
+def test_all_the_text_together_fits_the_gateways_budget_and_short_files_keep_theirs():
+    import tempfile
+    from agent_bridge_worker.download_publisher import TEXT_BUDGET
+    with tempfile.TemporaryDirectory() as tmp:
+        files = [ a_text_file( Path( tmp ), "short.txt", "Liber 4 of Plats, page 31" )]
+        files += [ a_text_file( Path( tmp ), f"long{ i }.txt", "é" * 90_000 ) for i in range( 3 )]   # 180 KB each in UTF-8
+        uploader = FakeUploader()
+        run_publishing( uploader, files )
+    sent = uploader.manifests[ 0 ][ "files" ]
+    assert sum( len( f[ "text" ].encode( "utf-8" )) for f in sent ) <= TEXT_BUDGET
+    assert sent[ 0 ][ "text" ] == "Liber 4 of Plats, page 31" and sent[ 0 ][ "text_truncated" ] is False
+    assert all( f[ "text_truncated" ] for f in sent[ 1: ])
+    assert all( f[ "text" ].encode( "utf-8" ).decode( "utf-8" ) for f in sent[ 1: ])
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 if __name__ == "__main__":
     for test in TESTS:
