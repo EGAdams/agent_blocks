@@ -153,7 +153,7 @@ def default_plane() -> ControlPlane:
     shared with playback), so there is a single place to look for a saved file, and
     BROWSER_WORKFLOW_DOWNLOAD_DIR moves it for both at once."""
     root = Path(__file__).resolve().parent.parent / "adw_data" / "browser_control" / "screenshots"
-    folder = NativeDownloadDirectory()
+    folder = NativeDownloadDirectory(remember=root.parent / "windows_download_dir.txt")
     return ControlPlane(StaticBrowserCatalog(), InteractiveTaskStarter(), CdpBrowserEndpoint(), CdpPageAttacher(),
                         SystemClock(), WslInteropLink(), root, sessions=WindowsSessionProbe(),
                         folder=folder, filer=DownloadFiler(), verifier=FileDownloadVerifier(),

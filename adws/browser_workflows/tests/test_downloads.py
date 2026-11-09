@@ -176,3 +176,44 @@ def test_a_file_whose_size_is_still_moving_is_not_reported_as_finished( tmp_path
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr( Path, "stat", moving_stat )
         assert look.wait_new( before, 0.1 ) == []
+
+
+def flaky_cmd( monkeypatch, failures: int ) -> list[ int ]:
+    """cmd.exe that exits 1 `failures` times, then answers -- WSL interop on the live box drops for
+    seconds at a time, and one such drop failed a ZIP download a minute after a PDF one worked."""
+    calls: list[ int ] = []
+
+    def run( *a, **kw ):
+        calls.append( 1 )
+        if len( calls ) <= failures:
+            raise paths.subprocess.CalledProcessError( 1, a[ 0 ])
+        return SimpleNamespace( stdout="C:\\Users\\NewUser\r\n" )
+    monkeypatch.setattr( paths.shutil, "which", lambda _: "/mnt/c/Windows/System32/cmd.exe" )
+    monkeypatch.setattr( paths.subprocess, "run", run )
+    return calls
+
+
+def test_a_windows_call_that_fails_once_is_asked_again( monkeypatch ):
+    calls, waits = flaky_cmd( monkeypatch, failures=1 ), []
+    folder = NativeDownloadDirectory( sleep=waits.append ).resolve()
+    assert folder == r"C:\Users\NewUser\Downloads\BrowserRecorder"
+    assert len( calls ) == 2 and len( waits ) == 1
+
+
+def test_a_windows_side_that_never_answers_is_still_refused_after_the_retries( monkeypatch ):
+    calls, waits = flaky_cmd( monkeypatch, failures=99 ), []
+    with pytest.raises( BrowserWorkflowError, match=DOWNLOAD_DIR_ENV ):
+        NativeDownloadDirectory( sleep=waits.append ).resolve()
+    assert len( calls ) == len( paths.ASK_WAITS ) + 1
+
+
+def test_a_folder_found_once_is_remembered_so_windows_need_not_answer_again( tmp_path, monkeypatch ):
+    memory = tmp_path / "windows_download_dir.txt"
+    flaky_cmd( monkeypatch, failures=0 )
+    assert NativeDownloadDirectory( remember=memory ).resolve() == r"C:\Users\NewUser\Downloads\BrowserRecorder"
+    calls = flaky_cmd( monkeypatch, failures=99 )
+    assert NativeDownloadDirectory( remember=memory, sleep=lambda _: None ).resolve() == \
+        r"C:\Users\NewUser\Downloads\BrowserRecorder"
+    assert calls == []
+    monkeypatch.setenv( DOWNLOAD_DIR_ENV, r"D:\Statements" )
+    assert NativeDownloadDirectory( remember=memory ).resolve() == r"D:\Statements"

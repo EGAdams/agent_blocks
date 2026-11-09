@@ -8,6 +8,8 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
+from collections.abc import Callable
 from pathlib import Path, PureWindowsPath
 
 from ..errors import BrowserWorkflowError
@@ -28,6 +30,11 @@ CMD_EXE_PATHS = ( "/mnt/c/Windows/System32/cmd.exe", "/mnt/c/WINDOWS/system32/cm
 INTEROP_ENV   = "WSL_INTEROP"
 INIT_INTEROP  = "/run/WSL/1_interop"
 
+#: Seconds waited before asking Windows again. Interop on the live box drops for seconds at a time
+#: (cmd.exe exits 1 with a good socket), and one drop failed a ZIP download a minute after a PDF one
+#: from the same tab worked (2026-11-09). The answer never changes, so it is also remembered.
+ASK_WAITS = ( 1.0, 3.0 )
+
 
 def interop_environment() -> dict[ str, str ]:
     """This process's environment, with an interop socket added if it is missing one."""
@@ -46,8 +53,12 @@ def windows_shell() -> str:
 
 
 class NativeDownloadDirectory:
-    def __init__( self, settings_path: Path | None = None ) -> None:
-        self._settings = settings_path
+    """`settings_path` is a folder someone chose (an override); `remember` is where a folder this
+    found by asking Windows is kept, so a later run does not depend on interop answering again."""
+
+    def __init__( self, settings_path: Path | None = None, remember: Path | None = None,
+                  sleep: Callable[[ float ], None ] = time.sleep ) -> None:
+        self._settings, self._remember, self._sleep = settings_path, remember, sleep
 
     def resolve( self ) -> str:
         override = os.environ.get( DOWNLOAD_DIR_ENV, "" ).strip()
@@ -60,8 +71,20 @@ class NativeDownloadDirectory:
             if not ( Path( override ).is_absolute() or PureWindowsPath( override ).is_absolute() ):
                 raise BrowserWorkflowError( f"download folder must be an absolute path on Chrome's machine ({ DOWNLOAD_DIR_ENV })" )
             return override
+        remembered = self._remembered()
+        if remembered:
+            return remembered
         shell = windows_shell()
         if shell:
+            folder = str( PureWindowsPath( self._ask_profile( shell )) / "Downloads" / "BrowserRecorder" )
+            self._keep( folder )
+            return folder
+        if "microsoft" in os.uname().release.lower():
+            raise BrowserWorkflowError( f"cannot reach Windows from WSL; set { DOWNLOAD_DIR_ENV } to a Windows folder" )
+        return str( Path.home() / "Downloads" / "BrowserRecorder" )
+
+    def _ask_profile( self, shell: str ) -> str:
+        for attempt in range( len( ASK_WAITS ) + 1 ):
             try:
                 result = subprocess.run([ shell, "/c", "echo %USERPROFILE%" ], cwd="/mnt/c",
                                          env=interop_environment(),
@@ -69,9 +92,29 @@ class NativeDownloadDirectory:
                 profile = result.stdout.strip()
                 if not PureWindowsPath( profile ).is_absolute() or "%" in profile:
                     raise ValueError( "Windows did not return an absolute user profile" )
-            except ( OSError, subprocess.SubprocessError, ValueError ) as exc:
+                return profile
+            except ValueError as exc:                    # an answer, just a useless one: asking again won't help
                 raise BrowserWorkflowError( f"cannot find Windows Downloads; set { DOWNLOAD_DIR_ENV }: { exc }" ) from exc
-            return str( PureWindowsPath( profile ) / "Downloads" / "BrowserRecorder" )
-        if "microsoft" in os.uname().release.lower():
-            raise BrowserWorkflowError( f"cannot reach Windows from WSL; set { DOWNLOAD_DIR_ENV } to a Windows folder" )
-        return str( Path.home() / "Downloads" / "BrowserRecorder" )
+            except ( OSError, subprocess.SubprocessError ) as exc:
+                if attempt < len( ASK_WAITS ):
+                    self._sleep( ASK_WAITS[ attempt ])
+                    continue
+                raise BrowserWorkflowError( f"cannot find Windows Downloads; set { DOWNLOAD_DIR_ENV }: { exc } "
+                                            f"(asked { attempt + 1 } times)" ) from exc
+        raise AssertionError( "unreachable" )
+
+    def _remembered( self ) -> str:
+        try:
+            text = self._remember.read_text().strip() if self._remember is not None else ""
+        except OSError:
+            return ""
+        return text if PureWindowsPath( text ).is_absolute() else ""
+
+    def _keep( self, folder: str ) -> None:
+        if self._remember is None:
+            return
+        try:
+            self._remember.parent.mkdir( parents=True, exist_ok=True )
+            self._remember.write_text( folder + "\n" )
+        except OSError:
+            pass                                         # remembering is a convenience; the folder is still right
