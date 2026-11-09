@@ -250,3 +250,15 @@ diagnostic note only (never the deed or any other note)", so ChatGPT never tried
   up within one 3-second poll with no reload. That paragraph lost its yellow review mark, and the other 10
   marks stayed. A full page reload showed the same.
 - Rollback: copy the backup's `bridge.php` back and re-run the migrate command above.
+
+## 2026-11-09 — browser_download takes a bare url
+
+- **Backup first**: `~/agent_bridge_backups/bare_url_download_20261109T164755Z` (`src`, `tests`). The host's
+  `BrowserTools.php` matched the repo's previous commit (`f83af6c9...`) before the copy.
+- **Changed**: `src/BrowserTools.php` (`url` field, schema, the url-or-locator check, `needs_person` in the
+  details) and `tests/browser_tests.php`. No migration.
+- **Tests**: 138 gateway tests pass on the host, in a staging copy and in place.
+- **Deployed md5**: `BrowserTools.php` `541137ec25d329144504cabb1072236a` (repo = host).
+- **Worker**: deploy ADW release `20261109T114844-cf7f8a04` (85d7f26), all units restarted.
+- **Verified** through MCP and through Toyota: see the verification table in `BROWSER_CONTROL.md`.
+- Rollback: copy the backup's `src/BrowserTools.php` back.
