@@ -46,6 +46,12 @@ def _choice_name(button) -> str:
     return (own or "").strip() if isinstance(own, str) else ""
 
 
+def _shown(page, css: str) -> bool:
+    """Something matching `css` is on the page with a size. Found is not enough: right after a reload the
+    document is parsed before it is laid out, and a button with no size cannot be pressed."""
+    return any(element.is_displayed() for element in page.find(css))
+
+
 class NotesState(BrowserOperation):
     name = "browser_notes_state"
     description = ("browser.notes_state: open one note on the dashboard's Notes page and read which of its lines "
@@ -66,7 +72,7 @@ class NotesState(BrowserOperation):
                 page.reload(ready="interactive")      # the Notes tab is waited for below; iframes are not
             finally:
                 page.release()
-            if not self._until(kind, tab, lambda p: bool(p.find(NOTES_TAB_CSS))):
+            if not self._until(kind, tab, lambda p: _shown(p, NOTES_TAB_CSS)):
                 return self._stuck(kind, "the dashboard did not come back after the reload", "reload_failed")
         problem = self._open_note(kind, tab, note)
         if problem:
@@ -97,9 +103,11 @@ class NotesState(BrowserOperation):
 
     def _open_note(self, kind, tab, note: str) -> OperationOutcome | None:
         if not self._showing(kind, tab, note):
+            if not self._until(kind, tab, lambda p: _shown(p, NOTES_TAB_CSS)):
+                return self._stuck(kind, "the dashboard never showed its NOTES button", "notes_tab_missing")
             self._press_if_present(kind, tab, NOTES_TAB_CSS, only_if_inactive=True)
             self._press_if_present(kind, tab, BACK, only_if_displayed=True)
-            if not self._until(kind, tab, lambda p: bool(p.find(CHOICE))):
+            if not self._until(kind, tab, lambda p: bool(p.find(CHOICE))):   # found: a closed category is revealed below
                 return self._stuck(kind, "the Notes page never listed its notes", "notes_not_listed")
             page = self._plane.attacher.attach(kind, tab)
             try:

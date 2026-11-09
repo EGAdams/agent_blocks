@@ -172,3 +172,28 @@ def test_notes_state_finds_a_note_whose_button_words_the_page_hides(tmp_path):
     ops, _ = notes_world(tmp_path, dash)
     out = run(ops, "browser.notes_state", note=DEED)
     assert out.ok and dash.open_note == DEED, out.line
+
+
+def test_notes_state_waits_for_the_notes_button_to_be_laid_out_after_a_reload(tmp_path):
+    """A reload now returns once the document is parsed, before it is laid out: the NOTES button is found but
+    has no size for a moment, and pressing it then raised "the element has no size on the page"."""
+    dash = Dashboard()
+    unlaid = {"left": 0}
+    plain = dash.elements
+    def elements():
+        found = plain()
+        if dash.reloads and unlaid.get("started") is None:
+            unlaid["started"], unlaid["left"] = True, 3               # the next three looks see no layout yet
+        dash.notes.shown = unlaid["left"] <= 0
+        unlaid["left"] -= 1
+        return found
+    dash.elements = elements
+    dash.notes.attrs["class"] = "tab"                                   # inactive, so it is pressed
+    press = dash.notes.click
+    def click():
+        assert dash.notes.shown, "the element has no size on the page, so it cannot be clicked"
+        press()
+    dash.notes.click = click
+    ops, _ = notes_world(tmp_path, dash)
+    out = run(ops, "browser.notes_state", note=DEED, reload=True)
+    assert out.ok and dash.open_note == DEED, out.line
