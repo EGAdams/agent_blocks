@@ -100,6 +100,12 @@ class CdpElement:
         return self._value( "function () { return (this.innerText ?? this.textContent ?? '').trim(); }" ) or ""
 
     @property
+    def text_content( self ) -> str:
+        """The node's own text whether or not it is drawn: a page that hides a button's words with CSS and paints
+        them another way (the dashboard's note buttons) leaves `text` empty, and its file name is only here."""
+        return self._value( "function () { return (this.textContent ?? '').trim(); }" ) or ""
+
+    @property
     def tag_name( self ) -> str:
         """Read once: a node's tag never changes, and a click that navigates
         away leaves nothing to ask afterwards."""

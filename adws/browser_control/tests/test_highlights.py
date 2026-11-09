@@ -95,20 +95,22 @@ def test_read_on_a_page_without_the_probe_still_reads_text(tmp_path):
 class Dashboard:
     """The Notes page: a NOTES button, the landing list (a deed inside a closed category), the editor."""
 
-    def __init__(self, open_note=None, listed=(DEED,)):
+    def __init__(self, open_note=None, listed=(DEED,), hidden_words=False):
         self.open_note, self.revealed, self.reloads = open_note, [], 0
         self.notes = FakeElement(text="NOTES", tag="button", selectors={NOTES_TAB_CSS}, attrs={"class": "tab"})
         self.back = FakeElement(text="Back to Notes", tag="button", selectors={BACK})
         self.choices = []
         for name in listed:
-            choice = FakeElement(text=name, tag="button", selectors={CHOICE})
+            choice = FakeElement(text="" if hidden_words else name, tag="button", selectors={CHOICE},
+                                 attrs={"aria-label": f"{name} — unread, new or updated"} if hidden_words else None)
+            choice.text_content = name
             choice.reveal = (lambda n=name: self.revealed.append(n))
             self.choices.append(choice)
 
     def elements(self):
         for choice in self.choices:
             if choice.clicked:
-                self.open_note, choice.clicked = choice.text, False
+                self.open_note, choice.clicked = choice.text_content, False
         if self.back.clicked:
             self.open_note, self.back.clicked = None, False
         title = FakeElement(text=self.open_note or "", tag="h3", selectors={EDITOR_TITLE}, shown=bool(self.open_note))
@@ -158,3 +160,12 @@ def test_notes_state_refuses_a_missing_or_unlisted_note(tmp_path):
     assert run(ops, "browser.notes_state", note="../etc/passwd").data["cause"] == "no_note"
     out = run(ops, "browser.notes_state", note="2099-01-01_absent.md")
     assert not out.ok and out.data["cause"] == "note_not_listed"
+
+
+def test_notes_state_finds_a_note_whose_button_words_the_page_hides(tmp_path):
+    """The live dashboard (2026-11-09) hides its note buttons' words with CSS: innerText is "", the file name is only
+    in textContent, and an unread note's aria-label adds "— unread, new or updated". It is still found by name."""
+    dash = Dashboard(listed=("other.md", DEED), hidden_words=True)
+    ops, _ = notes_world(tmp_path, dash)
+    out = run(ops, "browser.notes_state", note=DEED)
+    assert out.ok and dash.open_note == DEED, out.line

@@ -35,6 +35,17 @@ CHOICE = "#notes-landing button.notes-choice"
 SAMPLE_MS = 1500
 
 
+def _choice_name(button) -> str:
+    """A note button's file name: its visible text, or -- when the page's CSS hides those words and draws them
+    another way, which leaves innerText empty -- the node's own text. Never the aria-label, which adds
+    "unread, new or updated" to the name."""
+    shown = (button.text or "").strip()
+    if shown:
+        return shown
+    own = getattr(button, "text_content", None)
+    return (own or "").strip() if isinstance(own, str) else ""
+
+
 class NotesState(BrowserOperation):
     name = "browser_notes_state"
     description = ("browser.notes_state: open one note on the dashboard's Notes page and read which of its lines "
@@ -92,7 +103,7 @@ class NotesState(BrowserOperation):
                 return self._stuck(kind, "the Notes page never listed its notes", "notes_not_listed")
             page = self._plane.attacher.attach(kind, tab)
             try:
-                choice = next((b for b in page.find(CHOICE) if (b.text or "").strip() == note), None)
+                choice = next((b for b in page.find(CHOICE) if _choice_name(b) == note), None)
                 if choice is None:
                     return refused(f"The Notes page lists no note called {note}.", browser=kind.name,
                                    verified=False, cause="note_not_listed")
