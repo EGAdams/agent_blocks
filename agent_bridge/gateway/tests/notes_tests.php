@@ -157,6 +157,15 @@ test('notes: get_result reads only the caller\'s own notes tasks', function () {
     eq(true, notesCall($w, 'notes_get_result', ['task_id' => $other])['isError'], 'not a notes task');
 });
 
+test('notes: a rollback carries the page check through, like every other write', function () {
+    $w  = notesWorld();
+    $id = notesCall($w, 'notes_rollback', ['note' => NOTES_NOTE, 'snapshot_id' => 's-0123456789',
+                                           'expected_revision' => NOTES_REVISION, 'chain' => true, 'page' => true])['structuredContent']['task_id'];
+    list($prompt) = claimTask($w, $id);
+    eq(['notes' => 'review_rollback', 'id' => NOTES_NOTE, 'snapshot_id' => 's-0123456789', 'expected_revision' => NOTES_REVISION,
+        'chain' => true, 'page' => true], json_decode($prompt, true));
+});
+
 test('notes: initialize names the tools and the rule about resolving', function () {
     $text = notesWorld()->mcp('initialize', ['protocolVersion' => '2025-06-18'])->json['result']['instructions'];
     ok(strpos($text, 'notes_inspect') !== false, 'named in the instructions');

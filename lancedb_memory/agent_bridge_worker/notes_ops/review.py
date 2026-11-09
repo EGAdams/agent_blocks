@@ -112,7 +112,7 @@ TABLE = {
     "review_edit":                 ( "notes.edit", "implement", _set( "item_id", "replace", "expected_revision" ), _set( "page" )),
     "review_mark_resolved":        ( "notes.mark_resolved", "implement", _set( "item_id", "expected_revision" ),
                                      _set( "replace", "evidence", "approval", "advance", "page" )),
-    "review_rollback":             ( "notes.rollback", "implement", _set( "snapshot_id", "expected_revision" ), _set( "chain" )),
+    "review_rollback":             ( "notes.rollback", "implement", _set( "snapshot_id", "expected_revision" ), _set( "chain", "page" )),
 }
 REVIEW_OPERATIONS = tuple( TABLE )
 

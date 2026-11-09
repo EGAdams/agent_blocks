@@ -40,7 +40,7 @@ final class NotesTools extends AgentTaskTools
         'notes_mark_resolved'        => ['review_mark_resolved', 'implement',
                                          ['item_id', 'expected_revision', 'replace', 'evidence', 'approval', 'advance', 'page'],
                                          ['item_id', 'expected_revision']],
-        'notes_rollback'             => ['review_rollback', 'implement', ['snapshot_id', 'expected_revision', 'chain'],
+        'notes_rollback'             => ['review_rollback', 'implement', ['snapshot_id', 'expected_revision', 'chain', 'page'],
                                          ['snapshot_id', 'expected_revision']],
         'notes_get_result'           => [null, 'inspect', [], []],
     ];
@@ -184,7 +184,7 @@ final class NotesTools extends AgentTaskTools
             'notes_rollback' => ['title' => 'Undo a review change',
                 'description' => 'Puts the note back exactly as it was in a snapshot (byte for byte) and reports it. '
                                . 'chain=true also undoes every later review change.' . $after,
-                'inputSchema' => self::schema($note + $rev + [
+                'inputSchema' => self::schema($note + $rev + $page + [
                     'snapshot_id' => ['type' => 'string', 'description' => 'An s-... id exactly as an answer gave it'],
                     'chain' => ['type' => 'boolean', 'description' => 'Undo every later change too'],
                 ], ['note', 'snapshot_id', 'expected_revision']),

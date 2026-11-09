@@ -139,3 +139,12 @@ if __name__ == "__main__":
         test()
         print( "ok", test.__name__ )
     print( f"{ len( TESTS )} passed" )
+
+
+def test_rollback_passes_chain_and_page_through() -> None:
+    review = FakeReview()
+    out = ask({ "notes": "review_rollback", "id": NOTE, "snapshot_id": "s-0123456789", "expected_revision": REV,
+                "chain": True, "page": True }, "implement", review )
+    assert out.kind is OutcomeKind.SUCCEEDED
+    op, flags, switches, _, _, _ = review.calls[ 0 ]
+    assert op == "notes.rollback" and sorted( switches ) == [ "chain", "page" ]
