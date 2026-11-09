@@ -60,7 +60,7 @@
       "source": "in_place",
       "scope": [""],
       "suffixes": [".py", ".md", ".txt", ".json"],
-      "checks": [["python3", "-B", "-m", "unittest", "discover", "-s", "tests", "-q"]],
+      "checks": [["/usr/bin/python3", "-B", "-m", "unittest", "discover", "-s", "tests", "-q"]],
       "check_timeout_seconds": 120,
       "health": [{"name": "sandbox tests directory", "kind": "file_fresh", "path": "~/bridge_workspaces/bridge_sandbox/README.md", "max_age_seconds": 315360000}]
     },
