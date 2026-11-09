@@ -80,8 +80,9 @@ class Notices:
     def __init__(self):
         self.tracked = []
 
-    def track(self, task_id, label):
+    def track(self, task_id, label, on_finish=None):
         self.tracked.append((task_id, label))
+        self.on_finish = on_finish
 
 
 def _runner(name, client, filler, pending=None, notices=None):
@@ -373,6 +374,42 @@ async def test_an_update_with_no_read_in_this_process_sends_nothing():
                                                      "edits": [{"find": "a", "replace": "b"}]}))
     said = await _say(runner, "fix never_read.md")
     assert "read it first" in said and client.sent == [], said
+
+
+async def test_a_finished_task_tells_its_observer_once_and_a_failing_observer_costs_no_notice():
+    clock = Clock()
+    client = FakeClient(states=["succeeded", "succeeded"],
+                        result=BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body="done"))
+    notices = BridgeCompletionNotices(lambda: client, lambda r: f"said {r.body}", clock=clock, every=0)
+    told = []
+    notices.track(TID, "Notes", on_finish=told.append)
+    notices.pending(); notices.pending()
+    assert [r.body for r in told] == ["done"], "told once, not on every look"
+
+    def broken(result):
+        raise RuntimeError("observer bug")
+    other = BridgeCompletionNotices(lambda: client, lambda r: f"said {r.body}", clock=clock, every=0)
+    other.track(TID, "Notes", on_finish=broken)
+    assert other.pending()[0]["spoken"] == "said done"
+
+
+async def test_a_review_change_that_finishes_late_still_updates_the_remembered_revision():
+    """Live, 2026-11-09: activate_next was still queued when Toyota answered, so its new revision was never
+    remembered, and the rollback after it carried the older one -- refused twice as "changed since"."""
+    from ..bridge_client import desk
+    desk.NOTE_REVISIONS = desk.NoteRevisions()
+    desk.NOTE_REVISIONS.remember(DEED, REV1)
+    client = FakeClient(submits=[_view("queued")], states=["running"] * 10)
+    notices = Notices()
+    runner = _runner("bridge_notes", client, Filler({"operation": "review_activate_next", "note_id": DEED}),
+                     notices=notices)
+    assert "Shall I send it" in await _say(runner, "move the blink to the next item in the deed")
+    assert "not finished" in await _say(runner, "yes")
+    assert json.loads(client.sent[0].prompt)["expected_revision"] == REV1
+    assert desk.NOTE_REVISIONS.get(DEED) == REV1                                      # nothing known yet
+    late = json.dumps({"id": DEED, "revision": REV2, "verified": True, "active_item_id": "r-0123456789"})
+    notices.on_finish(BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body=late))
+    assert desk.NOTE_REVISIONS.get(DEED) == REV2 and desk.NOTE_ACTIVE_ITEMS.get(DEED) == "r-0123456789"
 
 
 if __name__ == "__main__":

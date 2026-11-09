@@ -161,11 +161,15 @@ class BridgeSpecialistRunner:
             form.item_id = desk.NOTE_ACTIVE_ITEMS.get(form.note_id.strip())     # "the blinking one", as last reported
 
     def _remember_revision(self, run) -> None:
-        """After a read or update that finished, keep the note's revision for the next update."""
+        self._remember(run.request, run.result)
+
+    @staticmethod
+    def _remember(request, result) -> None:
+        """After a read or update that finished, keep the note's revision for the next update. Called when the
+        answer comes in time (`_send`) and again when it comes late (the notice tracker's `on_finish`)."""
         import json
         from ..bridge_client import desk
         from ..bridge_client.notes_plans import REVISION
-        request, result = run.request, run.result
         if request is None or result is None or request.agent != "notes" or not result.succeeded:
             return
         try:
@@ -192,7 +196,8 @@ class BridgeSpecialistRunner:
         self.last_trace = run.trace
         self._remember_revision(run)
         if run.view is not None and not run.view.terminal and run.error is None:
-            self._notices.track(run.view.task_id, self._specialist.spoken.replace("the Bridge's ", ""))
+            self._notices.track(run.view.task_id, self._specialist.spoken.replace("the Bridge's ", ""),
+                                on_finish=lambda result, request=request: self._remember(request, result))
             return run.reply
         return run.reply
 

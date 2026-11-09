@@ -103,6 +103,7 @@ class _Watched:
     label: str
     checked: float = 0.0
     spoken: str = ""
+    on_finish: Callable[[object], None] | None = None
 
 
 class BridgeCompletionNotices:
@@ -131,11 +132,13 @@ class BridgeCompletionNotices:
         self._monitors: dict = {}
         self._states: dict = {}
 
-    def track(self, task_id: str, label: str) -> bool:
+    def track(self, task_id: str, label: str, on_finish: Callable[[object], None] | None = None) -> bool:
+        """Watch `task_id`. `on_finish(result)` (an Observer) is told the finished result once, before it is
+        spoken -- so whatever a caller learns from an answer it got in time, it also learns from a late one."""
         with self._lock:
             if len(self._watched) >= 100 and task_id not in self._watched:
                 return False
-            self._watched.setdefault(task_id, _Watched(task_id, label))
+            self._watched.setdefault(task_id, _Watched(task_id, label, on_finish=on_finish))
             self._started.setdefault(task_id, self._clock())
             return True
 
@@ -208,7 +211,13 @@ class BridgeCompletionNotices:
                     self._states[w.task_id] = monitor.observe(view)
                 if view.state not in TERMINAL_STATES:
                     continue
-                spoken = self._speak(client.result(w.task_id))
+                result = client.result(w.task_id)
+                if w.on_finish is not None:
+                    try:
+                        w.on_finish(result)
+                    except Exception:
+                        pass  # an observer's failure never costs the spoken notice
+                spoken = self._speak(result)
             except Exception:
                 continue  # unreachable now; asked again in `every` seconds
             with self._lock:
