@@ -90,7 +90,11 @@ The top-level areas are:
   successful click over an empty folder -- `click` now refuses a file link and
   names `download` instead, and the other thirteen operations never gain the
   power to write files to EG's disk. `adws/adw_browser_download.py` is the same
-  operation on its own; verified live on 2026-11-08 (adw `b1b6c83c`). Read
+  operation on its own; verified live on 2026-11-08 (adw `b1b6c83c`). A downloaded ZIP is unpacked one level
+  (`adws/file_inspection/archive.py`; programs, scripts, nested archives, encrypted entries and symlinks stay
+  in) and each member is published as its own file, at most 20 per download -- verified live through MCP on
+  2026-11-09. Toyota lists and reads her own downloads as text (`bridge_client/files.py`, no yes, no task),
+  verified live through her sidecar the same day; each client sees only its own files. Read
   `agent_bridge/docs/BROWSER_CONTROL.md` before changing it -- it holds the
   environment table, the failure causes, and which rows are verified end to end
   rather than only unit-tested. The agent-facing loop is the

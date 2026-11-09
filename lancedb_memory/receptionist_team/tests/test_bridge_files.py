@@ -130,6 +130,8 @@ async def test_list_sentence_names_each_file_with_its_id():
     said = list_sentence(DownloadedFileList(files=[ABOUT]))
     assert "0337201.tif" in said and FID in said and "2 pages" in said and "793 KB" in said, said
     assert "don't have any" in list_sentence(DownloadedFileList())
+    archive = list_sentence(DownloadedFileList(files=[{**ABOUT, "kind": "archive", "page_count": 567}]))
+    assert "567 entries" in archive and "pages" not in archive, archive
 
 
 async def test_a_scanned_file_is_described_and_pointed_at_chatgpt():

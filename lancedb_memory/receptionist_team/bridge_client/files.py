@@ -111,22 +111,25 @@ def _size(n: int) -> str:
     return f"{n / 1_048_576:.1f} MB" if n >= 1_048_576 else f"{max(1, round(n / 1024))} KB"
 
 
-def _pages(n: int) -> str:
-    return f", {n} page{'s' if n != 1 else ''}" if n else ""
+def _pages(n: int, kind: str = "") -> str:
+    """An archive's count is its entries (file_inspection counts each as a page), not pages."""
+    unit = "entr" if kind == "archive" else "page"
+    plural = ("ies" if n != 1 else "y") if kind == "archive" else ("s" if n != 1 else "")
+    return f", {n} {unit}{plural}" if n else ""
 
 
 def list_sentence(listing: DownloadedFileList) -> str:
     if not listing.files:
         return ("I don't have any downloaded files at the Bridge yet. Ask me to download one from a page "
                 "first; I can only see files my own downloads saved.")
-    parts = [f"{f.name or f.original_name} ({f.kind or f.mime}{_pages(f.page_count)}, {_size(f.bytes)}), "
+    parts = [f"{f.name or f.original_name} ({f.kind or f.mime}{_pages(f.page_count, f.kind)}, {_size(f.bytes)}), "
              f"file {f.file_id}" for f in listing.files]
     head = f"My {len(parts)} most recent downloaded file{'s' if len(parts) != 1 else ''}: "
     return head + "; ".join(parts) + ". Ask me to read one by its file id."
 
 
 def view_sentence(view: FileView, room: int = SPOKEN_TEXT) -> str:
-    facts = f"{view.name or view.original_name} is {view.kind or view.mime}{_pages(view.page_count)}, {_size(view.bytes)}."
+    facts = f"{view.name or view.original_name} is {view.kind or view.mime}{_pages(view.page_count, view.kind)}, {_size(view.bytes)}."
     if not view.text:
         pages = (" It has page images but no text I can read; ChatGPT can look at the images with "
                  f"browser_view_file, file {view.file_id}.") if view.page_count else " It has no text I can read."
