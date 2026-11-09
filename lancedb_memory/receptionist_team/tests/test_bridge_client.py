@@ -207,6 +207,14 @@ async def test_auth_errors_are_typed_and_never_echo_the_token():
     assert _raises(e.BridgeAuthError, lambda: transport.request("GET", "/agents")).code == "wrong_role"
 
 
+async def test_a_policy_refusal_is_not_a_credential_error():
+    body = b'{"error":{"code":"not_allowed","message":"this client may not start scans (scanner:start)"}}'
+    transport, _ = _transport(_http_error(403, body))
+    exc = _raises(e.BridgeRefused, lambda: transport.request("POST", "/tasks", {}))
+    assert not isinstance(exc, e.BridgeAuthError)
+    assert exc.code == "not_allowed" and "scanner:start" in exc.message
+
+
 async def test_refusals_server_errors_network_and_timeouts():
     transport, _ = _transport(_http_error(422, b'{"error":{"code":"invalid_task","message":"bad"}}'))
     assert _raises(e.BridgeRefused, lambda: transport.request("POST", "/tasks", {})).code == "invalid_task"

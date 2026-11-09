@@ -37,7 +37,11 @@ Toyota uses a separately issued client credential, stored in a mode-0600
 file outside both repositories. Its value is never in source or reports.
 Since 2026-11-06 (EG's instruction) its gateway binding carries the same scope
 as ChatGPT's: the live `client_scopes` entries for both identities set only the
-`sender` and no operation, workspace or agent limits. Toyota's own safeguards
+`sender` and no operation, workspace or agent limits. Scanner rights are a
+separate list, `scanner_scopes`, keyed by principal id or label; until
+2026-11-09 it named only ChatGPT's identities, so Toyota's scan tasks got
+`403 not_allowed` ("this client may not start scans (scanner:start)"). The
+`toyota-bridge` label now holds the same five scanner scopes. Toyota's own safeguards
 stay in force: her `star_trek_bridge` desk sends read-only requests only, and
 every write goes through a specialist (`bridge_writer`, `bridge_coder`,
 `bridge_printer`, `bridge_scanner`, `bridge_notes`) that reads the request back

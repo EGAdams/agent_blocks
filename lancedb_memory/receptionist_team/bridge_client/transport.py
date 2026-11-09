@@ -80,6 +80,10 @@ class HttpsBridgeTransport:
             code = str(error.get("code", "")) if isinstance(error, dict) else ""
             message = self._clean(error.get("message", "")) if isinstance(error, dict) else ""
             code = self._clean(code) or f"http_{status}"
+            # A 403 not_allowed is policy refusing this one task (a missing scope, a protected agent), not the
+            # credential: say the gateway's reason, or a scanner scope gap reads as "check Toyota's token".
+            if status == 403 and code == "not_allowed":
+                raise BridgeRefused(code, message or "the Bridge does not allow that task", status) from None
             if status in (401, 403):
                 raise BridgeAuthError(code, message or "the Bridge refused the credential", status) from None
             if status == 429 or status >= 500:
