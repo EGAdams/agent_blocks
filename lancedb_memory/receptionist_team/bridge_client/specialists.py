@@ -23,6 +23,7 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from .browser_plans import BROWSER_PLANS
 from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION_MODES
 from .notes_plans import NOTES_PLANS
+from .deploy_plans import DEPLOY_PLANS
 from .relay_plans import RELAY_PLANS
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
@@ -103,6 +104,12 @@ class SpecialistForm(BaseModel):
     origin: str | None = None         # chatgpt relay: which session it came from, so it never goes back there
     no_wait: bool | None = None       # chatgpt relay: deliver and end, without waiting for a reply
     last: int | None = None           # chatgpt relay: how many turns of the thread to read
+    project: str | None = None        # deploy: a project name, from the project list
+    reason: str | None = None         # deploy: why a deploy or rollback goes out (kept in the release record)
+    release_id: str | None = None     # deploy: which release to roll back to, from history
+    unit: str | None = None           # deploy: one of the project's services
+    lines: int | None = None          # deploy: how many log lines to read
+    dry_run: bool | None = None       # deploy: say what would change, change nothing
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -334,6 +341,34 @@ class ChatGptBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class DeployBuilder:
+    """deploy: the Deployment ADW on EG's machine -- deploy, restart, roll back, check health, read logs.
+
+    Each operation is a Plan in `deploy_plans.DEPLOY_PLANS` (Strategy + Registry); this class only finds it.
+    The same Bridge agent, worker adapter and ADW (`adws/adw_deploy.py`) ChatGPT drives, so Toyota gains no
+    deployment path of her own. Projects, commands and services come from the ADW's fixed project table; a
+    request only names a project, and both the worker and the ADW re-check it.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(DEPLOY_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("deploy.")
+        plan = DEPLOY_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should I do: list the projects, check one's status or health, read its logs "
+                              "or history, deploy it, restart it, or roll it back?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "deploy"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -354,4 +389,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_notes", "notes", "the Bridge's Notes", NotesBuilder()),
     BridgeSpecialist("bridge_browser", "browser", "the Bridge's browser", BrowserBuilder()),
     BridgeSpecialist("bridge_chatgpt", "chatgpt-relay", "the Bridge's ChatGPT relay", ChatGptBuilder()),
+    BridgeSpecialist("bridge_deploy", "deploy", "the Bridge's Deployment ADW", DeployBuilder()),
 )}

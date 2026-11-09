@@ -197,6 +197,11 @@ ROLE_BLURBS: dict[str, str] = {
         "has finished writing, reads a thread, lists the sessions -- each after a yes; it never puts a password in a "
         "message, never closes that browser, and won't start a new chat"
     ),
+    "bridge_deploy": (
+        "Deployments through the Bridge: lists the projects, checks one's status, health, logs and release history; "
+        "after a yes deploys a project (checks first, health after, the last release put back by itself if health "
+        "fails), restarts its services, or rolls it back to an earlier release"
+    ),
     "object_inspector": "answers from the object trace",
 }
 
@@ -239,6 +244,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_notes": "the Bridge's Notes",
     "bridge_browser": "the Bridge's browser",
     "bridge_chatgpt": "the Bridge's ChatGPT relay",
+    "bridge_deploy": "the Bridge's Deployment ADW",
     "object_inspector": "our object inspector",
 }
 
@@ -284,6 +290,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_notes": "on the notes",
     "bridge_browser": "on that browser step",
     "bridge_chatgpt": "on that ChatGPT message",
+    "bridge_deploy": "on that deployment",
     "object_inspector": "looking that up in the object trace",
 }
 
@@ -304,7 +311,8 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # only so that registering its folder doesn't land it on Sydney's desk.
 TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
                           "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
-                          "bridge_notes", "bridge_browser", "bridge_chatgpt", "object_inspector")
+                          "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy",
+                          "object_inspector")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

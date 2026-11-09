@@ -27,6 +27,7 @@
     "bridge_notes",
     "bridge_browser",
     "bridge_chatgpt",
+    "bridge_deploy",
     "object_inspector"
   ],
   "disabled": {}

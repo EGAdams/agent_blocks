@@ -89,6 +89,9 @@ BROWSER_ADW     = _HERE / "adw_browser_control.py"
 RELAY_ENABLED   = Path.home() / ".config" / "startrek_relay" / "enabled"     # the ChatGPT relay is off until this exists
 RELAY_WORKDIR   = _HERE / "adw_data" / "chatgpt_relay" / "workspace"        # the `chatgpt-relay` workspace: empty, nothing runs in it
 RELAY_ADW       = _HERE / "adw_chatgpt_relay.py"
+DEPLOY_ENABLED  = Path.home() / ".config" / "startrek_deploy" / "enabled"     # the Deployment ADW is off until this exists
+DEPLOY_WORKDIR  = _HERE / "adw_data" / "deployment" / "workspace"           # the `deploy` workspace: empty, nothing runs in it
+DEPLOY_ADW      = _HERE / "adw_deploy.py"
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
 NOTES_URL       = os.environ.get( "NOTES_ENDPOINT_URL", "http://127.0.0.1:8765" )     # the dashboard, loopback
@@ -172,6 +175,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.adapters.browser_process import UvBrowserCommands
     from agent_bridge_worker.chatgpt_relay_agent import ChatGptRelayAgent
     from agent_bridge_worker.adapters.chatgpt_relay_process import UvChatGptCommands
+    from agent_bridge_worker.deploy_agent import DeployAgent
+    from agent_bridge_worker.adapters.deploy_process import UvDeployCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
@@ -271,9 +276,16 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # would be refused for a workspace that is not write-enabled -- with a message about workspaces that
         # says nothing about the two spellings being different.
         self_contained.add( "chatgpt-relay" )           # it types into a window on another machine, not a git workspace
+    if DEPLOY_ENABLED.exists():                         # the Deployment ADW is off until EG creates the flag file
+        DEPLOY_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "deploy" ]  = DeployAgent( UvDeployCommands( UV, DEPLOY_ADW, _HERE.parent ), clock )
+        offered[ "deploy" ] = { "inspect": False, "implement": True }
+        # Agent and workspace share the name `deploy` (see the chatgpt-relay note above). The projects it changes
+        # are fixed in adws/deployment/projects.json; the workspace itself is an empty directory.
+        self_contained.add( "deploy" )
     write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
-                                      "chatgpt-relay": RELAY_WORKDIR },
+                                      "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent

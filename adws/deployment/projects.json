@@ -1,0 +1,77 @@
+{
+  "projects": [
+    {
+      "name": "dashboard",
+      "description": "EG's dashboard (localhost:8765), served in place from ~/letta-code/dashboard. A deploy runs the JS suite, gives changed stylesheets and scripts a new ?v= tag so open pages reload them, records the release, restarts the server only if Python changed, and checks the page answers.",
+      "root": "~/letta-code",
+      "source": "in_place",
+      "scope": ["dashboard/"],
+      "suffixes": [".py", ".js", ".mjs", ".css", ".html"],
+      "exclude": ["dashboard/.venv/*", "dashboard/*backup*", "dashboard/node_modules/*", "dashboard/data/*",
+                  "dashboard/notes/*", "dashboard/uploads/*", "dashboard/*.bak", "dashboard/**/*.bak"],
+      "checks": [
+        ["bash", "-c", "cd dashboard && exec ~/.bun/bin/bun test js/tests"],
+        ["dashboard/.venv/bin/python", "-B", "-m", "py_compile", "dashboard/server.py"]
+      ],
+      "check_timeout_seconds": 300,
+      "units": ["dashboard-server.service"],
+      "restart_when": ["*.py"],
+      "log_files": {"dashboard-server.log": "/tmp/dashboard_8765.log"},
+      "health": [
+        {"name": "dashboard page", "kind": "http", "url": "http://127.0.0.1:8765/dashboard.html", "contains": "<html"},
+        {"name": "dashboard-server.service", "kind": "unit", "unit": "dashboard-server.service"}
+      ],
+      "health_wait_seconds": 30,
+      "cache_bust": {"html": "dashboard/dashboard.html", "url_root": "dashboard/"}
+    },
+    {
+      "name": "agent_blocks",
+      "description": "This repository on EG's machine (~/agent_blocks): the Bridge workers, the receptionists, Cashy and every ADW. A deploy fast-forwards to origin/main (never a merge, never over a local edit), runs the checks, restarts the services, and goes back to the old commit if the checks or health fail.",
+      "root": "~/agent_blocks",
+      "source": "git_pull",
+      "remote": "origin",
+      "branch": "main",
+      "checks": [
+        ["bash", "-c", "cd adws && exec ~/.local/bin/uv run --quiet --with pydantic --with pytest pytest -q -p no:cacheprovider deployment/tests"],
+        ["bash", "-c", "cd lancedb_memory && exec .venv/bin/python -B -m pytest -q -p no:cacheprovider agent_bridge_worker/tests"]
+      ],
+      "check_timeout_seconds": 600,
+      "units": ["toyota-receptionist.service", "sydney-receptionist.service", "mazda-receptionist.service",
+                "liz-receptionist.service", "yolanda-receptionist.service", "cashy-agent.service"],
+      "self_units": ["agent-bridge-worker.service", "agent-bridge-worker-express.service"],
+      "restart_when": ["*.py", "*.json", "*.yaml", "*.toml"],
+      "log_files": {"toyota.log": "/tmp/toyota_receptionist.log", "sydney.log": "/tmp/sydney_receptionist.log",
+                    "mazda.log": "/tmp/mazda_receptionist.log", "cashy.log": "/tmp/cashy_agent.log"},
+      "health": [
+        {"name": "toyota-receptionist.service", "kind": "unit", "unit": "toyota-receptionist.service"},
+        {"name": "sydney-receptionist.service", "kind": "unit", "unit": "sydney-receptionist.service"},
+        {"name": "mazda-receptionist.service", "kind": "unit", "unit": "mazda-receptionist.service"},
+        {"name": "cashy-agent.service", "kind": "unit", "unit": "cashy-agent.service"},
+        {"name": "agent-bridge-worker.service", "kind": "unit", "unit": "agent-bridge-worker.service"},
+        {"name": "agent-bridge-worker-express.service", "kind": "unit", "unit": "agent-bridge-worker-express.service"},
+        {"name": "general worker heartbeat", "kind": "file_fresh", "path": "~/.cache/agent_bridge/worker_health.json", "max_age_seconds": 600}
+      ],
+      "health_wait_seconds": 45
+    },
+    {
+      "name": "bridge_sandbox",
+      "description": "The Bridge's scratch repository (~/bridge_workspaces/bridge_sandbox). Nothing serves it; use it to try a deploy and a rollback end to end without touching anything live.",
+      "root": "~/bridge_workspaces/bridge_sandbox",
+      "source": "in_place",
+      "scope": [""],
+      "suffixes": [".py", ".md", ".txt", ".json"],
+      "checks": [["python3", "-B", "-m", "unittest", "discover", "-s", "tests", "-q"]],
+      "check_timeout_seconds": 120,
+      "health": [{"name": "sandbox tests directory", "kind": "file_fresh", "path": "~/bridge_workspaces/bridge_sandbox/README.md", "max_age_seconds": 315360000}]
+    },
+    {
+      "name": "gateway",
+      "description": "The Star Trek Bridge gateway (bridge.americansjewelry.com). Deployed by hand on its host, never from here; health only.",
+      "root": "~/agent_blocks",
+      "source": "none",
+      "health": [
+        {"name": "gateway health", "kind": "http", "url": "https://bridge.americansjewelry.com/api/agent-bridge/v1/health", "contains": "\"ok\":true"}
+      ]
+    }
+  ]
+}

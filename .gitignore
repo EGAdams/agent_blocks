@@ -73,3 +73,5 @@ adws/adw_data/object_trace.db*
 .playwright-mcp/
 lancedb_memory/receptionist_team/voice_metrics.log
 adws/adw_data/browser_control/
+# Deployment ADW: the deploy agent's scratch workspace (runs, releases live in ~/.local/share/adw_deploy)
+adws/adw_data/deployment/

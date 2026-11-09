@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for the Deployment ADW: lists the projects, checks one's status, health, logs and release history, and after a yes deploys, restarts or rolls back a project",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_deploy",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and fills in project, reason, release id, unit, lines or dry_run; bridge_client/deploy_plans.py builds the exact JSON prompt. Every change is read back and sent only after a yes. The same Bridge agent, worker adapter and ADW (adws/adw_deploy.py) that ChatGPT drives."
+}
