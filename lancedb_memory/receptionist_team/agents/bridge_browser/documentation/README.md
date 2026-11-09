@@ -30,3 +30,17 @@ Every `implement` operation is read back and waits for a spoken yes, the same ga
 `bridge_scanner` use. That is deliberate and was not relaxed for the form loop.
 
 See `receptionist_team/bridge_client/README.md` (Bridge specialists) and `browser_plans.py`.
+
+## Reading what a download saved
+
+`download` keeps a file; `downloaded_files` and `view_file` read it back. Those two are **not** Bridge tasks:
+`BrowserBuilder.direct()` answers them by calling the gateway's MCP tools `browser_downloaded_files` and
+`browser_view_file` with Toyota's own credential (`bridge_client/files.py`, `McpBridgeFiles`), so there is no
+submit, no wait and no yes -- nothing changes. The gateway shows a client only the files its own tasks
+downloaded, so Toyota sees what *she* downloaded, never ChatGPT's.
+
+She gets the facts and the text, never the page image: her conversation model reads text only. A view asks for
+the `preview` rendition and the transport for this reader allows 2 MB, because the gateway always attaches one
+page image. The words she repeats are clipped to fit one spoken reply and say where to continue ("ask for more
+of file f_... from character 380"), and they are introduced as the website's words, not instructions. A file
+that has only page images (a scanned plat) is described, and she says ChatGPT can look at the images.

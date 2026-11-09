@@ -45,13 +45,19 @@ def _default_client():
     return build()
 
 
+def _default_files():
+    from ..bridge_client.files import default_files
+    return default_files()
+
+
 class BridgeSpecialistRunner:
     def __init__(self, specialist: str, filler: object | None = None, pending: object | None = None,
                  notices: object | None = None, client_factory: Callable[[], object] = _default_client,
                  wait_seconds: float = 15.0, poll_seconds: float = 5.0,
                  sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
                  key_factory: Callable[[], str] = lambda: f"toyota-{uuid.uuid4().hex}",
-                 log_factory: Callable[[], object] | None = None) -> None:
+                 log_factory: Callable[[], object] | None = None,
+                 files_factory: Callable[[], object] = _default_files) -> None:
         from ..bridge_client import desk
         from ..bridge_client.specialists import SPECIALISTS
         self._specialist = SPECIALISTS[specialist]
@@ -62,6 +68,7 @@ class BridgeSpecialistRunner:
         self._wait, self._poll, self._sleep, self._clock = wait_seconds, poll_seconds, sleep, clock
         self._key_factory = key_factory
         self._log_factory = log_factory
+        self._files_factory = files_factory
         self.last_trace: list = []
 
     async def run(self, role: object, agent_name: str, model: str, extra: str = "") -> AgentReply:
@@ -95,7 +102,8 @@ class BridgeSpecialistRunner:
         return self._send(pending.request)
 
     def _new_request(self, text: str, system_prompt: str) -> str:
-        from ..bridge_client.specialists import FormProblem, SpecialistForm
+        from ..bridge_client import errors as e
+        from ..bridge_client.specialists import FormProblem, IDirectReader, SpecialistForm
         spec = self._specialist
         client = self._client_factory()
         agent = next((a for a in client.discover() if a.name == spec.bridge_agent), None)
@@ -106,13 +114,26 @@ class BridgeSpecialistRunner:
             form = SpecialistForm.parse(self._filler.fill(system_prompt, brief))
             if form.ask:
                 return form.ask
-            self._attach_revision(form)
-            request, readback = spec.builder.build(form, agent)
         except FormProblem as problem:
             return problem.spoken
         except Exception as exc:  # the model call itself: rate limit, timeout, network
             return (f"My Bridge specialist couldn't read that request just now ({type(exc).__name__}), "
                     "so nothing was sent. Try again in a moment.")
+        try:
+            # A read the gateway answers directly (a downloaded file): no task, no yes. A BridgeError from it
+            # reaches _handle and is spoken as the Bridge's own refusal, never as "couldn't read the request".
+            if isinstance(spec.builder, IDirectReader):
+                spoken = spec.builder.direct(form, self._files_factory)
+                if spoken is not None:
+                    return spoken
+            self._attach_revision(form)
+            request, readback = spec.builder.build(form, agent)
+        except FormProblem as problem:
+            return problem.spoken
+        except e.BridgeError:
+            raise
+        except Exception as exc:  # a bug in a plan must not end the turn; nothing was sent
+            return f"I couldn't put that request together ({type(exc).__name__}), so nothing was sent."
         if request.needs_confirmation:
             self._pending.put(spec.name, request, readback)
             return f"{readback} Shall I send it? Say yes or no."

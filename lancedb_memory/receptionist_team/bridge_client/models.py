@@ -235,3 +235,40 @@ class BridgeClientConfig(BaseModel):
         if "/worker" in value:
             raise ValueError("the client never talks to the /worker API")
         return value
+
+
+class DownloadedFile(BaseModel):
+    """One file a browser.download task saved, as the gateway describes it (BrowserTools::about)."""
+
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    file_id: str
+    task_id: str = ""
+    name: str = ""
+    original_name: str = ""
+    mime: str = ""
+    bytes: int = 0
+    kind: str = ""
+    page_count: int = 0
+    text_chars: int = 0
+    text_truncated: bool = False
+    note: str = ""
+    saved_at: str = ""
+
+
+class DownloadedFileList(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True)
+
+    files: list[DownloadedFile] = Field(default_factory=list)
+    next: str = ""
+
+
+class FileView(DownloadedFile):
+    """`browser_view_file`'s facts and one chunk of text. Its page image is never kept here."""
+
+    text: str = ""
+    text_offset: int = 0
+    text_more: bool = False
+    next_text_offset: int | None = None
+    rendered_pages: list[int] = Field(default_factory=list)
+    notice: str = ""

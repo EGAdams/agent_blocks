@@ -16,11 +16,14 @@ import json
 import re
 import uuid
 from dataclasses import dataclass
-from typing import Protocol
+from collections.abc import Callable
+from typing import Protocol, runtime_checkable
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from .browser_plans import BROWSER_PLANS
+from .files import FILE_ID, TASK_ID, list_sentence, view_sentence
+from .interfaces import IBridgeFiles
 from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION_MODES
 from .notes_plans import NOTES_PLANS
 from .deploy_plans import DEPLOY_PLANS
@@ -96,7 +99,11 @@ class SpecialistForm(BaseModel):
     label: str | None = None          # browser: what a control says on the screen
     option_text: str | None = None    # browser: what the dropdown item says
     value: str | None = None          # browser: a dropdown item's own token
-    limit: int | None = None          # browser: how many controls to list
+    limit: int | None = None          # browser: how many controls to list (or downloaded files to name)
+    file_id: str | None = None        # browser: a downloaded file, f_ + 24 hex, from the downloaded-files list
+    page: int | None = None           # browser: which page of a downloaded file
+    text_offset: int | None = None    # browser: where in a downloaded file's text to read from
+    task_id: str | None = None        # browser: only the files one download task saved
     instance: str | None = None       # chatgpt relay: which session, from its session list
     message: str | None = None        # chatgpt relay: what to say
     settle: str | None = None         # chatgpt relay: how to decide the reply is finished
@@ -140,6 +147,15 @@ class IRequestBuilder(Protocol):
 
     def context(self, agent: BridgeAgent) -> str:
         """What the model is told about the live agent, beside the user's words."""
+        ...
+
+
+@runtime_checkable
+class IDirectReader(Protocol):
+    """A specialist operation that is answered by reading, not by a Bridge task: no submit, no yes, no wait.
+    `direct` returns the spoken answer, or None when the form is an ordinary task for `build`."""
+
+    def direct(self, form: SpecialistForm, files: Callable[[], IBridgeFiles]) -> str | None:
         ...
 
 
@@ -293,11 +309,43 @@ class BrowserBuilder:
     request, refuses a consequential click that carries no authorization, and refuses a password field outright.
     """
 
+    #: Answered by reading the gateway's file tools (files.py), never sent as a task.
+    FILE_OPERATIONS = ("downloaded_files", "view_file")
+
     def context(self, agent: BridgeAgent) -> str:
-        return "Operations: " + ", ".join(BROWSER_PLANS)
+        return "Operations: " + ", ".join((*BROWSER_PLANS, *self.FILE_OPERATIONS))
+
+    @staticmethod
+    def _what(form: SpecialistForm) -> str:
+        return (form.operation or "").strip().lower().removeprefix("browser.").removeprefix("browser_")
+
+    def direct(self, form: SpecialistForm, files: Callable[[], IBridgeFiles]) -> str | None:
+        """List or read the files Toyota's own downloads saved. A read needs no yes: it changes nothing, and the
+        gateway shows her only her own files. With no file id, "read the file I just downloaded" is the newest."""
+        what = self._what(form)
+        if what not in self.FILE_OPERATIONS:
+            return None
+        task_id = str(form.task_id or "").strip()
+        if task_id and not TASK_ID.fullmatch(task_id):
+            raise FormProblem("That doesn't look like a Bridge task id, so I didn't look anything up.")
+        reader = files()
+        if what == "downloaded_files":
+            return list_sentence(reader.downloaded_files(task_id, max(1, min(form.limit or 5, 10))))
+        file_id = str(form.file_id or "").strip()
+        if file_id and not FILE_ID.fullmatch(file_id):
+            raise FormProblem("That isn't a downloaded file's id. Ask me which files I've downloaded and use one "
+                              "of those.")
+        if not file_id:
+            newest = reader.downloaded_files(task_id, 1).files
+            if not newest:
+                return list_sentence(reader.downloaded_files(task_id, 1))
+            file_id = newest[0].file_id
+        if form.page is not None and form.page < 1:
+            raise FormProblem("Pages start at 1.")
+        return view_sentence(reader.view_file(file_id, form.page, max(0, form.text_offset or 0)))
 
     def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
-        what = (form.operation or "").strip().lower().removeprefix("browser.").removeprefix("browser_")
+        what = self._what(form)
         plan = BROWSER_PLANS.get(what)
         if plan is None:
             raise FormProblem("What should I do in the browser: open a page, go somewhere, read it, list its "
