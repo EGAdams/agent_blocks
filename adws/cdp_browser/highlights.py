@@ -9,7 +9,8 @@ page itself, in three independent ways, so a caller never needs a person to desc
 - **computed style and running animations** -- `getComputedStyle` (background, colour, opacity,
   visibility) and `element.getAnimations()`, with each animation's name, play state, duration,
   iteration count and the background/colour/opacity/visibility of its keyframes;
-- **samples** -- the computed background read every `STEP` ms for `SAMPLE_MS` ms, which is what a
+- **samples** -- the computed background read every `STEP` ms for `SAMPLE_MS` ms (even in a hidden tab,
+  whose timers Chrome slows), which is what a
   person's eye sees whatever the stylesheet says. Sampling is skipped when nothing was found.
 
 It is async (it waits between samples), so it must be evaluated with `awaitPromise`. It reads text and
@@ -67,12 +68,23 @@ HIGHLIGHTS_JS = r"""
   });
   if (rows.length && sampleMs > 0) {
     const STEP = 100;
-    for (let t = 0; t < sampleMs; t += STEP) {
+    // A hidden tab (a minimised or covered window) gets its timers slowed to one a second or less, so
+    // a setTimeout wait there overran the caller's deadline. A MessageChannel round trip is not slowed;
+    // the loop is also bounded by elapsed time, so a slow wait means fewer samples, never a late answer.
+    const nap = (ms) => document.hidden
+      ? new Promise((ok) => {
+          const end = performance.now() + ms, ch = new MessageChannel();
+          ch.port1.onmessage = () => (performance.now() >= end ? (ch.port1.close(), ok()) : ch.port2.postMessage(0));
+          ch.port2.postMessage(0);
+        })
+      : new Promise((ok) => setTimeout(ok, ms));
+    const start = performance.now();
+    while (performance.now() - start < sampleMs) {
       items.forEach((el, i) => {
         const cs = getComputedStyle(el);
         rows[i].samples.push([cs.backgroundColor, cs.color, cs.opacity, cs.visibility].join('|'));
       });
-      await new Promise((ok) => setTimeout(ok, STEP));
+      await nap(STEP);
     }
   }
   return { root_found: true, root: rootCss, total: found.length, hidden_page: document.hidden, items: rows };
