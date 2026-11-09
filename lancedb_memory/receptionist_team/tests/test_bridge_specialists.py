@@ -296,6 +296,11 @@ async def test_device_requests_route_to_their_specialist_and_task_ids_do_not():
              "read the deed": "bridge_notes", "list the notes": "bridge_notes",
              "change Drafted by to Prepared by in 2026-11-05_deed.md": "bridge_notes",
              "what did we spend on the deed attorney": None, "what is a deed": None,
+             "Ask the Bridge browser to download python-3.15-docs-text.zip from the open tab": "bridge_browser",
+             "what files have you downloaded?": "bridge_browser", "list my downloads": "bridge_browser",
+             "read file f_a0cbcb313c4ec40b2b6f7063": "bridge_browser",
+             "read the pdf you just downloaded": "bridge_browser",
+             "how much did we spend on downloads": None, "I downloaded the app yesterday": None,
              "explain what the notes diagnostic just proved": None}
     assert {t: device_route(t) for t in cases} == cases
 

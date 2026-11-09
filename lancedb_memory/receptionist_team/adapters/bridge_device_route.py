@@ -28,7 +28,13 @@ _APPROVED_NOTES = re.compile(r"\b[\w.-]+\.md\b|\b(?:the\s+)?deed\b|\bapproved\s+
 _APPROVED_ACTION = re.compile(r"\b(?:list|show|read|open|update|edit|change|fix|replace|correct|remove|delete|"
                               r"insert|add|rename|highlight|unhighlight|clear|search|find|create|make|trash|restore|"
                               r"purge|move|refresh|permanently|changed|modified|updated)\b", re.I)
+# Toyota's model sent "ask the Bridge browser to download ..." to Sydney and to the read-only desk on
+# successive tries (2026-11-09). Named outright, or about files a download saved, it is bridge_browser.
+_BROWSER = re.compile(r"\bbridge(?:'s)?\s+browser\b|\bdownloaded\s+files?\b|\bf_[0-9a-f]{24}\b|"
+                      r"\b(?:my|your|our|the)\s+(?:bridge\s+)?downloads\b|"
+                      r"\b(?:files?|zip|tif|pdf)\s+(?:have\s+|did\s+)?(?:i|you|we)\s+(?:just\s+)?(?:downloaded|download)\b", re.I)
 _ROUTES = (
+    ("bridge_browser", _BROWSER),
     ("bridge_scanner", re.compile(r"\b(?:window|freezer)\s+scanner\b|\bscan\b.*\b(?:window|freezer)\b"
                                   r"|\b(?:start|do|run)\s+a\s+scan\b", re.I | re.S)),
     ("bridge_notes", re.compile(r"\bnotes?\s+diagnostics?\b|\bNOTESDIAG-[0-9a-f]{12}\b|\bdiagnostic\s+(?:note|marker)\b", re.I)),
