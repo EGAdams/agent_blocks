@@ -33,7 +33,7 @@
       "branch": "main",
       "checks": [
         ["bash", "-c", "cd adws && exec ~/.local/bin/uv run --quiet --with pydantic --with pytest pytest -q -p no:cacheprovider deployment/tests"],
-        ["bash", "-c", "cd lancedb_memory && exec .venv/bin/python -B -m pytest -q -p no:cacheprovider agent_bridge_worker/tests"]
+        ["bash", "-c", "cd lancedb_memory && exec ~/.local/bin/uv run --no-project --quiet --python .venv/bin/python --with pytest python -B -m pytest -q -p no:cacheprovider agent_bridge_worker/tests"]
       ],
       "check_timeout_seconds": 600,
       "units": ["toyota-receptionist.service", "sydney-receptionist.service", "mazda-receptionist.service",
