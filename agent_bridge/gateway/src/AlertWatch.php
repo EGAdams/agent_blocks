@@ -391,12 +391,13 @@ final class SqliteAlertStore implements IAlertStore
                 if ($c['sticky'] && $this->everRaised($key)) {
                     continue;     // a failure EG has acknowledged is not raised again
                 }
-                $id = $this->ids->newId('al_');
+                $id    = $this->ids->newId('al_');
+                $level = max(1, min(3, (int) ($c['level'] ?? 1)));    // a request past its own deadline starts escalated
                 $this->pdo->prepare('INSERT INTO alerts (id, dedupe_key, kind, sticky, task_id, problem, recommended_action, since,
-                                     raised_at, last_seen, level, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)')
+                                     raised_at, last_seen, level, details) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
                           ->execute([$id, $key, $c['kind'], $c['sticky'] ? 1 : 0, $c['task_id'], $c['problem'],
-                                     $c['recommended_action'], $c['since'], $now, $now, json_encode($c['details'])]);
-                $changed[] = ['id' => $id, 'kind' => $c['kind'], 'task_id' => $c['task_id'], 'level' => 1];
+                                     $c['recommended_action'], $c['since'], $now, $now, $level, json_encode($c['details'])]);
+                $changed[] = ['id' => $id, 'kind' => $c['kind'], 'task_id' => $c['task_id'], 'level' => $level];
             }
             foreach ($open as $key => $row) {
                 if (!isset($candidates[$key]) && (int) $row['sticky'] === 0) {
@@ -407,7 +408,8 @@ final class SqliteAlertStore implements IAlertStore
                 if ($row['acknowledged_at'] !== null) {
                     continue;     // acknowledged: EG knows, so it is not escalated further
                 }
-                $level = $escalation->level((int) $row['raised_at'], $now);
+                $level = max($escalation->level((int) $row['raised_at'], $now),
+                             isset($candidates[$key]['level']) ? min(3, (int) $candidates[$key]['level']) : 1);
                 if ($level > (int) $row['level']) {
                     $this->pdo->prepare('UPDATE alerts SET level = ?, escalated_at = ? WHERE id = ?')->execute([$level, $now, $row['id']]);
                     $changed[] = ['id' => $row['id'], 'kind' => $row['kind'], 'task_id' => $row['task_id'], 'level' => $level];
@@ -479,10 +481,13 @@ final class AlertWatch
     /** @var IAuditLogger */ private $audit;
     /** @var PDO */ private $pdo;
     /** @var int */ private $refreshSeconds;
+    /** @var RequestWatch|null */ private $requests;
 
     public function __construct(IWatchSource $source, IWorkerContacts $contacts, IAlertStore $store, QueueWatchPolicy $policy,
-                                AlertEscalation $escalation, IClock $clock, IAuditLogger $audit, PDO $pdo, int $refreshSeconds = 30)
+                                AlertEscalation $escalation, IClock $clock, IAuditLogger $audit, PDO $pdo, int $refreshSeconds = 30,
+                                ?RequestWatch $requests = null)
     {
+        $this->requests       = $requests;
         $this->source         = $source;
         $this->contacts       = $contacts;
         $this->store          = $store;
@@ -528,6 +533,17 @@ final class AlertWatch
         $since      = max($lookback, $installed - 86400);
         $candidates = $this->policy->evaluate($this->source->active(), $this->source->failedSince($since),
                                               $this->source->printsSince($since), $this->contacts->all(), $now);
+        if ($this->requests !== null) {
+            try {
+                $candidates += $this->requests->evaluate($now);    // the user's requests, above their tasks
+            } catch (\Throwable $e) {
+                error_log('agent-bridge request watch: ' . get_class($e) . ': ' . $e->getMessage());
+                $candidates['request_watch_error'] = ['kind' => 'request_watch_error', 'sticky' => false, 'task_id' => null,
+                    'problem' => 'The gateway could not evaluate supervised requests (' . get_class($e) . '); stalled requests would go unseen.',
+                    'recommended_action' => 'Check the gateway\'s PHP error log and migrations (009_requests.sql).',
+                    'since' => $now, 'details' => new \stdClass()];
+            }
+        }
         $changed    = $this->store->sync($candidates, $now, $this->escalation);
         foreach ($changed as $c) {
             $this->audit->record('gateway-watch', $c['level'] === 1 ? 'alert.raised' : 'alert.escalated', $c['task_id'], 'ok',
@@ -563,12 +579,21 @@ final class AlertWatch
                 'alerts' => $open,
                 'recently_resolved' => array_map(function ($a) use ($now) { return self::view($a, $now); },
                                                  $this->store->resolvedSince($now - 86400)),
-                'workers' => $this->contacts()];
+                'workers' => $this->contacts(),
+                'requests' => $this->requests === null ? null : $this->requests->snapshot($now),
+                'watch' => ['refresh_seconds' => $this->refreshSeconds, 'checked_seconds_ago' => $now - $this->lastRefresh(),
+                            'requests_supervised' => $this->requests !== null]];
     }
 
     public function store(): IAlertStore
     {
         return $this->store;
+    }
+
+    /** The request supervisor this watch evaluates, for the REST routes; null when not wired. */
+    public function requests(): ?RequestWatch
+    {
+        return $this->requests;
     }
 
     public static function view(array $a, int $now): array
@@ -724,9 +749,11 @@ final class AlertNotice
     /** @var AlertWatch */ private $watch;
     /** @var AlertViewers */ private $viewers;
     /** @var IClock */ private $clock;
+    /** @var RequestWatch|null records each call, for the status-loop check */ private $requests;
 
-    public function __construct(AlertWatch $watch, AlertViewers $viewers, IClock $clock)
+    public function __construct(AlertWatch $watch, AlertViewers $viewers, IClock $clock, ?RequestWatch $requests = null)
     {
+        $this->requests = $requests;
         $this->watch   = $watch;
         $this->viewers = $viewers;
         $this->clock   = $clock;
@@ -734,6 +761,13 @@ final class AlertNotice
 
     public function annotate(Principal $who, string $tool, array $result): array
     {
+        if ($this->requests !== null) {
+            try {
+                $this->requests->recordCall($who, $tool);
+            } catch (\Throwable $e) {
+                error_log('agent-bridge call log: ' . get_class($e));
+            }
+        }
         if (!$this->viewers->allows($who) || in_array($tool, AlertTools::TOOLS, true)) {
             return $result;
         }

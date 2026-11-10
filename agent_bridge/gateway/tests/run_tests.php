@@ -847,6 +847,7 @@ require __DIR__ . '/relay_tests.php';
 require __DIR__ . '/notes_tests.php';
 require __DIR__ . '/upload_tests.php';
 require __DIR__ . '/alert_tests.php';
+require __DIR__ . '/request_tests.php';
 
 // ---- run -------------------------------------------------------------------
 

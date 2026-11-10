@@ -388,6 +388,9 @@ final class GatewayApp
             $this->watch->refresh();
             return new Response(200, $this->watch->snapshot());
         }
+        if ($this->watch !== null && $this->watch->requests() !== null && preg_match('#^/requests(?:/([^/]+)(?:/(update|close))?)?$#', $p, $g)) {
+            return $this->requestRoute($r, $m, $g);
+        }
         if ($this->watch !== null && preg_match('#^/alerts/([^/]+)/ack$#', $p, $g)) {
             if ($m !== 'POST') {
                 throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
@@ -447,6 +450,32 @@ final class GatewayApp
     }
 
     /** `?skip=implement@agent_blocks_dev,implement@letta_code`: a worker lane's pass-over list, validated. */
+    /** Supervised requests over REST, for clients that do not speak MCP (Toyota): the same calls as the request_* tools. */
+    private function requestRoute(Request $r, string $m, array $g): Response
+    {
+        $who = $this->principal($r, 'client');
+        if ($this->viewers === null || !$this->viewers->allows($who)) {
+            throw new BridgeError(403, 'not_allowed', 'this token may not open supervised requests');
+        }
+        $requests = $this->watch->requests();
+        $id       = $g[1] ?? '';
+        $action   = $g[2] ?? '';
+        if ($id === '') {
+            if ($m === 'GET') {
+                return new Response(200, $requests->listing($who, ($r->query['include_closed'] ?? '') === '1', true));
+            }
+            if ($m === 'POST') {
+                return new Response(201, $requests->open($who, $this->json($r)));
+            }
+        } elseif ($action === '' && $m === 'GET') {
+            return new Response(200, $requests->status($who, ['request_id' => $id], true));
+        } elseif ($m === 'POST') {
+            $body = ['request_id' => $id] + $this->json($r);
+            return new Response(200, $action === 'update' ? $requests->update($who, $body) : $requests->close($who, $body));
+        }
+        throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
+    }
+
     private function laneSkips(Request $r): array
     {
         $raw = isset($r->query['skip']) ? (string) $r->query['skip'] : '';

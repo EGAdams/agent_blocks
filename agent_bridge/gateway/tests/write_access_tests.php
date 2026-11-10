@@ -237,7 +237,7 @@ test('write: migration 003 upgrades a database made before it', function () {
     $config  = ['agents' => [['name' => 'codex', 'display_name' => 'C', 'description' => 'd',
                               'operations' => ['inspect'], 'workspaces' => ['agent_blocks']]]];
     $applied = \AgentBridge\Bootstrap::migrate($pdo, $config, __DIR__ . '/../migrations');
-    eq(['003_write_access.sql', '004_scans.sql', '005_printer.sql', '006_downloads.sql', '007_uploads.sql', '008_alerts.sql'], $applied);
+    eq(['003_write_access.sql', '004_scans.sql', '005_printer.sql', '006_downloads.sql', '007_uploads.sql', '008_alerts.sql', '009_requests.sql'], $applied);
     eq('{}', $pdo->query("SELECT details FROM task_results WHERE task_id = 't_old'")->fetchColumn());
     eq('[]', $pdo->query("SELECT write_workspaces FROM agent_registry WHERE name = 'codex'")->fetchColumn());
 });

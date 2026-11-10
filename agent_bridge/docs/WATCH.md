@@ -59,6 +59,73 @@ gateway tree, names `BRIDGE_CONFIG`. A run takes under 0.1 s and writes
 nothing unless an alert is raised, escalated or resolved. Remove it with
 `crontab -e`.
 
+## Request supervision
+
+Tasks were not enough. On 2026-11-10 EG asked ChatGPT to print the final
+deed and affidavit. ChatGPT made three `printer_list` checks (16:01:32,
+16:16:51 and 16:17:05 local; tasks `t_ae1582…`, `t_878707…`, `t_7df2ab…`), all
+succeeded, and no print was ever submitted. No task was stuck, so no watch
+fired. The user's request lived only in ChatGPT's chat.
+
+Code: `gateway/src/RequestWatch.php`. Tables: `migrations/009_requests.sql`
+(additive: `requests`, `request_tasks`, `request_events`, `client_calls`).
+Tests: `gateway/tests/request_tests.php`, which starts with a regression of that
+incident. No test prints.
+
+A **request** is a user's ask held as its own record above its tasks. It has an
+id, a client, a title, its agents, its deliverables (for example "print the
+deed"), a phase (queued, running, waiting, blocked, completed, failed,
+cancelled), a declared blocker and its owner, a last-progress time, linked child
+tasks, an event history (escalations, recoveries) and completion evidence. It
+stays supervised until it is closed:
+
+- **completed**: only with evidence. A print deliverable is met at
+  `completed_per_spooler`, recorded as "…; paper output not verified".
+  Submitting a task to another agent is never completion.
+- **failed** or **cancelled**: only with a reason.
+
+Tasks are linked at submit time (`LinkRequestPhase`, after `QueueTask`) to the
+client's newest open request naming that agent. **Progress** is a non-check
+task created or reporting an event. Polls, status checks (`print_status`,
+`print_discover`, `search_memory`), MCP list/status tools and worker heartbeats
+never move it.
+
+`RequestPolicy` thresholds (seconds) are overridable under `requests` in
+`bridge.php`:
+
+| setting | default | what happens |
+|---|---|---|
+| `accept_seconds` | 30 | no task assigned yet: event `not_assigned` |
+| `progress_seconds` | 120 | no progress: event `no_progress` |
+| `warn_seconds` | 300 | visible alert `request_stalled` (notice) naming the missing prerequisite |
+| `escalate_seconds` | 600 | events `timed_out` and `escalated`; the alert is raised to level 2 |
+| `loop_window` / `loop_checks` | 1200 / 3 | `status_loop` alert: a client made only status checks, with no action and no open request |
+
+New alert kinds:
+
+| kind | when | sticky |
+|---|---|---|
+| `request_stalled` | an open request has made no progress for `warn_seconds` | no |
+| `request_blocked` | an open request has waited on a declared blocker for `warn_seconds`; names the owner | no |
+| `status_loop` | the loop of 2026-11-10 | no |
+| `request_watch_error` | request evaluation threw; the task watch still runs | no |
+
+When a print deliverable names a document that the latest `print_discover`
+did not list, the alert says so and says what the outbox does hold.
+`GuardRequestDuplicatesPhase` refuses a second print of the same document (or
+the same title) inside one open request with `409 duplicate_print`. A replay
+with the same idempotency key still passes. A retry after a lost lease is
+recorded as a `recovery` event. The gateway restarts nothing; the box's worker
+supervisor and factory-ops do that.
+
+ChatGPT reaches requests through the MCP tools `request_open`,
+`request_update`, `request_status`, `request_list` and `request_close`. Toyota
+and the dashboard reach them over REST: `GET|POST /requests`,
+`GET /requests/{id}`, and `POST /requests/{id}/update|close`. Both are offered
+only to alert viewers. `GET /alerts` carries `requests` (open, recently closed,
+thresholds) and `watch` (refresh interval, seconds since the last check, how
+many requests are supervised).
+
 ## Who sees them
 
 `AlertViewers`: a client named in `alert_viewers`, any client bound in
