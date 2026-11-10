@@ -42,11 +42,22 @@ and each raise and escalation is audited as `gateway-watch`.
 
 The watch is refreshed on any gateway request (rate-limited to
 `refresh_seconds`, 30) and never throws into the request it rides on.
-`bin/watch.php` runs one refresh from the command line; it is **not** on a
-cron yet (the host has no crontab), so between requests nothing is evaluated.
-Workers poll every few seconds, and their silence is itself what
-`worker_silent` measures, so in practice ChatGPT's or Toyota's next call does
-the evaluation.
+`bin/watch.php` runs one refresh from the command line. Since 2026-11-10 the
+gateway host's crontab runs it every 5 minutes, so alerts are raised and
+escalated even when no client or worker calls (EG's machine down overnight is
+exactly that case):
+
+```
+MAILTO=""
+*/5 * * * * /usr/bin/flock -n ~/agent_bridge_data/watch.lock /usr/local/bin/php ~/agent_bridge/gateway/bin/watch.php ~/agent_bridge_data/bridge.php > ~/agent_bridge_data/watch.last 2>&1
+```
+
+(absolute `/home1/tinman72/...` paths in the real entry). It never mails;
+`watch.last` holds the last run's one line of counts; `flock` stops runs
+overlapping. It passes the config path because the web server, not the
+gateway tree, names `BRIDGE_CONFIG`. A run takes under 0.1 s and writes
+nothing unless an alert is raised, escalated or resolved. Remove it with
+`crontab -e`.
 
 ## Who sees them
 
