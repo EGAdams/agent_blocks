@@ -77,6 +77,9 @@ confirms the change (the stored sha256 is the one sent; a detached id is gone). 
 is not the `--upload-sha256` it was sent as. Attachment ids are `a-` + 12 hex and stable; the same PDF twice is
 one attachment (`created: false`). Detaching keeps the file aside rather than deleting it. Every answer carries
 `view_url`, `download_url` and where the Print button is (`NOTES_DASHBOARD_URL` moves the links).
+The worker passes the Bridge task id as `NOTES_BRIDGE_TASK` (only a `t_<hex>` id is taken), so the dashboard's
+activity log and each attachment's `task_id` / `removed_task_id` name the task that made the change; run by hand,
+the ADW names itself `notes-review`.
 
 How a PDF in a ChatGPT conversation gets here, with no shared path anywhere:
 
