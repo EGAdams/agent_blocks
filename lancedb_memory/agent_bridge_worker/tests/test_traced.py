@@ -137,6 +137,25 @@ def test_scan_uploads_pass_through() -> None:
     assert "PAGEBYTES" not in json.dumps([ e.model_dump() for e in store.latest_events( f"bridge.task_run:{ TASK[ 'task_id' ]}:1" )])
 
 
+def test_upload_fetch_passes_through_without_recording_the_bytes() -> None:
+    store, tracer = _world()
+    inner = FakeGateway()
+    answer = { "upload_id": "u_" + "0" * 24, "bytes": 9, "sha256": "f" * 64, "pdf_base64": "UERGQllURVM=" }
+    inner.fetch_upload = lambda task: ( inner.calls.append(( "fetch_upload", task.task_id )), answer )[ 1 ]
+    gw = TracingGateway( inner, tracer )
+    task = gw.claim( TASK[ "task_id" ], "w" )
+    assert gw.fetch_upload( task ) is answer and ( "fetch_upload", TASK[ "task_id" ]) in inner.calls
+    assert "UERGQllURVM=" not in json.dumps([ e.model_dump() for e in store.latest_events( f"bridge.task_run:{ TASK[ 'task_id' ]}:1" )])
+
+
+def test_every_public_gateway_method_is_forwarded() -> None:
+    """A method the HTTP gateway has and the Decorator lacks fails only live (it did once: fetch_upload)."""
+    from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway
+    public = { n for n in vars( HttpTaskGateway ) if not n.startswith( "_" ) and callable( getattr( HttpTaskGateway, n ))}
+    missing = sorted( n for n in public if not hasattr( TracingGateway, n ))
+    assert not missing, f"TracingGateway does not forward: { missing }"
+
+
 def test_agent_outcomes_and_exceptions() -> None:
     store, tracer = _world()
     task = ClaimedTask( **TASK )

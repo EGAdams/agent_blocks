@@ -52,6 +52,9 @@ class TracingGateway:
     def next( self ) -> str | None:
         return self._inner.next()
 
+    def supports_lanes( self ) -> bool:
+        return self._inner.supports_lanes()
+
     def claim( self, task_id: str, worker_id: str ) -> ClaimedTask | None:
         task = self._inner.claim( task_id, worker_id )
         if task is not None:
@@ -126,6 +129,17 @@ class TracingGateway:
     def post_downloads( self, task_id: str, manifest: dict ) -> dict:
         answer = self._inner.post_downloads( task_id, manifest )
         self._on( lambda t: t.progress( f"published { len( manifest.get( 'files' ) or [])} downloaded file(s) for viewing" ))
+        return answer
+
+    # IUploadSource: the Notes review_attach_pdf command fetches the client's uploaded PDF. Bytes are never recorded.
+    def fetch_upload( self, task: ClaimedTask ) -> dict:
+        try:
+            answer = self._inner.fetch_upload( task )
+        except Exception as exc:
+            self._on( lambda t: t.event( "error", f"upload fetch refused: { type( exc ).__name__ }: { str( exc )[ :160 ]}" ))
+            raise
+        self._on( lambda t: t.progress( f"fetched upload { str( answer.get( 'upload_id' ))[ :40 ]} "
+                                        f"({ answer.get( 'bytes' )} bytes) for { task.task_id }" ))
         return answer
 
     def close( self, reason: str ) -> None:
