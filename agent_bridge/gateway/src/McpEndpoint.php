@@ -30,12 +30,14 @@ final class McpEndpoint
     /** @var BrowserTools|null the browser_* tools, listed per caller scope */ private $browser;
     /** @var RelayTools|null the chatgpt_* tools, listed per caller scope */ private $relay;
     /** @var IToolFamily[] further named-tool families (notes_*), each listed per caller scope */ private $families;
+    /** @var AlertNotice|null appends open Bridge alerts to tool results */ private $notice;
 
     public function __construct(ITaskAuthenticator $auth, ClientTasks $client, string $memoryAgent, string $memoryWorkspace,
                                 array $challenge, ?array $grants = null, ?ScannerTools $scanner = null,
                                 ?PrinterTools $printer = null, ?BrowserTools $browser = null,
-                                ?RelayTools $relay = null, array $families = [])
+                                ?RelayTools $relay = null, array $families = [], ?AlertNotice $notice = null)
     {
+        $this->notice          = $notice;
         $grants                = $grants ?: ['operations' => ['inspect', 'explain', 'search_memory'], 'modes' => ['read_only']];
         $this->grants          = self::withoutScans($grants);
         $this->scanner         = $scanner;
@@ -197,7 +199,11 @@ final class McpEndpoint
             case 'tools/list':
                 return new Response(200, self::rpcResult($id, ['tools' => $this->tools($who)]));
             case 'tools/call':
-                return new Response(200, self::rpcResult($id, $this->call($r, $who, $params)));
+                $result = $this->call($r, $who, $params);
+                if ($this->notice !== null) {
+                    $result = $this->notice->annotate($who, isset($params['name']) ? (string) $params['name'] : '', $result);
+                }
+                return new Response(200, self::rpcResult($id, $result));
             default:
                 return new Response(200, self::rpcError($id, -32601, 'method not found'));
         }

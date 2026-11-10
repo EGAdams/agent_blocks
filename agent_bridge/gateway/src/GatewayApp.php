@@ -274,6 +274,9 @@ final class GatewayApp
     /** @var WorkerUploads|null the Notes worker's fetch of a client's PDF upload; absent means no such route */ private $uploads;
     /** @var int an MCP request only: a notes_upload_chunk carries up to 256 KiB of base64 */ private $maxMcpBody;
 
+    /** @var AlertWatch|null the gateway's own queue watch, refreshed on any request */ private $watch;
+    /** @var AlertViewers|null who may read and acknowledge alerts */ private $viewers;
+
     const BLOB_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})/blobs/([0-9a-f]{64})$#';
     const SCAN_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})$#';
     const DOWNLOAD_BLOB_ROUTE = '#^/worker/downloads/(t_[0-9a-f]{24})/blobs/([0-9a-f]{64})$#';
@@ -283,8 +286,11 @@ final class GatewayApp
     public function __construct(ITaskAuthenticator $auth, ClientTasks $client, WorkerTasks $worker, McpEndpoint $mcp,
                                 OAuthServer $oauth, int $maxBody, array $challenge, int $maxResultBody = 0,
                                 ?WorkerScans $scans = null, int $maxBlob = 0, ?WorkerDownloads $downloads = null,
-                                ?WorkerUploads $uploads = null, int $maxMcpBody = 0)
+                                ?WorkerUploads $uploads = null, int $maxMcpBody = 0, ?AlertWatch $watch = null,
+                                ?AlertViewers $viewers = null)
     {
+        $this->watch         = $watch;
+        $this->viewers       = $viewers;
         $this->uploads       = $uploads;
         $this->maxMcpBody    = max($maxBody, $maxMcpBody);
         $this->downloads     = $downloads;
@@ -302,6 +308,9 @@ final class GatewayApp
 
     public function handle(Request $request): Response
     {
+        if ($this->watch !== null) {
+            $this->watch->tick();
+        }
         try {
             return $this->route($request);
         } catch (BridgeError $e) {
@@ -360,9 +369,35 @@ final class GatewayApp
             throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
         }
         if ($m === 'GET' && $p === '/worker/tasks/next') {
-            $this->principal($r, 'worker');
-            $next = $this->worker->next($this->laneSkips($r));
+            $who  = $this->principal($r, 'worker');
+            $skip = $this->laneSkips($r);
+            if ($this->watch !== null) {
+                $this->watch->workerSeen($who, $skip);
+            }
+            $next = $this->worker->next($skip);
             return $next === null ? new Response(204, null) : new Response(200, $next);
+        }
+        if ($this->watch !== null && $m === 'GET' && $p === '/alerts') {
+            $who = $this->auth->authenticate($r);
+            if ($who === null) {
+                throw new BridgeError(401, 'unauthenticated', 'a valid bearer token is required');
+            }
+            if ($who->role !== 'worker' && ($this->viewers === null || !$this->viewers->allows($who))) {
+                throw new BridgeError(403, 'not_allowed', 'this token may not read Bridge alerts');
+            }
+            $this->watch->refresh();
+            return new Response(200, $this->watch->snapshot());
+        }
+        if ($this->watch !== null && preg_match('#^/alerts/([^/]+)/ack$#', $p, $g)) {
+            if ($m !== 'POST') {
+                throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
+            }
+            $who = $this->principal($r, 'client');
+            if ($this->viewers === null || !$this->viewers->allows($who)) {
+                throw new BridgeError(403, 'not_allowed', 'this token may not acknowledge Bridge alerts');
+            }
+            $body = $this->json($r);
+            return new Response(200, $this->watch->acknowledge($who, $g[1], isset($body['note']) && is_string($body['note']) ? $body['note'] : ''));
         }
         if ($this->uploads !== null && preg_match(self::UPLOAD_ROUTE, $p, $g)) {
             if ($m !== 'POST') {               // POST: the lease token travels in the body, never in a logged URL

@@ -22,6 +22,7 @@ require_once __DIR__ . '/BrowserTools.php';
 require_once __DIR__ . '/RelayTools.php';
 require_once __DIR__ . '/NotesTools.php';
 require_once __DIR__ . '/UploadStore.php';
+require_once __DIR__ . '/AlertWatch.php';
 require_once __DIR__ . '/McpEndpoint.php';
 require_once __DIR__ . '/OAuth.php';
 require_once __DIR__ . '/GatewayApp.php';
@@ -61,6 +62,7 @@ final class Bootstrap
             'scans_dir' => dirname((string) $config['database']) . '/scans',
             'printer_scopes' => [], 'printer_max_prints_per_hour' => 10, 'printer_max_open' => 2,
             'max_mcp_body' => self::MAX_MCP_BODY, 'upload_fetch_seconds' => 30,
+            'watch' => [], 'alert_viewers' => [],
         ];
     }
 
@@ -114,6 +116,12 @@ final class Bootstrap
         $fetcher = isset($config['upload_fetcher']) && $config['upload_fetcher'] instanceof IUrlFetcher
                  ? $config['upload_fetcher'] : new CurlUrlFetcher((int) $config['upload_fetch_seconds']);
         $worker = new WorkerTasks($store, $store, $audit, (int) $config['lease_seconds'], (int) $config['max_details'], $clientScopes);
+        $watchCfg = (array) ($config['watch'] ?? []) + ['refresh_seconds' => 30, 'escalate_after' => [900, 3600]];
+        $watch    = new AlertWatch(new SqliteWatchSource($pdo), new SqliteWorkerContacts($pdo), new SqliteAlertStore($pdo, $ids),
+                                   new QueueWatchPolicy(array_intersect_key($watchCfg, QueueWatchPolicy::defaults())),
+                                   new AlertEscalation((array) $watchCfg['escalate_after']), $clock, $audit, $pdo,
+                                   (int) $watchCfg['refresh_seconds']);
+        $viewers  = new AlertViewers((array) ($config['alert_viewers'] ?? []), (array) ($config['client_scopes'] ?? []));
         $mcp    = new McpEndpoint($auth, $client, (string) $config['memory_agent'], (string) $config['memory_workspace'],
                                   $settings->challenge(), $grants,
                                   new ScannerTools($client, $store, $scanStore, $blobs, $scopes, $audit,
@@ -125,13 +133,14 @@ final class Bootstrap
                                                    $downloadStore, $blobs),
                                   new RelayTools($client, $clientScopes, $audit, $grants,
                                                  (int) ($config['relay_wait_seconds'] ?? 45)),
-                                  [$notes, new UploadTools($notes, $uploads, $blobs, $audit, $fetcher)]);
+                                  [$notes, new UploadTools($notes, $uploads, $blobs, $audit, $fetcher), new AlertTools($watch, $viewers)],
+                                  new AlertNotice($watch, $viewers, $clock));
         $scans  = new WorkerScans($store, $store, $scanStore, $blobs, $audit, (int) $config['lease_seconds']);
         return new GatewayApp($auth, $client, $worker, $mcp, new OAuthServer($settings, $oauth, $audit, $clock),
                               $maxBody, $settings->challenge(), (int) $config['max_result_body'], $scans, (int) $config['max_blob'],
                               new WorkerDownloads($store, $store, $downloadStore, $blobs, $audit, (int) $config['lease_seconds']),
                               new WorkerUploads($store, $store, $uploads, $blobs, $audit, (int) $config['lease_seconds']),
-                              (int) $config['max_mcp_body']);
+                              (int) $config['max_mcp_body'], $watch, $viewers);
     }
 
     /** Applies each migrations/*.sql once, then seeds the agent registry. Returns applied file names. */
