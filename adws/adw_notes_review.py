@@ -17,11 +17,16 @@
     uv run adws/adw_notes_review.py notes.rollback --note N --snapshot-id s-... [--chain]
     uv run adws/adw_notes_review.py notes.snapshots --note N
     uv run adws/adw_notes_review.py notes.watch --note N --until clear|change|active_change [--timeout 600]
+    uv run adws/adw_notes_review.py notes.attach_pdf --note N --pdf-file deed.pdf --title "Latest Printable Deed PDF"
+    uv run adws/adw_notes_review.py notes.attachments --note N
+    uv run adws/adw_notes_review.py notes.attachment --note N --attachment-id a-0123456789ab
+    uv run adws/adw_notes_review.py notes.detach_pdf --note N --attachment-id a-0123456789ab
 
 What blinks is decided by the saved note (its `<!-- notes-review-focus: ... -->` marker, read by the same
 rules as the dashboard's notes.js) and confirmed on the reloaded page through the browser.notes_state ADW.
 Every write goes through the dashboard's token-protected Notes interface over the revision just read, passes
-five guards (notes_review/guards.py), keeps an undo snapshot, and is read back. Read
+five guards (notes_review/guards.py), keeps an undo snapshot, and is read back. A PDF attached to a note is kept beside it and never
+written into it (notes_review/attachments.py). Read
 notes_review/DESIGN.md before changing any of it.
 
 Phases: code(<operation>)
@@ -52,6 +57,11 @@ FLAGS = [
     Flag( "timeout", "seconds to watch, 1-3600, default 60 (watch)", kind="float" ),
     Flag( "interval", "seconds between reads, default 3 (watch)", kind="float" ),
     Flag( "limit", "how many undo points to list (snapshots)", kind="int" ),
+    Flag( "pdf_file", "the PDF on this machine to attach (attach_pdf)" ),
+    Flag( "title", "the attachment's title, e.g. Latest Printable Deed PDF (attach_pdf)" ),
+    Flag( "name", "the file name to show and download it as; default the file's own (attach_pdf)" ),
+    Flag( "upload_sha256", "the sha256 the PDF was sent with; refused if the file hashes otherwise (attach_pdf)" ),
+    Flag( "attachment_id", "an attachment's id, a-<12 hex>, from notes.attachments (attachment, detach_pdf)" ),
 ]
 
 

@@ -72,8 +72,11 @@ def test_edit_passes_values_and_switches_and_is_not_stoppable() -> None:
 
 def test_each_operation_runs_in_its_own_lane() -> None:
     for name, ( _, lane, required, _ ) in TABLE.items():
+        if name == "review_attach_pdf":                   # needs an upload source: test_notes_attach_ops covers it
+            continue
         payload = { "notes": name, "id": NOTE, **{ f: { "item_id": ITEM, "replace": "[VERIFY x]", "expected_revision": REV,
-                                                        "snapshot_id": "s-0123456789" }[ f ] for f in required }}
+                                                        "snapshot_id": "s-0123456789",
+                                                        "attachment_id": "a-0123456789ab" }[ f ] for f in required }}
         if name == "review_watch":
             payload[ "until" ] = "clear"
         if name == "review_mark_resolved":
@@ -133,12 +136,6 @@ def test_argv_is_fixed_table_and_flag_equals_value() -> None:
         raise AssertionError( bad )
 
 
-TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
-if __name__ == "__main__":
-    for test in TESTS:
-        test()
-        print( "ok", test.__name__ )
-    print( f"{ len( TESTS )} passed" )
 
 
 def test_rollback_passes_chain_and_page_through() -> None:
@@ -148,3 +145,11 @@ def test_rollback_passes_chain_and_page_through() -> None:
     assert out.kind is OutcomeKind.SUCCEEDED
     op, flags, switches, _, _, _ = review.calls[ 0 ]
     assert op == "notes.rollback" and sorted( switches ) == [ "chain", "page" ]
+
+
+TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
+if __name__ == "__main__":
+    for test in TESTS:
+        test()
+        print( "ok", test.__name__ )
+    print( f"{ len( TESTS )} passed" )

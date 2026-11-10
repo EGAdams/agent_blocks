@@ -9,7 +9,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from .interfaces import NoteMoved
+import base64
+
+from .interfaces import AttachmentMissing, NoteMoved
 
 DEFAULT_URL = "http://127.0.0.1:8765"
 DEFAULT_TOKEN = Path.home() / ".config" / "startrek_notes" / "notes_token"
@@ -22,6 +24,10 @@ class BridgeNoteStore:
     def __init__(self, bridge, task_id: str = "notes-review") -> None:
         self._bridge = bridge
         self._task = task_id
+
+    @property
+    def task(self) -> str:
+        return self._task
 
     @property
     def bridge(self):
@@ -38,6 +44,38 @@ class BridgeNoteStore:
             return self.bridge.write(note, text, expected_revision, self._task)
         except NoteChanged as exc:
             raise NoteMoved(str(exc)) from None
+
+
+class BridgeAttachmentStore:
+    """Adapter from IAttachmentStore to the same Notes interface (its /notes/{note}/attachments routes), over the
+    note store's connection -- one token, one loopback client, one activity log for the note and its PDFs."""
+
+    def __init__(self, notes: BridgeNoteStore) -> None:
+        self._notes = notes
+
+    def attach(self, note: str, pdf: bytes, title: str, name: str, sha256: str) -> tuple[dict, bool]:
+        answer = self._notes.bridge.attach(note, base64.b64encode(pdf).decode("ascii"), title, name, sha256,
+                                           self._notes.task)
+        return answer["attachment"], bool(answer.get("created"))
+
+    def list(self, note: str) -> list[dict]:
+        return self._notes.bridge.attachments(note, self._notes.task)
+
+    def get(self, note: str, attachment_id: str) -> dict:
+        return self._missing(note, attachment_id, lambda: self._notes.bridge.attachment(note, attachment_id,
+                                                                                        self._notes.task))
+
+    def remove(self, note: str, attachment_id: str) -> dict:
+        return self._missing(note, attachment_id, lambda: self._notes.bridge.detach(note, attachment_id,
+                                                                                    self._notes.task))
+
+    def _missing(self, note: str, attachment_id: str, call):
+        """A 404 means either no note or no attachment; read the note to tell which."""
+        try:
+            return call()
+        except FileNotFoundError:
+            self._notes.read(note)                        # raises FileNotFoundError when the note is the one missing
+            raise AttachmentMissing(attachment_id) from None
 
 
 def bridge_from_environment(task_id: str = "notes-review") -> BridgeNoteStore:

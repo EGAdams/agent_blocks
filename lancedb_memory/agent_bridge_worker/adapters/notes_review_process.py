@@ -15,10 +15,10 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from ..notes_ops.review import SWITCHES, TABLE, VALUE_FLAGS, ReviewCommandFailed
+from ..notes_ops.review import OWN_FLAGS, SWITCHES, TABLE, VALUE_FLAGS, ReviewCommandFailed
 
 PUBLIC  = frozenset( public for public, *_ in TABLE.values())
-ALLOWED = frozenset( VALUE_FLAGS.values()) | { "note" }
+ALLOWED = frozenset( VALUE_FLAGS.values()) | { "note" } | frozenset( OWN_FLAGS )
 
 
 class UvNotesReviewCommands:

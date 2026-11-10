@@ -262,7 +262,10 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # Review ADW, which reads the same token file and keeps its own guards and undo points.
         review = UvNotesReviewCommands( UV, NOTES_REVIEW_ADW, _HERE.parent )
         agents[ "notes" ]  = NotesAgent( FilesystemNotesStore( NOTES_DIR ), HttpNotesEndpoint( NOTES_URL ), bridge,
-                                         JsonlNotesActivity( NOTES_ACTIVITY ), notes_registry( review=review ))
+                                         JsonlNotesActivity( NOTES_ACTIVITY ),
+                                         # review_attach_pdf fetches ChatGPT's uploaded PDF from this same gateway
+                                         notes_registry( review=review, uploads=gateway,
+                                                         workdir=NOTES_WORKDIR.parent / "attach_tmp" ))
         offered[ "notes" ] = { "inspect": False, "implement": True }
         self_contained.add( "notes" )
     if BROWSER_ENABLED.exists():                        # the Browser Control ADW is off until EG creates the flag file

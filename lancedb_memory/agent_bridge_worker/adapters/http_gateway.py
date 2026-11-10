@@ -135,6 +135,11 @@ class HttpTaskGateway:
         _, out = self._send( "POST", f"/worker/downloads/{ task_id }", data, "application/json" )
         return out or {}
 
+    # IUploadSource: the PDF a client uploaded for a notes_attach_pdf task, released only under this task's lease.
+    def fetch_upload( self, task: ClaimedTask ) -> dict:
+        _, out = self._call( "POST", f"/worker/tasks/{ task.task_id }/upload", { "lease_token": task.lease_token })
+        return out or {}
+
     # -- plumbing -------------------------------------------------------------
 
     def _call( self, method: str, path: str, payload: dict | None = None ) -> tuple[ int, dict | None ]:

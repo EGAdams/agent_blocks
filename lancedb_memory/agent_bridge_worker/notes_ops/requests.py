@@ -17,8 +17,12 @@ OPERATIONS = ( "status", "marker_write", "marker_clear",
                # the review operations (review.py), each one run of the Notes Review ADW
                "review_inspect", "review_get_active_highlight", "review_verify", "review_snapshots", "review_watch",
                "review_stop_blink", "review_activate", "review_activate_next", "review_edit", "review_mark_resolved",
-               "review_rollback" )
+               "review_rollback",
+               # PDF attachments (review.py), also runs of the Notes Review ADW; the note's text is never touched
+               "review_attach_pdf", "review_attachments", "review_attachment", "review_detach_pdf" )
 ITEM_ID     = r"^r-[0-9a-f]{10}$"
+UPLOAD_ID     = r"^u_[0-9a-f]{24}$"
+ATTACHMENT_ID = r"^a-[0-9a-f]{12}$"
 SNAPSHOT_ID = r"^s-[0-9a-f]{10}$"
 
 
@@ -86,6 +90,13 @@ class NotesRequest( BaseModel ):
     timeout:           float | None = Field( default=None, ge=1, le=600 )
     interval:          float | None = Field( default=None, ge=1, le=60 )
     limit:             int | None = Field( default=None, ge=1, le=100 )
+    # -- PDF attachments: upload_id and title from the client; the gateway adds upload_sha256/bytes/name --
+    upload_id:         str | None = Field( default=None, pattern=UPLOAD_ID )
+    title:             str | None = Field( default=None, min_length=1, max_length=120 )
+    attachment_id:     str | None = Field( default=None, pattern=ATTACHMENT_ID )
+    upload_sha256:     str | None = Field( default=None, pattern=REVISION )          # 64 lowercase hex, as a revision
+    upload_bytes:      int | None = Field( default=None, ge=1, le=10 * 1024 * 1024 )
+    upload_name:       str | None = Field( default=None, min_length=1, max_length=160, pattern=r"^[A-Za-z0-9 ._()-]+$" )
 
     def given( self ) -> set[ str ]:
         """The optional fields this request actually set (everything except `notes`)."""

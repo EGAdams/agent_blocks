@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from . import attachments as att
 from . import operations as ops
 
 COMMANDS: dict[str, type[ops.ReviewOperation]] = {
@@ -17,9 +18,14 @@ COMMANDS: dict[str, type[ops.ReviewOperation]] = {
     "notes.rollback": ops.Rollback,
     "notes.snapshots": ops.Snapshots,
     "notes.watch": ops.Watch,
+    "notes.attach_pdf": att.AttachPdf,
+    "notes.attachments": att.Attachments,
+    "notes.attachment": att.AttachmentInfo,
+    "notes.detach_pdf": att.DetachPdf,
 }
 PUBLIC = {public: command.name for public, command in COMMANDS.items()}
-READS = ("notes.inspect", "notes.get_active_highlight", "notes.verify", "notes.snapshots", "notes.watch")
+READS = ("notes.inspect", "notes.get_active_highlight", "notes.verify", "notes.snapshots", "notes.watch",
+         "notes.attachments", "notes.attachment")
 
 
 def review_operations(plane_factory: Callable[[], object] | None = None) -> dict[str, ops.ReviewOperation]:

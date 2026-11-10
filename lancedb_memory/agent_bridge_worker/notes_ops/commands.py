@@ -360,15 +360,16 @@ class CommandRegistry:
         return sorted( self._by_name )
 
 
-def default_registry( review=None ) -> CommandRegistry:
+def default_registry( review=None, uploads=None, workdir=None ) -> CommandRegistry:
     """Every notes Command. `review` (an INotesReviewCommands) adds the review operations; without it they are
-    simply not offered, and a request for one is refused by name."""
+    simply not offered, and a request for one is refused by name. `uploads` (an IUploadSource) adds
+    review_attach_pdf, which needs the gateway to hand it the uploaded PDF."""
     registry = CommandRegistry()
     for command in ( ListNotes(), SearchNotes(), ReadNote(), ReadHighlights(), ListTrash(), RefreshNote(),
                      UpdateNote(), ChangeHighlights(), CreateNote(), RenameNote(), TrashNote(), RestoreNote(), PurgeNote()):
         registry.register( command )
     if review is not None:
         from .review import review_commands
-        for command in review_commands( review ):
+        for command in review_commands( review, uploads, workdir ):
             registry.register( command )
     return registry

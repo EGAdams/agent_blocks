@@ -95,6 +95,30 @@ class HttpNotesBridge:
         self._post( f"/trash/{ _quoted( trash_id )}/purge", { "authorization": authorization }, task_id )
         return { "trash_id": trash_id, "purged": True }
 
+    # -- PDF attachments (the dashboard's notes_attachments.py; the note's text is never touched) ----------
+
+    def attach( self, filename: str, pdf_base64: str, title: str, name: str, sha256: str, task_id: str ) -> dict:
+        answer = self._post( f"/notes/{ _quoted( filename )}/attachments",
+                             { "pdf_base64": pdf_base64, "title": title, "name": name, "sha256": sha256 }, task_id )
+        if not isinstance( answer.get( "attachment" ), dict ):
+            raise OSError( "the Notes interface did not report the attachment" )
+        return answer
+
+    def attachments( self, filename: str, task_id: str ) -> list[ dict ]:
+        found = self._json( "GET", f"/notes/{ _quoted( filename )}/attachments", task_id ).get( "attachments", [])
+        return [ a for a in found if isinstance( a, dict )] if isinstance( found, list ) else []
+
+    def attachment( self, filename: str, attachment_id: str, task_id: str ) -> dict:
+        info = self._json( "GET", f"/notes/{ _quoted( filename )}/attachments/{ _quoted( attachment_id )}",
+                           task_id ).get( "attachment" )
+        if not isinstance( info, dict ):
+            raise OSError( "the Notes interface answered without the attachment" )
+        return info
+
+    def detach( self, filename: str, attachment_id: str, task_id: str ) -> dict:
+        answer = self._post( f"/notes/{ _quoted( filename )}/attachments/{ _quoted( attachment_id )}/remove", {}, task_id )
+        return answer.get( "attachment" ) if isinstance( answer.get( "attachment" ), dict ) else { "id": attachment_id }
+
     def _post( self, path: str, payload: dict, task_id: str ) -> dict:
         answer = self._json( "POST", path, task_id, json.dumps( payload ).encode( "utf-8" ))
         if not answer.get( "ok" ):

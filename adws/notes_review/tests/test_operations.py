@@ -163,6 +163,6 @@ def test_unknown_note_and_bad_name(tmp_path):
 
 
 def test_registry_names_every_operation_once():
-    assert len(set(PUBLIC.values())) == len(PUBLIC) == 11
+    assert len(set(PUBLIC.values())) == len(PUBLIC) == 15
     assert all(public.replace(".", "_") == internal for public, internal in PUBLIC.items()
                if public != "notes.get_active_highlight") and PUBLIC["notes.get_active_highlight"] == "notes_get_active_highlight"

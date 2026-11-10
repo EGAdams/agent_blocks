@@ -52,5 +52,27 @@ class IReviewGuard(Protocol):
     def objection(self, change: ProposedChange) -> str | None: ...
 
 
+class IAttachmentStore(Protocol):
+    """PDFs attached to a note, kept by the dashboard beside the notes. Attaching never changes the note's text."""
+
+    def attach(self, note: str, pdf: bytes, title: str, name: str, sha256: str) -> tuple[dict, bool]:
+        """The stored entry, and whether it is new (False: the same PDF was already attached to this note)."""
+        ...
+
+    def list(self, note: str) -> list[dict]: ...
+
+    def get(self, note: str, attachment_id: str) -> dict:
+        """The entry, with `intact`: the bytes on disk still hash to its sha256. Raises AttachmentMissing."""
+        ...
+
+    def remove(self, note: str, attachment_id: str) -> dict:
+        """Soft remove: off the note's list, bytes kept aside. Raises AttachmentMissing."""
+        ...
+
+
+class AttachmentMissing(LookupError):
+    """The note exists but has no such attachment (or no longer has it)."""
+
+
 class NoteMoved(RuntimeError):
     """The note changed after it was read: someone else's edit is newer, so nothing was written."""

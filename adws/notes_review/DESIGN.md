@@ -5,7 +5,7 @@ stop it, make another item blink, rewrite it, resolve it, move to the next one, 
 one of these is an ADW operation with its own ADW id, and nothing else in the workspace re-implements them.
 
 ```
-uv run adws/adw_notes_review.py notes.<operation> --note <file name> [flags]   # all eleven, one harness
+uv run adws/adw_notes_review.py notes.<operation> --note <file name> [flags]   # all fifteen, one harness
 uv run adws/adw_notes_<operation>.py --note <file name> [flags]                 # each one on its own
 ```
 
@@ -32,6 +32,8 @@ The spellings differ only in punctuation: `notes_inspect` (MCP) = `review_inspec
 | Adapter | `store.py` `BridgeNoteStore` | the dashboard's token-protected Notes interface, the only way the note is written |
 | Remote Proxy | `page.py` `AdwPageReader` | what the real dashboard tab shows, through `browser.notes_state`; `NoPage` is its Null Object |
 | Observer + Composite | `observers.py` `JsonlActivity`, `FanOut`, `NoObserver` | an activity line per operation |
+| Template Method | `attachments.py` `AttachmentChange` | every PDF attach/detach: prepare → read revision → change → read revision again → list → confirm |
+| Adapter | `store.py` `BridgeAttachmentStore` | the same Notes interface's attachment routes; `AttachmentMissing` when the note exists but the attachment does not |
 | Registry | `catalog.py` `COMMANDS` | public name → operation; the ADW harness and the one-operation ADWs run from it |
 
 Every dependency is an `I`-prefixed Protocol in `interfaces.py`; data crossing a boundary is a Pydantic model in
@@ -60,6 +62,33 @@ write's answer carries the note's *new* revision; when the read-back or the page
 `notes.watch` replaced the retired `adw_notes_highlight_watch.py`, which read highlights off its own headless
 copy of the page. Watching now reads the saved note by the dashboard's own rules and, with `--page`, confirms on
 the real dashboard tab. `--until clear | change | active_change`.
+
+## PDF attachments
+
+`notes.attach_pdf`, `notes.attachments`, `notes.attachment` and `notes.detach_pdf` (`attachments.py`, each one
+also its own `adw_notes_<op>.py`). The dashboard keeps a PDF beside the notes (`~/notes/.attachments/`) and
+lists it under the note; it is never written into the note's words, so attaching or detaching cannot touch the
+text, the blinking item or the review status. `AttachmentChange` checks that on every run: the revision is read
+before and after the change, and the answer is `verified` only when it did not move and the attachment list
+confirms the change (the stored sha256 is the one sent; a detached id is gone). Anything else is a
+`not_verified` refusal that says what it saw.
+
+`attach_pdf` refuses a file over 10 MiB, one without a `%PDF-` header or a closing `%%EOF`, and one whose hash
+is not the `--upload-sha256` it was sent as. Attachment ids are `a-` + 12 hex and stable; the same PDF twice is
+one attachment (`created: false`). Detaching keeps the file aside rather than deleting it. Every answer carries
+`view_url`, `download_url` and where the Print button is (`NOTES_DASHBOARD_URL` moves the links).
+
+How a PDF in a ChatGPT conversation gets here, with no shared path anywhere:
+
+```
+ChatGPT ─ notes_upload_from_url (file / https link)  ─┐
+        ─ notes_upload_begin → _chunk … → _finish     ─┴→ gateway: checked, stored by sha256, owned by that client
+ChatGPT ─ notes_attach_pdf(note, upload_id, title) → Bridge task (prompt carries upload_sha256/bytes/name)
+worker  ─ POST /worker/tasks/{t}/upload {lease_token} → the bytes, only for that running task, only its client's
+worker  ─ 0600 temp file → adw_notes_review.py notes.attach_pdf --pdf-file … → dashboard → temp file deleted
+```
+
+The worker re-checks the upload id, size and sha256 before running the ADW, and the ADW re-checks them again.
 
 ## Tests
 

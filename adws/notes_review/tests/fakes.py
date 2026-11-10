@@ -96,3 +96,42 @@ def plane(tmp_path, notes: dict[str, str] | None = None, page=None):
     return ReviewPlane(store=store, snapshots=FileSnapshotStore(tmp_path / "snaps"),
                        page=page(store) if page else FakePage(store), guards=default_chain(),
                        observer=NoObserver(), clock=FakeClock()), store
+
+
+class MemoryAttachments:
+    """IAttachmentStore in memory, ids made the dashboard's way (note + sha256). `touch` writes the note too,
+    to prove an operation notices a revision that moved."""
+
+    def __init__(self, store: MemoryStore, touch: bool = False, lie: bool = False) -> None:
+        self.store = store
+        self.items: dict[str, dict] = {}
+        self.touch = touch
+        self.lie = lie
+
+    def attach(self, note, pdf, title, name, sha256):
+        import hashlib
+        self.store.read(note)
+        sha = hashlib.sha256(pdf).hexdigest()
+        ident = "a-" + hashlib.sha256(f"{note}\n{sha}".encode()).hexdigest()[:12]
+        created = ident not in self.items
+        if created:
+            self.items[ident] = {"id": ident, "note": note, "title": title, "filename": name, "bytes": len(pdf),
+                                 "sha256": "0" * 64 if self.lie else sha, "pages": 1, "intact": True}
+        if self.touch:
+            self.store.notes[note] += "\n"
+        return self.items[ident], created
+
+    def list(self, note):
+        return [dict(a) for a in self.items.values() if a["note"] == note]
+
+    def get(self, note, attachment_id):
+        from notes_review.interfaces import AttachmentMissing
+        self.store.read(note)
+        if attachment_id not in self.items or self.items[attachment_id]["note"] != note:
+            raise AttachmentMissing(attachment_id)
+        return dict(self.items[attachment_id])
+
+    def remove(self, note, attachment_id):
+        entry = self.get(note, attachment_id)
+        del self.items[attachment_id]
+        return entry
