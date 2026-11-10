@@ -99,6 +99,48 @@ interface IBlobStore
     public function read(string $sha256): string;
 }
 
+/**
+ * A PDF on its way from a client to an attachment: begun with its declared size and sha256, filled in order, then
+ * finished (checked whole and moved into the blob store). Each upload belongs to the client that began it.
+ */
+interface IUploadStore
+{
+    /** A new open upload; returns its row. */
+    public function begin(string $clientId, string $name, int $bytes, string $sha256): array;
+    public function find(string $uploadId): ?array;
+    /** Appends $data at $offset (a repeat of bytes already received is accepted); returns the row. */
+    public function append(string $uploadId, int $offset, string $data): array;
+    /** The bytes received so far, from staging. */
+    public function staged(string $uploadId): string;
+    /** Marks an upload ready (its bytes are in the blob store) and drops its staging file. */
+    public function markReady(string $uploadId, int $pages): array;
+    public function openCount(string $clientId): int;
+    /** Forgets open uploads older than $seconds; returns how many. */
+    public function sweep(int $seconds): int;
+}
+
+/** Fetches one public https URL's bytes, at most $maxBytes, for an upload made from a link. */
+interface IUrlFetcher
+{
+    /** @return array{0:string,1:string} [bytes, final host]; throws BridgeError when refused or failed */
+    public function fetch(string $url, int $maxBytes): array;
+}
+
+/**
+ * A family of named MCP tools McpEndpoint lists and dispatches without knowing what they do: AgentTaskTools'
+ * subclasses (notes_*) and UploadTools (notes_upload_*).
+ */
+interface IToolFamily
+{
+    public function handles(string $name): bool;
+    public function offered(Principal $who): bool;
+    /** @return array[] tool definitions this caller may see */
+    public function definitions(Principal $who): array;
+    public function call(Request $r, Principal $who, string $name, array $args): array;
+    /** The sentences the MCP initialize instructions carry when these tools are offered. */
+    public function instructions(): string;
+}
+
 /** Files a browser.download task saved, published by the worker for viewing. */
 interface IDownloadStore
 {

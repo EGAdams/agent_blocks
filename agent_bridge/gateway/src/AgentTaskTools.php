@@ -22,7 +22,7 @@ namespace AgentBridge;
  * RelayTools and BrowserTools predate this class and keep their own copies of the skeleton; NotesTools is the
  * first subclass.
  */
-abstract class AgentTaskTools
+abstract class AgentTaskTools implements IToolFamily
 {
     const MAX_VALUE = 500;
 
@@ -106,13 +106,29 @@ abstract class AgentTaskTools
                 }
                 return self::ok($this->await($who, $id, $first));
             }
-            $view = $this->submit($r, $operation, $this->requestFor($op, $args, $fields, $required));
+            $request = $this->prepare($who, $op, $this->requestFor($op, $args, $fields, $required));
+            $view    = $this->submit($r, $operation, $request);
             $this->audit->record($who->id, $name, $view['task_id'], 'submitted');
             return self::ok($this->await($who, $view['task_id'], null));
         } catch (BridgeError $e) {
             $this->audit->record($who->id, $name, null, $e->errorCode);
             return self::error($e->errorCode . ': ' . $e->getMessage());
         }
+    }
+
+    /** Whether this caller may use the named tool (another family may lend its permission, as uploads do). */
+    public function permits(Principal $who, string $name): bool
+    {
+        return $this->permitted($who, $name) && $this->agentListed();
+    }
+
+    /**
+     * Hook: the last look at a request before it is queued, with the caller known -- for a check that depends on
+     * who is asking (an upload must be the caller's own). Default: the request as shaped.
+     */
+    protected function prepare(Principal $who, string $op, array $request): array
+    {
+        return $request;
     }
 
     private function permitted(Principal $who, string $name): bool

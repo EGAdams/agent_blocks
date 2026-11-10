@@ -168,7 +168,7 @@ test('write: a read-only result still has its old fields and an empty details ob
 });
 
 test('write: a result report bigger than an ordinary request still fits, and nothing else does', function () {
-    $w = writeWorld(['max_body' => 2000, 'max_result_body' => 50000]);
+    $w = writeWorld(['max_body' => 2000, 'max_result_body' => 50000, 'max_mcp_body' => 2000]);
     list($id, $lease) = $w->running();
     $big = $w->call('POST', "/worker/tasks/$id/complete", $w->worker,
                     ['lease_token' => $lease, 'ok' => true, 'summary' => 's', 'body' => str_repeat('y', 10000), 'performer' => 'p']);
@@ -237,7 +237,7 @@ test('write: migration 003 upgrades a database made before it', function () {
     $config  = ['agents' => [['name' => 'codex', 'display_name' => 'C', 'description' => 'd',
                               'operations' => ['inspect'], 'workspaces' => ['agent_blocks']]]];
     $applied = \AgentBridge\Bootstrap::migrate($pdo, $config, __DIR__ . '/../migrations');
-    eq(['003_write_access.sql', '004_scans.sql', '005_printer.sql', '006_downloads.sql'], $applied);
+    eq(['003_write_access.sql', '004_scans.sql', '005_printer.sql', '006_downloads.sql', '007_uploads.sql'], $applied);
     eq('{}', $pdo->query("SELECT details FROM task_results WHERE task_id = 't_old'")->fetchColumn());
     eq('[]', $pdo->query("SELECT write_workspaces FROM agent_registry WHERE name = 'codex'")->fetchColumn());
 });

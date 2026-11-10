@@ -271,16 +271,22 @@ final class GatewayApp
     /** @var WorkerScans|null the worker's scan uploads; absent means no scan routes */ private $scans;
     /** @var int one uploaded page or original only */ private $maxBlob;
     /** @var WorkerDownloads|null the worker's download uploads; absent means no download routes */ private $downloads;
+    /** @var WorkerUploads|null the Notes worker's fetch of a client's PDF upload; absent means no such route */ private $uploads;
+    /** @var int an MCP request only: a notes_upload_chunk carries up to 256 KiB of base64 */ private $maxMcpBody;
 
     const BLOB_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})/blobs/([0-9a-f]{64})$#';
     const SCAN_ROUTE = '#^/worker/scans/(scan_[0-9A-HJKMNP-TV-Z]{26})$#';
     const DOWNLOAD_BLOB_ROUTE = '#^/worker/downloads/(t_[0-9a-f]{24})/blobs/([0-9a-f]{64})$#';
     const DOWNLOAD_ROUTE      = '#^/worker/downloads/(t_[0-9a-f]{24})$#';
+    const UPLOAD_ROUTE        = '#^/worker/tasks/(t_[0-9a-f]{24})/upload$#';
 
     public function __construct(ITaskAuthenticator $auth, ClientTasks $client, WorkerTasks $worker, McpEndpoint $mcp,
                                 OAuthServer $oauth, int $maxBody, array $challenge, int $maxResultBody = 0,
-                                ?WorkerScans $scans = null, int $maxBlob = 0, ?WorkerDownloads $downloads = null)
+                                ?WorkerScans $scans = null, int $maxBlob = 0, ?WorkerDownloads $downloads = null,
+                                ?WorkerUploads $uploads = null, int $maxMcpBody = 0)
     {
+        $this->uploads       = $uploads;
+        $this->maxMcpBody    = max($maxBody, $maxMcpBody);
         $this->downloads     = $downloads;
         $this->maxResultBody = max($maxBody, $maxResultBody);
         $this->scans         = $scans;
@@ -314,7 +320,8 @@ final class GatewayApp
         $isReport = (bool) preg_match('#^/worker/tasks/t_[0-9a-f]{24}/complete$#', $p) || (bool) preg_match(self::SCAN_ROUTE, $p)
                  || (bool) preg_match(self::DOWNLOAD_ROUTE, $p);
         $isBlob   = (bool) preg_match(self::BLOB_ROUTE, $p) || (bool) preg_match(self::DOWNLOAD_BLOB_ROUTE, $p);
-        if (strlen($r->body) > ($isBlob ? $this->maxBlob : ($isReport ? $this->maxResultBody : $this->maxBody))) {
+        $limit    = $isBlob ? $this->maxBlob : ($isReport ? $this->maxResultBody : ($p === '/mcp' ? $this->maxMcpBody : $this->maxBody));
+        if (strlen($r->body) > $limit) {
             throw new BridgeError(413, 'too_large', 'request body too large');
         }
         if ($p === '' || $p === '/health') {
@@ -356,6 +363,13 @@ final class GatewayApp
             $this->principal($r, 'worker');
             $next = $this->worker->next($this->laneSkips($r));
             return $next === null ? new Response(204, null) : new Response(200, $next);
+        }
+        if ($this->uploads !== null && preg_match(self::UPLOAD_ROUTE, $p, $g)) {
+            if ($m !== 'POST') {               // POST: the lease token travels in the body, never in a logged URL
+                throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
+            }
+            $who = $this->principal($r, 'worker');
+            return new Response(200, $this->uploads->fetch($who, $g[1], (string) ($this->json($r)['lease_token'] ?? '')));
         }
         if (preg_match('#^/worker/tasks/(t_[0-9a-f]{24})/(claim|heartbeat|events|complete|fail)$#', $p, $g)) {
             if ($m !== 'POST') {

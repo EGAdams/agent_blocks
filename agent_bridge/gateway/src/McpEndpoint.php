@@ -29,7 +29,7 @@ final class McpEndpoint
     /** @var PrinterTools|null the printer_* tools, listed per caller scope */ private $printer;
     /** @var BrowserTools|null the browser_* tools, listed per caller scope */ private $browser;
     /** @var RelayTools|null the chatgpt_* tools, listed per caller scope */ private $relay;
-    /** @var AgentTaskTools[] further named-tool families (notes_*), each listed per caller scope */ private $families;
+    /** @var IToolFamily[] further named-tool families (notes_*), each listed per caller scope */ private $families;
 
     public function __construct(ITaskAuthenticator $auth, ClientTasks $client, string $memoryAgent, string $memoryWorkspace,
                                 array $challenge, ?array $grants = null, ?ScannerTools $scanner = null,
@@ -285,7 +285,7 @@ final class McpEndpoint
         $printer = $this->printer === null ? [] : $this->printer->definitions($who);
         $browser = $this->browser === null ? [] : $this->browser->definitions($who);
         $relay   = $this->relay === null ? [] : $this->relay->definitions($who);
-        $more    = array_map(function (AgentTaskTools $f) use ($who) { return $f->definitions($who); }, $this->families);
+        $more    = array_map(function (IToolFamily $f) use ($who) { return $f->definitions($who); }, $this->families);
         return array_merge($this->taskTools(), $scanner, $printer, $browser, $relay, ...$more);
     }
 
