@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -19,6 +20,7 @@ from ..notes_ops.review import OWN_FLAGS, SWITCHES, TABLE, VALUE_FLAGS, ReviewCo
 
 PUBLIC  = frozenset( public for public, *_ in TABLE.values())
 ALLOWED = frozenset( VALUE_FLAGS.values()) | { "note" } | frozenset( OWN_FLAGS )
+_TASK   = re.compile( r"t_[0-9a-f]{8,64}" )                 # the dashboard's own X-Bridge-Task rule
 
 
 class UvNotesReviewCommands:
@@ -35,8 +37,19 @@ class UvNotesReviewCommands:
         argv += [ f"--{ name }" for name in sorted( switches )]
         return argv + [ f"--json-out={ result }" ]
 
+    @staticmethod
+    def environment( task_id: str ) -> dict[ str, str ]:
+        """The child's environment: this worker's, plus the Bridge task it runs for (an id, never a secret), or
+        without one when the id is not a Bridge task's -- the ADW then names itself `notes-review`."""
+        env = { **os.environ, "PYTHONUNBUFFERED": "1" }
+        env.pop( "NOTES_BRIDGE_TASK", None )
+        if _TASK.fullmatch( task_id or "" ):
+            env[ "NOTES_BRIDGE_TASK" ] = task_id
+        return env
+
     def run( self, operation: str, flags: dict[ str, str ], switches: list[ str ], timeout: float,
-             beat: Callable[[], str ] = lambda: "continue", stoppable: bool = True, poll: float = 2.0 ) -> dict:
+             beat: Callable[[], str ] = lambda: "continue", stoppable: bool = True, task_id: str = "",
+             poll: float = 2.0 ) -> dict:
         fd_res, result = tempfile.mkstemp( prefix="notes_review_" )
         fd_err, errors = tempfile.mkstemp( prefix="notes_review_err_" )
         os.close( fd_res )
@@ -44,7 +57,7 @@ class UvNotesReviewCommands:
             try:
                 process = subprocess.Popen( self.argv( operation, flags, switches, result ), cwd=self._cwd,
                                             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=fd_err,
-                                            env={ **os.environ, "PYTHONUNBUFFERED": "1" })
+                                            env=self.environment( task_id ))
             except OSError as exc:
                 raise ReviewCommandFailed( f"could not start uv ({ type( exc ).__name__ })" ) from None
             finally:

@@ -43,9 +43,10 @@ class INotesReviewCommands( Protocol ):
     """Runs one notes.* operation of the review ADW and returns its JSON answer ({ok, line, data})."""
 
     def run( self, operation: str, flags: dict[ str, str ], switches: list[ str ], timeout: float,
-             beat: Callable[[], str ], stoppable: bool ) -> dict: ...
+             beat: Callable[[], str ], stoppable: bool, task_id: str = "" ) -> dict: ...
     # `beat` is called every few seconds while the ADW runs (it keeps the task's lease). A read (`stoppable`) is
     # stopped when it answers anything but "continue"; a write that has started always runs to its end.
+    # `task_id` is the Bridge task, so the dashboard's activity log and an attachment record name it.
 
 
 class IUploadSource( Protocol ):
@@ -103,7 +104,8 @@ class ReviewCommand( NotesCommand ):
         switches = [ flag for field, flag in SWITCHES.items() if getattr( request, field ) is True ]
         seconds  = self._seconds + ( float( request.timeout or 60 ) if self.public == "notes.watch" else 0.0 )
         try:
-            answer = self._runner.run( self.public, flags, switches, seconds, ctx.keep_alive, self.operation == "inspect" )
+            answer = self._runner.run( self.public, flags, switches, seconds, ctx.keep_alive, self.operation == "inspect",
+                                       task_id=task.task_id )
         except ReviewCommandFailed as exc:
             ctx.log( task, "error", filename=request.id or "", detail=f"review ADW: { exc }"[ :200 ] )
             return failed( f"the Notes Review ADW gave no answer ({ exc }); nothing is known to have changed",

@@ -40,7 +40,7 @@ class FakeReview:
         self.calls: list[ tuple ] = []
         self.seen: list[ tuple ] = []
 
-    def run( self, operation, flags, switches, timeout, beat, stoppable ):
+    def run( self, operation, flags, switches, timeout, beat, stoppable, task_id="" ):
         self.calls.append(( operation, dict( flags ), stoppable ))
         if "pdf-file" in flags:
             path = Path( flags[ "pdf-file" ])

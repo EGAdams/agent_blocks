@@ -34,8 +34,9 @@ class FakeReview:
                                             "pending": [], "pending_count": 4, "adw_id": "abcd1234", "secret_extra": "x" }}
         self.fail = fail
 
-    def run( self, operation, flags, switches, timeout, beat, stoppable ):
+    def run( self, operation, flags, switches, timeout, beat, stoppable, task_id="" ):
         self.calls.append(( operation, dict( flags ), list( switches ), timeout, stoppable, beat()))
+        self.task_id = task_id
         if self.fail:
             raise ReviewCommandFailed( self.fail )
         return self.answer
@@ -136,6 +137,16 @@ def test_argv_is_fixed_table_and_flag_equals_value() -> None:
         raise AssertionError( bad )
 
 
+
+
+def test_the_bridge_task_reaches_the_adw_as_an_environment_id_only() -> None:
+    review = FakeReview()
+    ask({ "notes": "review_inspect", "id": NOTE }, "inspect", review )
+    assert review.task_id == TASK_ID                          # the dashboard logs the write under this task
+    env = UvNotesReviewCommands.environment( TASK_ID )
+    assert env[ "NOTES_BRIDGE_TASK" ] == TASK_ID and env[ "PYTHONUNBUFFERED" ] == "1"
+    for bad in ( "", "notes-review", "t_XYZ", "t_ab; rm -rf /" ):
+        assert "NOTES_BRIDGE_TASK" not in UvNotesReviewCommands.environment( bad ), bad
 
 
 def test_rollback_passes_chain_and_page_through() -> None:

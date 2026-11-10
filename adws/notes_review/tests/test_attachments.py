@@ -85,3 +85,13 @@ def test_each_attachment_operation_is_registered_and_has_its_own_adw():
         thin = ADWS / f"adw_{public.replace('.', '_')}.py"
         assert thin.exists() and f'fixed="{public}"' in thin.read_text()
     assert "notes.attachments" in READS and "notes.attach_pdf" not in READS
+
+
+def test_the_store_names_the_bridge_task_it_runs_for(monkeypatch):
+    from notes_review.store import bridge_from_environment, bridge_task
+    monkeypatch.delenv("NOTES_BRIDGE_TASK", raising=False)
+    assert bridge_task() == "notes-review"
+    monkeypatch.setenv("NOTES_BRIDGE_TASK", "t_" + "b" * 24)
+    assert bridge_from_environment().task == "t_" + "b" * 24          # nothing is connected to read this
+    monkeypatch.setenv("NOTES_BRIDGE_TASK", "../../etc/passwd")
+    assert bridge_task() == "notes-review"

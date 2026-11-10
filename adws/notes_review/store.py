@@ -7,6 +7,7 @@ so an edit made here is the edit the page shows and the one every other Notes ca
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 import base64
@@ -78,7 +79,14 @@ class BridgeAttachmentStore:
             raise AttachmentMissing(attachment_id) from None
 
 
-def bridge_from_environment(task_id: str = "notes-review") -> BridgeNoteStore:
+def bridge_task(default: str = "notes-review") -> str:
+    """The Bridge task this run is for, from NOTES_BRIDGE_TASK (the worker sets it), else `default`. Only a
+    t_<hex> id is taken -- the dashboard's X-Bridge-Task rule -- so the activity log and an attachment name it."""
+    task = os.environ.get("NOTES_BRIDGE_TASK", "")
+    return task if re.fullmatch(r"t_[0-9a-f]{8,64}", task) else default
+
+
+def bridge_from_environment(task_id: str | None = None) -> BridgeNoteStore:
     """The live store: URL from NOTES_ENDPOINT_URL, token from NOTES_TOKEN_FILE (defaults as the worker's)."""
     from agent_bridge_worker.adapters.http_scan_facade import load_scan_token
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
@@ -89,4 +97,4 @@ def bridge_from_environment(task_id: str = "notes-review") -> BridgeNoteStore:
         if not token_file.exists():          # not FileNotFoundError: that would read as "no such note"
             raise RuntimeError(f"the Notes token is not provisioned on this machine ({token_file})")
         return HttpNotesBridge(url, load_scan_token(token_file))
-    return BridgeNoteStore(connect, task_id)
+    return BridgeNoteStore(connect, task_id or bridge_task())
