@@ -47,13 +47,15 @@ def load_worker_token( env: str = "BRIDGE_WORKER_TOKEN", file_env: str = "BRIDGE
 class HttpTaskGateway:
     """The gateway's `/worker/...` endpoints."""
 
-    def __init__( self, base_url: str, token: str, timeout_seconds: float = 30.0, skip: Sequence[ str ] = () ) -> None:
+    def __init__( self, base_url: str, token: str, timeout_seconds: float = 30.0, skip: Sequence[ str ] = (),
+                  pinned: bool = False ) -> None:
         if not ( base_url.startswith( "https://" ) or base_url.startswith( "http://127.0.0.1" ) or base_url.startswith( "http://localhost" )):
             raise ValueError( "the gateway must be HTTPS (plain HTTP is allowed only on loopback)" )
         self._base    = base_url.rstrip( "/" )
         self._token   = token
         self._timeout = timeout_seconds
         self._skip    = ",".join( skip )        # a worker lane's pass-over list: `operation@workspace,...`
+        self._pinned  = pinned                  # a machine lane: only the workspaces pinned to this token
 
     def __repr__( self ) -> str:            # never show the token
         return f"HttpTaskGateway({ self._base!r })"
@@ -61,7 +63,8 @@ class HttpTaskGateway:
     # -- ITaskGatewayClient -------------------------------------------------
 
     def next( self ) -> str | None:
-        status, body = self._call( "GET", "/worker/tasks/next" + ( f"?skip={ self._skip }" if self._skip else "" ))
+        query = "&".join(([ f"skip={ self._skip }" ] if self._skip else []) + ([ "pinned=1" ] if self._pinned else []))
+        status, body = self._call( "GET", "/worker/tasks/next" + ( f"?{ query }" if query else "" ))
         if status == 204 or not body:
             return None
         return str( body[ "task_id" ])
@@ -74,6 +77,15 @@ class HttpTaskGateway:
             self._call( "GET", "/worker/tasks/next?skip=lane-probe" )
         except GatewayError as exc:
             return exc.status == 400 and exc.code == "bad_skip"
+        return False
+
+    def supports_pins( self ) -> bool:
+        """True when the gateway knows `worker_pins` (a bad `pinned=` value is a 400 `bad_pinned`). On an older gateway
+        a machine worker would be offered everyone's tasks, so it must not start there."""
+        try:
+            self._call( "GET", "/worker/tasks/next?pinned=probe" )
+        except GatewayError as exc:
+            return exc.status == 400 and exc.code == "bad_pinned"
         return False
 
     def claim( self, task_id: str, worker_id: str ) -> ClaimedTask | None:

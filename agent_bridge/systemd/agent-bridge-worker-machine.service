@@ -1,0 +1,23 @@
+[Unit]
+Description=Agent bridge worker (MACHINE lane: only the workspaces the gateway pins to this machine -- Cashy on R46)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python adws/adw_bridge_worker.py --watch --lane machine --url https://bridge.americansjewelry.com/api/agent-bridge/v1
+Environment=PYTHONUNBUFFERED=1
+# This machine's own worker token; its id is the key of its `worker_pins` entry in the gateway's bridge.php.
+Environment=BRIDGE_WORKER_TOKEN_FILE=/home/adamsl/.config/agent_bridge/worker_token
+# `uv` for the Cashy ADWs; System32 so cmd.exe answers %LOCALAPPDATA% (the worker also adds it and a live WSL_INTEROP).
+Environment=PATH=/home/adamsl/.local/bin:/usr/local/bin:/usr/bin:/bin:/mnt/c/Windows/System32
+Restart=on-failure
+RestartSec=60
+# Exit 78 = the gateway rejected the worker token; restarting would only repeat it.
+RestartPreventExitStatus=78
+# Never kill the Chrome a Cashy run started: it is EG's visible window, and a bank session lives in it.
+KillMode=process
+TimeoutStopSec=30
+
+[Install]
+WantedBy=default.target

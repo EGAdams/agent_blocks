@@ -55,6 +55,9 @@ class TracingGateway:
     def supports_lanes( self ) -> bool:
         return self._inner.supports_lanes()
 
+    def supports_pins( self ) -> bool:
+        return self._inner.supports_pins()
+
     def claim( self, task_id: str, worker_id: str ) -> ClaimedTask | None:
         task = self._inner.claim( task_id, worker_id )
         if task is not None:

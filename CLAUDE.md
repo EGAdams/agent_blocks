@@ -211,6 +211,13 @@ The top-level areas are:
   starts it (`cashy/launching.py`). Tests: add `--with lancedb --with pyarrow cashy/tests`
   to the command above; `CDP_TEST_PORT=<port>` of a headless Chrome runs the
   live acceptance conversation against `cashy/tests/fake_bank.py`.
+  Cashy on **R46** (Mom's Windows computer, `Rosemary46`) is Bridge agent
+  `cashy-r46`: R46's own worker (`--lane machine`, unit
+  `agent-bridge-worker-machine`) runs it, the gateway's `worker_pins` offers
+  that workspace to no other worker, and every task names `machine` and
+  `session`. The Bridge sender is the actor, never `user`. Read
+  `agent_bridge/docs/CASHY_R46.md` first. Verified live 2026-11-11 up to the
+  Fifth Third login page.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

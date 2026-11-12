@@ -304,6 +304,57 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
                           resolver, agents, events, clock, worker_id, writes=writes, self_contained=frozenset( self_contained ))
 
 
+MACHINES_FILE  = _HERE.parent / "lancedb_memory" / "agent_bridge_worker" / "machines.json"
+MACHINE_WORKDIR = _HERE / "adw_data" / "cashy_bridge" / "workspace"         # the `cashy-r46` workspace: empty, nothing runs in it
+
+
+class NoEvents:
+    """ITaskEventSource for the machine lane: there is no post office here, so no local audit trail to forward."""
+
+    def lines( self, local_task_id: str ) -> list[ str ]:
+        return []
+
+
+def build_machine_application( base_url: str, worker_id: str, hooks: Any = None ) -> BridgeTaskRun:
+    """The machine lane's composition root: only this machine's own agent (Cashy on R46), only the workspace the
+    gateway pins to this machine's worker token. No post office, no coding workspace, no write session."""
+    from agent_bridge_worker.adapters.cashy_process import LoopbackTabTitles, UvCashyCommands
+    from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
+    from agent_bridge_worker.cashy_agent import CashyMachineAgent, Machine
+    from agent_bridge_worker.policy import ScopedPolicy, StaticWorkspaces
+
+    machine = Machine.load( MACHINES_FILE, socket.gethostname())
+    if machine is None:
+        raise RuntimeError( f"{ socket.gethostname()} is not in { MACHINES_FILE.name }; this host runs no machine lane" )
+    gateway = HttpTaskGateway( base_url, load_worker_token(), pinned=True )
+    if hooks is not None:
+        from agent_bridge_worker.adapters.traced import TracingGateway
+        from object_trace.factory import default_tracer
+        gateway = TracingGateway( gateway, default_tracer(), lambda: hooks.current )
+        hooks.closing( gateway.close )
+    MACHINE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+    # A systemd user service has no WSL_INTEROP and no Windows PATH, so the Cashy run it starts could not start
+    # chrome.exe or ask cmd.exe for %LOCALAPPDATA%. Find a live interop socket (checked each run: it changes with
+    # the Windows logon) and put System32 on PATH, for this process and every Cashy run it starts.
+    from browser_control.link import WslInteropLink
+    windows_ok, why = WslInteropLink().ensure()
+    if not windows_ok:
+        print( f"machine lane: { why }", flush=True )
+    if "/mnt/c/Windows/System32" not in os.environ.get( "PATH", "" ).split( ":" ):
+        os.environ[ "PATH" ] = os.environ.get( "PATH", "" ) + ":/mnt/c/Windows/System32"
+    clock  = SystemClock()
+    agents = { machine.agent: CashyMachineAgent( UvCashyCommands( UV, _HERE, _HERE.parent ), clock, machine, LoopbackTabTitles())}
+    if hooks is not None:
+        from agent_bridge_worker.adapters.traced import TracingAgent
+        from object_trace.factory import default_tracer
+        agents = { name: TracingAgent( agent, default_tracer(), name ) for name, agent in agents.items()}
+    # Agent and workspace share one name (see the chatgpt-relay note in build_application).
+    policy = ScopedPolicy({ machine.agent: { "inspect": False, "implement": True }}, frozenset({ machine.agent }),
+                          frozenset({ "read_only", "workspace_write" }))
+    return BridgeTaskRun( gateway, policy, StaticWorkspaces({ machine.agent: MACHINE_WORKDIR }), agents, NoEvents(), clock,
+                          worker_id, writes=None, self_contained=frozenset({ machine.agent }))
+
+
 def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ], lane: WorkerLane = WorkerLane()) -> Any:
     """The composition root for `--watch`: a cheap probe, the schedule, the waiter."""
     from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
@@ -311,8 +362,14 @@ def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], in
     from agent_bridge_worker.polling import build_schedule, load_settings
     from agent_bridge_worker.watch import PollLoop
 
-    probe    = HttpTaskGateway( base_url, load_worker_token(), skip=lane.skips( configured_workspaces().write_names()))
-    if not lane.takes_coding_writes and not probe.supports_lanes():
+    if lane.pinned:
+        probe = HttpTaskGateway( base_url, load_worker_token(), pinned=True )
+        if not probe.supports_pins():
+            raise RuntimeError( "the gateway does not support worker pins yet (?pinned=); the machine worker will not start, "
+                                "because it could be offered tasks meant for another machine" )
+    else:
+        probe = HttpTaskGateway( base_url, load_worker_token(), skip=lane.skips( configured_workspaces().write_names()))
+    if not lane.takes_coding_writes and not lane.pinned and not probe.supports_lanes():
         raise RuntimeError( "the gateway does not support worker lanes yet (?skip=); the express worker will not start, "
                             "because it could claim a coding task it must not run" )
     settings = load_settings( settings_path )
@@ -351,7 +408,8 @@ def one_run( args: argparse.Namespace, cfg: Any, boot: ILifecycleLog ) -> RunRep
     # The trace shares the SSSF run's adw_id, so the inspector joins the two. It only observes (OBJECT_TRACE=off stops it).
     with AdwRunTrace( default_tracer(), "adw_bridge_worker", run.adw_id, task_id_of=task_of ) as hooks:
         try:
-            svc = default_tracer().construct( "bridge.worker_app", lambda: build_application( args.url, args.worker_id, hooks, WorkerLane( name=args.lane )),
+            svc = default_tracer().construct( "bridge.worker_app", lambda: ( build_machine_application( args.url, args.worker_id, hooks ) if args.lane == "machine"
+                                                                            else build_application( args.url, args.worker_id, hooks, WorkerLane( name=args.lane ))),
                                               interface="BridgeTaskRun", label="the worker's composition root",
                                               on_created=lambda trace: hooks.closing(
                                                   lambda reason: trace.succeed( message="worker application closed" )
@@ -379,8 +437,9 @@ def describe( report: RunReport ) -> str:
 def main( argv: list[ str ] | None = None ) -> int:
     parser = argparse.ArgumentParser( description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter )
     parser.add_argument( "--url", default=os.environ.get( "BRIDGE_URL", "" ), help="gateway base, ending /api/agent-bridge/v1" )
-    parser.add_argument( "--lane", choices=[ "general", "express" ], default="general",
-                         help="express never takes coding writes, so it is always free for diagnostics, Machine Ops and Notes" )
+    parser.add_argument( "--lane", choices=[ "general", "express", "machine" ], default="general",
+                         help="express never takes coding writes, so it is always free for diagnostics, Machine Ops and Notes; "
+                              "machine takes only the workspaces the gateway pins to this machine (Cashy on R46)" )
     parser.add_argument( "--worker-id", default=None )
     parser.add_argument( "--drain", action="store_true", help=f"keep going until nothing is queued (at most { MAX_DRAIN })" )
     parser.add_argument( "--watch", action="store_true", help="keep checking for work, paced by --poll-settings" )

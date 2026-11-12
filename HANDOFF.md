@@ -4,6 +4,33 @@
 **Box:** `DESKTOP-2OBSQMC`, WSL2 Ubuntu-26.04, user `adamsl`, `/home/adamsl/agent_blocks`, branch `main`
 **Next reader:** Codex / ChatGPT / Claude / Toyota — read `AGENTS.md` first, then this, then the report it points at.
 
+
+## Cashy on R46 over the Bridge — verified live to the login page (2026-11-11)
+
+ChatGPT and Toyota can drive Cashy on **R46** (Mom's Windows computer, hostname `Rosemary46`) through the
+Bridge: agent and workspace `cashy-r46`, prompt `{"cashy":"status","machine":"R46","session":"r46-bridge"}`.
+Read `agent_bridge/docs/CASHY_R46.md` for every call, polling, and what to do after EG says "I'm logged in".
+
+- **Gateway (deployed):** `WorkerPins.php`. `worker_pins` in `bridge.php` offers `cashy-r46` only to R46's
+  worker token, and a cross-pin claim gets 409. The `cashy-r46` agent is seeded with `bin/migrate.php`.
+  Rollback copies are in `~/agent_bridge_backups/pre_pins_20261111_191544`.
+- **R46 worker (running):** `agent-bridge-worker-machine.service`, `--lane machine`, worker id
+  `wsl-rosemary46-machine`. It runs `CashyMachineAgent`, which refuses a task naming any other machine. The
+  actor is the Bridge sender, never `user`.
+- **Live tasks:**
+  - `status` (t_f2edf22a933bd6442b59e8bd)
+  - a wrong-machine refusal (t_bc049199db5a59378ea2e3c3)
+  - `open_bank fifth_third` (t_7e168f50f91e465494cbe415, then t_4ea3b3b731f8dc354c9a5260 after the domain fix)
+  - `status` (t_bcc5e26dad81c4dafe568ea2): `awaiting_user_login`, tab `59A58533D342448FFCB91DB15DBF452A`,
+    `secure.53.com/olb/login`, title "login - Fifth Third Bank", and the window is visible in R46's Console
+    session. The repeat `open_bank` reused the same tab.
+- **Fixes from the live run:**
+  - `cdp_browser` waits out "Cannot find default execution context" on a just-opened tab.
+  - `open_bank` now waits for the bank's own domain and fails on a look-alike. Before, it had reported ready
+    from Fifth Third's `about:blank` redirect page.
+- **Not yet done:** `logged_in` and `list_options` after a real sign-in. Those wait for EG. Toyota's path to
+  `cashy-r46` has no route of her own yet.
+
 ## Browser downloads ChatGPT can look at — verified live through MCP (2026-11-08)
 
 ChatGPT can now save a file from a web page and look at it: `browser_download` -> `browser_view_file`
