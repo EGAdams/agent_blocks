@@ -218,6 +218,15 @@ The top-level areas are:
   `session`. The Bridge sender is the actor, never `user`. Read
   `agent_bridge/docs/CASHY_R46.md` first. Verified live 2026-11-11 up to the
   Fifth Third login page.
+  `adws/adw_scala_storage.py` is Scala's multi-machine filing (read
+  `agent_bridge/docs/SCALA_STORAGE.md` first): it COPIES a scan, by scan id,
+  from SQMC's scanner API into an allowlisted folder on BATI, R46 or SQMC
+  (`lancedb_memory/scala/storage/`, machines and folders as data in
+  `storage_targets.json`), with the destination proving its hostname, no
+  overwrite, SHA-256 checked after, and an audit line per attempt in the
+  gitignored `adws/adw_data/scala_storage/`. It runs only on SQMC; ChatGPT
+  reaches it as protected Bridge agent `scala-storage`. Verified live
+  2026-11-12 on all three machines.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

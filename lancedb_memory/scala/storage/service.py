@@ -80,6 +80,16 @@ class ScanStorage:
                                data={ "machine": target.machine, "reachable": True, **{ k: v for k, v in answer.items() if k != "ok" }})
 
     def store_scan( self, scan_id: str, machine: str, folder: str, copy: bool = True ) -> StorageOutcome:
+        try:
+            return self._store( scan_id, machine, folder, copy )
+        except StorageRefused as exc:
+            if not exc.extra.get( "_audited" ):           # refused before a machine was contacted: still on the record
+                self._log( dict( operation="store", scan_id=scan_id.strip()[ :40 ], machine=machine.strip()[ :40 ],
+                                 folder=folder.strip()[ :200 ]), result=f"refused:{ exc.code }", detail=exc.message[ :300 ])
+            exc.extra.pop( "_audited", None )
+            raise
+
+    def _store( self, scan_id: str, machine: str, folder: str, copy: bool ) -> StorageOutcome:
         if not copy:
             raise StorageRefused( "move_refused", "Scala only copies scans; the original is always preserved" )
         target = self._registry.resolve( machine )
@@ -109,6 +119,7 @@ class ScanStorage:
         except StorageRefused as exc:
             self._log( entry, hostname=str( exc.extra.get( "hostname", "" )), result=f"refused:{ exc.code }", detail=exc.message )
             self._run.phase( "refused", error=exc.code )
+            exc.extra[ "_audited" ] = True
             raise
         verified = ( check[ "sha256" ] == meta[ "sha256" ] and check[ "size" ] == len( data ) == meta[ "size_bytes" ]
                      and check[ "hostname" ].lower() == target.hostname.lower())

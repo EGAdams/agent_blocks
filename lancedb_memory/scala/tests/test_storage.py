@@ -177,7 +177,7 @@ def test_name_conflict_never_overwrites() -> None:
     dest.write_bytes( b"someone else's file" )
     refused( lambda: rig.storage().store_scan( SCAN, "HOME", "insurance/home" ), "name_conflict" )
     assert dest.read_bytes() == b"someone else's file"
-    assert rig.audit()[ -1 ][ "result" ] == "refused:name_conflict"
+    assert [ r[ "result" ] for r in rig.audit()] == [ "stored", "refused:name_conflict" ]     # audited once, not twice
 
 
 def test_wrong_machine_is_refused_and_nothing_written() -> None:
@@ -239,6 +239,10 @@ def test_unauthorized_folder_traversal_and_absolute_escape() -> None:
     refused( lambda: storage.store_scan( SCAN, "HOME", "/etc/insurance/home" ), "absolute_path_refused" )
     refused( lambda: storage.store_scan( SCAN, "HOME", "insurance" ), "folder_not_allowed" )
     assert rig.source.reads == 0                       # refused before the original was even read
+    rows = rig.audit()
+    assert [ r[ "result" ] for r in rows ] == [ "refused:folder_not_allowed", "refused:path_traversal", "refused:path_traversal",
+                                                "refused:path_traversal", "refused:absolute_path_refused",
+                                                "refused:folder_not_allowed" ], rows
 
 
 def test_symlink_escape_refused() -> None:
