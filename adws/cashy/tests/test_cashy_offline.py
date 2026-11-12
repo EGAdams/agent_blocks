@@ -234,3 +234,20 @@ def test_a_statement_named_by_its_closing_date_is_found_for_its_month() -> None:
     assert any( w in "Statement Closing 01/02/2026" for w in words )
     assert not any( w in "Statement Closing 02/02/2026" for w in words )
     assert not any( w in "Statement Closing 12/03/2025" for w in words )
+
+
+def test_a_closing_date_list_ranks_only_the_statement_for_the_month() -> None:
+    """2026-11-11, R46: "02/2026" matched the day of "11/02/2026", so Cashy asked which February statement."""
+    from browser_workflows.templating.period import CalendarPeriodVocabulary
+    from cashy.actions.statement_actions import WHOLE_PHRASE
+    from cashy.navigation.statements import CalendarStatementLocator
+    from cashy.page.ranker import TokenOptionRanker
+
+    listed = [ "11/02/2026", "10/02/2026", "05/04/2026", "04/03/2026", "03/04/2026", "02/02/2026", "01/02/2026" ]
+    options = [ _option( f"Statement Closing { d }", number=i ) for i, d in enumerate( listed, 1 )]
+    words = CalendarStatementLocator( CalendarPeriodVocabulary()).words
+    for month, closing in (( 2, "02/02/2026" ), ( 3, "03/04/2026" ), ( 4, "04/03/2026" )):
+        ranked = [ r for r in TokenOptionRanker().rank( options, words( Period( year=2026, month=month )))
+                   if r.score >= WHOLE_PHRASE ]
+        assert [ r.option.text for r in ranked ] == [ f"Statement Closing { closing }" ]
+    assert TokenOptionRanker().rank([ _option( "Statement 02/2026" )], [ "02/2026" ])[ 0 ].score >= WHOLE_PHRASE

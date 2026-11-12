@@ -45,7 +45,8 @@ def _score( option: PageOption, phrase: str ) -> tuple[ float, str ]:
             continue
         if seen == said:
             return 3.0 * scale, f"says exactly '{ phrase }'"
-        if re.search( rf"(?<![a-z0-9]){ re.escape( said ) }(?![a-z0-9])", seen ):
+        # "02/2026" is not inside "11/02/2026": a digit and a slash next to it make one date
+        if re.search( rf"(?<![a-z0-9])(?<![0-9]/){ re.escape( said ) }(?![a-z0-9])(?!/[0-9])", seen ):
             return 2.0 * scale - min( 0.5, len( seen ) / 400 ), f"contains '{ phrase }'"
     wanted = tokens( phrase )
     if not wanted:
