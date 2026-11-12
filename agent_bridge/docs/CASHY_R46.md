@@ -44,6 +44,7 @@ required in every call.
 | list_options | `inspect` | `{"cashy":"list_options","machine":"R46","session":"r46-bridge"}` |
 | read_page | `inspect` | `{"cashy":"read_page","machine":"R46","session":"r46-bridge"}` |
 | open_bank | `implement` | `{"cashy":"open_bank","machine":"R46","session":"r46-bridge","bank":"fifth_third"}` |
+| open_bank (FNBO) | `implement` | `{"cashy":"open_bank","machine":"R46","session":"r46-fnbo","bank":"fnbo"}`; its own session, so the Fifth Third tab is left alone |
 | logged_in | `implement` | `{"cashy":"logged_in","machine":"R46","session":"r46-bridge"}`; only after EG says he is signed in |
 | pause / resume / stop | `implement` | `{"cashy":"pause","machine":"R46","session":"r46-bridge"}` |
 
@@ -80,6 +81,8 @@ spell can take up to a minute to be claimed.
   profile's hosts or a subdomain of one. `evil53.com` does not count. If the tab doesn't get there within
   20 s, the call fails. Fifth Third goes `www.53.com` → `secure.53.com/olb/login-redirect.html` →
   `secure.53.com/olb/login`.
+  FNBO sends `www.banking.fnbo.com` to the `www.fnbo.com` homepage, where the sign-in panel opens from
+  its **Log In** button. EG presses that himself; Cashy doesn't.
 - **One session, one tab.** Repeating `open_bank` on the same bank navigates the session's existing tab;
   it doesn't open another. Cashy never closes the browser.
 - **Nothing is copied off R46.** That covers browser profiles, cookies and bank sessions. The debug Chrome
