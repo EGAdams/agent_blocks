@@ -62,9 +62,11 @@ interface ITaskLeaseManager
      * The oldest queued task. `$skip` is a lane filter: each entry is `operation@workspace`, and a task matching
      * one is passed over (never claimed, never changed), so a reserved worker is not stuck behind a long task
      * it will not run. Order among the rest is unchanged: created_at, then id.
+     * `$only` (when not null) and `$exclude` are workspace lists: worker pins (WorkerPins), so a workspace
+     * pinned to one machine's worker is offered to that worker alone.
      * @param string[] $skip
      */
-    public function next(array $skip = []): ?array;
+    public function next(array $skip = [], ?array $only = null, array $exclude = []): ?array;
     public function claim(string $id, string $workerId, int $leaseSeconds): ?array;
     public function heartbeat(string $id, string $leaseToken, int $leaseSeconds): ?array;
     public function complete(string $id, string $leaseToken, array $result): bool;

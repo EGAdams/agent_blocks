@@ -145,10 +145,21 @@ final class SqliteTaskStore implements ITaskRepository, ITaskLeaseManager
 
     // ---- ITaskLeaseManager ----------------------------------------------
 
-    public function next(array $skip = []): ?array
+    public function next(array $skip = [], ?array $only = null, array $exclude = []): ?array
     {
         $where = 'state = ?';
         $args  = [TaskState::QUEUED];
+        if ($only !== null) {
+            if (!$only) {
+                return null;
+            }
+            $where .= ' AND workspace IN (' . implode(',', array_fill(0, count($only), '?')) . ')';
+            array_push($args, ...array_values($only));
+        }
+        if ($exclude) {
+            $where .= ' AND workspace NOT IN (' . implode(',', array_fill(0, count($exclude), '?')) . ')';
+            array_push($args, ...array_values($exclude));
+        }
         foreach ($skip as $pair) {
             [$operation, $workspace] = explode('@', $pair, 2);
             $where .= ' AND NOT (operation = ? AND workspace = ?)';

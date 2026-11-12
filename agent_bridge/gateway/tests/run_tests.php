@@ -41,7 +41,7 @@ final class FakeIds implements IIdGenerator
 
 final class World
 {
-    public $pdo; public $clock; public $app; public $client; public $client2; public $worker;
+    public $pdo; public $clock; public $app; public $client; public $client2; public $worker; public $ids; public $config;
 
     public function __construct(array $overrides = [])
     {
@@ -60,11 +60,20 @@ final class World
         $this->pdo   = Database::open(':memory:');
         $this->clock = new FakeClock();
         $ids         = new FakeIds();
+        $this->ids    = $ids;
+        $this->config = $config;
         Bootstrap::migrate($this->pdo, $config, __DIR__ . '/../migrations');
         $this->app     = Bootstrap::build($config, $this->pdo, $this->clock, $ids);
         $this->client  = TokenAuthenticator::issue($this->pdo, $ids, $this->clock, 'client', 'test client')['token'];
         $this->client2 = TokenAuthenticator::issue($this->pdo, $ids, $this->clock, 'client', 'other client')['token'];
         $this->worker  = TokenAuthenticator::issue($this->pdo, $ids, $this->clock, 'worker', 'test worker')['token'];
+    }
+
+    /** The same store and tokens, the app rebuilt with more config (e.g. worker_pins naming a token issued later). */
+    public function rebuild(array $more): void
+    {
+        $this->config = $more + $this->config;
+        $this->app    = Bootstrap::build($this->config, $this->pdo, $this->clock, $this->ids);
     }
 
     public function call(string $method, string $path, ?string $token, $body = null, array $query = []): Response
@@ -848,6 +857,7 @@ require __DIR__ . '/notes_tests.php';
 require __DIR__ . '/upload_tests.php';
 require __DIR__ . '/alert_tests.php';
 require __DIR__ . '/request_tests.php';
+require __DIR__ . '/pin_tests.php';
 
 // ---- run -------------------------------------------------------------------
 

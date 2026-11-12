@@ -15,6 +15,7 @@ require_once __DIR__ . '/ScanStore.php';
 require_once __DIR__ . '/ScannerPolicy.php';
 require_once __DIR__ . '/ScannerTools.php';
 require_once __DIR__ . '/WorkerScans.php';
+require_once __DIR__ . '/WorkerPins.php';
 require_once __DIR__ . '/DownloadStore.php';
 require_once __DIR__ . '/PrinterPolicy.php';
 require_once __DIR__ . '/PrinterTools.php';
@@ -121,7 +122,8 @@ final class Bootstrap
                                   $uploads);
         $fetcher = isset($config['upload_fetcher']) && $config['upload_fetcher'] instanceof IUrlFetcher
                  ? $config['upload_fetcher'] : new CurlUrlFetcher((int) $config['upload_fetch_seconds']);
-        $worker = new WorkerTasks($store, $store, $audit, (int) $config['lease_seconds'], (int) $config['max_details'], $clientScopes);
+        $worker = new WorkerTasks($store, $store, $audit, (int) $config['lease_seconds'], (int) $config['max_details'], $clientScopes,
+                                  new WorkerPins((array) ($config['worker_pins'] ?? [])));
         $watchCfg = (array) ($config['watch'] ?? []) + ['refresh_seconds' => 30, 'escalate_after' => [900, 3600]];
         $watch    = new AlertWatch(new SqliteWatchSource($pdo), new SqliteWorkerContacts($pdo), new SqliteAlertStore($pdo, $ids),
                                    new QueueWatchPolicy(array_intersect_key($watchCfg, QueueWatchPolicy::defaults())),

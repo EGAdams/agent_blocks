@@ -116,10 +116,12 @@ final class WorkerTasks
     /** @var int */               private $leaseSeconds;
     /** @var int */               private $maxDetails;
     private $clientScopes;
+    /** @var WorkerPins */ private $pins;
 
     public function __construct(ITaskLeaseManager $leases, ITaskRepository $tasks, IAuditLogger $audit, int $leaseSeconds,
-                                int $maxDetails = 131072, ?ClientScopes $clientScopes = null)
+                                int $maxDetails = 131072, ?ClientScopes $clientScopes = null, ?WorkerPins $pins = null)
     {
+        $this->pins         = $pins ?: new WorkerPins();
         $this->leases       = $leases;
         $this->tasks        = $tasks;
         $this->audit        = $audit;
@@ -128,18 +130,32 @@ final class WorkerTasks
         $this->clientScopes = $clientScopes ?: new ClientScopes();
     }
 
-    /** @param string[] $skip `operation@workspace` pairs this worker's lane does not run */
-    public function next(array $skip = []): ?array
+    /**
+     * @param string[] $skip `operation@workspace` pairs this worker's lane does not run
+     * A pinned worker (WorkerPins) is offered only its own workspaces; every other worker never sees them.
+     */
+    public function next(array $skip = [], ?Principal $who = null): ?array
     {
         $this->leases->recoverExpired();
-        $task = $this->leases->next($skip);
+        $own  = $who === null ? null : $this->pins->workspacesFor($who);
+        $task = $this->leases->next($skip, $own, $own === null ? $this->pins->pinned() : []);
         return $task === null ? null : ['task_id' => $task['id']];
+    }
+
+    public function pinned(Principal $who): bool
+    {
+        return $this->pins->workspacesFor($who) !== null;
     }
 
     public function claim(Principal $who, string $id, array $body): array
     {
         $this->leases->recoverExpired();
         $workerId = self::text($body, 'worker_id', '/^[A-Za-z0-9._-]{1,64}$/');
+        $found    = $this->tasks->find($id);
+        if ($found !== null && !$this->pins->mayRun($who, (string) $found['workspace'])) {
+            $this->audit->record($who->id, 'claim', $id, 'pinned_elsewhere', ['worker_id' => $workerId]);
+            throw new BridgeError(409, 'pinned_elsewhere', 'that workspace is pinned to another machine\'s worker');
+        }
         $task     = $this->leases->claim($id, $workerId, $this->leaseSeconds);
         if ($task === null) {
             $this->audit->record($who->id, 'claim', $id, 'lost');
@@ -371,10 +387,13 @@ final class GatewayApp
         if ($m === 'GET' && $p === '/worker/tasks/next') {
             $who  = $this->principal($r, 'worker');
             $skip = $this->laneSkips($r);
+            if ($this->pinnedLane($r) && !$this->worker->pinned($who)) {
+                throw new BridgeError(403, 'not_pinned', 'this worker token has no pinned workspaces');
+            }
             if ($this->watch !== null) {
                 $this->watch->workerSeen($who, $skip);
             }
-            $next = $this->worker->next($skip);
+            $next = $this->worker->next($skip, $who);
             return $next === null ? new Response(204, null) : new Response(200, $next);
         }
         if ($this->watch !== null && $m === 'GET' && $p === '/alerts') {
@@ -474,6 +493,19 @@ final class GatewayApp
             return new Response(200, $action === 'update' ? $requests->update($who, $body) : $requests->close($who, $body));
         }
         throw new BridgeError(405, 'method_not_allowed', 'method not allowed');
+    }
+
+    /** `?pinned=1`: a machine-lane worker asking for its pinned workspaces only (any other value is a 400, which is
+     *  how a worker tells a gateway that knows pins from one that would silently hand it everything). */
+    private function pinnedLane(Request $r): bool
+    {
+        if (!isset($r->query['pinned'])) {
+            return false;
+        }
+        if ((string) $r->query['pinned'] !== '1') {
+            throw new BridgeError(400, 'bad_pinned', 'pinned takes only the value 1');
+        }
+        return true;
     }
 
     private function laneSkips(Request $r): array
