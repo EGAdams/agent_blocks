@@ -88,5 +88,8 @@ Toyota reaches the same Bridge agent through her `bridge_scala_storage` route
 JSON prompt above, reads a `store` back and sends it only after a yes. `move`/`delete` are answered in words and
 never sent. `adapters/scala_storage_route.py` forces the route ahead of Scala's to-do answer route when a message
 names a scan id, or a machine with a filing word; a to-do number (`#7`) stays with `scala_questions`. Tested
-offline (`.venv/bin/python -m receptionist_team.tests.test_bridge_scala_storage_route`); no live run through her
-yet.
+offline (`.venv/bin/python -m receptionist_team.tests.test_bridge_scala_storage_route`) and verified live
+through her sidecar on 2026-11-12: "what folders are on R46" (task `t_1f3ab17f8dcdfad5e4709a1a`), and a store
+of the example scan to BATI `insurance/home` read back, sent after a yes, answered `duplicate` (task
+`t_ec5e881ba447ac9a946ae79a`, adw `b800d8d7`, client `toyota-bridge`), re-checked with `sha256sum` on BATI.
+Her monitor waits 15 seconds; a task still running after that is reported at the start of her next turn.
