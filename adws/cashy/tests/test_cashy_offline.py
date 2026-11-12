@@ -222,3 +222,15 @@ def test_fnbo_is_a_known_bank_on_its_own_domain() -> None:
     assert on_hosts( fnbo.login_url, fnbo.hosts )
     assert not on_hosts( "https://fnbo.com.example.net/", fnbo.hosts )
     assert not on_hosts( "https://myfnbo.com/", fnbo.hosts )
+
+
+def test_a_statement_named_by_its_closing_date_is_found_for_its_month() -> None:
+    """2026-11-11, R46: FNBO lists "Statement Closing 01/02/2026", and Cashy saw no January 2026 statement."""
+    from browser_workflows.templating.period import CalendarPeriodVocabulary
+    from cashy.navigation.statements import CalendarStatementLocator
+
+    words = CalendarStatementLocator( CalendarPeriodVocabulary()).words( Period( year=2026, month=1 ))
+    assert words[ 0 ] == "January 2026"
+    assert any( w in "Statement Closing 01/02/2026" for w in words )
+    assert not any( w in "Statement Closing 02/02/2026" for w in words )
+    assert not any( w in "Statement Closing 12/03/2025" for w in words )

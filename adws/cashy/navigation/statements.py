@@ -15,4 +15,6 @@ class CalendarStatementLocator:
         v = self._vocabulary.values( period )
         return [ f"{ v[ 'month_name' ]} { v[ 'year' ]}", f"{ v[ 'month_name' ]}, { v[ 'year' ]}",
                  f"{ v[ 'month_abbr' ]} { v[ 'year' ]}", f"{ v[ 'month_2' ]}/{ v[ 'year' ]}",
-                 f"{ v[ 'year' ]}-{ v[ 'month_2' ]}", f"{ v[ 'month_2' ]}/{ v[ 'yy' ]}" ]
+                 f"{ v[ 'year' ]}-{ v[ 'month_2' ]}", f"{ v[ 'month_2' ]}/{ v[ 'yy' ]}",
+                 # a list that names each statement by its closing date (FNBO: "Statement Closing 01/02/2026")
+                 *( f"{ v[ 'month_2' ]}/{ day:02d}/{ v[ 'year' ]}" for day in range( 1, 32 ))]
