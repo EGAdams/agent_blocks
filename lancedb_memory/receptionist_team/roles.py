@@ -202,6 +202,10 @@ ROLE_BLURBS: dict[str, str] = {
         "after a yes deploys a project (checks first, health after, the last release put back by itself if health "
         "fails), restarts its services, or rolls it back to an earlier release"
     ),
+    "bridge_scala_storage": (
+        "Scala's filing on BATI, R46 (Mom's) or SQMC: lists folders, checks or finds a filed scan; after a yes "
+        "copies a scan into a folder, always a copy"
+    ),
     "object_inspector": "answers from the object trace",
 }
 
@@ -245,6 +249,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_browser": "the Bridge's browser",
     "bridge_chatgpt": "the Bridge's ChatGPT relay",
     "bridge_deploy": "the Bridge's Deployment ADW",
+    "bridge_scala_storage": "Scala's filing",
     "object_inspector": "our object inspector",
 }
 
@@ -291,6 +296,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_browser": "on that browser step",
     "bridge_chatgpt": "on that ChatGPT message",
     "bridge_deploy": "on that deployment",
+    "bridge_scala_storage": "on filing that scan",
     "object_inspector": "looking that up in the object trace",
 }
 
@@ -312,7 +318,7 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
                           "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                           "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy",
-                          "object_inspector")
+                          "bridge_scala_storage", "object_inspector")
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for Scala's filing: lists the machines and their approved folders, checks a machine, verifies, fetches back and reports filed scans, and after a yes copies a scan by id into an approved folder on BATI, R46 or SQMC",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_scala_storage",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and fills in scan_id, machine and folder; bridge_client/storage_plans.py builds the exact JSON prompt. Every store is read back and sent only after a yes. The same Bridge agent, worker adapter and ADW (adws/adw_scala_storage.py) that ChatGPT drives."
+}

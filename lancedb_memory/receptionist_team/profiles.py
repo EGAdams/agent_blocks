@@ -39,6 +39,7 @@ from .adapters.spreadsheet_route import SpreadsheetRequestRoute
 from .adapters.status_route import StatusQuestionRoute
 from .adapters.tax_progress_route import TaxProgressPageRoute
 from .adapters.scala_route import ScalaAnswerRoute
+from .adapters.scala_storage_route import ScalaStorageRoute
 from .adapters.todo_route import CompanyTodoRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
@@ -124,7 +125,7 @@ def _toyota_runner() -> IDelegationRunner:
             **{name: BridgeSpecialistRunner(name)
                for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                             "bridge_notes", "bridge_browser", "bridge_chatgpt",
-                            "bridge_deploy")},
+                            "bridge_deploy", "bridge_scala_storage")},
             # The four inspection questions, answered from object_trace.service
             # (127.0.0.1:8790) with evidence; no model (adapters/inspection_runner.py).
             "object_inspector": ObjectInspectionRunner(),
@@ -290,6 +291,9 @@ TOYOTA = ReceptionistProfile(
         # Scans, prints and Bridge code changes go to their specialist, never
         # the read-only desk, which can only refuse them (bridge_device_route.py).
         BridgeDeviceRoute(),
+        # Copying a scan to BATI, R46 or SQMC is a Bridge storage request, even
+        # when it names Scala; a to-do number stays hers (scala_storage_route.py).
+        ScalaStorageRoute("bridge_scala_storage"),
         # Scala's filing questions are to-do items, so an answer to one can
         # name the list; what was asked for is a filing (adapters/scala_route.py).
         ScalaAnswerRoute("scala_questions"),

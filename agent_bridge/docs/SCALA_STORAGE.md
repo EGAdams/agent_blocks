@@ -80,4 +80,13 @@ Names follow Scala's cabinet convention: `<capture date>_<folder leaf>_<sha256[:
 - Offline tests: `lancedb_memory/.venv/bin/python -m scala.tests.test_storage` and
   `-m agent_bridge_worker.tests.test_scala_storage_agent`.
 
-Not built: Toyota has no `bridge_scala_storage` route yet; she can reach it only through a generic Bridge task.
+## Toyota's route
+
+Toyota reaches the same Bridge agent through her `bridge_scala_storage` route
+(`lancedb_memory/receptionist_team/bridge_client/storage_plans.py`, one Plan per operation, the shape of
+`deploy_plans.py`): a Groq form filler picks the operation and the scan id, machine and folder, code builds the
+JSON prompt above, reads a `store` back and sends it only after a yes. `move`/`delete` are answered in words and
+never sent. `adapters/scala_storage_route.py` forces the route ahead of Scala's to-do answer route when a message
+names a scan id, or a machine with a filing word; a to-do number (`#7`) stays with `scala_questions`. Tested
+offline (`.venv/bin/python -m receptionist_team.tests.test_bridge_scala_storage_route`); no live run through her
+yet.

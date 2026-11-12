@@ -28,6 +28,7 @@ from .models import TASK_ID_PATTERN, BridgeActionRequest, BridgeAgent, OPERATION
 from .notes_plans import NOTES_PLANS
 from .deploy_plans import DEPLOY_PLANS
 from .relay_plans import RELAY_PLANS
+from .storage_plans import NEVER, STORAGE_PLANS
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
 WRITE_FRAME = ("Request relayed by Toyota, the receptionist; EG confirmed it out loud before it was sent. "
@@ -124,6 +125,9 @@ class SpecialistForm(BaseModel):
     unit: str | None = None           # deploy: one of the project's services
     lines: int | None = None          # deploy: how many log lines to read
     dry_run: bool | None = None       # deploy: say what would change, change nothing
+    scan_id: str | None = None        # scala storage: scan_ + 26, or "last"
+    machine: str | None = None        # scala storage: BATI, R46 (Mom's) or SQMC
+    folder: str | None = None         # scala storage: an approved folder on that machine, from its folder list
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -424,6 +428,37 @@ class DeployBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class ScalaStorageBuilder:
+    """scala-storage: Scala's filing on BATI, R46 and SQMC -- copy a scan by id, verify it, find it, check a machine.
+
+    Each operation is a Plan in `storage_plans.STORAGE_PLANS` (Strategy + Registry); this class only finds it.
+    The same Bridge agent, worker adapter and ADW (`adws/adw_scala_storage.py`) ChatGPT drives, so Toyota gains
+    no filing path of her own. A store is always a copy; move and delete do not exist on either side.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(STORAGE_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("storage.")
+        if what in NEVER:
+            raise FormProblem("Scala only copies, so I can't move or delete a scan. I can copy it somewhere "
+                              "and leave the original where it is.")
+        plan = STORAGE_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should I do with the scans: list the machines, list a machine's folders, "
+                              "check a machine, copy a scan to a folder, check a filed copy, fetch one back, "
+                              "or show what's been filed?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "scala-storage"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -445,4 +480,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_browser", "browser", "the Bridge's browser", BrowserBuilder()),
     BridgeSpecialist("bridge_chatgpt", "chatgpt-relay", "the Bridge's ChatGPT relay", ChatGptBuilder()),
     BridgeSpecialist("bridge_deploy", "deploy", "the Bridge's Deployment ADW", DeployBuilder()),
+    BridgeSpecialist("bridge_scala_storage", "scala-storage", "Scala's filing on the Bridge", ScalaStorageBuilder()),
 )}

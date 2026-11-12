@@ -225,7 +225,8 @@ The top-level areas are:
   `storage_targets.json`), with the destination proving its hostname, no
   overwrite, SHA-256 checked after, and an audit line per attempt in the
   gitignored `adws/adw_data/scala_storage/`. It runs only on SQMC; ChatGPT
-  reaches it as protected Bridge agent `scala-storage`. Verified live
+  reaches it as protected Bridge agent `scala-storage`, and Toyota through her
+  `bridge_scala_storage` route (`bridge_client/storage_plans.py`, tested offline only). Verified live
   2026-11-12 on all three machines.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will

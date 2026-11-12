@@ -28,6 +28,7 @@
     "bridge_browser",
     "bridge_chatgpt",
     "bridge_deploy",
+    "bridge_scala_storage",
     "object_inspector"
   ],
   "disabled": {}
