@@ -92,6 +92,9 @@ RELAY_ADW       = _HERE / "adw_chatgpt_relay.py"
 DEPLOY_ENABLED  = Path.home() / ".config" / "startrek_deploy" / "enabled"     # the Deployment ADW is off until this exists
 DEPLOY_WORKDIR  = _HERE / "adw_data" / "deployment" / "workspace"           # the `deploy` workspace: empty, nothing runs in it
 DEPLOY_ADW      = _HERE / "adw_deploy.py"
+STORAGE_ENABLED = Path.home() / ".config" / "scala_storage" / "enabled"       # Scala's multi-machine filing is off until this exists
+STORAGE_WORKDIR = _HERE / "adw_data" / "scala_storage" / "workspace"         # the `scala-storage` workspace: empty, nothing runs in it
+STORAGE_ADW     = _HERE / "adw_scala_storage.py"
 NOTES_REVIEW_ADW = _HERE / "adw_notes_review.py"                               # the notes review_* operations
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
@@ -178,6 +181,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.adapters.chatgpt_relay_process import UvChatGptCommands
     from agent_bridge_worker.deploy_agent import DeployAgent
     from agent_bridge_worker.adapters.deploy_process import UvDeployCommands
+    from agent_bridge_worker.scala_storage_agent import ScalaStorageAgent
+    from agent_bridge_worker.adapters.scala_storage_process import UvScalaStorageCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
@@ -292,9 +297,17 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # Agent and workspace share the name `deploy` (see the chatgpt-relay note above). The projects it changes
         # are fixed in adws/deployment/projects.json; the workspace itself is an empty directory.
         self_contained.add( "deploy" )
+    if STORAGE_ENABLED.exists():                        # Scala's storage is off until EG creates the flag file
+        STORAGE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "scala-storage" ]  = ScalaStorageAgent( UvScalaStorageCommands( UV, STORAGE_ADW, _HERE.parent ), clock )
+        offered[ "scala-storage" ] = { "inspect": False, "implement": True }
+        # Agent and workspace share one name (see the chatgpt-relay note above). What it may write is fixed in
+        # lancedb_memory/scala/storage/storage_targets.json; the workspace itself is an empty directory.
+        self_contained.add( "scala-storage" )
     write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
-                                      "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR },
+                                      "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR,
+                                      "scala-storage": STORAGE_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent

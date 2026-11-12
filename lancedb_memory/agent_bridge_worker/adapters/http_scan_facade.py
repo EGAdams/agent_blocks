@@ -72,6 +72,10 @@ class HttpScanFacade:
     def text( self, scan_id: str, page: int ) -> dict:
         return self._json( "GET", f"/scans/{ self._id( scan_id )}/text?page={ int( page )}" )
 
+    def recent( self, limit: int ) -> dict:
+        """The newest scans (`scanner:list`), so Scala can resolve "the last scan" to a scan id."""
+        return self._json( "GET", f"/scans?limit={ max( 1, min( int( limit ), 50 ))}" )
+
     def mazda( self, scan_id: str ) -> dict:
         return self.outcomes( scan_id )[ "mazda" ]
 

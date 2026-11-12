@@ -1,0 +1,42 @@
+{
+ "_comment": "Scala's storage targets. Machine names, hostnames, roots and approved folders live here and nowhere else in the source. `hostname` is what the machine must report before anything is written. `ssh` is used only when the ADW is not already running on that machine; it names an existing key-authenticated connection (no credentials here). `folders` is the complete write allowlist: a folder not listed cannot be written, and a listed folder that is missing is created inside the root.",
+ "targets": {
+  "BATI": {
+   "hostname": "DESKTOP-SHDBATI",
+   "description": "Personal document storage (Windows 10 / WSL)",
+   "aliases": [ "bati", "desktop-shdbati", "personal" ],
+   "root": "/home/adamsl/file_cabinet",
+   "ssh": { "host": "100.80.49.10", "port": 22, "user": "adamsl" },
+   "folders": [
+    "banks/bank_of_america", "banks/bank_of_arkansas", "banks/chase", "banks/rocket_mortgage",
+    "bills/cell_phone", "bills/electric", "bills/gas", "bills/gym_memberships", "bills/internet",
+    "bills/trash", "bills/water_sewer",
+    "insurance/home"
+   ]
+  },
+  "R46": {
+   "hostname": "Rosemary46",
+   "description": "Mom's document storage (Windows, C:\\Users\\rbarn\\file_cabinet)",
+   "aliases": [ "r46", "rosemary46", "rosemary", "mom", "moms" ],
+   "root": "/mnt/c/Users/rbarn/file_cabinet",
+   "ssh": { "host": "100.72.34.38", "port": 2222, "user": "adamsl" },
+   "folders": [
+    "banks",
+    "bills/electric", "bills/gas", "bills/internet", "bills/phone", "bills/trash", "bills/water_sewer",
+    "insurance/auto", "insurance/health", "insurance/home",
+    "letters", "medical", "taxes"
+   ]
+  },
+  "SQMC": {
+   "hostname": "DESKTOP-2OBSQMC",
+   "description": "EG's primary computer: scanning, Scala's scanned_documents cabinet, the Bridge",
+   "aliases": [ "sqmc", "desktop-2obsqmc", "eg", "primary" ],
+   "root": "/mnt/c/Users/NewUser/scanned_documents",
+   "ssh": { "host": "100.102.209.100", "port": 2222, "user": "adamsl" },
+   "folders": [
+    "bills_511/electric", "bills_511/gas", "bills_511/mortgage", "bills_511/xfinity",
+    "documents_511/probate", "documents_511/property_transfer"
+   ]
+  }
+ }
+}

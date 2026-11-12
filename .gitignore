@@ -77,4 +77,5 @@ adws/adw_data/browser_control/
 adws/adw_data/notes_review/
 # Deployment ADW: the deploy agent's scratch workspace (runs, releases live in ~/.local/share/adw_deploy)
 adws/adw_data/deployment/
+adws/adw_data/scala_storage/
 adws/adw_data/notes_bridge/attach_tmp/
