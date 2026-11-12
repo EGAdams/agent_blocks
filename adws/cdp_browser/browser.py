@@ -39,6 +39,9 @@ KEYS: dict[ str, tuple[ str, int, str ]] = {
     " ":         ( "Space",     32, " " ),
 }
 
+#: Chrome's answer while a new document's JavaScript context does not exist yet.
+_NO_CONTEXT = "Cannot find default execution context"
+
 #: The flag `_mark` leaves on a document about to be navigated away from.
 _MARK = "__cdpWorkflowLeaving"
 
@@ -332,12 +335,25 @@ class CdpWorkflowBrowser:
         old.close()
 
     def _evaluate( self, expression: str ) -> Any:
-        result = self._page.call( "Runtime.evaluate", { "expression": expression, "returnByValue": True })
+        result = self._settled_call({ "expression": expression, "returnByValue": True })
         if "exceptionDetails" in result:
             details = result[ "exceptionDetails" ]
             raise BrowserWorkflowError( str( details.get( "exception", {}).get( "description" )
                                              or details.get( "text", "script error" ))[ :200 ])
         return result.get( "result", {}).get( "value" )
+
+    def _settled_call( self, params: dict[ str, Any ], seconds: float = 5.0 ) -> dict[ str, Any ]:
+        """Runtime.evaluate, waiting out a document that has no JavaScript context yet. A tab the debug
+        Chrome has only just opened answers "Cannot find default execution context" for a moment
+        (2026-11-11, R46: Cashy's first read of the launcher's start tab failed on it)."""
+        deadline = time.monotonic() + seconds
+        while True:
+            try:
+                return self._page.call( "Runtime.evaluate", params )
+            except CdpCommandError as exc:
+                if _NO_CONTEXT not in str( exc ) or time.monotonic() >= deadline:
+                    raise
+            time.sleep( 0.2 )
 
     def _evaluate_async( self, expression: str, timeout_seconds: float = 30.0 ) -> Any:
         result = self._page.call( "Runtime.evaluate", { "expression": expression, "returnByValue": True,

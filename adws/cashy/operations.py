@@ -23,28 +23,43 @@ KitFactory = Callable[[ int ], CashyKit ]
 
 
 class CashyRuntime:
-    """One CashyKit (and its agent) per port, made when first asked for."""
+    """One CashyKit (and its agent) per port, made when first asked for. `--launch-chrome` asks for the kit
+    whose connection starts the debug Chrome when nothing answers on its port (cashy/launching.py)."""
 
-    def __init__( self, factory: KitFactory ) -> None:
-        self._factory = factory
-        self._kits: dict[ int, CashyKit ] = {}
-        self._agents: dict[ int, CashyAgent ] = {}
+    def __init__( self, factory: KitFactory, launching: KitFactory | None = None ) -> None:
+        self._factory   = factory
+        self._launching = launching or factory
+        self._kits: dict[ tuple[ int, bool ], CashyKit ] = {}
+        self._agents: dict[ tuple[ int, bool ], CashyAgent ] = {}
+
+    @staticmethod
+    def _key( args: dict[ str, Any ]) -> tuple[ int, bool ]:
+        return int( args.get( "port" ) or 9222 ), bool( args.get( "launch_chrome" ))
 
     def kit( self, args: dict[ str, Any ]) -> CashyKit:
-        port = int( args.get( "port" ) or 9222 )
-        if port not in self._kits:
-            self._kits[ port ] = self._factory( port )
-        return self._kits[ port ]
+        key = self._key( args )
+        if key not in self._kits:
+            self._kits[ key ] = ( self._launching if key[ 1 ] else self._factory )( key[ 0 ])
+        return self._kits[ key ]
 
     def agent( self, args: dict[ str, Any ]) -> CashyAgent:
-        port = int( args.get( "port" ) or 9222 )
-        if port not in self._agents:
-            self._agents[ port ] = self.kit( args ).agent()
-        return self._agents[ port ]
+        key = self._key( args )
+        if key not in self._agents:
+            self._agents[ key ] = self.kit( args ).agent()
+        return self._agents[ key ]
+
+    def session( self, args: dict[ str, Any ]) -> dict[ str, Any ]:
+        """Where the session rests after this step, as saved (already sanitised: no query strings, masked digits)."""
+        s = self.kit( args ).sessions().load( _session( args ))
+        return { "id": s.id, "state": s.state, "bank": s.bank, "target_id": s.target_id, "url": s.url,
+                 "task": s.task.model_dump( mode="json" ), "question": s.question.prompt if s.question else "",
+                 "updated_at": s.updated_at }
 
 
-def _outcome( reply: CashyReply ) -> OperationOutcome:
+def _outcome( reply: CashyReply, session: dict[ str, Any ] | None = None ) -> OperationOutcome:
     data = { "state": reply.state, "events": [ e.model_dump() for e in reply.events ]}
+    if session is not None:
+        data[ "session" ] = session
     return ok( reply.text, **data ) if reply.ok else refused( reply.text, **data )
 
 
@@ -69,7 +84,8 @@ class CashyTurn( Operation ):
         text = str( args.get( "text" ) or "" ).strip()
         if not text:
             return refused( "say something: --text \"open Chase\"" )
-        return _outcome( self._runtime.agent( args ).turn( text, _actor( args ), _session( args )))
+        reply = self._runtime.agent( args ).turn( text, _actor( args ), _session( args ))
+        return _outcome( reply, self._runtime.session( args ))
 
 
 class CashyIntent( Operation ):
@@ -97,7 +113,8 @@ class CashyIntent( Operation ):
                 return refused( f"I don't know a bank called { values[ 'bank' ]!r}" )
             values[ "bank" ] = bank.key
         intent = Intent( kind=self._kind, text=str( args.get( "text" ) or "" ), **values )
-        return _outcome( self._runtime.agent( args ).perform([ intent ], _actor( args ), _session( args )))
+        reply  = self._runtime.agent( args ).perform([ intent ], _actor( args ), _session( args ))
+        return _outcome( reply, self._runtime.session( args ))
 
 
 class SearchMemories( Operation ):
@@ -176,7 +193,8 @@ def cashy_operations( kit: WorkflowKit, console: TerminalConsole,
                       factory: KitFactory | None = None ) -> dict[ str, Any ]:
     """The run_browser_operation catalog. The WorkflowKit it is handed is not
     used: Cashy builds her own, pinned to the conversation's tab."""
-    runtime = CashyRuntime( factory or ( lambda port: CashyKit( port=port )))
+    runtime = CashyRuntime( factory or ( lambda port: CashyKit( port=port )),
+                            None if factory else ( lambda port: CashyKit( port=port, launch_chrome=True )))
     found: list[ Any ] = [ CashyTurn( runtime ), SearchMemories( runtime ), ListWorkflows( runtime ), DownloadHistory( runtime )]
     found += [ CashyIntent( runtime, kind, text, fields ) for kind, text, fields in INTENT_STEPS ]
     return { op.name: op for op in found }

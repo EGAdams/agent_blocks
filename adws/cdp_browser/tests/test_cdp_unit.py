@@ -243,3 +243,40 @@ def test_a_reload_can_wait_for_the_document_without_its_embedded_pages() -> None
     _stuck_browser( timeout=5.0 ).reload( ready="interactive" )             # returns: the document is there
     with pytest.raises( BrowserWorkflowError, match="did not finish loading" ):
         _stuck_browser( timeout=0.5 ).reload()                                 # "complete" still means complete
+
+
+def test_an_evaluate_waits_out_a_tab_that_has_no_javascript_context_yet() -> None:
+    """2026-11-11, R46: the launcher's brand-new start tab answered "Cannot find default execution context"
+    to Cashy's first read, and open_bank failed before it navigated anywhere."""
+    from cdp_browser.channel import CdpCommandError
+
+    class Starting:
+        def __init__( self ) -> None:
+            self.tries = 0
+
+        def call( self, method: str, params: dict, **_: object ) -> dict:
+            self.tries += 1
+            if self.tries < 3:
+                raise CdpCommandError( "Runtime.evaluate: Cannot find default execution context" )
+            return { "result": { "value": "https://www.google.com/" }}
+
+    channel = Starting()
+    assert _browser( channel ).current_url == "https://www.google.com/"
+    assert channel.tries == 3
+
+
+def test_any_other_command_error_is_not_retried() -> None:
+    from cdp_browser.channel import CdpCommandError
+
+    class Broken:
+        tries = 0
+
+        def call( self, method: str, params: dict, **_: object ) -> dict:
+            Broken.tries += 1
+            raise CdpCommandError( "Runtime.evaluate: Target closed" )
+
+    try:
+        _browser( Broken()).current_url
+    except CdpCommandError:
+        pass
+    assert Broken.tries == 1

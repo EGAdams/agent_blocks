@@ -180,3 +180,34 @@ def test_operations_share_one_agent_and_refuse_bad_input( tmp_path: Path ) -> No
     assert not ops[ "cashy_open_bank" ].run({ "bank": "Bank of Nowhere" }).ok
     assert "idle" in ops[ "cashy_status" ].run({}).line
     assert ops[ "cashy_list_workflows" ].run({}).line == "No learned banking workflows yet."
+
+
+def test_open_bank_waits_for_the_bank_domain_and_never_trusts_a_lookalike() -> None:
+    """2026-11-11, R46: Fifth Third's "Login Redirect" page read about:blank, and Cashy said the login page was ready."""
+    from browser_workflows.errors import BrowserWorkflowError
+    from cashy.actions.bank_actions import landed, on_hosts
+
+    assert on_hosts( "https://secure.53.com/olb/login", [ "53.com" ])
+    assert on_hosts( "https://53.com/", [ "53.com" ])
+    assert not on_hosts( "https://evil53.com/login", [ "53.com" ])
+    assert not on_hosts( "https://53.com.example.net/", [ "53.com" ])
+    assert not on_hosts( "about:blank", [ "53.com" ])
+
+    class Redirecting:
+        def __init__( self, urls: list[ str ]) -> None:
+            self.urls = urls
+
+        @property
+        def current_url( self ) -> str:
+            return self.urls.pop( 0 ) if len( self.urls ) > 1 else self.urls[ 0 ]
+
+    slept: list[ float ] = []
+    assert landed( Redirecting([ "about:blank", "about:blank", "https://secure.53.com/olb/login" ]), [ "53.com" ],
+                   sleep=slept.append ) == "https://secure.53.com/olb/login"
+    assert len( slept ) == 2
+    try:
+        landed( Redirecting([ "https://evil53.com/login?x=1" ]), [ "53.com" ], seconds=1.0, sleep=lambda _: None )
+    except BrowserWorkflowError as exc:
+        assert "evil53.com" in str( exc ) and "x=1" not in str( exc )
+    else:
+        raise AssertionError( "a lookalike domain was accepted" )

@@ -1,7 +1,11 @@
 """Opening a bank and waiting for the person to sign in."""
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
+
+from browser_workflows.errors import BrowserWorkflowError
 
 from ..models import CashyTask, Intent, Question
 from .session_actions import continuation
@@ -57,6 +61,36 @@ class OpenBankAction:
         else:
             browser.open_tab( url )                     # the person's own tab is left alone
         turn.session.target_id = browser.target_id
+        landed( browser, hosts )
+
+
+#: how long a bank's login page may spend redirecting (Fifth Third: www.53.com -> "Login Redirect" -> secure.53.com)
+LANDING_SECONDS = 20.0
+
+
+def on_hosts( url: str, hosts: list[ str ]) -> bool:
+    """The URL's own host is one of the bank's, or a subdomain of one -- not merely a string containing it."""
+    try:
+        host = ( urlsplit( url ).hostname or "" ).lower()
+    except ValueError:
+        return False
+    return any( host == h.lower() or host.endswith( "." + h.lower()) for h in hosts )
+
+
+def landed( browser, hosts: list[ str ], seconds: float = LANDING_SECONDS, sleep=time.sleep ) -> str:
+    """Until the tab is on the bank's own domain; "the login page is ready" is never said of another page.
+    2026-11-11, R46: Fifth Third's redirect page reads about:blank, and Cashy reported ready from it."""
+    waited = 0.0
+    while True:
+        url = browser.current_url
+        if on_hosts( url, hosts ):
+            return url
+        if waited >= seconds:
+            shown = urlsplit( url ).hostname or url.split( "?" )[ 0 ][ :60 ] or "nothing"
+            raise BrowserWorkflowError( f"the tab did not reach the bank's own site ({ ', '.join( hosts ) }) "
+                                        f"within { round( seconds ) }s; it shows { shown }" )
+        sleep( 0.5 )
+        waited += 0.5
 
 
 class LoggedInAction:

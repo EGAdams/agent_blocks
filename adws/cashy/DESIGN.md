@@ -184,6 +184,21 @@ sequenceDiagram
   path at all.
 - **Versions are never overwritten.** A repair registers vN+1 as a
   candidate, and vN stays until vN+1 verifies.
+- **The bank's own domain.** `OpenBankAction` says "the login page is
+  ready" only once the tab's host is one of the profile's `hosts` or a
+  subdomain of one (`bank_actions.on_hosts`), waiting up to 20 s for a
+  redirect. A look-alike such as `evil53.com` fails the call.
+
+## Over the Bridge, on one named machine (R46)
+
+ChatGPT and Toyota reach Cashy on R46 as Bridge agent `cashy-r46`
+(`lancedb_memory/agent_bridge_worker/cashy_agent.py`), on the R46 worker's
+`machine` lane. Each task runs one `adw_cashy_<op>.py`, with `--actor` set to
+the Bridge sender, never `user`, so a Bridge caller can open and read a page
+but can never approve a consequential step. The gateway offers the
+workspace only to R46's worker (`worker_pins`), and the worker refuses a task
+that names another machine. Calls, polling and the after-login procedure are
+in `agent_bridge/docs/CASHY_R46.md`.
 
 ## The dashboard
 
