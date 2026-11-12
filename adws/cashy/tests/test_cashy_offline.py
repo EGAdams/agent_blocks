@@ -211,3 +211,14 @@ def test_open_bank_waits_for_the_bank_domain_and_never_trusts_a_lookalike() -> N
         assert "evil53.com" in str( exc ) and "x=1" not in str( exc )
     else:
         raise AssertionError( "a lookalike domain was accepted" )
+
+
+def test_fnbo_is_a_known_bank_on_its_own_domain() -> None:
+    from cashy.actions.bank_actions import on_hosts
+    from cashy.banks.profiles import ALL_BANKS
+
+    fnbo = next( b for b in ALL_BANKS if b.key == "fnbo" )
+    assert fnbo.login_url == "https://www.banking.fnbo.com/"
+    assert on_hosts( fnbo.login_url, fnbo.hosts )
+    assert not on_hosts( "https://fnbo.com.example.net/", fnbo.hosts )
+    assert not on_hosts( "https://myfnbo.com/", fnbo.hosts )

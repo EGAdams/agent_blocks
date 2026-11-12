@@ -45,4 +45,10 @@ BANK_OF_AMERICA = BankProfile(
     hosts=[ "bankofamerica.com" ],
 )
 
-ALL_BANKS: list[ BankProfile ] = [ CHASE, FIFTH_THIRD, BANK_OF_AMERICA ]
+FNBO = BankProfile(
+    key="fnbo", title="FNBO", names=[ "fnbo", "first national bank of omaha", "first national bank omaha" ],
+    login_url="https://www.banking.fnbo.com/",
+    hosts=[ "fnbo.com" ],
+)
+
+ALL_BANKS: list[ BankProfile ] = [ CHASE, FIFTH_THIRD, BANK_OF_AMERICA, FNBO ]
