@@ -262,7 +262,7 @@ class MonitorPhase:
             polls += 1
         if not ctx.view.terminal:
             ctx.reply = (f"I've sent that to the Star Trek Bridge as task {ctx.view.task_id}. It's "
-                         f"{ctx.view.state} and not finished yet. I'll tell you when it finishes.")
+                         f"{ctx.view.state} and not finished yet. I'll tell you when it finishes, and it will pop up on the dashboard.")
             return PhaseRecord(self.name, "stopped", {"task_id": ctx.view.task_id},
                                {"state": ctx.view.state, "polls": polls}, next="respond")
         return PhaseRecord(self.name, "ok", {"task_id": ctx.view.task_id},
@@ -328,8 +328,16 @@ class RespondPhase:
             reason = e.sanitize(result.last_error or result.summary or "no reason given")
             return clip(f"Bridge task {result.task_id} failed: {reason}")
         answer = (result.body or result.summary or "").strip() or "it finished but returned no text"
-        answer = RespondPhase._said(answer) or answer
+        answer = RespondPhase._said(answer) or RespondPhase._before_data(answer)
         return clip(f"The Star Trek Bridge says (task {result.task_id}): {answer}")
+
+    @staticmethod
+    def _before_data(body: str) -> str:
+        """A worker that answers "sentence, blank line, JSON" (scala-storage, deploy, ...) is read aloud as the
+        sentence alone: the JSON is for ChatGPT, and clipped mid-object it was spoken as a stray ` { "scan_id":`."""
+        cut = min((i for i in (body.find("\n\n{"), body.find("\n\n[")) if i >= 0), default=-1)
+        head = body[:cut].strip() if cut >= 0 else ""
+        return head or body
 
     @staticmethod
     def _said(body: str) -> str:

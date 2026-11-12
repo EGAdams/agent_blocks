@@ -412,6 +412,74 @@ async def test_a_review_change_that_finishes_late_still_updates_the_remembered_r
     assert desk.NOTE_REVISIONS.get(DEED) == REV2 and desk.NOTE_ACTIVE_ITEMS.get(DEED) == "r-0123456789"
 
 
+async def test_a_promised_notice_survives_a_restart():
+    """Live, 2026-11-12: a deploy restarted Toyota two minutes after a scan she had promised to report on
+    finished, and the notice saying where it was filed vanished with the process."""
+    import tempfile
+    from pathlib import Path
+    store = Path(tempfile.mkdtemp()) / "notices.json"
+    clock, wall = Clock(), [1_000_000.0]
+    client = FakeClient(states=["running"] * 3 + ["succeeded"] * 3,
+                        result=BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body="filed"))
+    before = BridgeCompletionNotices(lambda: client, lambda r: f"said {r.body}", clock=clock, every=0,
+                                     store=store, wall=lambda: wall[0])
+    before.track(TID, "Scala's scanner")
+    assert before.pending() == []
+    # the process is gone; a new one reads the file and keeps watching
+    after = BridgeCompletionNotices(lambda: client, lambda r: f"said {r.body}", clock=Clock(), every=0,
+                                    store=store, wall=lambda: wall[0] + 120)
+    assert after.watching() == [TID]
+    for _ in range(4):
+        spoken = after.pending()
+    assert [n["spoken"] for n in spoken] == ["said filed"], spoken
+    # a notice heard but not acknowledged survives a second restart, and an acknowledged one does not
+    again = BridgeCompletionNotices(lambda: client, str, clock=Clock(), every=0, store=store)
+    assert [n["title"] for n in again.pending()] == ["Star Trek Bridge: Scala's scanner finished"]
+    assert again.acknowledge() == 1
+    assert BridgeCompletionNotices(lambda: client, str, store=store).pending() == []
+
+
+async def test_a_watched_task_past_its_hour_is_not_revived_by_a_restart():
+    import tempfile
+    from pathlib import Path
+    store = Path(tempfile.mkdtemp()) / "notices.json"
+    client = FakeClient(states=["running"] * 5)
+    BridgeCompletionNotices(lambda: client, str, clock=Clock(), every=0, store=store,
+                            wall=lambda: 0.0).track(TID, "Scala's scanner")
+    late = BridgeCompletionNotices(lambda: client, str, clock=Clock(), every=0, store=store,
+                                   wall=lambda: 3601.0)
+    late.pending()
+    assert late.watching() == []
+
+
+async def test_an_unreadable_notices_file_starts_empty():
+    import tempfile
+    from pathlib import Path
+    store = Path(tempfile.mkdtemp()) / "notices.json"
+    store.write_text("{not json")
+    assert BridgeCompletionNotices(lambda: None, str, store=store).watching() == []
+
+
+async def test_a_sentence_followed_by_its_json_is_spoken_as_the_sentence():
+    """Live, 2026-11-12: scala-storage answers "sentence, blank line, JSON"; Toyota read the clipped JSON
+    aloud after the sentence (` { "scan_id": ... "size":`)."""
+    from ..bridge_client.workflow import RespondPhase
+    body = ("scan_X already there (same bytes) to BATI; original preserved\n\n"
+            + json.dumps({"scan_id": "scan_X", "machine": "BATI", "size": 823350}, indent=1))
+    said = RespondPhase.result_sentence(BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body=body))
+    assert said.endswith("original preserved"), said
+    assert "{" not in said
+    listed = RespondPhase.result_sentence(BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True,
+                                                       body="Three folders.\n\n[\"a\", \"b\"]"))
+    assert listed.endswith("Three folders."), listed
+    bare = RespondPhase.result_sentence(BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True,
+                                                     body='{"said": "Filed it.", "x": 1}'))
+    assert bare.endswith("Filed it."), bare
+    plain = RespondPhase.result_sentence(BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True,
+                                                      body="Line one.\n\nLine two."))
+    assert plain.endswith("Line one. Line two."), plain
+
+
 if __name__ == "__main__":
     from tests.runner import main
 

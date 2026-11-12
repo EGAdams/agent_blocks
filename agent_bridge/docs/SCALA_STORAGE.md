@@ -92,4 +92,9 @@ offline (`.venv/bin/python -m receptionist_team.tests.test_bridge_scala_storage_
 through her sidecar on 2026-11-12: "what folders are on R46" (task `t_1f3ab17f8dcdfad5e4709a1a`), and a store
 of the example scan to BATI `insurance/home` read back, sent after a yes, answered `duplicate` (task
 `t_ec5e881ba447ac9a946ae79a`, adw `b800d8d7`, client `toyota-bridge`), re-checked with `sha256sum` on BATI.
-Her monitor waits 15 seconds; a task still running after that is reported at the start of her next turn.
+Her monitor waits 15 seconds. A task still running after that (a scan takes about 90) is watched by her
+completion notices (`bridge_client/desk.py`): when it finishes, the dashboard raises a card on every tab and
+reads it aloud, and her next turn says it too. Since 2026-11-12 the watched tasks are kept in
+`~/.local/state/receptionist_team/toyota_bridge_notices.json`, so a restart no longer drops the promise --
+before that, a deploy two minutes after a scan finished took its notice with it. A result's trailing JSON is
+for ChatGPT; she speaks only the sentence before it.

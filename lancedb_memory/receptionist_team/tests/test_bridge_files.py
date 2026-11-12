@@ -7,6 +7,11 @@ shapes here are the gateway's own; no network, no model, no Chrome.
     .venv/bin/python -m receptionist_team.tests.test_bridge_files
 """
 import json
+import os
+import tempfile
+
+# desk.NOTICES keeps its notices in a file; never the real one from a test.
+os.environ.setdefault("TOYOTA_BRIDGE_NOTICES", os.path.join(tempfile.mkdtemp(), "notices.json"))
 
 from ..adapters.bridge_specialist_runner import BridgeSpecialistRunner
 from ..bridge_client import errors as e

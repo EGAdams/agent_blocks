@@ -1,22 +1,31 @@
 """State Toyota's Bridge routes share between turns: the request waiting for a
 "yes", and the tasks she promised to report on when they finish.
 
-Both live in this process only (her sidecar or REPL). Restarting her drops an
-unanswered read-back -- nothing was sent, so nothing is lost -- and the list of
-tasks to report on; those can still be read back with "status t_...".
+The read-back lives in this process only: restarting her drops an unanswered
+one, and since nothing was sent, nothing is lost. The tasks she promised to
+report on are also kept in a small JSON file (`NOTICES_FILE`), because a
+restart between "I'll tell you when it finishes" and the finish used to drop
+the promise silently -- on 2026-11-12 a deploy restarted her two minutes after
+a scan finished, and the notice saying where it was filed vanished with it.
 
 Import-light on purpose: profiles.py builds Toyota's route override from
 PENDING at import time, and that must not open a socket or import a client.
 """
+import json
+import os
 import re
 import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 from .models import BridgeActionRequest, TERMINAL_STATES
 
 CONFIRM_SECONDS = 300.0
+#: Where Toyota's promised notices survive a restart. Gitignored state, never committed.
+NOTICES_FILE = Path(os.environ.get("TOYOTA_BRIDGE_NOTICES",
+                                   "~/.local/state/receptionist_team/toyota_bridge_notices.json")).expanduser()
 
 _YES = re.compile(r"^(?:yes|yeah|yep|yup|sure|ok(?:ay)?|go(?: ahead)?|do it|send it|please do|confirm(?:ed)?|"
                   r"affirmative|make it so|engage)\b", re.IGNORECASE)
@@ -114,13 +123,18 @@ class BridgeCompletionNotices:
     so there is no thread to keep alive. A finished task becomes one notice,
     spoken once and held until acknowledged. Watching stops after `give_up`
     seconds; the task can still be read back by id.
+
+    With a `store` path, the watched tasks and their spoken notices are written there on every change and read
+    back at start, so a restart neither forgets a promise nor loses a notice nobody has acknowledged yet. An
+    `on_finish` Observer is not kept: it remembers a note revision, which a restart drops anyway.
     """
 
     PREFIX = "bridge-"
 
     def __init__(self, client_factory: Callable[[], object], speak: Callable[[object], str],
                  clock: Callable[[], float] = time.monotonic, every: float = 15.0, give_up: float = 3600.0,
-                 background: bool = False) -> None:
+                 background: bool = False, store: Path | None = None,
+                 wall: Callable[[], float] = time.time) -> None:
         self._client_factory = client_factory
         self._speak = speak
         self._clock, self._every, self._give_up = clock, every, give_up
@@ -131,6 +145,41 @@ class BridgeCompletionNotices:
         self._refreshing = False
         self._monitors: dict = {}
         self._states: dict = {}
+        self._store, self._wall = store, wall
+        self._load()
+
+    # -- the file that outlives a restart ----------------------------------------
+    def _load(self) -> None:
+        if self._store is None:
+            return
+        try:
+            rows = json.loads(self._store.read_text())
+        except (OSError, ValueError):
+            return  # no file yet, or unreadable: start empty rather than refuse to start
+        now, wall = self._clock(), self._wall()
+        for row in rows if isinstance(rows, list) else []:
+            try:
+                task_id, label = str(row["task_id"]), str(row["label"])
+                age = max(0.0, wall - float(row["started_at"]))
+            except (KeyError, TypeError, ValueError):
+                continue
+            self._watched[task_id] = _Watched(task_id, label, spoken=str(row.get("spoken") or ""))
+            self._started[task_id] = now - age
+
+    def _save(self) -> None:
+        """Called with the lock held. A failed write costs only the restart guarantee, never the notice."""
+        if self._store is None:
+            return
+        now, wall = self._clock(), self._wall()
+        rows = [{"task_id": w.task_id, "label": w.label, "spoken": w.spoken,
+                 "started_at": wall - (now - self._started.get(w.task_id, now))} for w in self._watched.values()]
+        try:
+            self._store.parent.mkdir(parents=True, exist_ok=True)
+            part = self._store.with_suffix(".part")
+            part.write_text(json.dumps(rows, indent=1))
+            part.replace(self._store)
+        except OSError:
+            pass
 
     def track(self, task_id: str, label: str, on_finish: Callable[[object], None] | None = None) -> bool:
         """Watch `task_id`. `on_finish(result)` (an Observer) is told the finished result once, before it is
@@ -140,6 +189,7 @@ class BridgeCompletionNotices:
                 return False
             self._watched.setdefault(task_id, _Watched(task_id, label, on_finish=on_finish))
             self._started.setdefault(task_id, self._clock())
+            self._save()
             return True
 
     def watching(self) -> list[str]:
@@ -170,6 +220,8 @@ class BridgeCompletionNotices:
                 self._started.pop(w.task_id, None)
                 self._monitors.pop(w.task_id, None)
                 self._states.pop(w.task_id, None)
+            if done:
+                self._save()
             return len(done)
 
     def lifecycle(self, task_id: str):
@@ -190,11 +242,14 @@ class BridgeCompletionNotices:
             due = [w for w in self._watched.values() if not w.spoken and now - w.checked >= self._every]
             for w in due:
                 w.checked = now
-            for w in [w for w in self._watched.values() if not w.spoken and now - self._started[w.task_id] > self._give_up]:
+            expired = [w for w in self._watched.values() if not w.spoken and now - self._started[w.task_id] > self._give_up]
+            for w in expired:
                 del self._watched[w.task_id]
                 self._started.pop(w.task_id, None)
                 self._monitors.pop(w.task_id, None)
                 self._states.pop(w.task_id, None)
+            if expired:
+                self._save()
             due = [w for w in due if w.task_id in self._watched]
         if not due:
             return
@@ -223,6 +278,7 @@ class BridgeCompletionNotices:
             with self._lock:
                 if w.task_id in self._watched:
                     self._watched[w.task_id].spoken = spoken
+                    self._save()
 
 
 class CombinedAlerts:
@@ -268,4 +324,4 @@ def _speak(result) -> str:
 PENDING = PendingBridgeRequests()
 NOTE_REVISIONS = NoteRevisions()
 NOTE_ACTIVE_ITEMS = NoteRevisions()   # the review item each note last answered as blinking, same rules
-NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True)
+NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True, store=NOTICES_FILE)
