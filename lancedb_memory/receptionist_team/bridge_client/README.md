@@ -3,7 +3,8 @@
 Sydney (2026-11-13) has the same routes on her own desk: her own
 `sydney-bridge` identity (token id `k_4a8a0e0d1602922560b44526`, bound in the
 gateway's `client_scopes` with only a `sender`, exactly like Toyota's; scanner
-scopes copied from Toyota's; no printer scopes, like Toyota), her own pending
+scopes copied from Toyota's; ChatGPT's four printer scopes, which Toyota
+lacks), her own pending
 "yes", note revisions and completion notices (`desk.DESKS["sydney"]`,
 `desk_for()`), and trace kind `sydney.bridge_submit`. She never falls back to
 Toyota's token. The workers accept the three senders from one set,

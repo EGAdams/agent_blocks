@@ -49,8 +49,10 @@ and waits for a spoken "yes" first.
 Since 2026-11-13 Sydney holds the same: a separately issued client credential
 (token id `k_4a8a0e0d1602922560b44526`, file
 `~/.config/agent_bridge/sydney_client_token` on SQMC, mode 0600) bound to
-`sydney-bridge` with only a `sender`, the same scanner scopes as Toyota, and no
-printer scopes. The workers' approved senders are one set,
+`sydney-bridge` with only a `sender`, the same scanner scopes as Toyota, and
+(from 2026-11-13, at EG's request for ChatGPT's permissions) ChatGPT's four
+printer scopes -- list, print, status, cancel -- still under `PrintGuard`'s
+limits (backup `bridge.php.pre_sydney_printer_20261113112722`). The workers' approved senders are one set,
 `lancedb_memory/agent_bridge_worker/senders.py`; `agent_comms/agents.json`
 lists her in each `accepts_from`. `bridge_notes` lists and reads approved
 notes, and updates them by exact find/replace against the revision she last
