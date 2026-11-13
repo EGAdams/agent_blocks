@@ -1,4 +1,4 @@
-"""State Toyota's Bridge routes share between turns: the request waiting for a
+"""State a receptionist's Bridge routes share between turns: the request waiting for a
 "yes", and the tasks she promised to report on when they finish.
 
 The read-back lives in this process only: restarting her drops an unanswered
@@ -8,8 +8,12 @@ restart between "I'll tell you when it finishes" and the finish used to drop
 the promise silently -- on 2026-11-12 a deploy restarted her two minutes after
 a scan finished, and the notice saying where it was filed vanished with it.
 
-Import-light on purpose: profiles.py builds Toyota's route override from
-PENDING at import time, and that must not open a socket or import a client.
+Each receptionist with Bridge access has her own `BridgeDesk` (`DESKS`, `desk_for`):
+Toyota's is the module names below, kept for the code and tests that name them;
+Sydney's has its own credential prefix, pending "yes", revisions and notices file.
+
+Import-light on purpose: profiles.py builds the route overrides from a desk's
+pending request at import time, and that must not open a socket or import a client.
 """
 import json
 import os
@@ -134,8 +138,9 @@ class BridgeCompletionNotices:
     def __init__(self, client_factory: Callable[[], object], speak: Callable[[object], str],
                  clock: Callable[[], float] = time.monotonic, every: float = 15.0, give_up: float = 3600.0,
                  background: bool = False, store: Path | None = None,
-                 wall: Callable[[], float] = time.time) -> None:
+                 wall: Callable[[], float] = time.time, thread_name: str = "toyota-bridge-notices") -> None:
         self._client_factory = client_factory
+        self._thread_name = thread_name
         self._speak = speak
         self._clock, self._every, self._give_up = clock, every, give_up
         self._lock = threading.Lock()
@@ -203,7 +208,7 @@ class BridgeCompletionNotices:
                 if start:
                     self._refreshing = True
             if start:
-                threading.Thread(target=self._background_refresh, daemon=True, name="toyota-bridge-notices").start()
+                threading.Thread(target=self._background_refresh, daemon=True, name=self._thread_name).start()
         else:
             self._refresh()
         with self._lock:
@@ -306,13 +311,19 @@ class CombinedAlerts:
         return total
 
 
-def _default_client():
+def _client_for(prefix: str, kind: str, user_agent: str):
     from .client import BridgeClient
     from .config import load_client_config, load_client_token
     from .tracing import TracingBridgeClient
     from .transport import HttpsBridgeTransport
+    transport = HttpsBridgeTransport(load_client_config(prefix=prefix), load_client_token(prefix=prefix),
+                                     user_agent=user_agent)
+    return TracingBridgeClient(BridgeClient(transport), kind=kind)
+
+
+def _default_client():
     # Each submission is recorded as a toyota.bridge_submit object (bridge_client/tracing.py).
-    return TracingBridgeClient(BridgeClient(HttpsBridgeTransport(load_client_config(), load_client_token())))
+    return _client_for("TOYOTA", "toyota.bridge_submit", "toyota-bridge-client/1.0")
 
 
 def _speak(result) -> str:
@@ -320,8 +331,59 @@ def _speak(result) -> str:
     return RespondPhase.result_sentence(result)
 
 
+@dataclass(frozen=True)
+class BridgeDesk:
+    """Everything one receptionist's Bridge routes share: her credential (through `client_factory` and
+    `files_factory`), the request waiting for her "yes", the note revisions she last read, and the tasks she
+    promised to report on. Two receptionists never share one: Sydney's "yes" can't send Toyota's request,
+    and each credential is bound on the gateway to its own sender, so the audit says who sent what.
+
+    Role config, not a wire contract -- a frozen dataclass, same reasoning as ReceptionistProfile."""
+    name: str
+    pending: PendingBridgeRequests
+    note_revisions: NoteRevisions
+    note_active_items: NoteRevisions
+    notices: BridgeCompletionNotices
+    client_factory: Callable[[], object]
+    files_factory: Callable[[], object]
+    key_prefix: str
+
+    def new_key(self) -> str:
+        import uuid
+        return f"{self.key_prefix}-{uuid.uuid4().hex}"
+
+
+def _files_for(prefix: str) -> Callable[[], object]:
+    def build():
+        from .files import default_files
+        return default_files(prefix)
+    return build
+
+
+def _sydney_client():
+    return _client_for("SYDNEY", "sydney.bridge_submit", "sydney-bridge-client/1.0")
+
+
 # Toyota's one desk: shared by her route override, her Bridge runners and her alert inbox.
 PENDING = PendingBridgeRequests()
 NOTE_REVISIONS = NoteRevisions()
 NOTE_ACTIVE_ITEMS = NoteRevisions()   # the review item each note last answered as blinking, same rules
 NOTICES = BridgeCompletionNotices(_default_client, _speak, background=True, store=NOTICES_FILE)
+
+SYDNEY_NOTICES_FILE = Path(os.environ.get("SYDNEY_BRIDGE_NOTICES",
+                                          "~/.local/state/receptionist_team/sydney_bridge_notices.json")).expanduser()
+
+#: Registry of desks, by receptionist. A third receptionist with Bridge access is one entry here, one
+#: `<NAME>_BRIDGE_CLIENT_TOKEN_FILE`, and one gateway binding for her own sender -- never a shared token.
+DESKS: dict[str, BridgeDesk] = {
+    "toyota": BridgeDesk("toyota", PENDING, NOTE_REVISIONS, NOTE_ACTIVE_ITEMS, NOTICES,
+                         _default_client, _files_for("TOYOTA"), "toyota"),
+    "sydney": BridgeDesk("sydney", PendingBridgeRequests(), NoteRevisions(), NoteRevisions(),
+                         BridgeCompletionNotices(_sydney_client, _speak, background=True, store=SYDNEY_NOTICES_FILE,
+                                                 thread_name="sydney-bridge-notices"),
+                         _sydney_client, _files_for("SYDNEY"), "sydney"),
+}
+
+
+def desk_for(name: str) -> BridgeDesk:
+    return DESKS[name]

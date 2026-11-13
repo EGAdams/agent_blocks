@@ -68,7 +68,8 @@ def readback_of(text: str) -> tuple[str, str | None] | None:
     if not _BARE_ID_FILLER.sub(" ", _TASK_ID.sub(" ", text)).strip(" .?!:,;-'\"\t\n"):
         return "result", found.group(0)
     return None
-PROMPT_FRAME = ("Read-only request relayed by Toyota, the receptionist. Do not modify any file. "
+PROMPT_FRAME = ("Read-only request relayed by EG's receptionist (the task's sender names which). "
+                "Do not modify any file. "
                 "Answer briefly, in plain sentences suitable to be read aloud.\n\n")
 
 

@@ -35,6 +35,11 @@ The top-level areas are:
   work: code, new agents, the mechanic for both, browser/web search, ADWs; and
   Mazda, a document-verification receptionist — selected with `--agent`). A third, `mazda_team/`, was retired into that profile and
   no longer exists.
+  Toyota and Sydney both reach the Star Trek Bridge (every `bridge_*` route),
+  each on her own gateway identity -- `toyota-bridge` and `sydney-bridge`, separate
+  tokens, separately audited; the workers' approved senders are the one set in
+  `lancedb_memory/agent_bridge_worker/senders.py`. See
+  `lancedb_memory/receptionist_team/bridge_client/README.md`.
 - `adws/` — AI Developer Workflows in "interface style": PEP 723 `uv run`
   scripts whose phases are objects implementing the SSSF `IPhase` roles, with
   `build_application()` as the only composition root allowed to name

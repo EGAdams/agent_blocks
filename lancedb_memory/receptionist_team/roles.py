@@ -315,10 +315,14 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # Sydney's (she gets every role this list doesn't name), so it keeps the
 # finance roles and is unchanged from before. star_trek_bridge is named here
 # only so that registering its folder doesn't land it on Sydney's desk.
-TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, "star_trek_bridge",
-                          "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
-                          "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy",
-                          "bridge_scala_storage", "object_inspector")
+# The Star Trek Bridge routes are owned by Toyota's desk and SHARED with Sydney's
+# roster (sydney_roles.py adds them): each receptionist reaches the Bridge with her
+# own credential and her own sender (bridge_client/desk.py's DESKS), so sharing a
+# route never shares a "yes", a revision or an audit identity.
+BRIDGE_ROLE_NAMES = ("star_trek_bridge", "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
+                     "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy",
+                     "bridge_scala_storage", "object_inspector")
+TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, *BRIDGE_ROLE_NAMES)
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"
 )

@@ -143,9 +143,38 @@ def _sydney_runner() -> IDelegationRunner:
     # Neither dispatch nor report publication needs a model in its path.
     return RunnerMap(
         {"sydney_post_office": PostOfficeRunner("sydney"),
-         "finance_report": FinanceReportRunner()},
+         "finance_report": FinanceReportRunner(),
+         **_bridge_runners("sydney")},
         default=ToolAgentRunner(),
     )
+
+
+#: The Bridge specialists that read a request back and wait for a yes (adapters/bridge_specialist_runner.py).
+BRIDGE_SPECIALISTS = ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner", "bridge_notes",
+                      "bridge_browser", "bridge_chatgpt", "bridge_deploy", "bridge_scala_storage")
+
+
+def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
+    """One receptionist's Star Trek Bridge routes, all on her own desk (bridge_client/desk.py): her own
+    credential and gateway sender, her own pending yes, note revisions and completion notices."""
+    from .adapters.bridge_runner import BridgeDelegationRunner
+    from .adapters.bridge_specialist_runner import BridgeSpecialistRunner
+    from .adapters.inspection_runner import ObjectInspectionRunner
+    from .bridge_client.desk import desk_for
+    desk = desk_for(desk_name)
+    return {
+        "star_trek_bridge": BridgeDelegationRunner(desk=desk),
+        **{name: BridgeSpecialistRunner(name, desk=desk) for name in BRIDGE_SPECIALISTS},
+        "object_inspector": ObjectInspectionRunner(),
+    }
+
+
+def _bridge_routes(desk_name: str) -> list[IRouteOverride]:
+    """The Bridge's forced routes, in the order Toyota's profile explains, with this desk's pending yes."""
+    from .bridge_client.desk import desk_for
+    return [BridgeConfirmationRoute(desk_for(desk_name).pending), BridgeReadOnlyAddressRoute(),
+            ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BridgeDeviceRoute(),
+            ScalaStorageRoute("bridge_scala_storage")]
 
 
 def _yolanda_runner() -> IDelegationRunner:
@@ -231,6 +260,12 @@ def _toyota_alerts() -> IAlertInbox:
     from .adapters.post_office_alerts import PostOfficeAlerts
     from .bridge_client.desk import NOTICES, CombinedAlerts
     return CombinedAlerts(PostOfficeAlerts("toyota"), NOTICES)
+
+
+def _sydney_alerts() -> IAlertInbox:
+    from .adapters.post_office_alerts import PostOfficeAlerts
+    from .bridge_client.desk import CombinedAlerts, desk_for
+    return CombinedAlerts(PostOfficeAlerts("sydney"), desk_for("sydney").notices)
 
 
 def _post_office_alerts(agent: str) -> Callable[[], IAlertInbox]:
@@ -365,11 +400,14 @@ SYDNEY = ReceptionistProfile(
     service_port=8769,
     # Report generation is a runnable ADW, not a window handoff.
     route_override=FirstRouteOpinion([
+        # The Star Trek Bridge first, as on Toyota's desk, but with Sydney's own
+        # pending yes (her runners use her own credential: bridge_client/desk.py).
+        *_bridge_routes("sydney"),
         PostOfficeRoute("sydney_post_office"),
         FinanceReportRoute(),
         EmailDeskRoute("sydney_post_office"),
     ]),
-    build_alerts=_post_office_alerts("sydney"),
+    build_alerts=_sydney_alerts,
 )
 
 YOLANDA = ReceptionistProfile(

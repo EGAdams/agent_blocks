@@ -28,7 +28,7 @@ path. A prompt, voice confirmation or confirmation field cannot enable one.
 ## Authentication and Toyota
 
 The gateway's `client_scopes` binds actual authenticated token/grant IDs to
-`chatgpt-bridge` or `toyota-bridge`. Labels and prompt text grant no identity.
+`chatgpt-bridge`, `toyota-bridge` or `sydney-bridge`. Labels and prompt text grant no identity.
 Unknown identities cannot use Machine Ops, Object Debugger or the development
 workspace. Current ChatGPT grant and legacy client identities are explicitly
 bound. A newly consented ChatGPT connection requires an explicit new binding.
@@ -45,7 +45,14 @@ separate list, `scanner_scopes`, keyed by principal id or label; until
 stay in force: her `star_trek_bridge` desk sends read-only requests only, and
 every write goes through a specialist (`bridge_writer`, `bridge_coder`,
 `bridge_printer`, `bridge_scanner`, `bridge_notes`) that reads the request back
-and waits for a spoken "yes" first. `bridge_notes` lists and reads approved
+and waits for a spoken "yes" first.
+Since 2026-11-13 Sydney holds the same: a separately issued client credential
+(token id `k_4a8a0e0d1602922560b44526`, file
+`~/.config/agent_bridge/sydney_client_token` on SQMC, mode 0600) bound to
+`sydney-bridge` with only a `sender`, the same scanner scopes as Toyota, and no
+printer scopes. The workers' approved senders are one set,
+`lancedb_memory/agent_bridge_worker/senders.py`; `agent_comms/agents.json`
+lists her in each `accepts_from`. `bridge_notes` lists and reads approved
 notes, and updates them by exact find/replace against the revision she last
 read; the Notes server's approved list and the worker's revision check still
 decide what can change.

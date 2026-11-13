@@ -18,6 +18,8 @@ from .interfaces import IBridgeClient
 from .models import BridgeActionRequest, BridgeAgent, BridgeResult, BridgeTaskRequest, BridgeTaskView
 
 SUBMIT_KIND = "toyota.bridge_submit"
+#: Every receptionist desk's submit kind; object_trace's inspector looks for each.
+SUBMIT_KINDS = ("toyota.bridge_submit", "sydney.bridge_submit")
 
 
 def _default_tracer():
@@ -27,8 +29,9 @@ def _default_tracer():
 
 class TracingBridgeClient:
     def __init__(self, inner: IBridgeClient, tracer_factory: Callable[[], object] = _default_tracer,
-                 clock: Callable[[], float] = time.monotonic) -> None:
+                 clock: Callable[[], float] = time.monotonic, kind: str = SUBMIT_KIND) -> None:
         self._inner, self._tracer_factory, self._clock = inner, tracer_factory, clock
+        self._kind = kind   # "<receptionist>.bridge_submit": which desk sent it
 
     def discover(self) -> list[BridgeAgent]:
         return self._inner.discover()
@@ -57,8 +60,8 @@ class TracingBridgeClient:
             tracer = self._tracer_factory()
             inputs = {"agent": request.agent, "workspace": request.workspace, "operation": request.operation,
                       "approval_mode": request.approval_mode, "idempotency_key": request.idempotency_key}
-            object_id = f"{SUBMIT_KIND}:{view.task_id}" if view is not None else None
-            trace = tracer.begin(SUBMIT_KIND, object_id, interface="IBridgeClient",
+            object_id = f"{self._kind}:{view.task_id}" if view is not None else None
+            trace = tracer.begin(self._kind, object_id, interface="IBridgeClient",
                                  implementation=type(self._inner).__name__, module=type(self._inner).__module__,
                                  label=f"submit {request.agent} {request.operation}", inputs=inputs,
                                  task_id=view.task_id if view is not None else None)

@@ -24,6 +24,7 @@ from typing import Any, Protocol
 
 from ..models import AgentOutcome, ClaimedTask, OutcomeKind
 from ..ports import IClock, Signal
+from ..senders import APPROVED_BRIDGE_SENDERS
 
 
 class ISender( Protocol ):
@@ -80,7 +81,7 @@ class PostOfficeAgent:
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
         sender = task.sender
-        if sender not in { "chatgpt-bridge", "toyota-bridge" }:
+        if sender not in APPROVED_BRIDGE_SENDERS:
             return AgentOutcome( kind=OutcomeKind.REFUSED, summary="gateway sender is not approved" )
         receipt = self._sender.send( self._request(
             sender=sender, recipient=task.agent, task_type=task.operation, text=task.prompt,

@@ -1,4 +1,6 @@
-"""BridgeDelegationRunner -- Toyota's IDelegationRunner for the Star Trek Bridge.
+"""BridgeDelegationRunner -- a receptionist's IDelegationRunner for the Star Trek Bridge.
+
+Toyota's by default; `desk=desk_for("sydney")` gives Sydney's credential, keys and notices.
 
     Toyota -> RoutingModel (ROUTE: star_trek_bridge | ...) -> this runner
            -> bridge_client.workflow (Discover, Validate, Route, Submit, Monitor, Retrieve, Respond)
@@ -58,6 +60,10 @@ def _default_log():
     return StderrPhaseLog()
 
 
+def _toyota_key() -> str:
+    return f"toyota-{uuid.uuid4().hex}"
+
+
 class BridgeDelegationRunner:
     """Sends one read-only task to a Bridge agent, lists the agents, or reads a task back."""
 
@@ -66,17 +72,18 @@ class BridgeDelegationRunner:
                  wait_seconds: float = 0.0, poll_seconds: float = 5.0,
                  sleep: Callable[[float], None] = time.sleep,
                  clock: Callable[[], float] = time.monotonic,
-                 key_factory: Callable[[], str] = lambda: f"toyota-{uuid.uuid4().hex}",
+                 key_factory: Callable[[], str] = _toyota_key,
                  log_factory: Callable[[], object] = _default_log,
-                 notices: object | None = None) -> None:
-        self._notices = notices  # IAlertInbox that reports a task that finished after the answer
-        self._client_factory = client_factory
+                 notices: object | None = None, desk: object | None = None) -> None:
+        # IAlertInbox that reports a task that finished after the answer
+        self._notices = notices if notices is not None or desk is None else desk.notices
+        self._client_factory = desk.client_factory if desk and client_factory is _default_client else client_factory
         self._policy_factory = policy_factory
         self._wait = wait_seconds
         self._poll = poll_seconds
         self._sleep = sleep
         self._clock = clock
-        self._key_factory = key_factory
+        self._key_factory = desk.new_key if desk and key_factory is _toyota_key else key_factory
         self._log_factory = log_factory
         self.last_task_id: str | None = None
         self.last_trace: list = []

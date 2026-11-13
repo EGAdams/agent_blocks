@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from agent_bridge_worker.redaction import SecretScanner
+from agent_bridge_worker.senders import APPROVED_BRIDGE_SENDERS, approved_senders_text
 from object_trace.adapters.sqlite_store import SqliteTraceStore
 from object_trace.adapters.sssf_reader import SssfReader
 from object_trace.factory import SSSF_DB
@@ -38,8 +39,8 @@ class ObjectDebuggerExecutor:
         return "object_trace:inspector"
 
     async def execute( self, envelope: Envelope ) -> TaskResult:
-        if envelope.sender not in { "chatgpt-bridge", "toyota-bridge" } or envelope.recipient != "object-debugger":
-            return self._result( False, "Object Debugger only accepts requests from chatgpt-bridge or toyota-bridge." )
+        if envelope.sender not in APPROVED_BRIDGE_SENDERS or envelope.recipient != "object-debugger":
+            return self._result( False, f"Object Debugger only accepts requests from { approved_senders_text() }." )
         if envelope.task_type != "inspect":
             return self._result( False, "Object Debugger only accepts inspect requests." )
         text = envelope.text.strip()

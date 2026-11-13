@@ -17,7 +17,7 @@ names, and never runs on this one. (The gateway already offers a `cashy-r46` tas
 machine, so separate tasks continue the same tab.
 
 Each task is one run of `adws/adw_cashy_<op>.py` (through `ICashyCommands`) with `--actor` set to the Bridge sender
-(`chatgpt-bridge`, `toyota-bridge`), never `user`: Cashy lets only the user approve a consequential step, so a
+(`chatgpt-bridge`, `toyota-bridge`, `sydney-bridge`), never `user`: Cashy lets only the user approve a consequential step, so a
 Bridge caller can open and read a bank page but can never approve a transfer or a payment. Nothing here types,
 reads or asks for a password or code; the person signs in by hand in the visible Chrome.
 """

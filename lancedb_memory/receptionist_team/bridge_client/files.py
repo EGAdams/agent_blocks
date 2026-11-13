@@ -94,12 +94,13 @@ class McpBridgeFiles:
             raise BridgeMalformed("malformed", f"the Bridge's {what} did not match the contract") from None
 
 
-def default_files() -> McpBridgeFiles:
-    """Toyota's own credential, with a response cap big enough for a view that carries a page image."""
+def default_files(prefix: str = "TOYOTA") -> McpBridgeFiles:
+    """One receptionist's own credential (Toyota's by default), with a response cap big enough for a view
+    that carries a page image. The gateway shows each credential only the files its own tasks saved."""
     from .config import load_client_config, load_client_token
     from .transport import HttpsBridgeTransport
-    config = load_client_config().model_copy(update={"max_response_bytes": FILES_RESPONSE_BYTES})
-    return McpBridgeFiles(HttpsBridgeTransport(config, load_client_token()))
+    config = load_client_config(prefix=prefix).model_copy(update={"max_response_bytes": FILES_RESPONSE_BYTES})
+    return McpBridgeFiles(HttpsBridgeTransport(config, load_client_token(prefix=prefix)))
 
 
 

@@ -194,7 +194,7 @@ def test_registry_policy_workspace_and_real_post_office_execution() -> None:
         with patch.dict( os.environ, { "OBJECT_TRACE_DB": str( db )}):
             kit = build_post_office( root=root / "mail", launcher=RecordingLauncher(), forward_failures_to_mechanic=False )
             card = kit.registry.card( "object-debugger" )
-            assert card.runtime == "object_trace" and card.accepts_from == [ "chatgpt-bridge", "toyota-bridge" ]
+            assert card.runtime == "object_trace" and card.accepts_from == [ "chatgpt-bridge", "toyota-bridge", "sydney-bridge" ]
             assert scoped_operations( kit.registry, "chatgpt-bridge" )[ "object-debugger" ] == { "inspect": False }
             config = ConfiguredWorkspaces.load( WORKSPACE / "lancedb_memory/agent_bridge_worker/workspaces.json", protected=[] )
             assert config.resolve( "object_trace" ).is_dir() and "object_trace" not in config.write_names()

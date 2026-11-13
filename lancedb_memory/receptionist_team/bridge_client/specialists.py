@@ -31,10 +31,12 @@ from .relay_plans import RELAY_PLANS
 from .storage_plans import NEVER, STORAGE_PLANS
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
-WRITE_FRAME = ("Request relayed by Toyota, the receptionist; EG confirmed it out loud before it was sent. "
+WRITE_FRAME = ("Request relayed by EG's receptionist (the task's sender names which); "
+               "EG confirmed it out loud before it was sent. "
                "Do only what is asked, in this workspace. Finish with a short plain-sentence summary "
                "suitable to be read aloud.\n\n")
-READ_FRAME = ("Read-only request relayed by Toyota, the receptionist. Do not modify any file. "
+READ_FRAME = ("Read-only request relayed by EG's receptionist (the task's sender names which). "
+              "Do not modify any file. "
               "Answer briefly, in plain sentences suitable to be read aloud.\n\n")
 
 

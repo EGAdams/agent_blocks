@@ -29,11 +29,13 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
 class HttpsBridgeTransport:
     """IBridgeTransport over urllib, with the token held privately."""
 
-    def __init__(self, config: BridgeClientConfig, token: str, opener: urllib.request.OpenerDirector | None = None) -> None:
+    def __init__(self, config: BridgeClientConfig, token: str, opener: urllib.request.OpenerDirector | None = None,
+                 user_agent: str = USER_AGENT) -> None:
         if not token:
             raise BridgeUnavailable("no_credential", "no client credential is configured")
         self._config = config
         self._token = token
+        self._user_agent = user_agent
         self._opener = opener or urllib.request.build_opener(_NoRedirect())
 
     def _clean(self, text: object) -> str:
@@ -55,7 +57,7 @@ class HttpsBridgeTransport:
         if not path.startswith("/") or "//" in path or ".." in path or path.startswith("/worker"):
             raise BridgeUnavailable("bad_path", "refusing a path outside the client API")
         payload = None
-        headers = {"Authorization": f"Bearer {self._token}", "Accept": "application/json", "User-Agent": USER_AGENT}
+        headers = {"Authorization": f"Bearer {self._token}", "Accept": "application/json", "User-Agent": self._user_agent}
         if body is not None:
             payload = json.dumps(body, separators=(",", ":")).encode("utf-8")
             if len(payload) > MAX_REQUEST_BYTES:

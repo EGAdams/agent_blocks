@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .models import ClaimedTask
+from .senders import APPROVED_BRIDGE_SENDERS
 
 READ_ONLY_OPERATIONS = frozenset({ "inspect", "explain", "search_memory" })
 WRITE_OPERATIONS     = frozenset({ "implement" })
@@ -86,7 +87,7 @@ class ScopedPolicy:
         self._modes  = frozenset( modes )
 
     def refusal( self, task: ClaimedTask ) -> str | None:
-        if task.sender not in { "chatgpt-bridge", "toyota-bridge" }:
+        if task.sender not in APPROVED_BRIDGE_SENDERS:
             return "gateway sender is not approved"
         expected = MODE_FOR.get( task.operation )
         if expected is None:

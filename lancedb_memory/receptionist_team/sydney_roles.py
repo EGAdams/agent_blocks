@@ -11,7 +11,9 @@ second-opinion models.
 Her roster is whatever roles.ROLE_ASSIGNMENT (an IRoleAssignment, see
 role_desks.py) puts on the "sydney" desk. She never reads Toyota's list, and
 an agent folder registered in extra_roles.py lands here unless it is named as
-a finance agent. Toyota's roster is explicit config (toyota_roster.json) and
+a finance agent. The Star Trek Bridge routes (roles.BRIDGE_ROLE_NAMES) are
+shared: on Toyota's desk, and on this roster too, run with Sydney's own Bridge
+credential and sender. Toyota's roster is explicit config (toyota_roster.json) and
 also names agent_creator and toyota_mechanic, which stay on this desk too.
 The blurbs, spoken names and start tasks are roles.py's own dicts -- one wording per
 agent, whoever routes to it.
@@ -21,6 +23,7 @@ No SDK import, same as roles.py -- pure data plus one render.
 from .agents import catalog
 from .role_desks import roles_for
 from .roles import (
+    BRIDGE_ROLE_NAMES,
     ROLE_ASSIGNMENT,
     ROLE_BLURBS,
     ROLE_SPOKEN_NAMES,
@@ -30,7 +33,11 @@ from .roles import (
 )
 from .rosters import Roster
 
-SYDNEY_ROLES = roles_for("sydney", ROLES, ROLE_ASSIGNMENT)
+SYDNEY_DESK_ROLES = roles_for("sydney", ROLES, ROLE_ASSIGNMENT)
+# Her desk's roles plus the Star Trek Bridge routes she shares with Toyota (her own credential, see
+# bridge_client/desk.py), in ROLES' declaration order.
+SYDNEY_ROLES = {name: role for name, role in ROLES.items()
+                if name in SYDNEY_DESK_ROLES or name in BRIDGE_ROLE_NAMES}
 
 SYDNEY_ROSTER = Roster(
     owner="Sydney",

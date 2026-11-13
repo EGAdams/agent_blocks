@@ -1,4 +1,7 @@
-"""BridgeSpecialistRunner -- Toyota's IDelegationRunner for one Bridge specialist.
+"""BridgeSpecialistRunner -- a receptionist's IDelegationRunner for one Bridge specialist.
+
+Toyota's by default. Given `desk=desk_for("sydney")` it is Sydney's: her own
+credential, her own pending "yes", note revisions and completion notices.
 
     Toyota (Groq) -> ROUTE: bridge_writer | <the user's words>
       -> this runner -> the specialist's Groq form (bridge_client/specialists.py)
@@ -50,25 +53,30 @@ def _default_files():
     return default_files()
 
 
+def _toyota_key() -> str:
+    return f"toyota-{uuid.uuid4().hex}"
+
+
 class BridgeSpecialistRunner:
     def __init__(self, specialist: str, filler: object | None = None, pending: object | None = None,
                  notices: object | None = None, client_factory: Callable[[], object] = _default_client,
                  wait_seconds: float = 15.0, poll_seconds: float = 5.0,
                  sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
-                 key_factory: Callable[[], str] = lambda: f"toyota-{uuid.uuid4().hex}",
+                 key_factory: Callable[[], str] = _toyota_key,
                  log_factory: Callable[[], object] | None = None,
-                 files_factory: Callable[[], object] = _default_files) -> None:
-        from ..bridge_client import desk
+                 files_factory: Callable[[], object] = _default_files, desk: object | None = None) -> None:
+        from ..bridge_client import desk as toyota
         from ..bridge_client.specialists import SPECIALISTS
         self._specialist = SPECIALISTS[specialist]
         self._filler = filler or GroqFormFiller()
-        self._pending = pending if pending is not None else desk.PENDING
-        self._notices = notices if notices is not None else desk.NOTICES
-        self._client_factory = client_factory
+        self._desk = desk   # None: Toyota's module-level desk, read at call time (tests replace its revisions)
+        self._pending = pending if pending is not None else (desk.pending if desk else toyota.PENDING)
+        self._notices = notices if notices is not None else (desk.notices if desk else toyota.NOTICES)
+        self._client_factory = desk.client_factory if desk and client_factory is _default_client else client_factory
         self._wait, self._poll, self._sleep, self._clock = wait_seconds, poll_seconds, sleep, clock
-        self._key_factory = key_factory
+        self._key_factory = desk.new_key if desk and key_factory is _toyota_key else key_factory
         self._log_factory = log_factory
-        self._files_factory = files_factory
+        self._files_factory = desk.files_factory if desk and files_factory is _default_files else files_factory
         self.last_trace: list = []
 
     async def run(self, role: object, agent_name: str, model: str, extra: str = "") -> AgentReply:
@@ -147,29 +155,36 @@ class BridgeSpecialistRunner:
     ITEM_CHECKED = ("review_activate", "review_activate_next", "review_edit", "review_mark_resolved", "review_watch")
     ACTIVE_WORDS = ("active", "blinking", "current", "this")
 
+    def _revisions(self):
+        from ..bridge_client import desk
+        return self._desk.note_revisions if self._desk else desk.NOTE_REVISIONS
+
+    def _active_items(self):
+        from ..bridge_client import desk
+        return self._desk.note_active_items if self._desk else desk.NOTE_ACTIVE_ITEMS
+
     def _attach_revision(self, form) -> None:
         """A change carries the revision code remembered from the last read, never the model's.
         `refresh` compares against the same memory: "has it changed since I last looked?"."""
-        from ..bridge_client import desk
+        revisions, active = self._revisions(), self._active_items()
         form.expected_revision = form.known_revision = None
         what = (form.operation or "").strip().lower()
         if form.note_id and what in self.REVISION_CHECKED:
-            form.expected_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
+            form.expected_revision = revisions.get(form.note_id.strip())
         elif form.note_id and what == "refresh":
-            form.known_revision = desk.NOTE_REVISIONS.get(form.note_id.strip())
+            form.known_revision = revisions.get(form.note_id.strip())
         if form.note_id and what in self.ITEM_CHECKED and (form.item_id or "").strip().lower() in self.ACTIVE_WORDS:
-            form.item_id = desk.NOTE_ACTIVE_ITEMS.get(form.note_id.strip())     # "the blinking one", as last reported
+            form.item_id = active.get(form.note_id.strip())     # "the blinking one", as last reported
 
     def _remember_revision(self, run) -> None:
         self._remember(run.request, run.result)
 
-    @staticmethod
-    def _remember(request, result) -> None:
+    def _remember(self, request, result) -> None:
         """After a read or update that finished, keep the note's revision for the next update. Called when the
         answer comes in time (`_send`) and again when it comes late (the notice tracker's `on_finish`)."""
         import json
-        from ..bridge_client import desk
         from ..bridge_client.notes_plans import REVISION
+        revisions, active = self._revisions(), self._active_items()
         if request is None or result is None or request.agent != "notes" or not result.succeeded:
             return
         try:
@@ -177,14 +192,14 @@ class BridgeSpecialistRunner:
             what = asked.get("notes")
             if what in ("read", "refresh", "update", "highlight") and body.get("id") == asked.get("id") \
                     and (what in ("read", "refresh") or body.get("verified")):
-                desk.NOTE_REVISIONS.remember(body["id"], body["revision"])
+                revisions.remember(body["id"], body["revision"])
             elif str(what).startswith("review_") and body.get("id") == asked.get("id") \
                     and REVISION.fullmatch(str(body.get("revision", ""))):
-                desk.NOTE_REVISIONS.remember(body["id"], body["revision"])     # the review ADW read it back
+                revisions.remember(body["id"], body["revision"])     # the review ADW read it back
                 if body.get("active_item_id"):
-                    desk.NOTE_ACTIVE_ITEMS.remember(body["id"], body["active_item_id"])
+                    active.remember(body["id"], body["active_item_id"])
             elif what in ("create", "rename", "restore") and body.get("verified") and body.get("filename"):
-                desk.NOTE_REVISIONS.remember(body["filename"], body["revision"])   # a new or renamed note
+                revisions.remember(body["filename"], body["revision"])   # a new or renamed note
         except (ValueError, TypeError, KeyError, AttributeError):
             return
 

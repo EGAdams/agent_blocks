@@ -64,7 +64,7 @@ class MachineOpsTests(unittest.TestCase):
         self.assertFalse(runner.calls)
 
     def test_both_explicit_senders_can_inspect(self):
-        for sender in ["chatgpt-bridge", "toyota-bridge"]:
+        for sender in ["chatgpt-bridge", "toyota-bridge", "sydney-bridge"]:
             out = asyncio.run(MachineOpsExecutor(FakeRunner()).execute(envelope(
                 '{"operation":"status","unit":"adw-supervisor.service"}', sender=sender)))
             self.assertTrue(out.ok)

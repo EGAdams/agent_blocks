@@ -2,6 +2,8 @@
 import asyncio
 import json
 
+from agent_bridge_worker.senders import APPROVED_BRIDGE_SENDERS
+
 from ..models import Envelope, TaskResult
 from ..machine_ops.commands import Request, command
 from ..machine_ops.runner import ICommandRunner, SubprocessCommandRunner
@@ -25,7 +27,7 @@ class MachineOpsExecutor:
         return "machine_ops:fixed_commands"
 
     async def execute(self, envelope: Envelope) -> TaskResult:
-        if (envelope.sender not in {"chatgpt-bridge", "toyota-bridge"}
+        if (envelope.sender not in APPROVED_BRIDGE_SENDERS
                 or envelope.recipient != "machine-ops" or envelope.task_type != "inspect"):
             return TaskResult(ok=False, text="Machine Ops sender or operation refused.", performer=self.performer)
         try:

@@ -48,6 +48,7 @@ def test_toyota_and_chatgpt_identities_get_the_same_worker_policy() -> None:
                            attempt=1, agent="codex-writer", workspace="agent_blocks_dev", operation="implement",
                            approval_mode="workspace_write", prompt="x", sender=sender)
     assert policy.refusal( task( "toyota-bridge" )) is None
+    assert policy.refusal( task( "sydney-bridge" )) is None
     assert policy.refusal( task( "chatgpt-bridge" )) is None
     assert policy.refusal( task( "someone-else" )) == "gateway sender is not approved"
 

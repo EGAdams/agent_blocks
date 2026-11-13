@@ -88,7 +88,8 @@ async def test_both_rosters_come_from_the_one_role_assignment():
     from ..roles import ROLE_ASSIGNMENT, TOYOTA_MEMBERSHIP
     # Toyota's roster is her explicit config, not her desk's share of ROLES.
     assert TOYOTA_ROLES == TOYOTA_MEMBERSHIP.select(ROLES)
-    assert SYDNEY_ROLES == roles_for("sydney", ROLES, ROLE_ASSIGNMENT)
+    from ..sydney_roles import SYDNEY_DESK_ROLES
+    assert SYDNEY_DESK_ROLES == roles_for("sydney", ROLES, ROLE_ASSIGNMENT)
     # An agent nobody named lands on Sydney's desk: creating agents is her job.
     assert ROLE_ASSIGNMENT.owner_of("a_brand_new_agent") == "sydney"
     # The rule itself, apart from the real roster.
@@ -98,12 +99,18 @@ async def test_both_rosters_come_from_the_one_role_assignment():
 
 
 async def test_every_role_belongs_to_exactly_one_of_them():
-    from ..roles import ROLE_ASSIGNMENT, TOYOTA_DESK_ROLE_NAMES
+    from ..roles import BRIDGE_ROLE_NAMES, ROLE_ASSIGNMENT, TOYOTA_DESK_ROLE_NAMES
+    from ..sydney_roles import SYDNEY_DESK_ROLES
     # Desks still split ROLES with nothing left over.
-    assert set(SYDNEY_ROLES) | set(TOYOTA_DESK_ROLE_NAMES) == set(ROLES)
-    assert not set(SYDNEY_ROLES) & set(TOYOTA_DESK_ROLE_NAMES)
-    # Toyota's roster borrows exactly two of Sydney's: creation and the mechanic.
-    assert set(SYDNEY_ROLES) & set(TOYOTA_ROLES) == {"agent_creator", "toyota_mechanic"}
+    assert set(SYDNEY_DESK_ROLES) | set(TOYOTA_DESK_ROLE_NAMES) == set(ROLES)
+    assert not set(SYDNEY_DESK_ROLES) & set(TOYOTA_DESK_ROLE_NAMES)
+    # Her roster is her desk plus the shared Star Trek Bridge routes, and nothing else of Toyota's.
+    assert set(SYDNEY_ROLES) == set(SYDNEY_DESK_ROLES) | set(BRIDGE_ROLE_NAMES)
+    assert set(SYDNEY_ROLES) & set(TOYOTA_DESK_ROLE_NAMES) == set(BRIDGE_ROLE_NAMES)
+    # Toyota's roster borrows exactly two of Sydney's desk: creation and the mechanic.
+    assert set(SYDNEY_DESK_ROLES) & set(TOYOTA_ROLES) == {"agent_creator", "toyota_mechanic"}
+    for name in BRIDGE_ROLE_NAMES:
+        assert SYDNEY_ROSTER.has(name) and TOYOTA_ROSTER.has(name), name
     for name in ("mechanic_translator", "browser_opener", "search_link_opener",
                  "dashboard_expert", "web_search_expert", "memory_compactor",
                  "adw_guide", "ask_opus", "ask_sonnet"):
@@ -112,7 +119,7 @@ async def test_every_role_belongs_to_exactly_one_of_them():
     for name in ("toyota_mechanic", "agent_creator"):
         assert SYDNEY_ROSTER.has(name) and TOYOTA_ROSTER.has(name), name
     for name in ("live_books", "category_spreadsheet", "spreadsheet_reshaper",
-                 "tax_progress_page", "star_trek_bridge"):
+                 "tax_progress_page"):
         assert TOYOTA_ROSTER.has(name), name
         assert not SYDNEY_ROSTER.has(name), name
     # The finance routes Toyota always had stay on her desk and roster, off Sydney's.

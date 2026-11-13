@@ -278,6 +278,15 @@ restarts only `toyota-receptionist`; restart `sydney-receptionist` (port 8769)
 after a mechanic change that concerns her. `ReceptionistProfile.extra_peers`
 lets Toyota recall both Mazda and Sydney; see `main.build_recall()`.
 
+The one exception to the split is the Star Trek Bridge: `roles.BRIDGE_ROLE_NAMES`
+(`star_trek_bridge`, the nine `bridge_*` specialists, `object_inspector`) sit on
+**both** rosters. They share runners and routes, but each receptionist gets her own desk
+(`bridge_client/desk.py`'s `DESKS`/`desk_for()`, passed as `desk=` by
+`profiles._bridge_runners()` and `_bridge_routes()`): her own credential
+(`SYDNEY_BRIDGE_*`, never Toyota's), gateway sender (`sydney-bridge`), pending
+"yes", note revisions, completion notices and trace kind. A "yes" said to one
+can never send the other's read-back (`tests/test_sydney_bridge.py`).
+
 ### Work for another agent goes through the post office
 
 `sydney_post_office` and `toyota_post_office` are routes run by

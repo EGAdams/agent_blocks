@@ -1,4 +1,13 @@
-# Toyota → Star Trek Bridge
+# Toyota and Sydney → Star Trek Bridge
+
+Sydney (2026-11-13) has the same routes on her own desk: her own
+`sydney-bridge` identity (token id `k_4a8a0e0d1602922560b44526`, bound in the
+gateway's `client_scopes` with only a `sender`, exactly like Toyota's; scanner
+scopes copied from Toyota's; no printer scopes, like Toyota), her own pending
+"yes", note revisions and completion notices (`desk.DESKS["sydney"]`,
+`desk_for()`), and trace kind `sydney.bridge_submit`. She never falls back to
+Toyota's token. The workers accept the three senders from one set,
+`agent_bridge_worker/senders.py`.
 
 Current bootstrap behavior (2026-11-06): Toyota has a separate authenticated
 `toyota-bridge` identity with the same gateway scope as ChatGPT (EG, 2026-11-06). Machine Ops and Object
@@ -65,6 +74,9 @@ names are listed here; the values never belong in code, docs, logs or tests.
 - `TOYOTA_BRIDGE_CLIENT_TOKEN_FILE`: the path to a file that holds the
   **client-role** token. This is the preferred form.
 - `TOYOTA_BRIDGE_CLIENT_TOKEN`: the token itself, as an alternative.
+- `SYDNEY_BRIDGE_CLIENT_TOKEN_FILE` / `SYDNEY_BRIDGE_CLIENT_TOKEN` /
+  `SYDNEY_BRIDGE_URL`: the same three for Sydney. Her credential is read only
+  from her own names; with none set her routes say the Bridge isn't available.
 - `TOYOTA_BRIDGE_URL`: optional. Defaults to
   `https://bridge.americansjewelry.com/api/agent-bridge/v1`. Only `https`
   URLs are allowed, and no `/worker` path.

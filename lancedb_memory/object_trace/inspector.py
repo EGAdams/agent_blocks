@@ -19,6 +19,9 @@ RENDER_KIND = "browser.render"
 TASK_KIND   = "bridge.task_run"
 WRITES      = ( "marker_write", "marker_clear" )
 
+#: Each receptionist desk records its Bridge submits under its own kind (bridge_client/tracing.py).
+RECEPTIONIST_SUBMITS = (( "Toyota", "toyota.bridge_submit" ), ( "Sydney", "sydney.bridge_submit" ))
+
 
 def _get( data: dict | None, *path: str ) -> object:
     for key in path:
@@ -163,10 +166,15 @@ class Inspector:
             av = view( agent[ 0 ], now, pid_alive=self._pid )
             evidence.append( Evidence( source="object_trace", ref=agent[ 0 ].object_id, at=agent[ 0 ].last_event_at,
                                        fact=f"agent { agent[ 0 ].kind }: { av.display } -- { av.reason }" ))
-        submits = self._reader.objects( kind="toyota.bridge_submit", task_id=task.task_id, limit=1 )
-        origin = f" Toyota submitted it in turn { submits[ 0 ].run_id }." if submits else ""
+        submits, sender = [], ""
+        for who, kind in RECEPTIONIST_SUBMITS:
+            submits = self._reader.objects( kind=kind, task_id=task.task_id, limit=1 )
+            if submits:
+                sender = who
+                break
+        origin = f" { sender } submitted it in turn { submits[ 0 ].run_id }." if submits else ""
         if not submits:
-            missing.append( "a Toyota submission record (it may have come from ChatGPT or a direct client)" )
+            missing.append( "a Toyota or Sydney submission record (it may have come from ChatGPT or a direct client)" )
         text = ( f"Bridge task { task.task_id } attempt { task.attempt } { where }. The task itself is { tv.display } "
                  f"({ tv.reason }){ ', gateway state ' + str( gateway ) if gateway else '' }"
                  f"{ ': ' + summary if summary else '' }.{ origin }" )

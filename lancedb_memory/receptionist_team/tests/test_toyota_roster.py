@@ -102,13 +102,15 @@ async def test_no_prompt_or_capability_line_routes_to_a_name_off_her_roster():
 
 
 async def test_finance_team_and_sydney_rosters_and_helpers_are_intact():
+    from ..roles import BRIDGE_ROLE_NAMES
     assert FINANCE_ROUTES <= set(FINANCE_ROLES) and FINANCE_ROUTES <= set(ROLES)
     for name in FINANCE_ROUTES:
         assert name in ROLE_BLURBS and name in ROLE_SPOKEN_NAMES and name in ROLE_START_TASKS
     assert set(SYDNEY_ROSTER.names()) == {
         "adw_guide", "agent_creator", "ask_opus", "ask_sonnet", "browser_opener", "dashboard_expert",
         "finance_report", "mechanic_translator", "memory_compactor", "search_link_opener",
-        "sydney_post_office", "system_mechanic", "toyota_mechanic", "web_search_expert"}
+        "sydney_post_office", "system_mechanic", "toyota_mechanic", "web_search_expert",
+        *BRIDGE_ROLE_NAMES}  # the Star Trek Bridge routes are shared, on Sydney's own credential
     assert not FINANCE_ROUTES & set(SYDNEY_ROSTER.names())
 
 
