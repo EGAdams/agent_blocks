@@ -1,3 +1,100 @@
+# Deployment checkpoint - 2026-11-13
+
+User approved: "yes, commit, push and deploy everything."
+Completed the dashboard/debugger work and all pending dashboard source changes,
+including Terminal/navigation, ADW alerts and attachment printing dependencies.
+
+- letta-code: `552840e0` (dashboard source + fixes), `daee941e` (rebuilt bundle),
+  committed and pushed to main. BATI and Win11 are both at `daee941e`.
+- agent_blocks: `9f02fc6` (pilot), committed and pushed to main; deployed to
+  Win11. This checkpoint is a subsequent documentation commit.
+- Live dashboard restarted at 2026-11-13 20:20:42 EST, PID 2961464.
+  `/api/adw-debugger/feed` returned ok=true with real events and a 120 s timeout.
+  Served JS exactly matched the built file (SHA256
+  `ce9075f397c54be86bd87d95435919221b7882181471ae5b16b8b168f361d40b`).
+  Executor `/health` returned ok=true after restart; no extra launch was needed.
+- Verification: full Python suite 4216 passed / 4 skipped; JS suite 3047 passed /
+  2 skipped (re-run after lint fixes); UI 49 passed; pilot 8 passed; UI build,
+  vue-tsc and repository tsc passed. Commit hooks passed without bypass.
+- Packaging repair: exclude generated `dashboard/js/adw-debugger/**` from Biome,
+  matching the repository's generated-output convention. Separate source
+  assignment expressions and use matchAll for navigation regex iteration.
+  Commit-hook formatting applied to staged source; bundle rebuilt afterwards.
+- Live Chrome placement + success smoke test: 2/2 passed on retry, run
+  `okfq0yp7`. First attempt reproduced the previously documented first-load
+  timing flake: early waiting columns were missed, but the run completed and
+  the final success rendered. This is still an intermittent test limitation,
+  not a clean first-attempt acceptance. Logs on Win11:
+  `/tmp/codex-dashboard-deploy-e2e.log` and
+  `/tmp/codex-dashboard-deploy-e2e-retry.log`. Two new pilot sessions retained.
+
+No approval remains for the completed deployment. Existing unrelated changes
+were preserved: Win11 voice_latency.json, mechanic_instruction.txt,
+adw_interface_browser_open.py and catherine_agent_sdk; BATI runner.md,
+lancedb_memory/.gitignore and stray SQLite sidecars. No logs, database files,
+credentials or nested-repository changes were committed. The older conflicted
+patch and test artifacts were retained. Rosemary46 was not contacted.
+Win11's identical untracked pilot files were compared byte-for-byte to origin,
+then backed up under `/tmp/codex-pilot-pre-pull-jlv6439n` before fast-forwarding.
+
+Next work, if requested: isolate the first-load browser timing flake. No
+functional dashboard or debugger deployment step remains outstanding.
+
+---
+
+# Latest checkpoint - 2026-11-13
+
+## Codex continuation - 2026-11-13: full dashboard suite verified
+
+Continued `mailbox/handoff_2026-11-13_adw_debugger_and_dashboard_tests.md`.
+Worked from DESKTOP-SHDBATI against DESKTOP-2OBSQMC over SSH port 2222.
+No additional production edits were needed; the four existing fixes passed.
+
+Verified this shift on Win11:
+- Full dashboard Python suite: **4216 passed, 4 skipped, 91 warnings**, 143.96 s.
+  Command: `.venv/bin/python -m pytest -q -p no:cacheprovider tests/`.
+  Log: `/tmp/codex-dashboard-20261113-tests.log` on Win11.
+- Dashboard JS: **3047 passed, 2 skipped, 0 failed** (`bun test js/tests`).
+  Log: `/tmp/codex-dashboard-20261113-js-tests.log` on Win11.
+- Debugger UI: **49 passed** (`bun run test`); `bun run typecheck` passed.
+- Pilot: **8 passed** on BATI using the DESIGN.md `uv run` command.
+  BATI's memory venv lacks pytest; it was not modified.
+- `git diff --check` passed on Win11 letta-code.
+- `/tmp/lc-head` is absent and no longer registered as a worktree.
+
+The prior shift's 10/10 browser acceptance results remain prior-shift evidence;
+no new live pilot runs or browser acceptance scenarios were run this shift.
+Dashboard service is active; no restart, commit, push, database cleanup, patch
+removal, or cross-machine synchronization was performed.
+
+Review patch (four test-fix paths only):
+`mailbox/dashboard_fix16_review_2026-11-13.patch` on BATI.
+The four paths remain those listed in the original handoff.
+
+Commit dependency discovered: the debugger mounts above `#terminal-stream`,
+but the Terminal tab, stream, boot module, CSS and navigation are themselves
+uncommitted work. A debugger-only commit against current HEAD would lack its
+mount target. Account for that dependency before committing the debugger.
+Shared `dashboard.html` and `http_app/get_routes.py` include unrelated work.
+The repo pre-commit hook can rewrite staged files; do not blindly stage whole
+shared files or run that hook against partially staged shared files.
+
+Observed Git state (no fetch/pull): BATI agent_blocks main `78a8b3f`, Win11
+agent_blocks main `0f9ae34`; Win11 letta-code main `0fa0cb94` with mixed WIP;
+BATI letta-code was clean. Rosemary46 was not contacted this shift.
+The referenced sync-all skill was not found in searched skill stores; no sync
+was attempted. Preserve existing changes on both machines.
+
+Next action: obtain the approval expressly reserved by the original handoff
+for committing the four-file dashboard fix and restarting the live dashboard.
+A restart activates concurrent edits and kills the Executor, which then needs
+restarting. Debugger commit needs the Terminal dependency resolved first.
+Keep the old conflicted patch, pilot DB sessions and E2E artifacts pending the
+user's cleanup decision.
+
+
+---
+
 # Handoff — current checkpoint
 
 **Shift:** Claude (Opus 5), ending 2026-11-08
