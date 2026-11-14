@@ -1,3 +1,43 @@
+# Scala debugger integration - 2026-11-13
+
+User asked to wire Scala into the live Vue debugger and scan the document on
+the freezer scanner. Completed on DESKTOP-2OBSQMC over SSH port 2222.
+
+- Scala's filing ADW now wraps its seven existing phases with the reusable
+  `adw_modules.monitored_phase.MonitoredSssfPhase` decorator. It preserves
+  params, the original handle, results (including skipped work) and exceptions.
+  All instances are constructed up front; ExitStack closes unreached monitors.
+  Cleanup explicitly describes the monitor scope, not business resources.
+- Shared SSSF event adapter/port moved to `adw_modules/debug_events.py`;
+  pilot imports remain compatible. Dashboard defaults include
+  `adw_interface_scala_file_scan` alongside `adw_debug_pilot`.
+- Tests: pilot/monitor 11 passed locally; Scala 24 passed on both machines;
+  dashboard feed 9 passed on Win11. Scala CLI tests now isolate their DB and
+  runtime folders and assert the seven complete debugger lifecycles.
+  Scala's existing failed-Haiku async test emits unawaited-coroutine warnings;
+  its suite passes. Win11 memory venv lacks pytest, so the monitor pytest
+  suite was run locally through uv rather than installing packages.
+- Dashboard restarted at 20:56:24 EST. Feed names include Scala and pilot;
+  Executor health remained ok. No watcher restart was needed: it starts a new
+  ADW process for each document.
+- Real POST /api/scanner-scan {"scanner":"freezer"} captured one page at
+  20:58 EST, scan_id `scan_01M7BWCNE2Y6AKCATQRKX4DZ2R`.
+  Staged `scan_freezer_1794621489296204548_353158c92a75.jpg` was picked up by
+  the normal Scala watcher after settling. Run `cfac6100` (20:58:32-34 EST)
+  filed it to `documents_511/probate` by rules with confidence 0.97.
+- Live headless Chrome verified running/waiting columns, final success,
+  all seven construction/start/end/cleanup events, real event log rendering,
+  phase selection and All events, with zero page errors. Feed has 89 Scala
+  events. Evidence on Win11: `/tmp/scala-debugger-verification.json`,
+  `/tmp/scala-debugger-live.png`, `/tmp/scala-debugger-selected.png`, and
+  `/tmp/scala-freezer-scan-result.json`. No second hardware scan was started.
+
+To view it: dashboard Terminal -> Follow live; latest Scala run `cfac6100`.
+A previously pinned failed pilot can otherwise keep the old run selected.
+Unrelated WIP and existing runtime artifacts were preserved.
+
+---
+
 # Deployment checkpoint - 2026-11-13
 
 User approved: "yes, commit, push and deploy everything."

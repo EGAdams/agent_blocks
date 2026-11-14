@@ -10,10 +10,13 @@ from __future__ import annotations
 import json
 import os
 import stat
+import sqlite3
 import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+import yaml
 
 sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 2 ]))
 
@@ -246,6 +249,15 @@ async def test_ledger_file_is_private():
         assert mode == 0o600, oct( mode )
 
 
+def isolated_config( tmp: Path ) -> Path:
+    config = yaml.safe_load(( ADW.parent / "adw_sssf_config" / "sssf.config.yaml" ).read_text())
+    config[ "observability" ][ "db" ] = str( tmp / "sssf.db" )
+    config[ "defaults" ][ "data_dir" ] = str( tmp / "adw_data" )
+    path = tmp / "sssf.yaml"
+    path.write_text( yaml.safe_dump( config ))
+    return path
+
+
 async def test_adw_files_by_a_persons_folder_and_writes_one_line():
     with tempfile.TemporaryDirectory() as raw:
         tmp = Path( raw )
@@ -256,12 +268,26 @@ async def test_adw_files_by_a_persons_folder_and_writes_one_line():
                 "SCALA_MAZDA_RECORD": str( tmp / "none.json" ), "AGENT_POST_OFFICE_ROOT": raw }
         done = subprocess.run(
             [ sys.executable, str( ADW ), "test", "--scan", str( scan ), "--folder", "bills_511/water",
-              "--message-out", str( line_file )],
+              "--message-out", str( line_file ), "--config", str( isolated_config( tmp ))],
             cwd=ADW.parents[ 1 ], env=env, capture_output=True, text=True, timeout=120 )
         assert done.returncode == 0, done.stderr[ -800: ] + done.stdout[ -800: ]
         line = line_file.read_text().strip()
         assert line.startswith( "Scala filed window_scan_1_abc.jpg under bills_511/water (new folder)" ), line
         assert len(( tmp / "home" / "ledger.jsonl" ).read_text().splitlines()) == 1
+        with sqlite3.connect( tmp / "sssf.db" ) as conn:
+            rows = conn.execute( "SELECT type, phase_id, payload_json FROM events ORDER BY rowid" ).fetchall()
+        details = [( kind, phase, json.loads( payload )) for kind, phase, payload in rows ]
+        debug = [ payload[ "adw_debug" ] for _, _, payload in details if "adw_debug" in payload ]
+        constructed = [ d for d in debug if d[ "kind" ] == "constructed" ]
+        assert [ d[ "phase_name" ] for d in constructed ] == [
+            "check_seen", "check_mazda", "read_text", "classify", "file", "ask", "report" ]
+        assert len({ d[ "instance_id" ] for d in constructed }) == 7
+        first_start = next( i for i, row in enumerate( details ) if row[ 0 ] == "phase_start" )
+        assert sum( p.get( "adw_debug", {}).get( "kind" ) == "constructed"
+                    for _, _, p in details[ :first_start ]) == 7
+        assert len([ d for d in debug if d[ "kind" ] == "bound" ]) == 7
+        assert len([ d for d in debug if d[ "kind" ] == "cleanup" ]) == 7
+        assert all( p[ "status" ] == "success" for kind, _, p in details if kind == "phase_end" )
 
 
 class FakeAsker:
@@ -360,7 +386,7 @@ async def test_answer_adw_files_and_checks_off_the_to_do():
                 "COMPANY_TODOS_HOME": str( tmp / "todos" ), "AGENT_POST_OFFICE_ROOT": raw }
         done = subprocess.run(
             [ sys.executable, str( ANSWER_ADW ), "test", "--request", "Scala, file #1 under bills_511/water",
-              "--message-out", str( line_file )],
+              "--message-out", str( line_file ), "--config", str( isolated_config( tmp ))],
             cwd=ANSWER_ADW.parents[ 1 ], env=env, capture_output=True, text=True, timeout=120 )
         assert done.returncode == 0, done.stderr[ -800: ] + done.stdout[ -800: ]
         assert line_file.read_text().startswith( "Scala filed question #1 under bills_511/water (new folder)" )

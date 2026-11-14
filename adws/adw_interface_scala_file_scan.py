@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -44,6 +45,8 @@ from sssf_roles import ( ConsoleLifecycleLog, IApplication, IArgumentParser, ICo
 
 from adw_modules import utils
 from adw_modules.data_types import PhaseParams
+from adw_modules.debug_events import SssfDebugEvents
+from adw_modules.monitored_phase import MonitoredSssfPhase
 
 from company_todos.store import JsonlTodoStore
 
@@ -284,14 +287,21 @@ class ScanApplication( LifecycleLogged, IApplication ):
         session_log: ILifecycleLog = ConsoleLifecycleLog( run )
 
         state = ScanRun( request=request )
-        for phase in ( CheckSeenPhase(  state, self._desk, session_log ),
+        phases = ( CheckSeenPhase(  state, self._desk, session_log ),
                        CheckMazdaPhase( state, self._desk, session_log ),
                        ReadTextPhase(   state, self._desk, session_log ),
                        ClassifyPhase(   state, self._desk, session_log ),
                        FilePhase(       state, self._desk, session_log ),
                        AskPhase(        state, self._questions, session_log ),
-                       ReportPhase(     state, session_log )):
-            self._phase_executor.execute( run, phase )
+                       ReportPhase(     state, session_log ))
+        events = SssfDebugEvents( run )
+        with ExitStack() as cleanup:
+            monitored = [ MonitoredSssfPhase( phase, run.adw_id, phase.params.name, events )
+                          for phase in phases ]
+            for phase in monitored:
+                cleanup.callback( phase.close )
+            for phase in monitored:
+                self._phase_executor.execute( run, phase )
         if state.outcome is None:                       # a dry run: decided, nothing done
             return run.finish( accepted=True, reason=state.notes[ -1 ])
         if not request.dry_run:

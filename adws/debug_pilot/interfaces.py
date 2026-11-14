@@ -9,6 +9,8 @@ from typing import Any, Protocol
 
 from pydantic import BaseModel
 
+from adw_modules.debug_events import IDebugEvents
+
 
 class FaultPlan( BaseModel ):
     """Test-only fault controls, named by step key. Empty means a clean run."""
@@ -17,12 +19,6 @@ class FaultPlan( BaseModel ):
     stall_at:      str   = ""
     stall_seconds: float = 0.0
     kill_at:       str   = ""
-
-
-class IDebugEvents( Protocol ):
-    """Where one debugger event is recorded. The real one writes an SSSF event."""
-
-    def emit( self, kind: str, phase_id: str = "", **fields: Any ) -> None: ...
 
 
 class IPhaseProbe( Protocol ):
