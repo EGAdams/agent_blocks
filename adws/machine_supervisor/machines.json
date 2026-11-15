@@ -1,0 +1,99 @@
+{
+  "policy": {
+    "model": "sonnet",
+    "agent_timeout": 900,
+    "ask_timeout": 300,
+    "mail_timeout": 180,
+    "cooldown_minutes": 360,
+    "settle_seconds": 10,
+    "recheck_tries": 3
+  },
+  "machines": [
+    {
+      "name": "BATI",
+      "hostname": "DESKTOP-SHDBATI",
+      "ssh": {"host": "100.80.49.10", "port": 22, "user": "adamsl"},
+      "always_on": true,
+      "python": "/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python",
+      "repo": "/home/adamsl/agent_blocks",
+      "claude": "/home/adamsl/.local/bin/claude",
+      "peers": ["SQMC", "R46"],
+      "checks": [
+        {"name": "letta-api", "kind": "http", "target": "http://localhost:8283/v1/health/",
+         "about": "The Letta server, in Docker (docker compose -f ~/letta-src/docker-compose.prod.yml ps; docker logs letta-server --tail 50). A cron watchdog already restarts its Postgres."},
+        {"name": "dashboard-proxy", "kind": "unit", "target": "dashboard-proxy.service",
+         "about": "User unit that forwards this machine's :8765 to the dashboard on SQMC. Restarting it is safe."},
+        {"name": "dashboard-via-proxy", "kind": "http", "target": "http://localhost:8765/", "threshold": 4,
+         "about": "The dashboard as people on this machine reach it. If dashboard-proxy is active, the fault is on SQMC: test ssh -p 2222 adamsl@100.102.209.100. If that is refused, WSL on SQMC is not running; boot it with: ssh NewUser@100.118.122.75 \"wsl -d Ubuntu-26.04 -- /bin/true\" (recover-dashboard.timer tries the same every 3 minutes)."},
+        {"name": "sqmc-ssh", "kind": "tcp", "target": "100.102.209.100:2222", "threshold": 4,
+         "about": "SSH into WSL on SQMC. Closed means WSL there is down or Tailscale is. Boot WSL from its Windows side: ssh NewUser@100.118.122.75 \"wsl -d Ubuntu-26.04 -- /bin/true\"."},
+        {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service",
+         "about": "Tailscale. Without it no machine can reach this one. sudo -n systemctl restart tailscaled works here."}
+      ],
+      "notes": [
+        "Windows 10 with WSL. EG works at this machine.",
+        "sudo -n works without a password.",
+        "dashboard-watch.timer (observe only) and recover-dashboard.timer (boots WSL on SQMC) also run here. Leave both alone."
+      ]
+    },
+    {
+      "name": "SQMC",
+      "hostname": "DESKTOP-2OBSQMC",
+      "ssh": {"host": "100.102.209.100", "port": 2222, "user": "adamsl"},
+      "always_on": true,
+      "python": "/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python",
+      "repo": "/home/adamsl/agent_blocks",
+      "claude": "/usr/local/bin/claude",
+      "peers": ["BATI", "R46"],
+      "checks": [
+        {"name": "dashboard", "kind": "http", "target": "http://localhost:8765/",
+         "about": "The dashboard, user unit dashboard-server.service. Restart it ONLY while this check is failing: a restart interrupts whatever the dashboard's Executor is running."},
+        {"name": "dashboard-server", "kind": "unit", "target": "dashboard-server.service",
+         "about": "See the dashboard check. journalctl --user -u dashboard-server -n 80 for why it stopped."},
+        {"name": "toyota-receptionist", "kind": "unit", "target": "toyota-receptionist.service", "about": "Toyota's sidecar. Restart is safe."},
+        {"name": "sydney-receptionist", "kind": "unit", "target": "sydney-receptionist.service", "about": "Sydney's sidecar. Restart is safe."},
+        {"name": "mazda-receptionist", "kind": "unit", "target": "mazda-receptionist.service", "about": "Mazda's sidecar. Restart is safe."},
+        {"name": "yolanda-receptionist", "kind": "unit", "target": "yolanda-receptionist.service", "about": "Yolanda's sidecar. Restart is safe."},
+        {"name": "liz-receptionist", "kind": "unit", "target": "liz-receptionist.service", "about": "Liz's sidecar. Restart is safe."},
+        {"name": "cashy-agent", "kind": "unit", "target": "cashy-agent.service", "about": "Cashy's sidecar on :8770. Restart is safe."},
+        {"name": "agent-bridge-worker", "kind": "unit", "target": "agent-bridge-worker.service",
+         "about": "The Star Trek Bridge worker. A task sitting queued with 0 attempts is quiet hours (09:00-23:00) or DNS, not a dead worker. agent-bridge-supervisor.timer already restarts a stalled one."},
+        {"name": "agent-bridge-worker-express", "kind": "unit", "target": "agent-bridge-worker-express.service", "about": "The Bridge's express-lane worker."},
+        {"name": "scala-scanner", "kind": "unit", "target": "scala-scanner.service", "about": "Scala's scanner API."},
+        {"name": "cloudflared-dashboard", "kind": "unit", "scope": "system", "target": "cloudflared-dashboard.service", "about": "The Cloudflare tunnel in front of the dashboard."},
+        {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service", "about": "Tailscale. Without it no machine can reach this one."},
+        {"name": "bati-ssh", "kind": "tcp", "target": "100.80.49.10:22", "threshold": 4,
+         "about": "SSH into WSL on BATI. Closed means WSL or Tailscale on BATI is down; nothing here can boot it."},
+        {"name": "bati-letta-api", "kind": "http", "target": "http://100.80.49.10:8283/v1/health/", "threshold": 4,
+         "about": "The Letta server on BATI, as agents here reach it. Fix it on BATI: ssh adamsl@100.80.49.10."}
+      ],
+      "notes": [
+        "EG's primary Windows 11 machine. Its Windows side is 100.118.122.75, login NewUser. It hosts the dashboard and every receptionist sidecar.",
+        "sudo -n works without a password.",
+        "adw-supervisor.service and agent-bridge-supervisor.timer are other, older supervisors with narrower jobs. Leave both alone.",
+        "On 2026-11-14 the whole machine dropped off the network for about an hour and came back only after EG rebooted Windows. Cause not proven; Windows Update is the lead."
+      ]
+    },
+    {
+      "name": "R46",
+      "hostname": "Rosemary46",
+      "ssh": {"host": "100.72.34.38", "port": 2222, "user": "adamsl"},
+      "always_on": false,
+      "python": "/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python",
+      "repo": "/home/adamsl/agent_blocks",
+      "claude": "/home/adamsl/.local/bin/claude",
+      "peers": ["SQMC", "BATI"],
+      "checks": [
+        {"name": "agent-bridge-worker-machine", "kind": "unit", "target": "agent-bridge-worker-machine.service",
+         "about": "This machine's Bridge worker (lane machine), which runs Cashy here. Restart is safe when no task is running."},
+        {"name": "master-db-tunnel", "kind": "unit", "target": "master-db-tunnel.service", "about": "The tunnel to the master database."},
+        {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service", "about": "Tailscale. sudo needs a password here, so a system unit cannot be restarted: say so in needs."}
+      ],
+      "notes": [
+        "Mom's Windows computer (Windows user rbarn). It may be switched off; that is normal and nobody is woken for it.",
+        "sudo needs a password here. Anything that needs root goes in needs.",
+        "Somebody else uses this desktop. Do nothing that shows on her screen except an alert."
+      ]
+    }
+  ]
+}

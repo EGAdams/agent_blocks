@@ -233,6 +233,21 @@ The top-level areas are:
   reaches it as protected Bridge agent `scala-storage`, and Toyota through her
   `bridge_scala_storage` route (`bridge_client/storage_plans.py`, verified live through her 2026-11-12). Verified live
   2026-11-12 on all three machines.
+  `adws/machine_supervisor/` is the Machine Supervisor (read its `DESIGN.md`
+  first): one sleeping supervisor per machine (BATI, SQMC, R46), woken by a
+  cron ADW with no model in it (`adw_machine_watch.py`) when a check in
+  `machines.json` keeps failing. She repairs, code rechecks, and EG gets a
+  mail; if she can't, every machine gets an alert and the next machine's
+  supervisor is woken over SSH, then the third, then a HIGH PRIORITY mail
+  with a prompt for a more capable agent. Messages between them are
+  Swarm-Forge handoff envelopes carried by SSH; each operation is one thin
+  `adw_machine_<op>.py` over `machine_supervisor/kit.py`. Two hook guards are
+  enforced in code (a Bash deny table, and a mail guard that passes one exact
+  mail to one recipient). The Bridge reads the mailboxes and gives todos as
+  agent `machine-supervisor` (`agent_bridge_worker/machine_supervisor_agent.py`,
+  off until `~/.config/machine_supervisor/bridge_enabled` exists). Verified
+  live on BATI only, 2026-11-14 (watch, repair, mail, todo); not yet installed
+  on SQMC or R46, no cron entry anywhere, and the gateway entry is not deployed.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
