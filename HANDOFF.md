@@ -1,3 +1,32 @@
+# Mazda finance under OMAPS - first increment - 2026-11-15
+
+EG's task: rewrite all Mazda finance processes as interface-based ADWs,
+deterministic first. **Not complete.** One workflow is built; nothing is cut
+over. The single record of status is
+`/home/adamsl/rol_finances/architecture/COVERAGE_MATRIX.md` -- read it first.
+
+- New here: `adws/adw_interface_finance_intake.py` (+ `test_finance_intake_adw.py`,
+  4 pass on Win11 with `~/rol_finances/.venv/bin/python -m pytest`). It wraps
+  the ten phases of `rol_finances/finance_app/intake` with `MonitoredSssfPhase`.
+  The phases run without the ADW; the ADW only makes them visible.
+- Dashboard (`letta-code` cce87189, deployed and restarted on Win11): a second
+  intake engine, off. Switch: `~/.mazda/intake_engine.json`
+  (`{"engine": "finance_workflow"}` / `{"engine": "mazda_agent"}`), no restart.
+- Verified: unit tests (rol_finances 68, dashboard 4240 with one unrelated
+  `pipecat` import failure on Rosemary46 only), live read-only lookups, and a
+  read-only 150-receipt comparison. **Not verified:** any real scan through
+  the new engine; any write by it; the debugger showing a real run.
+- Cutover is blocked on EG's category decision (matrix, "Comparison"): the
+  vendor map's category differs from the stored one on 67 of 100 receipts.
+- `agent_blocks/mazda/` stubs were not used; the finance code lives with the
+  finance application. No RSI/Sydney pilot code was found on any machine.
+- Machines: Rosemary46, Win11 (SQMC) and BATI all on main. Unrelated local
+  changes on Win11 and BATI were left alone.
+
+Next action: matrix section "Next concrete actions", item 1.
+
+---
+
 # Scala debugger integration - 2026-11-13
 
 User asked to wire Scala into the live Vue debugger and scan the document on
