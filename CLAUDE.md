@@ -245,9 +245,14 @@ The top-level areas are:
   enforced in code (a Bash deny table, and a mail guard that passes one exact
   mail to one recipient). The Bridge reads the mailboxes and gives todos as
   agent `machine-supervisor` (`agent_bridge_worker/machine_supervisor_agent.py`,
-  off until `~/.config/machine_supervisor/bridge_enabled` exists). Verified
-  live on BATI only, 2026-11-14 (watch, repair, mail, todo); not yet installed
-  on SQMC or R46, no cron entry anywhere, and the gateway entry is not deployed.
+  off until `~/.config/machine_supervisor/bridge_enabled` exists; on, on SQMC).
+  Installed on all three with a two-minute cron entry, 2026-11-14. Verified
+  live: watch, repair, mail and todo on BATI; an alert on all three; a drill
+  up all three rungs to the HIGH PRIORITY mail (2026-11-15); and a Bridge
+  status read through the gateway (protected agent, registry seeded). Not
+  verified: a todo given over the Bridge, and mail through SQMC's connector.
+  A supervisor is a Claude CLI run, so a usage limit or no internet leaves
+  her unable to act -- the ladder then moves on and the mail is held.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
