@@ -99,6 +99,14 @@ SUPERVISOR_ENABLED = Path.home() / ".config" / "machine_supervisor" / "bridge_en
 SUPERVISOR_WORKDIR = _HERE / "adw_data" / "machine_supervisor" / "workspace"            # the `machine-supervisor` workspace: empty, nothing runs in it
 SUPERVISOR_MAILBOX_ADW = _HERE / "adw_machine_mailbox.py"
 SUPERVISOR_TODO_ADW    = _HERE / "adw_machine_todo.py"
+IMPROVE_ENABLED = Path.home() / ".config" / "agent_improvement" / "bridge_enabled"   # agent improvement is off until this exists
+IMPROVE_WORKDIR = _HERE / "adw_data" / "agent_improvement" / "workspace"    # the `agent-improvement` workspace: empty, nothing runs in it
+IMPROVE_CYCLE_ADW = _HERE / "adw_improvement_cycle.py"
+IMPROVE_OPS_ADW   = _HERE / "adw_improvement_ops.py"
+IMPROVE_PYTHON    = _HERE.parent / "lancedb_memory" / ".venv" / "bin" / "python"   # imports the target's runner
+#: The RSI framework copy the pilot was verified with; overridden by AGENT_IMPROVEMENT_RSI_ROOT in the unit's env.
+IMPROVE_RSI_ROOT  = Path( os.environ.get( "AGENT_IMPROVEMENT_RSI_ROOT",
+                                          str( Path.home() / "staging" / "rsi_pilot" / "self_improving_agent" )))
 NOTES_REVIEW_ADW = _HERE / "adw_notes_review.py"                               # the notes review_* operations
 NOTES_ENABLED   = Path.home() / ".config" / "startrek_notes" / "enabled"     # the Notes diagnostic is off until this exists
 NOTES_DIR       = Path( os.environ.get( "NOTES_DIR", str( Path.home() / "notes" )))   # the dashboard's NOTES_DIR
@@ -189,6 +197,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.adapters.scala_storage_process import UvScalaStorageCommands
     from agent_bridge_worker.machine_supervisor_agent import MachineSupervisorAgent
     from agent_bridge_worker.adapters.machine_supervisor_process import UvMachineSupervisorCommands
+    from agent_bridge_worker.improvement_agent import ImprovementAgent
+    from agent_bridge_worker.adapters.improvement_process import ProcessImprovementCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
     from agent_bridge_worker.adapters.notes_activity_log import JsonlNotesActivity
@@ -318,10 +328,20 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # Agent and workspace share one name (see the chatgpt-relay note above). Reading a mailbox is `inspect`;
         # a todo is `implement`, and what the supervisor may then do is fixed by her guard, not by this workspace.
         self_contained.add( "machine-supervisor" )
+    if IMPROVE_ENABLED.exists():                        # agent improvement is off until EG creates the flag file
+        IMPROVE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "agent-improvement" ]  = ImprovementAgent( ProcessImprovementCommands(
+            IMPROVE_PYTHON, IMPROVE_CYCLE_ADW, IMPROVE_OPS_ADW, _HERE.parent,
+            env={ "AGENT_IMPROVEMENT_RSI_ROOT": str( IMPROVE_RSI_ROOT )}), clock )
+        offered[ "agent-improvement" ] = { "inspect": False, "implement": True }
+        # Agent and workspace share one name (see the chatgpt-relay note above). What a cycle may change is fixed
+        # by the target's profile and gates (adws/agent_improvement/profiles.py); the workspace is an empty directory.
+        self_contained.add( "agent-improvement" )
     write_names = lane.write_workspaces( workspaces.write_names(), self_contained )
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
                                       "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR,
-                                      "scala-storage": STORAGE_WORKDIR, "machine-supervisor": SUPERVISOR_WORKDIR },
+                                      "scala-storage": STORAGE_WORKDIR, "machine-supervisor": SUPERVISOR_WORKDIR,
+                                      "agent-improvement": IMPROVE_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent

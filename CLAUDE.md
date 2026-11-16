@@ -253,6 +253,12 @@ The top-level areas are:
   verified: a todo given over the Bridge, and mail through SQMC's connector.
   A supervisor is a Claude CLI run, so a usage limit or no internet leaves
   her unable to act -- the ladder then moves on and the mail is held.
+  `adws/agent_improvement/` is agent improvement in ADWs (read its `DESIGN.md` first): one bounded,
+  ten-phase self-improvement cycle of one target agent (`adw_improvement_cycle.py`) and the operations on
+  it (`adw_improvement_ops.py`), over the existing RSI framework through `rsi.py`. `profiles.py` is the only
+  file naming a target -- Sydney first; Mazda keeps her finance judge and is not wired. The improver
+  proposes, the judge and gates decide, and only EG approves a live activation. Bridge agent
+  `agent-improvement` (protected; worker flag `~/.config/agent_improvement/bridge_enabled`).
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
