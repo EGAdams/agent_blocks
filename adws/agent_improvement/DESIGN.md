@@ -106,9 +106,15 @@ profile; the engine does not change.
 | --- | --- | --- | --- | --- |
 | 1 | sydney-20261116T021721Z-bbe4a9 | 8f5670ee, resumed bef5edb1 | w-4b0750039fc6 | rejected: regression (unit sent without `.service`) |
 | 2 | sydney-20261116T022827Z-149b5f | d7d279d6 | w-0315f352386b | rejected: held_out (variation sent bare JSON, no `machine-ops@machine_ops:` prefix) |
+| 3 | sydney-20261116T032717Z-c1da44 | 0fe89d9d, settled dc456429 | w-fa166077f5b7 | every gate allowed but usefulness (`needs_human`: no measurable improvement); rejected by EG's delegate, because approving a change that scored no better would manufacture an improvement |
 
-Both left the baseline w-c57f4465b82a active. No pilot activation or rollback has happened for real yet;
-those paths are covered by the offline tests only. Cycle 1's `reason` still holds the phase-9 crash text from
+Live, gen 1: sydney-20261116T033427Z-74e4d0 (`AGENT_IMPROVEMENT_LIVE=1`), candidate w-97f13d8083d6, fixed
+`bridge_target` and `payload_strict_json` on training and held-out but newly failed `result_succeeded` on both,
+so it was rejected by the regression gate before any approval was asked for. Sydney's live prompt and service were not touched.
+
+All four left the baseline w-c57f4465b82a active. The pilot lineage is at its generation limit (3). No activation or
+rollback has happened for real yet; those paths are covered by the offline tests only. Through the Bridge, a toyota-bridge
+`lineage` read was verified end to end on 2026-11-15; no `start` or `decide` has been sent over it yet. Cycle 1's `reason` still holds the phase-9 crash text from
 before `attempt_errors` existed; the record was left as written.
 
 ## Known limits
