@@ -187,6 +187,12 @@ The rules, enforced in code:
 Timeouts: 60 s wait for the file, plus up to 15 s to find the folder, inside `BrowserAgent`'s 120 s deadline and
 `UvBrowserCommands`' 180 s hard limit.
 
+The 60 s is kept **by the clock**, not by counting polls (2026-11-17): each poll's own work -- a Chrome
+round trip, a save request -- had been adding to a count of 1 s sleeps, so one wait ran past the worker's
+120 s deadline and the task ended "lease expired" with nothing reported. The interop probe in `link.py` also
+captures no pipes now: after a timeout `subprocess.run` reads the killed child's pipes to EOF, and a Windows
+child holding them open turned one 5 s probe into 75 s ahead of a download.
+
 Two host causes, both found by running this through the live Bridge rather than by testing (the ADW from a
 shell worked all along -- a login shell has what a systemd user service does not):
 
@@ -241,6 +247,13 @@ the same staging, verification, rendering and publishing as a pressed link (`Dow
 | a page with a visible password field | `cause: sign_in_required`, `needs_person: true`, `tab` | **left open and brought forward for EG** -- never signed into |
 | any other page | `cause: not_a_file` | closed |
 | DNS/connection error | `cause: fetch_failed` with Chrome's error | closed |
+| the tab settled on **another host** for 15 s (an extension or the site redirected it) | `cause: redirected`, `landed_on: <host>` | closed |
+
+`redirected` exists because of the **Soda PDF Viewer** extension in the `adw-chrome-debug` profile
+(2026-11-17): intermittently it takes a PDF's tab to `tools.sodapdf.com`, which both sends the PDF's address to
+that site and leaves nothing for Chrome to save. The answer names the host and says it may have been given the
+address; it gives up after 15 s on the other site instead of spending the whole 60 s. Whether to remove the
+extension from that profile is EG's decision -- it has not been touched.
 
 Only http/https with a host is accepted (worker `checked_url`, gateway and Toyota check it too); the query string
 is never reported back (`safe_url` keeps scheme://host/path). A consequential-looking path still needs `confirm`.

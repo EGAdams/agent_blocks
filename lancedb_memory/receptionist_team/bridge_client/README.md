@@ -196,6 +196,15 @@ built by code). implement, print, print_cancel and scan are read back and held
 in `desk.PENDING`; the next short "yes"/"no" is sent to that specialist by
 `adapters/bridge_confirmation_route.py`. Everything else is sent at once.
 
+A message naming a task id (`t_...`) is normally a readback of that Bridge task
+(`adapters/bridge_task_route.py`), which sends nothing new. A print job's id *is*
+the id of the task that printed it, so a builder may claim such ids
+(`specialists.IClaimsIds`): `PrinterBuilder` claims one when the words say "print
+job", and "status of print job t_..." then asks the printer again (`print_status`)
+instead of repeating the stored result (2026-11-17). A browser click takes a
+link's visible words as `text` -- `form_controls` lists fields and buttons, never
+links.
+
 A task still running after ~15 s is handed to `desk.NOTICES`; Toyota's alert
 inbox (`CombinedAlerts` with the post office) reports it when it finishes, at
 the start of her next turn and on the dashboard. "cancel t_..." asks the Bridge
