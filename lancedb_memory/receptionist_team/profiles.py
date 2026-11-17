@@ -40,6 +40,7 @@ from .adapters.status_route import StatusQuestionRoute
 from .adapters.tax_progress_route import TaxProgressPageRoute
 from .adapters.scala_route import ScalaAnswerRoute
 from .adapters.scala_storage_route import ScalaStorageRoute
+from .adapters.cashy_route import CashyR46Route
 from .adapters.todo_route import CompanyTodoRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
@@ -125,7 +126,7 @@ def _toyota_runner() -> IDelegationRunner:
             **{name: BridgeSpecialistRunner(name)
                for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                             "bridge_notes", "bridge_browser", "bridge_chatgpt",
-                            "bridge_deploy", "bridge_scala_storage")},
+                            "bridge_deploy", "bridge_scala_storage", "bridge_cashy")},
             # The four inspection questions, answered from object_trace.service
             # (127.0.0.1:8790) with evidence; no model (adapters/inspection_runner.py).
             "object_inspector": ObjectInspectionRunner(),
@@ -151,7 +152,8 @@ def _sydney_runner() -> IDelegationRunner:
 
 #: The Bridge specialists that read a request back and wait for a yes (adapters/bridge_specialist_runner.py).
 BRIDGE_SPECIALISTS = ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner", "bridge_notes",
-                      "bridge_browser", "bridge_chatgpt", "bridge_deploy", "bridge_scala_storage")
+                      "bridge_browser", "bridge_chatgpt", "bridge_deploy", "bridge_scala_storage",
+                      "bridge_cashy")
 
 
 def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
@@ -174,7 +176,7 @@ def _bridge_routes(desk_name: str) -> list[IRouteOverride]:
     from .bridge_client.desk import desk_for
     return [BridgeConfirmationRoute(desk_for(desk_name).pending), BridgeReadOnlyAddressRoute(),
             ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BridgeDeviceRoute(),
-            ScalaStorageRoute("bridge_scala_storage")]
+            CashyR46Route("bridge_cashy"), ScalaStorageRoute("bridge_scala_storage")]
 
 
 def _yolanda_runner() -> IDelegationRunner:
@@ -328,6 +330,8 @@ TOYOTA = ReceptionistProfile(
         BridgeDeviceRoute(),
         # Copying a scan to BATI, R46 or SQMC is a Bridge storage request, even
         # when it names Scala; a to-do number stays hers (scala_storage_route.py).
+        # Cashy on R46 is a Bridge agent, never the dashboard's Cashy window (cashy_route.py).
+        CashyR46Route("bridge_cashy"),
         ScalaStorageRoute("bridge_scala_storage"),
         # Scala's filing questions are to-do items, so an answer to one can
         # name the list; what was asked for is a filing (adapters/scala_route.py).

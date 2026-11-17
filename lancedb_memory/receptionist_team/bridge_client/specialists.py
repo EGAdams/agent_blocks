@@ -29,6 +29,7 @@ from .notes_plans import NOTES_PLANS
 from .deploy_plans import DEPLOY_PLANS
 from .relay_plans import RELAY_PLANS
 from .storage_plans import NEVER, STORAGE_PLANS
+from .cashy_plans import CASHY_PLANS, NEVER as CASHY_NEVER
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
 WRITE_FRAME = ("Request relayed by EG's receptionist (the task's sender names which); "
@@ -130,6 +131,8 @@ class SpecialistForm(BaseModel):
     scan_id: str | None = None        # scala storage: scan_ + 26, or "last"
     machine: str | None = None        # scala storage: BATI, R46 (Mom's) or SQMC
     folder: str | None = None         # scala storage: an approved folder on that machine, from its folder list
+    session: str | None = None        # cashy: r46-bridge (Fifth Third) or r46-fnbo (FNBO)
+    bank: str | None = None           # cashy: fifth_third or fnbo (open_bank)
 
     @classmethod
     def parse(cls, raw: object) -> "SpecialistForm":
@@ -461,6 +464,38 @@ class ScalaStorageBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class CashyBuilder:
+    """cashy-r46: Cashy, the banking navigation agent, on R46 (Mom's computer) -- her status, what the page offers,
+    open a bank's sign-in page, carry on once EG has signed in, pause, resume, stop.
+
+    Each operation is a Plan in `cashy_plans.CASHY_PLANS` (Strategy + Registry); this class only finds it. The same
+    Bridge agent, R46 worker and Cashy ADWs ChatGPT drives (agent_bridge/docs/CASHY_R46.md), so the receptionist
+    gains no banking path of her own. Nothing here can approve one of Cashy's consequential steps.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(CASHY_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("cashy.")
+        if what in CASHY_NEVER:
+            raise FormProblem("Cashy only finds her way around the bank's pages; she never moves money, approves "
+                              "anything or types a password. Whoever is at R46 does that by hand.")
+        plan = CASHY_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should Cashy do on R46: tell you her status, read the page, list what it "
+                              "offers, open Fifth Third or FNBO, carry on after you've signed in, or pause, "
+                              "resume or stop?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "cashy-r46"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -483,4 +518,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_chatgpt", "chatgpt-relay", "the Bridge's ChatGPT relay", ChatGptBuilder()),
     BridgeSpecialist("bridge_deploy", "deploy", "the Bridge's Deployment ADW", DeployBuilder()),
     BridgeSpecialist("bridge_scala_storage", "scala-storage", "Scala's filing on the Bridge", ScalaStorageBuilder()),
+    BridgeSpecialist("bridge_cashy", "cashy-r46", "Cashy on R46 through the Bridge", CashyBuilder()),
 )}

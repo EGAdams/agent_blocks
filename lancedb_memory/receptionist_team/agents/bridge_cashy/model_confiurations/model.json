@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's and Sydney's Bridge specialist for Cashy on R46 (Mom's computer): her status, the page she is on and what it offers, and after a yes opens Fifth Third's or FNBO's sign-in page, carries on once EG has signed in, or pauses, resumes or stops her",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_cashy",
+  "notes": "The profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and fills in bank and session; bridge_client/cashy_plans.py builds the exact JSON prompt with machine R46. Every change is read back and sent only after a yes. The same Bridge agent (cashy-r46), R46 worker and Cashy ADWs that ChatGPT drives."
+}
