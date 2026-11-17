@@ -388,7 +388,13 @@ def test_a_viewer_is_asked_again_while_nothing_has_started_but_never_once_a_down
     import browser_control.downloads as downloads
     ops, world, watcher = wired(tmp_path, running=("chrome",))
     asks, polls = [], []
-    watcher.wait_new = lambda before, timeout_seconds=30.0: polls.append(timeout_seconds) or []
+    clock = ops["browser_download"]._plane.clock     # the budget is kept by the clock: a poll spends time
+
+    def wait_new(before, timeout_seconds=30.0):
+        polls.append(timeout_seconds)
+        clock.sleep(timeout_seconds)
+        return []
+    watcher.wait_new = wait_new
     original = world.attach
 
     def attach(kind, tab_id):
@@ -408,8 +414,13 @@ def test_a_viewer_is_asked_again_while_nothing_has_started_but_never_once_a_down
     snapshots = iter([set(), set()])
     watcher.before = lambda: next(snapshots, {"fw8ben.pdf.crdownload"})
     calls = []
-    watcher.wait_new = lambda before, timeout_seconds=30.0: calls.append(timeout_seconds) or (
-        [pdf] if len(calls) > 1 else [])
+    clock = ops["browser_download"]._plane.clock
+
+    def wait_new_again(before, timeout_seconds=30.0):
+        calls.append(timeout_seconds)
+        clock.sleep(timeout_seconds)
+        return [pdf] if len(calls) > 1 else []
+    watcher.wait_new = wait_new_again
     second = world.attach
 
     def attach_again(kind, tab_id):
@@ -475,3 +486,25 @@ def test_a_consequential_address_needs_confirmation(tmp_path):
     ops, world, _ = wired(tmp_path, arriving=[a_file(tmp_path)], running=("chrome",))
     out = run(ops, "browser.download", url="https://bank.example/pay-now/statement.pdf")
     assert not out.ok and out.data.get("needs_confirmation") is True and len(world.running["chrome"]) == 1
+
+
+def test_a_pdf_sent_to_another_site_says_which_site_had_it(tmp_path):
+    """2026-11-17: the debug Chrome's Soda PDF Viewer extension sent every PDF to tools.sodapdf.com. "Answered
+    with a web page" hid that a third party had been handed the address; the refusal names the host."""
+    ops, world, _ = wired(tmp_path, running=("chrome",))
+    world.elements = []
+    original = world.attach
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        go = page.navigate
+
+        def navigate(url):
+            go(url)
+            page.current_url = page.tab.url = "https://tools.sodapdf.com/url?url=" + url
+        page.navigate = navigate
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url="https://www.irs.gov/pub/irs-pdf/fw8ben.pdf")
+    assert not out.ok and out.data["cause"] == "redirected" and out.data["landed_on"] == "tools.sodapdf.com"
+    assert "tools.sodapdf.com" in out.line and world.closed == ["chrome-2"], out.line

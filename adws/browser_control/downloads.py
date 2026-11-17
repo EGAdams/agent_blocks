@@ -173,7 +173,7 @@ class Download(BrowserOperation):
         directory, filer, verifier = prepared
         self._up(kind)
         tab = self._plane.endpoint.open_page(kind, "about:blank")
-        keep_tab, kept, leftovers, failure, title, sign_in = False, [], [], "", "", False
+        keep_tab, kept, leftovers, failure, title, sign_in, landed = False, [], [], "", "", False, ""
         page = self._plane.attacher.attach(kind, tab.id)
         configure = getattr(page, "configure_downloads", None)
         try:
@@ -198,6 +198,7 @@ class Download(BrowserOperation):
                 kept = staged.keep(saved)
                 if not kept:
                     title = (page.title or "")[:80]
+                    landed = page.current_url or ""
                     sign_in = self._asks_for_password(page)
                     keep_tab = sign_in
             finally:
@@ -230,6 +231,15 @@ class Download(BrowserOperation):
         if failure and "ERR_ABORTED" not in failure:
             return refused(f"Chrome could not fetch {shown}: {failure.split(': ', 1)[-1][:160]}. Nothing was saved.",
                            cause="fetch_failed", **base)
+        elsewhere = urlparse(landed).hostname or ""
+        if elsewhere and elsewhere != urlparse(url).hostname:
+            # 2026-11-17: the debug Chrome's "Soda PDF Viewer" extension sends every PDF to
+            # tools.sodapdf.com/url?url=<the address> -- their server fetches the file. Naming the host
+            # is the point: "a web page" hid that a third party had been handed the address.
+            return refused(f"I asked for {shown}, but the tab was sent to {elsewhere} instead -- a browser "
+                           f"extension (a PDF viewer, say) or the site redirected it -- so nothing was saved. "
+                           f"If {elsewhere} is an extension's site, it has been given this address.",
+                           cause="redirected", landed_on=elsewhere, **base)
         return refused(f"{shown} answered with a web page ({title!r}), not a file, so nothing was saved. "
                        "browser.open shows the page if that is what was wanted.", cause="not_a_file", **base)
 
@@ -269,17 +279,22 @@ class Download(BrowserOperation):
         not at all on the next). Asking after a full wait instead made one PDF cost two waits, past the
         Bridge worker's 120s deadline. So: once a POLL, until a download has started (a new entry in the
         staging folder, partial or finished), ask again -- at most every VIEWER_SECONDS, so a save that is
-        merely slow to begin is not asked for twice. Rounds are counted rather than timed, so a watcher
-        that answers at once cannot spin past the budget either."""
-        rounds, ask_every = int(WAIT_SECONDS / POLL_SECONDS), max(1, int(VIEWER_SECONDS / POLL_SECONDS))
-        asked_round = None
-        for n in range(rounds):
-            left = WAIT_SECONDS - n * POLL_SECONDS
+        merely slow to begin is not asked for twice. The budget is kept by the clock -- one round on the
+        Windows drive costs more than POLL_SECONDS, and counting rounds alone ran to 142s -- and by a
+        round cap too, so a watcher that answers at once cannot spin."""
+        clock = self._plane.clock
+        deadline = clock.monotonic() + WAIT_SECONDS
+        asked_at = None
+        for _ in range(int(WAIT_SECONDS / POLL_SECONDS)):   # a cap as well as a clock: a fake never spins
+            left = deadline - clock.monotonic()
+            if left <= 0:
+                break
             if staged.before() != before:                   # it has begun: let it finish in what is left
                 return staged.wait_new(before, left)
-            if (asked_round is None or n - asked_round >= ask_every) and may_save() and self._save_shown(page):
-                asked_round = n
-            saved = staged.wait_new(before, min(POLL_SECONDS, left))
+            if ((asked_at is None or clock.monotonic() - asked_at >= VIEWER_SECONDS)
+                    and may_save() and self._save_shown(page)):
+                asked_at = clock.monotonic()
+            saved = staged.wait_new(before, min(POLL_SECONDS, max(left, 0.0)))
             if saved:
                 return saved
         return []
