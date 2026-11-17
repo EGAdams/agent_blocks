@@ -28,5 +28,10 @@ return [
         ['name' => 'codex-writer', 'display_name' => 'Codex Writer',
          'description' => 'Codex CLI in a workspace-write sandbox: creates and edits files in the bridge_sandbox test workspace only.',
          'operations' => ['implement'], 'workspaces' => ['bridge_sandbox'], 'write_workspaces' => ['bridge_sandbox']],
+        // EG's phone photographs, read-only (the android_* tools). Inspect only: it has no write workspace, and
+        // belongs in protected_agents so only EG's own clients may ask for pictures.
+        ['name' => 'android-photos', 'display_name' => 'Android Photos',
+         'description' => 'Reads the newest photographs off the Android phone plugged into the Windows computer by USB. Read-only.',
+         'operations' => ['inspect'], 'workspaces' => ['android-photos']],
     ],
 ];

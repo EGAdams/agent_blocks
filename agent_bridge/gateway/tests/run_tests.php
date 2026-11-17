@@ -858,6 +858,7 @@ require __DIR__ . '/upload_tests.php';
 require __DIR__ . '/alert_tests.php';
 require __DIR__ . '/request_tests.php';
 require __DIR__ . '/pin_tests.php';
+require __DIR__ . '/android_tests.php';
 
 // ---- run -------------------------------------------------------------------
 

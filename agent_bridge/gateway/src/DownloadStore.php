@@ -175,7 +175,11 @@ final class WorkerDownloads
     {
         $task = $this->tasks->find($taskId);
         $req  = $task === null ? null : json_decode((string) $task['prompt'], true);
-        if ($task === null || $task['agent'] !== 'browser' || !is_array($req) || ($req['browser'] ?? null) !== 'download') {
+        $browser = $task !== null && $task['agent'] === 'browser' && is_array($req) && ($req['browser'] ?? null) === 'download';
+        // The phone's pictures travel the same road: only the three android operations that return a picture.
+        $android = $task !== null && $task['agent'] === AndroidTools::AGENT && is_array($req)
+                && in_array($req['android'] ?? null, AndroidTools::PUBLISHES, true);
+        if (!$browser && !$android) {
             throw new BridgeError(404, 'not_found', 'no such browser download task');
         }
         return $task;

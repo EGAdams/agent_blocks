@@ -259,6 +259,17 @@ The top-level areas are:
   file naming a target -- Sydney first; Mazda keeps her finance judge and is not wired. The improver
   proposes, the judge and gates decide, and only EG approves a live activation. Bridge agent
   `agent-improvement` (protected; worker flag `~/.config/agent_improvement/bridge_enabled`).
+  `adws/android_photos/` is Android Photos (read its `DESIGN.md` first): read-only access to the photographs on
+  EG's Android phone plugged into SQMC by USB, read the way File Explorer reads it (MTP through the Windows
+  shell, `reader.ps1`; no USB debugging, no root). Four operations -- `status`, `list_recent_photos`,
+  `get_photo`, `get_thumbnail` -- each its own `adw_android_<op>.py` over `adw_android_photos.py`, with
+  `android_photos/kit.py` the only composition root. `IPhoneReader` has `look`, `list` and `copy` and nothing
+  that writes; only a phone EG authorized on the machine itself (`adw_android_authorize.py`) is read, and a
+  locked or absent phone is a state with what EG must do, never worked around. ChatGPT reaches it as the
+  `android_*` MCP tools (`agent_bridge/gateway/src/AndroidTools.php`, the second `AgentTaskTools` subclass)
+  through Bridge agent `android-photos` (worker flag `~/.config/android_photos/enabled`); pictures travel the
+  existing download store and come back as MCP image content. Written and tested offline on 2026-11-16; not
+  deployed, and no real phone has been read -- don't call it verified.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

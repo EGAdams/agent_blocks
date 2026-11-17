@@ -22,6 +22,7 @@ require_once __DIR__ . '/PrinterTools.php';
 require_once __DIR__ . '/BrowserTools.php';
 require_once __DIR__ . '/RelayTools.php';
 require_once __DIR__ . '/NotesTools.php';
+require_once __DIR__ . '/AndroidTools.php';
 require_once __DIR__ . '/UploadStore.php';
 require_once __DIR__ . '/AlertWatch.php';
 require_once __DIR__ . '/RequestWatch.php';
@@ -142,7 +143,9 @@ final class Bootstrap
                                   new RelayTools($client, $clientScopes, $audit, $grants,
                                                  (int) ($config['relay_wait_seconds'] ?? 45)),
                                   [$notes, new UploadTools($notes, $uploads, $blobs, $audit, $fetcher), new AlertTools($watch, $viewers),
-                                   new RequestTools($requests, $viewers)],
+                                   new RequestTools($requests, $viewers),
+                                   new AndroidTools($client, $clientScopes, $audit, $grants,
+                                                    (int) ($config['android_wait_seconds'] ?? 45), null, $downloadStore, $blobs)],
                                   new AlertNotice($watch, $viewers, $clock, $requests));
         $scans  = new WorkerScans($store, $store, $scanStore, $blobs, $audit, (int) $config['lease_seconds']);
         return new GatewayApp($auth, $client, $worker, $mcp, new OAuthServer($settings, $oauth, $audit, $clock),

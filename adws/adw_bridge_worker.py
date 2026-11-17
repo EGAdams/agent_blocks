@@ -99,6 +99,9 @@ SUPERVISOR_ENABLED = Path.home() / ".config" / "machine_supervisor" / "bridge_en
 SUPERVISOR_WORKDIR = _HERE / "adw_data" / "machine_supervisor" / "workspace"            # the `machine-supervisor` workspace: empty, nothing runs in it
 SUPERVISOR_MAILBOX_ADW = _HERE / "adw_machine_mailbox.py"
 SUPERVISOR_TODO_ADW    = _HERE / "adw_machine_todo.py"
+ANDROID_ENABLED = Path.home() / ".config" / "android_photos" / "enabled"    # the phone's photos are off until this exists
+ANDROID_WORKDIR = _HERE / "adw_data" / "android_photos" / "workspace"       # the `android-photos` workspace: empty, nothing runs in it
+ANDROID_ADW     = _HERE / "adw_android_photos.py"
 IMPROVE_ENABLED = Path.home() / ".config" / "agent_improvement" / "bridge_enabled"   # agent improvement is off until this exists
 IMPROVE_WORKDIR = _HERE / "adw_data" / "agent_improvement" / "workspace"    # the `agent-improvement` workspace: empty, nothing runs in it
 IMPROVE_CYCLE_ADW = _HERE / "adw_improvement_cycle.py"
@@ -196,6 +199,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.scala_storage_agent import ScalaStorageAgent
     from agent_bridge_worker.adapters.scala_storage_process import UvScalaStorageCommands
     from agent_bridge_worker.machine_supervisor_agent import MachineSupervisorAgent
+    from agent_bridge_worker.android_photos_agent import AndroidPhotosAgent
+    from agent_bridge_worker.adapters.android_photos_process import UvAndroidPhotoCommands
     from agent_bridge_worker.adapters.machine_supervisor_process import UvMachineSupervisorCommands
     from agent_bridge_worker.improvement_agent import ImprovementAgent
     from agent_bridge_worker.adapters.improvement_process import ProcessImprovementCommands
@@ -328,6 +333,13 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # Agent and workspace share one name (see the chatgpt-relay note above). Reading a mailbox is `inspect`;
         # a todo is `implement`, and what the supervisor may then do is fixed by her guard, not by this workspace.
         self_contained.add( "machine-supervisor" )
+    if ANDROID_ENABLED.exists():                        # the phone's photos are off until EG creates the flag file
+        ANDROID_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "android-photos" ]  = AndroidPhotosAgent( UvAndroidPhotoCommands( UV, ANDROID_ADW, _HERE.parent ), clock,
+                                                          publisher=DownloadPublisher( gateway ))
+        # Inspect only: there is no operation here that changes the phone, so nothing is offered as a write and
+        # the workspace is not self-contained. The pictures reach the gateway as a browser download's files do.
+        offered[ "android-photos" ] = { "inspect": False }
     if IMPROVE_ENABLED.exists():                        # agent improvement is off until EG creates the flag file
         IMPROVE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
         agents[ "agent-improvement" ]  = ImprovementAgent( ProcessImprovementCommands(
@@ -341,7 +353,7 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
                                       "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR,
                                       "scala-storage": STORAGE_WORKDIR, "machine-supervisor": SUPERVISOR_WORKDIR,
-                                      "agent-improvement": IMPROVE_WORKDIR },
+                                      "agent-improvement": IMPROVE_WORKDIR, "android-photos": ANDROID_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent
