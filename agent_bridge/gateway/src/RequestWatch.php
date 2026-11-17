@@ -241,7 +241,7 @@ final class RequestPolicy
                   'operation' => $op, 'status' => 'missing', 'task_id' => null, 'evidence' => null, 'why' => ''];
         $found = null;
         foreach ($tasks as $t) {
-            if ($t['agent'] === $agent && $t['operation'] === $op && self::matches($t, $match, $outbox)
+            if ($t['agent'] === $agent && $t['operation'] === $op && self::matches($t, $match, $row['label'], $outbox)
                 && ($found === null || (int) $t['created_at'] >= (int) $found['created_at'])) {
                 $found = $t;
             }
@@ -294,19 +294,75 @@ final class RequestPolicy
         return $row;
     }
 
-    private static function matches(array $task, string $match, ?array $outbox): bool
+    /**
+     * Is this task the deliverable's own work?
+     *
+     * The agent and the operation are not enough. On 2026-11-17 a request to fix Notes PDF
+     * printing was declared blocked by the failure of a task about Meijer receipts: the same
+     * client had both open, both went to claude-sonnet as "implement", and the deliverable
+     * carried no match, which meant "any of them". A deliverable must not be failed by work
+     * that was never its own.
+     *
+     * So: an explicit match must appear in the task's own words. Without one the deliverable's
+     * label supplies them, and one of its distinctive words is enough (compared on a five-letter
+     * stem, so "explanation" still recognises "explain"). A task that carries no words at all --
+     * only an agent and an operation -- is claimed as before, since there is nothing to judge by.
+     */
+    private static function matches(array $task, string $match, string $label, ?array $outbox): bool
     {
-        if ($match === '') {
+        $hay = self::subject($task, $outbox);
+        if ($match !== '') {
+            return strpos($hay, $match) !== false;
+        }
+        $terms = self::terms($label);
+        if ($hay === '' || $terms === []) {
             return true;
         }
-        $req  = self::json($task['prompt'] ?? null);
-        $hay  = strtolower((string) ($req['title'] ?? '') . ' ' . (string) ($req['document_id'] ?? ''));
+        foreach ($terms as $term) {
+            if (strpos($hay, $term) !== false) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Everything a task says about itself, lowercased: its prompt's words, plus its outbox document's name. */
+    private static function subject(array $task, ?array $outbox): string
+    {
+        $prompt = $task['prompt'] ?? null;
+        $req    = self::json($prompt);
+        $hay    = $req === [] ? strtolower(trim((string) $prompt)) : strtolower(self::words($req));
         foreach ((array) ($outbox['documents'] ?? []) as $doc) {
             if (is_array($doc) && isset($req['document_id']) && ($doc['document_id'] ?? null) === $req['document_id']) {
                 $hay .= ' ' . strtolower((string) ($doc['name'] ?? ''));
             }
         }
-        return strpos($hay, $match) !== false;
+        return trim($hay);
+    }
+
+    /** Every string anywhere in a decoded prompt, joined. */
+    private static function words($value): string
+    {
+        if (is_array($value)) {
+            return implode(' ', array_map(function ($v) { return self::words($v); }, $value));
+        }
+        return is_string($value) ? $value : '';
+    }
+
+    const LABEL_STOPWORDS = ['and', 'the', 'for', 'with', 'from', 'that', 'this', 'into', 'onto', 'over', 'then',
+                             'than', 'when', 'what', 'which', 'will', 'must', 'also', 'only', 'each', 'their',
+                             'there', 'here', 'make', 'made', 'done', 'task', 'tasks', 'agent', 'work'];
+
+    /** A label's distinctive words, as five-letter stems. */
+    private static function terms(string $label): array
+    {
+        $out = [];
+        foreach (preg_split('/[^a-z0-9]+/', strtolower($label), -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+            if (strlen($word) >= 4 && !in_array($word, self::LABEL_STOPWORDS, true)) {
+                $out[] = substr($word, 0, 5);
+            }
+        }
+        return array_values(array_unique($out));
     }
 
     private static function outboxWhy(string $match, ?array $outbox): string

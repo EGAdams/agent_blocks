@@ -293,3 +293,31 @@ test('request REST: Toyota opens, blocks, reads and closes a request without MCP
     eq(403, $w->call('GET', '/requests', $w->client2)->status);
     eq(405, $w->call('DELETE', "/requests/$id", $w->client)->status);
 });
+
+// 2026-11-17: a request to fix Notes PDF printing was declared blocked by the failure of a
+// task about Meijer receipts. Same client, same agent, same operation, and the deliverable
+// carried no match -- so it claimed the first unrelated task it saw and wore its failure.
+test('request: an unrelated task of the same client, agent and operation does not fail a deliverable', function () {
+    $w   = alertWorld();
+    $req = reqTool($w, 'request_open', ['title' => 'Fix Notes deed PDF Print workflow', 'agents' => ['codex'],
+        'deliverables' => [['label' => 'Diagnose and correct Notes attachment PDF printing',
+                            'agent' => 'codex', 'operation' => 'explain']]]);
+    $other = $w->submit(['operation' => 'explain',
+        'prompt' => 'New rule for Scala: handwriting on a Meijer receipt suggests CHURCH, none suggests EG PERSONAL.'])
+        ->json['task_id'];
+    list(, $lease) = claimTask($w, $other);
+    eq(200, $w->call('POST', "/worker/tasks/$other/complete", $w->worker,
+                     ['lease_token' => $lease, 'ok' => false, 'error' => 'claude stopped with error_max_turns'])->status);
+    alertsNow($w);
+    $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+    eq('missing', $st['deliverables'][0]['status']);
+    eq(null, $st['deliverables'][0]['task_id']);
+    ok($st['phase'] !== 'blocked', 'the request is not blocked by work that was never its own: ' . $st['phase']);
+
+    // the task that IS its own work still lands on it, with no match given
+    $mine = $w->submit(['operation' => 'explain',
+        'prompt' => 'Diagnose why the Notes attachment PDF prints blank and correct it.'])->json['task_id'];
+    alertsNow($w);
+    $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+    eq($mine, $st['deliverables'][0]['task_id']);
+});
