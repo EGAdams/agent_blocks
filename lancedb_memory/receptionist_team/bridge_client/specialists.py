@@ -175,6 +175,16 @@ class IDirectReader(Protocol):
         ...
 
 
+@runtime_checkable
+class IClaimsIds(Protocol):
+    """A specialist whose own ids look like Bridge task ids. `claims` is True when `text` names one of them as the
+    specialist's thing (a print job), so the runner builds this specialist's operation instead of reading the Bridge
+    task back. Without it "status of print job t_..." re-read the stored result and never asked the printer."""
+
+    def claims(self, text: str) -> bool:
+        ...
+
+
 def _words(text: str | None, limit: int = 140) -> str:
     text = " ".join((text or "").split()).rstrip(".")
     return text if len(text) <= limit else text[:limit - 1] + "…"
@@ -229,6 +239,12 @@ class PrinterBuilder:
 
     OPERATIONS = ("print", "print_status", "print_cancel", "print_discover")
     MAX_TEXT = 6000
+    # A print job's id is the Bridge task id that printed it, so only the words tell the two apart.
+    _JOB = re.compile(r"\bprint(?:er)?[\s-]+jobs?\b", re.IGNORECASE)
+    _ANY_ID = re.compile(r"\bt_[0-9a-f]{24}\b")
+
+    def claims(self, text: str) -> bool:
+        return bool(self._JOB.search(text) and self._ANY_ID.search(text))
 
     def context(self, agent: BridgeAgent) -> str:
         return f"Operations: {', '.join(op for op in self.OPERATIONS if op in agent.operations)}"

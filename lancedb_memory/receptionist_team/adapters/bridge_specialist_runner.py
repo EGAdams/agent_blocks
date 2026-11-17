@@ -90,9 +90,13 @@ class BridgeSpecialistRunner:
     def _handle(self, text: str, system_prompt: str) -> str:
         from ..bridge_client import errors as e
         from ..bridge_client.desk import yes_or_no
+        from ..bridge_client.specialists import IClaimsIds
         from ..bridge_client.workflow import RespondPhase, clip, readback_of
+        builder = self._specialist.builder
         try:
-            if readback_of(text):  # before yes/no: "cancel t_..." is not a bare "no"
+            # before yes/no: "cancel t_..." is not a bare "no". A specialist that owns the id (a print job) builds its
+            # own operation instead: a readback only repeats what the task said when it ended.
+            if readback_of(text) and not (isinstance(builder, IClaimsIds) and builder.claims(text)):
                 return self._workflow().execute(self._run(text)).reply
             answer = yes_or_no(text)
             if answer is not None:

@@ -217,6 +217,23 @@ async def test_cancel_by_task_id_needs_no_model():
     assert readback_of(f"please stop task {TID}") == ("cancel", TID)
 
 
+async def test_a_print_job_id_asks_the_printer_not_the_stored_result():
+    # 2026-11-17: a print job's id is its Bridge task id, so "status of print job t_..." was read back from the
+    # finished task (whose own status check had failed) and the printer was never asked again.
+    client = FakeClient(submits=[_view("queued")], states=["running"] * 5)
+    filler = Filler({"operation": "print_status", "job_id": TID})
+    said = await _say(_runner("bridge_printer", client, filler), f"check the status of print job {TID}")
+    assert client.sent and client.sent[0].operation == "print_status" and client.sent[0].prompt == f"job={TID}", said
+    assert filler.calls, "the printer form was filled"
+    # Without the words "print job" it is still a readback, and other specialists never claim an id.
+    plain = FakeClient()
+    await _say(_runner("bridge_printer", plain, Filler()), f"status of task {TID}")
+    assert plain.sent == []
+    other = FakeClient()
+    await _say(_runner("bridge_writer", other, Filler()), f"status of print job {TID}")
+    assert other.sent == []
+
+
 async def test_a_bare_task_id_is_a_readback_never_a_new_task():
     # 2026-11-05: Toyota's model routed "ROUTE: star_trek_bridge | t_8a71..." for
     # "What is the result of task t_8a71...?", and it went to codex as task t_3fdd...
