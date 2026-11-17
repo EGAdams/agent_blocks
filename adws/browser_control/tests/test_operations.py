@@ -82,7 +82,8 @@ class FakePage:
     def reload(self, ready="complete"): self.world.reloads += 1
     def body_text(self): return "Hello\n\n\n\nWorld"
     def capture_png(self, path): Path(path).write_bytes(b"\x89PNG..."); return True
-    def is_foreground(self): return self.world.active == self.tab.id
+    def is_foreground(self):
+        return self.world.window in ("normal", "maximized") and self.world.active == self.tab.id
     def find(self, css): return [e for e in self.world.elements if e.matches(css)]
     def form_controls(self, limit=60): return self.world.controls
     def release(self): self.released = True
@@ -111,6 +112,7 @@ class FakeWorld:
         self.controls = {"total": 0, "controls": []}
         self.shutdowns, self.closes, self.session, self.start_session, self.known = [], True, 1, 1, True
         self.can_download, self.download_dir, self.download_dirs = True, None, []
+        self.window, self.restores = "normal", 0     # "minimized" / "covered": every tab is hidden
     # IBrowserStarter
     def start(self, kind, url):
         self.started.append((kind.name, url)); self.session = self.start_session
@@ -122,6 +124,8 @@ class FakeWorld:
     def open_page(self, kind, url):
         t = CdpTarget(id=f"{kind.name}-{len(self.running[kind.name]) + 1}", url=url, title="New"); self.running[kind.name].append(t); return t
     def activate(self, kind, target_id): self.active = target_id
+    def window_state(self, kind, target_id): return "normal" if self.window == "covered" else self.window
+    def restore_window(self, kind, target_id): self.restores += 1; self.window = "normal"
     def close_page(self, kind, target_id): self.closed.append(target_id); self.running[kind.name] = [t for t in self.running[kind.name] if t.id != target_id]
     def shutdown(self, kind):
         self.shutdowns.append(kind.name)
@@ -240,6 +244,33 @@ def test_select_tab_by_number_activates_and_checks_the_page(tmp_path):
     out = run(ops, "browser.select_tab", tab="2")
     assert out.ok and world.active == "chrome-2"
     assert not run(ops, "browser.select_tab", tab="9").ok and not run(ops, "browser.select_tab").ok
+
+
+def test_select_tab_restores_a_minimized_window_instead_of_blaming_another_tab(tmp_path):
+    # 2026-11-17: the Dashboard was Chrome's only tab and select_tab still said "another one in front".
+    ops, world = make(tmp_path, running=["chrome"])
+    world.window = "minimized"
+    out = run(ops, "browser.select_tab", tab="1")
+    assert out.ok and out.data["verified"] and out.data["restored"] and world.restores == 1
+    assert "restored its window" in out.line
+
+
+def test_select_tab_on_a_covered_window_says_so_and_is_not_a_failure(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    run(ops, "browser.open", url="https://b.example")
+    world.window = "covered"
+    out = run(ops, "browser.select_tab", tab="2")
+    assert out.ok and not out.data["verified"] and out.data["cause"] == "window_not_showing"
+    assert world.active == "chrome-2" and world.restores == 0 and "still shows" not in out.line
+
+
+def test_select_tab_names_the_tab_that_really_stayed_in_front(tmp_path):
+    ops, world = make(tmp_path, running=["chrome"])
+    run(ops, "browser.open", url="https://b.example")
+    world.activate = lambda kind, target_id: None          # Chrome ignores the request
+    world.active = "chrome-1"
+    out = run(ops, "browser.select_tab", tab="2")
+    assert not out.ok and "still shows 'A' in front" in out.line
 
 
 def test_close_needs_an_explicit_tab_and_keeps_the_last_one(tmp_path):

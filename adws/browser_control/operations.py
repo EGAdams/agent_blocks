@@ -245,20 +245,55 @@ class SelectTab(BrowserOperation):
         if not args.get("tab"):
             return refused("Say which tab: its number from browser.tabs, or its id.")
         self._up(kind)
-        wanted = self._tab_id(kind, args)
-        self._plane.endpoint.activate(kind, wanted or "")
-        page = self._plane.attacher.attach(kind, wanted)
+        wanted = self._tab_id(kind, args) or ""
+        endpoint = self._plane.endpoint
+        endpoint.activate(kind, wanted)
+        url, title, in_front = self._look(kind, wanted)      # the page's own visibilityState, not the list order
+        restored = False
+        if not in_front and endpoint.window_state(kind, wanted) == "minimized":
+            # A minimized window reports every tab hidden, and /json/activate leaves it minimized.
+            endpoint.restore_window(kind, wanted)
+            restored = True
+            url, title, in_front = self._look(kind, wanted)
+        where = f"{title[:80]!r} at {url}"
+        if in_front:
+            return ok(f"Tab {args['tab']} is now in front: {where}"
+                      + (" (Chrome was minimized; I restored its window)." if restored else "."),
+                      browser=kind.name, tab=wanted, url=url, title=title[:120], verified=True, restored=restored)
+        shown = self._shown_instead(kind, wanted)
+        if shown is not None:
+            return refused(f"I asked for tab {args['tab']} ({where}), but the browser still shows "
+                           f"{shown!r} in front.", browser=kind.name, tab=wanted, verified=False)
+        # No tab is showing at all: the switch went through, but the window is off the screen.
+        return ok(f"Switched Chrome to tab {args['tab']} ({where}), but no tab of Chrome is showing on the screen "
+                  "-- its window is covered by another window or the screen is locked -- so nobody can see it yet.",
+                  browser=kind.name, tab=wanted, url=url, title=title[:120], verified=False,
+                  cause="window_not_showing")
+
+    def _look(self, kind: BrowserKind, tab_id: str) -> tuple[str, str, bool]:
+        page = self._plane.attacher.attach(kind, tab_id or None)
         try:
             url, title = safe_url(page.current_url), page.title
             self._plane.clock.sleep(0.3)
-            in_front = page.is_foreground()                  # the page's own visibilityState, not the list order
+            return url, title, page.is_foreground()
         finally:
             page.release()
-        if not in_front:
-            return refused("I asked for that tab, but the browser still lists another one in front.",
-                           browser=kind.name, tab=wanted, verified=False)
-        return ok(f"Tab {args['tab']} is now in front: {title[:80]!r} at {url}.", browser=kind.name, tab=wanted,
-                  url=url, title=title[:120], verified=True)
+
+    def _shown_instead(self, kind: BrowserKind, wanted: str) -> str | None:
+        """The title of another tab that says it is the visible one, or None when none does."""
+        for tab in self._plane.endpoint.pages(kind):
+            if tab.id == wanted:
+                continue
+            try:
+                page = self._plane.attacher.attach(kind, tab.id)
+            except BrowserWorkflowError:
+                continue
+            try:
+                if page.is_foreground():
+                    return (page.title or tab.title or "(untitled)")[:80]
+            finally:
+                page.release()
+        return None
 
 
 class Click(BrowserOperation):

@@ -11,7 +11,7 @@ file said "not yet registered / not enabled" -- that is out of date: `bridge.php
 | Need | Reused (already in the repo) | Added |
 | --- | --- | --- |
 | Start Chrome/Edge on Windows with a DevTools port | `browser_session` (`DebugChromeLauncher`, `ChromeCommandBuilder`, profile dir, detached spawner) | table of browsers (`browser_control/models.py`) |
-| Drive a tab (navigate, text, click, tabs) | `cdp_browser.CdpWorkflowBrowser` (DevTools, no driver) | `reload`, `capture_png`, `is_foreground`, `close_page` (additive) |
+| Drive a tab (navigate, text, click, tabs) | `cdp_browser.CdpWorkflowBrowser` (DevTools, no driver) | `reload`, `capture_png`, `is_foreground`, `close_page`, `window_state`, `restore_window` (additive) |
 | Find one clickable element | `browser_workflows` `RankedElementResolver` + locator strategies | -- |
 | "Is this click consequential?" | `browser_workflows` `KeywordConsequenceClassifier` | -- |
 | ADW run, lifecycle log, object trace | `browser_workflow_adw.run_browser_operation` + SSSF + `object_trace` | `adws/adw_browser_control.py` |
@@ -458,6 +458,7 @@ Three page facts from that record worth keeping, because each one reads as a dif
 | `is-active` says `active` | not proof the agent is reachable | the enable flag, the gateway registry entry, and the client token's scope are three more gates. A tool simply does not appear in `tools/list` if any of them is shut |
 | "control port never answered" | not a timeout to raise | two host causes, both diagnosed by `browser_control/link.py`: WSL interop has no working socket for a systemd service (`accept4 failed 110`, so `chrome.exe` never started), or WSL is in NAT mode and cannot reach Windows' 127.0.0.1:9222 at all. More waiting never fixes either |
 | Every check passed and nobody saw a window | not success | Chrome opened in Windows **session 0**, the hidden services desktop. That is why `browser.open` has a separate `browser_visibility` phase and the `hidden_session` cause |
+| `select_tab` said "another one in front" with only one tab open | not a wrong tab | Chrome's window was **minimized** (or covered, or the screen locked): every tab then reports `visibilityState: hidden`, and `/json/activate` switches the tab but leaves the window minimized and the tab list unreordered. Since 2026-11-17 `select_tab` restores a minimized window (`IBrowserEndpoint.window_state` / `restore_window`, `Browser.getWindowForTarget` / `setWindowBounds`, state `normal` only) and checks again; when no tab is showing at all it answers ok, `verified: false`, `cause: window_not_showing`; only another tab that reports itself visible makes it a failure, by name. Reproduced and verified on a headless Chrome, not yet on EG's desktop |
 | `form_controls` shows a stale page | not a selector problem | the tab may have navigated or posted back. Run `form_controls` again; take selectors only from the latest run. A **guessed selector** is the commonest cause of a failed form step |
 | `no_options_shown` | not an empty list | a combobox that filters as you type: `fill` it first, then `select_option` |
 | A health or quota figure you could not read | not zero and not healthy | report it **unknown** |

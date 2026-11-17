@@ -88,6 +88,31 @@ class CdpBrowserEndpoint:
     def activate(self, kind: BrowserKind, target_id: str) -> None:
         self._directory.activate(DebugEndpoint(port=kind.port), target_id)
 
+    def window_state(self, kind: BrowserKind, target_id: str) -> str:
+        """The tab's window: "normal", "maximized", "minimized" or "fullscreen"; "" when Chrome won't say.
+        /json/activate switches the tab inside a minimized window but leaves the window minimized."""
+        try:
+            found = self._browser_call(kind, "Browser.getWindowForTarget", {"targetId": target_id})
+        except (BrowserWorkflowError, OSError, KeyError):
+            return ""
+        return str(found.get("bounds", {}).get("windowState", ""))
+
+    def restore_window(self, kind: BrowserKind, target_id: str) -> None:
+        """Un-minimize the tab's window. Never moves, resizes or closes it."""
+        found = self._browser_call(kind, "Browser.getWindowForTarget", {"targetId": target_id})
+        self._browser_call(kind, "Browser.setWindowBounds",
+                           {"windowId": found["windowId"], "bounds": {"windowState": "normal"}})
+
+    def _browser_call(self, kind: BrowserKind, method: str, params: dict) -> dict:
+        channel = WebSocketCdpConnector(timeout_seconds=5.0).connect(self._directory.browser_socket(DebugEndpoint(port=kind.port)))
+        try:
+            return channel.call(method, params, timeout_seconds=5.0)
+        finally:
+            try:
+                channel.close()
+            except OSError:
+                pass
+
     def close_page(self, kind: BrowserKind, target_id: str) -> None:
         self._directory.close_page(DebugEndpoint(port=kind.port), target_id)
 
