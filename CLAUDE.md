@@ -268,8 +268,10 @@ The top-level areas are:
   locked or absent phone is a state with what EG must do, never worked around. ChatGPT reaches it as the
   `android_*` MCP tools (`agent_bridge/gateway/src/AndroidTools.php`, the second `AgentTaskTools` subclass)
   through Bridge agent `android-photos` (worker flag `~/.config/android_photos/enabled`); pictures travel the
-  existing download store and come back as MCP image content. Written and tested offline on 2026-11-16; not
-  deployed, and no real phone has been read -- don't call it verified.
+  existing download store and come back as MCP image content. Deployed 2026-11-16: the gateway serves the five
+  `android_*` tools and SQMC's worker answered `android_status` through the live Bridge (`no_device`, task
+  `t_13d90a67b19be6c8f75f657c`). No real phone has been read yet, so no picture has reached ChatGPT -- don't call
+  it verified. The phone must be on SQMC: BATI has no Bridge worker. Restart both worker units after a worker change.
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See
