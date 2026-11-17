@@ -194,7 +194,8 @@ class Download(BrowserOperation):
                     failure = str(exc)                  # net::ERR_ABORTED -- so only a missing file decides
                 # A navigation that became a download leaves the tab on about:blank, an HTML page, which
                 # `_save_shown` leaves alone -- so a PDF viewer is the only thing ever asked to save.
-                saved = self._await_file(page, staged, before, lambda: True)
+                saved = self._await_file(page, staged, before, lambda: True,
+                                         lambda: self._elsewhere(page, url))
                 kept = staged.keep(saved)
                 if not kept:
                     title = (page.title or "")[:80]
@@ -270,7 +271,8 @@ class Download(BrowserOperation):
         except BrowserWorkflowError:
             return False
 
-    def _await_file(self, page: Any, staged: Any, before: set[str], may_save: Any) -> list[Path]:
+    def _await_file(self, page: Any, staged: Any, before: set[str], may_save: Any,
+                    gone: Any = lambda: False) -> list[Path]:
         """Wait, inside one WAIT_SECONDS budget, for the file -- asking a PDF viewer to save it as it comes up.
 
         Chrome shows a PDF in its viewer and never saves it by itself. Asking once, straight after the
@@ -284,13 +286,19 @@ class Download(BrowserOperation):
         round cap too, so a watcher that answers at once cannot spin."""
         clock = self._plane.clock
         deadline = clock.monotonic() + WAIT_SECONDS
-        asked_at = None
+        asked_at = gone_at = None
         for _ in range(int(WAIT_SECONDS / POLL_SECONDS)):   # a cap as well as a clock: a fake never spins
             left = deadline - clock.monotonic()
             if left <= 0:
                 break
             if staged.before() != before:                   # it has begun: let it finish in what is left
                 return staged.wait_new(before, left)
+            if not gone():
+                gone_at = None
+            elif gone_at is None:
+                gone_at = clock.monotonic()
+            elif clock.monotonic() - gone_at >= VIEWER_SECONDS:
+                return []                                   # settled on another site's page: nothing is coming
             if ((asked_at is None or clock.monotonic() - asked_at >= VIEWER_SECONDS)
                     and may_save() and self._save_shown(page)):
                 asked_at = clock.monotonic()
@@ -298,6 +306,13 @@ class Download(BrowserOperation):
             if saved:
                 return saved
         return []
+
+    @staticmethod
+    def _elsewhere(page: Any, url: str) -> bool:
+        """The tab shows a page on a host other than the one asked -- a PDF extension's site, say. A
+        navigation that became a download leaves the tab on about:blank, which has no host and is not this."""
+        host = urlparse(page.current_url or "").hostname or ""
+        return bool(host) and host != urlparse(url).hostname
 
     @staticmethod
     def _save_shown(page: Any) -> bool:

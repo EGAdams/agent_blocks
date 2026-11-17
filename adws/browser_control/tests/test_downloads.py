@@ -505,6 +505,15 @@ def test_a_pdf_sent_to_another_site_says_which_site_had_it(tmp_path):
         page.navigate = navigate
         return page
     world.attach = attach
+    clock = ops["browser_download"]._plane.clock
+    waited = []
+
+    def wait_new(before, timeout_seconds=30.0):
+        waited.append(timeout_seconds)
+        clock.sleep(timeout_seconds)
+        return []
+    _.wait_new = wait_new
     out = run(ops, "browser.download", url="https://www.irs.gov/pub/irs-pdf/fw8ben.pdf")
     assert not out.ok and out.data["cause"] == "redirected" and out.data["landed_on"] == "tools.sodapdf.com"
+    assert sum(waited) < 20, "a tab settled on another site is not waited on for the whole budget"
     assert "tools.sodapdf.com" in out.line and world.closed == ["chrome-2"], out.line
