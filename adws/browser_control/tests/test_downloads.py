@@ -347,17 +347,37 @@ def test_a_navigation_chrome_aborts_because_it_became_a_download_still_counts(tm
 def test_an_address_showing_a_pdf_saves_what_the_viewer_shows(tmp_path):
     pdf = a_file(tmp_path, "fw9.pdf", b"%PDF-1.7 rest")
     ops, world, watcher = wired(tmp_path, running=("chrome",))
-    arrivals = iter([[], [pdf]])
-    watcher.wait_new = lambda before, timeout_seconds=30.0: next(arrivals)
+    events = []
+    arrivals = iter([[pdf]])
+    watcher.wait_new = lambda before, timeout_seconds=30.0: events.append("wait") or next(arrivals)
     original = world.attach
 
     def attach(kind, tab_id):
         page = original(kind, tab_id)
-        page.save_shown_file = lambda: True
+        page.save_shown_file = lambda: events.append("save") or True
         return page
     world.attach = attach
     out = run(ops, "browser.download", url="https://irs.example/pub/fw9.pdf")
     assert out.ok and out.data["files"][0]["mime"] == "application/pdf"
+    # asked to save before any wait, and one wait only: two 60s waits outran the worker's 120s deadline
+    assert events == ["save", "wait"], events
+
+
+def test_a_viewer_that_comes_up_late_is_still_saved(tmp_path):
+    pdf = a_file(tmp_path, "fw4.pdf", b"%PDF-1.7 rest")
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    arrivals = iter([[], [pdf]])
+    watcher.wait_new = lambda before, timeout_seconds=30.0: next(arrivals)
+    original = world.attach
+    answers = iter([False, True])           # still loading at first, then Chrome's viewer
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        page.save_shown_file = lambda: next(answers)
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url="https://irs.example/pub/fw4.pdf")
+    assert out.ok and out.data["files"][0]["name"] == "fw4.pdf", out.line
 
 
 def test_a_sign_in_page_is_left_open_for_eg_and_never_called_the_file(tmp_path):

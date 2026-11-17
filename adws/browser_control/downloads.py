@@ -192,8 +192,14 @@ class Download(BrowserOperation):
                     page.navigate(url)
                 except BrowserWorkflowError as exc:     # Chrome ends a navigation that became a download with
                     failure = str(exc)                  # net::ERR_ABORTED -- so only a missing file decides
+                # A PDF shown in Chrome's viewer never saves by itself, so it is asked to at once rather
+                # than after a full wait: waiting first made one PDF cost two waits (120s and more), past
+                # the Bridge worker's 120s deadline, so a file that did arrive was reported as timed out
+                # (2026-11-17, fw9.pdf). A navigation that became a download leaves the tab on
+                # about:blank, an HTML page, which `_save_shown` leaves alone -- so nothing saves twice.
+                viewer = self._save_shown(page)
                 saved = staged.wait_new(before, WAIT_SECONDS)
-                if not saved and self._save_shown(page):    # a PDF shown in Chrome's viewer
+                if not saved and not viewer and self._save_shown(page):  # a viewer that came up late
                     saved = staged.wait_new(before, WAIT_SECONDS)
                 kept = staged.keep(saved)
                 if not kept:
