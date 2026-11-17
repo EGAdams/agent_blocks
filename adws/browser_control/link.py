@@ -22,8 +22,11 @@ Run = Callable[[list[str]], str]
 
 def _can_run_windows(env: dict[str, str]) -> bool:
     try:
-        return subprocess.run([WINDOWS_CMD, "/c", "exit"], env=env, cwd="/mnt/c", capture_output=True,
-                              timeout=5).returncode == 0
+        # No pipes: after a timeout `run` kills cmd.exe and then reads its pipes to EOF, and a Windows-side
+        # child can hold them open far past the timeout -- one ensure() took 75s on 2026-11-17, ahead of a
+        # download with a 120s deadline. Only the exit status matters here.
+        return subprocess.run([WINDOWS_CMD, "/c", "exit"], env=env, cwd="/mnt/c", stdin=subprocess.DEVNULL,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=5).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
 
