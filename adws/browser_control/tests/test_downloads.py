@@ -33,6 +33,7 @@ class FakeWatcher:
 
     def __init__(self, arriving=(), leftovers=()):
         self.arriving, self.waited, self.leftovers = list(arriving), None, list(leftovers)
+        self.total = 0.0                                # every wait added up: the polls share one budget
         self.staged_under, self.finished = None, False
 
     def stage(self, directory):
@@ -44,6 +45,7 @@ class FakeWatcher:
 
     def wait_new(self, before, timeout_seconds=30.0):
         self.waited = timeout_seconds
+        self.total += timeout_seconds
         return list(self.arriving)
 
     def keep(self, files):
@@ -180,7 +182,7 @@ def test_nothing_arriving_is_refused_not_called_a_download(tmp_path):
     ops, world, watcher = wired(tmp_path, running=("chrome",))
     out = run(ops, "browser.download", text="0337201.tif")
     assert not out.ok and out.data["verified"] is False
-    assert "no file arrived" in out.line and watcher.waited == 60.0
+    assert "no file arrived" in out.line and watcher.total == 60.0
 
 
 def test_a_press_that_navigated_instead_says_so(tmp_path):
@@ -378,6 +380,46 @@ def test_a_viewer_that_comes_up_late_is_still_saved(tmp_path):
     world.attach = attach
     out = run(ops, "browser.download", url="https://irs.example/pub/fw4.pdf")
     assert out.ok and out.data["files"][0]["name"] == "fw4.pdf", out.line
+
+
+def test_a_viewer_is_asked_again_while_nothing_has_started_but_never_once_a_download_has(tmp_path):
+    """2026-11-17: fw8ben.pdf saved in 3s on one run and not at all on the next -- the one ask raced the
+    viewer. Asking again fixes that; asking again after a download began would save it twice."""
+    import browser_control.downloads as downloads
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    asks, polls = [], []
+    watcher.wait_new = lambda before, timeout_seconds=30.0: polls.append(timeout_seconds) or []
+    original = world.attach
+
+    def attach(kind, tab_id):
+        page = original(kind, tab_id)
+        page.save_shown_file = lambda: asks.append(len(polls)) or True
+        return page
+    world.attach = attach
+    out = run(ops, "browser.download", url="https://irs.example/pub/fw8ben.pdf")
+    every = int(downloads.VIEWER_SECONDS / downloads.POLL_SECONDS)
+    assert not out.ok and sum(polls) == downloads.WAIT_SECONDS, "the polls outran one budget"
+    assert asks == list(range(0, len(polls), every)), asks
+
+    ops, world, watcher = wired(tmp_path, running=("chrome",))
+    pdf = a_file(tmp_path, "fw8ben.pdf", b"%PDF-1.7 rest")
+    asks.clear()
+    # `before` is taken once; the first poll finds nothing begun; a partial file is there from the second on
+    snapshots = iter([set(), set()])
+    watcher.before = lambda: next(snapshots, {"fw8ben.pdf.crdownload"})
+    calls = []
+    watcher.wait_new = lambda before, timeout_seconds=30.0: calls.append(timeout_seconds) or (
+        [pdf] if len(calls) > 1 else [])
+    second = world.attach
+
+    def attach_again(kind, tab_id):
+        page = second(kind, tab_id)
+        page.save_shown_file = lambda: asks.append(1) or True
+        return page
+    world.attach = attach_again
+    out = run(ops, "browser.download", url="https://irs.example/pub/fw8ben.pdf")
+    assert out.ok and asks == [1], asks
+    assert calls[-1] == downloads.WAIT_SECONDS - downloads.POLL_SECONDS, "the rest of the budget, once begun"
 
 
 def test_a_sign_in_page_is_left_open_for_eg_and_never_called_the_file(tmp_path):

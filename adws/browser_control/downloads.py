@@ -57,6 +57,8 @@ from .plane import ControlPlane, checked_url
 #: slow government host; a bank statement can be slower. Beyond this it is reported as not arrived,
 #: never as saved.
 WAIT_SECONDS = 60.0
+POLL_SECONDS = 1.0                                  # how often the staging folder is looked at
+VIEWER_SECONDS = 15.0                               # the least time between two asks of a PDF viewer to save
 #: Reported for each file, so a caller can tell a real document from an error page saved as one.
 HEAD_BYTES = 8
 
@@ -118,10 +120,8 @@ class Download(BrowserOperation):
             label = (element.text or "")[:60]
             before, was_at = staged.before(), page.current_url
             element.click()
-            saved = staged.wait_new(before, WAIT_SECONDS)
+            saved = self._await_file(page, staged, before, lambda: page.current_url != was_at)
             now_at = page.current_url
-            if not saved and now_at != was_at and self._save_shown(page):
-                saved = staged.wait_new(before, WAIT_SECONDS)
             kept = staged.keep(saved)
         finally:
             try:
@@ -192,15 +192,9 @@ class Download(BrowserOperation):
                     page.navigate(url)
                 except BrowserWorkflowError as exc:     # Chrome ends a navigation that became a download with
                     failure = str(exc)                  # net::ERR_ABORTED -- so only a missing file decides
-                # A PDF shown in Chrome's viewer never saves by itself, so it is asked to at once rather
-                # than after a full wait: waiting first made one PDF cost two waits (120s and more), past
-                # the Bridge worker's 120s deadline, so a file that did arrive was reported as timed out
-                # (2026-11-17, fw9.pdf). A navigation that became a download leaves the tab on
-                # about:blank, an HTML page, which `_save_shown` leaves alone -- so nothing saves twice.
-                viewer = self._save_shown(page)
-                saved = staged.wait_new(before, WAIT_SECONDS)
-                if not saved and not viewer and self._save_shown(page):  # a viewer that came up late
-                    saved = staged.wait_new(before, WAIT_SECONDS)
+                # A navigation that became a download leaves the tab on about:blank, an HTML page, which
+                # `_save_shown` leaves alone -- so a PDF viewer is the only thing ever asked to save.
+                saved = self._await_file(page, staged, before, lambda: True)
                 kept = staged.keep(saved)
                 if not kept:
                     title = (page.title or "")[:80]
@@ -265,6 +259,30 @@ class Download(BrowserOperation):
             return any(e.is_displayed() for e in page.find('input[type="password"]'))
         except BrowserWorkflowError:
             return False
+
+    def _await_file(self, page: Any, staged: Any, before: set[str], may_save: Any) -> list[Path]:
+        """Wait, inside one WAIT_SECONDS budget, for the file -- asking a PDF viewer to save it as it comes up.
+
+        Chrome shows a PDF in its viewer and never saves it by itself. Asking once, straight after the
+        navigation, raced the viewer: still loading, the tab answered as an HTML page, or took the save
+        before it could act on it, and nothing arrived (2026-11-17: fw8ben.pdf saved in 3s on one run and
+        not at all on the next). Asking after a full wait instead made one PDF cost two waits, past the
+        Bridge worker's 120s deadline. So: once a POLL, until a download has started (a new entry in the
+        staging folder, partial or finished), ask again -- at most every VIEWER_SECONDS, so a save that is
+        merely slow to begin is not asked for twice. Rounds are counted rather than timed, so a watcher
+        that answers at once cannot spin past the budget either."""
+        rounds, ask_every = int(WAIT_SECONDS / POLL_SECONDS), max(1, int(VIEWER_SECONDS / POLL_SECONDS))
+        asked_round = None
+        for n in range(rounds):
+            left = WAIT_SECONDS - n * POLL_SECONDS
+            if staged.before() != before:                   # it has begun: let it finish in what is left
+                return staged.wait_new(before, left)
+            if (asked_round is None or n - asked_round >= ask_every) and may_save() and self._save_shown(page):
+                asked_round = n
+            saved = staged.wait_new(before, min(POLL_SECONDS, left))
+            if saved:
+                return saved
+        return []
 
     @staticmethod
     def _save_shown(page: Any) -> bool:
