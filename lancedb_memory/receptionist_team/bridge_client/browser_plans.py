@@ -210,7 +210,12 @@ class Click:
     name, operation = "click", "implement"
 
     def build(self, form, problem):
-        locator = _locator(form, problem, "press")
+        # A link is named by what it says ("Learn more"): form_controls lists fields, dropdowns and buttons but
+        # never links, so asking for a selector first sent a link click round to form_controls forever
+        # (2026-11-17). Its text goes as "text", the same as download's -- the ADW matches it on the page.
+        link = str(form.text or "").strip()
+        locator = ({"text": link[:160]} if link and not (form.css or form.label)
+                   else _locator(form, problem, "press"))
         req: dict = {"browser": "click", **locator}
         tab = _tab(form, problem)
         if tab:

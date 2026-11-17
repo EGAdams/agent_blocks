@@ -113,6 +113,14 @@ check("a sentence is not a selector", "list the form's controls" in spoken, spok
 req, _ = build(operation="fill", label="Project Name", text="x")
 check("a label is accepted when there is no selector", asked(req).get("label") == "Project Name", asked(req))
 
+# -- a link is clicked by what it says: form_controls never lists links (2026-11-17) --
+req, said = build(operation="click", text="Learn more", tab="C9FC4229D1ABDEAB6D624A09CF8F3269")
+check("a link click carries its text", asked(req) == {"browser": "click", "text": "Learn more",
+                                                    "tab": "C9FC4229D1ABDEAB6D624A09CF8F3269"}, asked(req))
+check("a link click reads back the link's words", "Learn more" in said, said)
+req, _ = build(operation="click", css="#b", text="Learn more")
+check("a selector still wins over text", asked(req).get("css") == "#b" and "text" not in asked(req), asked(req))
+
 # -- a credential is refused before it is ever sent -----------------------------
 for text in ("hunter2password", "my PIN is 4821", "the one-time code 889123", "sk-apikey-xyz"):
     spoken = refused(operation="fill", css="#x", text=text)
