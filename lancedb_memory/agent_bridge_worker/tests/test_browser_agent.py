@@ -423,13 +423,6 @@ def test_a_switch_is_passed_by_its_name_alone():
     assert "--reload" in argv and "--note=a.md" in argv and "--reload=" not in argv
 
 
-TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
-if __name__ == "__main__":
-    for test in TESTS:
-        test()
-        print( "ok", test.__name__ )
-    print( f"{ len( TESTS )} passed" )
-
 
 def test_dashboard_notes_is_one_implement_task_with_no_fields():
     commands = FakeCommands( verified( "Chrome is open on the dashboard with the NOTES tab showing.", notes_active=True ))
@@ -448,3 +441,27 @@ def test_download_takes_a_bare_url_in_place_of_a_locator():
     assert commands.calls == [( "download", { "url": url }, False )]
     assert out.kind == OutcomeKind.SUCCEEDED
 
+
+def test_a_download_gets_longer_than_the_flat_deadline_before_it_is_called_timed_out():
+    # 150s of polling at 0.1s: past the 120s every other operation gets, inside a download's own worst case.
+    saving = FakeCommands( verified( "Saved fw9.pdf (137.5 KB).", files=[ { "name": "fw9.pdf", "bytes": 140815 } ] ),
+                           ticks=1500 )
+    out = run( saving, task({ "browser": "download", "url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf" }))
+    assert out.kind == OutcomeKind.SUCCEEDED and not saving.last.stopped
+    navigating = FakeCommands( verified(), ticks=1500 )
+    out = run( navigating, task({ "browser": "navigate", "url": "https://a.example" }))
+    assert out.kind == OutcomeKind.FAILED and "timed out" in out.summary and navigating.last.stopped
+
+
+def test_a_download_that_never_answers_is_still_stopped():
+    stuck = FakeCommands( verified(), ticks=10 ** 6 )
+    out = run( stuck, task({ "browser": "download", "url": "https://a.example/f.pdf" }))
+    assert out.kind == OutcomeKind.FAILED and "timed out" in out.summary and stuck.last.stopped
+
+
+TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
+if __name__ == "__main__":
+    for test in TESTS:
+        test()
+        print( "ok", test.__name__ )
+    print( f"{ len( TESTS )} passed" )

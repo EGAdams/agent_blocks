@@ -85,11 +85,20 @@ class IDownloadPublisher( Protocol ):
     def publish( self, task: ClaimedTask, details: dict ) -> dict: ...
 
 
+#: How long the worker waits for a download. One press may wait twice for Chrome (60s each, see
+#: `adws/browser_control/downloads.py`), and the saved pages are then rendered for viewing, so the
+#: flat 120s every other operation gets was shorter than a download's own worst case: on 2026-11-17
+#: fw9.pdf landed 16s after the worker had reported the task as timed out.
+DOWNLOAD_DEADLINE_SECONDS = 300.0
+
+
 class BrowserAgent:
     def __init__( self, commands: IBrowserCommands, clock: IClock, poll_seconds: float = 0.5, deadline_seconds: float = 120.0,
-                  publisher: IDownloadPublisher | None = None ) -> None:
+                  publisher: IDownloadPublisher | None = None,
+                  download_deadline_seconds: float = DOWNLOAD_DEADLINE_SECONDS ) -> None:
         self._commands, self._clock, self._poll, self._deadline = commands, clock, poll_seconds, deadline_seconds
         self._publisher = publisher
+        self._download_deadline = max( download_deadline_seconds, deadline_seconds )
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
         try:
@@ -173,7 +182,8 @@ class BrowserAgent:
 
     def _wait( self, running: IRunningBrowserCommand, what: str, keep_alive: Callable[[], Signal ]) -> tuple[ dict, Signal ]:
         """Heartbeat until the ADW answers. A read may be stopped; a change that has started runs to its end."""
-        deadline, seen = self._clock.monotonic() + self._deadline, "continue"
+        allowed = self._download_deadline if what == "download" else self._deadline
+        deadline, seen = self._clock.monotonic() + allowed, "continue"
         while True:
             answer = running.poll()
             if answer is not None:

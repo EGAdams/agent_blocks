@@ -480,6 +480,28 @@ async def test_a_sentence_followed_by_its_json_is_spoken_as_the_sentence():
     assert plain.endswith("Line one. Line two."), plain
 
 
+async def test_a_notice_says_how_its_task_ended_and_keeps_it_across_a_restart():
+    """Live, 2026-11-17: a ChatGPT relay reply ("I'm ready, EG") and a timed-out download arrived as the same
+    red "finished" card. The notice now carries the outcome, and a failure's title says so."""
+    import tempfile
+    from pathlib import Path
+    store = Path(tempfile.mkdtemp()) / "notices.json"
+    ok = FakeClient(states=["succeeded"], result=BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True,
+                                                              body="bati says: ready"))
+    good = BridgeCompletionNotices(lambda: ok, str, clock=Clock(), every=0)
+    good.track(TID, "ChatGPT relay")
+    [done] = good.pending()
+    assert done["outcome"] == "succeeded" and done["title"] == "Star Trek Bridge: ChatGPT relay finished"
+    bad = FakeClient(states=["failed"], result=BridgeResult(task_id=TID, state="failed", ready=True, ok=False,
+                                                            body="timed out"))
+    failing = BridgeCompletionNotices(lambda: bad, str, clock=Clock(), every=0, store=store)
+    failing.track(TID, "browser")
+    [failed] = failing.pending()
+    assert failed["outcome"] == "failed" and failed["title"] == "Star Trek Bridge: browser failed"
+    [kept] = BridgeCompletionNotices(lambda: bad, str, clock=Clock(), every=0, store=store).pending()
+    assert kept["outcome"] == "failed" and kept["title"].endswith("browser failed")
+
+
 if __name__ == "__main__":
     from tests.runner import main
 

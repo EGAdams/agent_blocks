@@ -117,6 +117,9 @@ class _Watched:
     checked: float = 0.0
     spoken: str = ""
     on_finish: Callable[[object], None] | None = None
+    #: the terminal state once finished ("succeeded", "failed", "cancelled"); "" until then, and for a
+    #: notice saved before this was kept. The dashboard colours a card by it: only a failure is red.
+    state: str = ""
 
 
 class BridgeCompletionNotices:
@@ -134,6 +137,8 @@ class BridgeCompletionNotices:
     """
 
     PREFIX = "bridge-"
+    #: how a notice's title says the task ended; a success, or a state not recorded, says "finished".
+    _ENDED = {"failed": "failed", "cancelled": "was cancelled"}
 
     def __init__(self, client_factory: Callable[[], object], speak: Callable[[object], str],
                  clock: Callable[[], float] = time.monotonic, every: float = 15.0, give_up: float = 3600.0,
@@ -168,7 +173,8 @@ class BridgeCompletionNotices:
                 age = max(0.0, wall - float(row["started_at"]))
             except (KeyError, TypeError, ValueError):
                 continue
-            self._watched[task_id] = _Watched(task_id, label, spoken=str(row.get("spoken") or ""))
+            self._watched[task_id] = _Watched(task_id, label, spoken=str(row.get("spoken") or ""),
+                                              state=str(row.get("state") or ""))
             self._started[task_id] = now - age
 
     def _save(self) -> None:
@@ -176,7 +182,7 @@ class BridgeCompletionNotices:
         if self._store is None:
             return
         now, wall = self._clock(), self._wall()
-        rows = [{"task_id": w.task_id, "label": w.label, "spoken": w.spoken,
+        rows = [{"task_id": w.task_id, "label": w.label, "spoken": w.spoken, "state": w.state,
                  "started_at": wall - (now - self._started.get(w.task_id, now))} for w in self._watched.values()]
         try:
             self._store.parent.mkdir(parents=True, exist_ok=True)
@@ -213,7 +219,9 @@ class BridgeCompletionNotices:
             self._refresh()
         with self._lock:
             return [{"id": self.PREFIX + w.task_id, "task_id": w.task_id, "kind": "bridge_finished",
-                     "title": f"Star Trek Bridge: {w.label} finished", "spoken": w.spoken}
+                     "outcome": w.state,
+                     "title": f"Star Trek Bridge: {w.label} {self._ENDED.get(w.state, 'finished')}",
+                     "spoken": w.spoken}
                     for w in self._watched.values() if w.spoken]
 
     def acknowledge(self, alert_ids: list[str] | None = None) -> int:
@@ -278,11 +286,13 @@ class BridgeCompletionNotices:
                     except Exception:
                         pass  # an observer's failure never costs the spoken notice
                 spoken = self._speak(result)
+                state = str(getattr(result, "state", "") or view.state)
             except Exception:
                 continue  # unreachable now; asked again in `every` seconds
             with self._lock:
                 if w.task_id in self._watched:
                     self._watched[w.task_id].spoken = spoken
+                    self._watched[w.task_id].state = state
                     self._save()
 
 
