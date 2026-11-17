@@ -16,6 +16,13 @@ import re
 _READ_ONLY_ADDRESS = re.compile(r"^\s*(?:machine-ops@machine_ops|object-debugger@object_trace)(?:/inspect)?\s*:", re.I)
 
 
+def _claimant(text: str) -> str | None:
+    """The specialist whose own ids these are ("status of print job t_..."): it asks again, a readback only repeats."""
+    from ..bridge_client.specialists import SPECIALISTS, IClaimsIds
+    return next((name for name, spec in SPECIALISTS.items()
+                 if isinstance(spec.builder, IClaimsIds) and spec.builder.claims(text)), None)
+
+
 class BridgeTaskRoute:
     def __init__(self, agent_name: str = "star_trek_bridge") -> None:
         self._agent = agent_name
@@ -26,7 +33,9 @@ class BridgeTaskRoute:
         if _READ_ONLY_ADDRESS.match(text or ""):
             return self._agent
         found = readback_of(text) if text else None
-        return self._agent if found is not None and found[1] else None
+        if found is None or not found[1]:
+            return None
+        return _claimant(text) or self._agent
 
     def question(self, prompt: str) -> str:
         return latest_user_message(prompt)

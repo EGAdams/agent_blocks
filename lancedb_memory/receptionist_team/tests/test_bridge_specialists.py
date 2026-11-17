@@ -232,6 +232,10 @@ async def test_a_print_job_id_asks_the_printer_not_the_stored_result():
     other = FakeClient()
     await _say(_runner("bridge_writer", other, Filler()), f"status of print job {TID}")
     assert other.sent == []
+    from ..adapters.bridge_task_route import BridgeTaskRoute
+    route = BridgeTaskRoute()
+    assert route.forced_agent(f"\n\nUSER: what's the status of print job {TID}?\nAGENT:") == "bridge_printer"
+    assert route.forced_agent(f"\n\nUSER: what's the status of task {TID}?\nAGENT:") == "star_trek_bridge"
 
 
 async def test_a_bare_task_id_is_a_readback_never_a_new_task():
