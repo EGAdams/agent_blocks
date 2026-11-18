@@ -28,7 +28,7 @@ from .filelinks import saved_extension
 from .highlights import blinking, classify_page
 from .forms import (OptionMatcher, SecretFieldGuard, TypedValueCheck, WidgetDropdown, form_locators_from,
                     form_strategy_registry, looks_site_drawn, same_characters)
-from .models import BrowserKind, FormControlView, OptionView, TabView
+from .models import BrowserKind, FormControlView, FrontView, OptionView, TabView
 from .plane import ControlPlane, checked_url
 
 MAX_READ_CHARS = 20000
@@ -63,6 +63,48 @@ class BrowserOperation(Operation):
             raise BrowserWorkflowError(
                 f"{kind.name} is not running with its control port ({detail}). Say 'open a browser' first.")
         return detail
+
+    def _bring_forward(self, kind: BrowserKind, tab_id: str) -> FrontView:
+        """Activate the tab and read back whether it is really the one showing.
+
+        `/json/activate` switches the tab, but a minimized window stays minimized and then every tab says
+        it is hidden; so a minimized window is restored (state normal only, never moved, resized or closed)
+        and checked again. A tab that is still not showing is told apart from another tab showing instead."""
+        endpoint = self._plane.endpoint
+        endpoint.activate(kind, tab_id)
+        url, title, in_front = self._look(kind, tab_id)      # the page's own visibilityState, not the list order
+        restored = False
+        if not in_front and endpoint.window_state(kind, tab_id) == "minimized":
+            endpoint.restore_window(kind, tab_id)
+            restored = True
+            url, title, in_front = self._look(kind, tab_id)
+        shown = None if in_front else self._shown_instead(kind, tab_id)
+        return FrontView(url=url, title=title, in_front=in_front, restored=restored, shown_instead=shown)
+
+    def _look(self, kind: BrowserKind, tab_id: str) -> tuple[str, str, bool]:
+        page = self._plane.attacher.attach(kind, tab_id or None)
+        try:
+            url, title = safe_url(page.current_url), page.title
+            self._plane.clock.sleep(0.3)
+            return url, title, page.is_foreground()
+        finally:
+            page.release()
+
+    def _shown_instead(self, kind: BrowserKind, wanted: str) -> str | None:
+        """The title of another tab that says it is the visible one, or None when none does."""
+        for tab in self._plane.endpoint.pages(kind):
+            if tab.id == wanted:
+                continue
+            try:
+                page = self._plane.attacher.attach(kind, tab.id)
+            except BrowserWorkflowError:
+                continue
+            try:
+                if page.is_foreground():
+                    return (page.title or tab.title or "(untitled)")[:80]
+            finally:
+                page.release()
+        return None
 
     def _tabs(self, kind: BrowserKind) -> list[TabView]:
         return [TabView(number=i, id=t.id, url=safe_url(t.url), title=(t.title or "")[:120])
@@ -236,6 +278,10 @@ class Tabs(BrowserOperation):
                   browser=kind.name, tabs=[t.model_dump() for t in tabs], verified=True)
 
 
+NOT_SHOWING = ("no tab of Chrome is showing on the screen -- its window is covered by another window, or the "
+               "screen is locked or asleep")
+
+
 class SelectTab(BrowserOperation):
     name = "browser_select_tab"
     description = "browser.select_tab: bring one tab (by number or id) to the front"
@@ -246,54 +292,19 @@ class SelectTab(BrowserOperation):
             return refused("Say which tab: its number from browser.tabs, or its id.")
         self._up(kind)
         wanted = self._tab_id(kind, args) or ""
-        endpoint = self._plane.endpoint
-        endpoint.activate(kind, wanted)
-        url, title, in_front = self._look(kind, wanted)      # the page's own visibilityState, not the list order
-        restored = False
-        if not in_front and endpoint.window_state(kind, wanted) == "minimized":
-            # A minimized window reports every tab hidden, and /json/activate leaves it minimized.
-            endpoint.restore_window(kind, wanted)
-            restored = True
-            url, title, in_front = self._look(kind, wanted)
-        where = f"{title[:80]!r} at {url}"
-        if in_front:
+        front = self._bring_forward(kind, wanted)
+        where = f"{front.title[:80]!r} at {front.url}"
+        facts = dict(browser=kind.name, tab=wanted, url=front.url, title=front.title[:120], restored=front.restored)
+        if front.in_front:
             return ok(f"Tab {args['tab']} is now in front: {where}"
-                      + (" (Chrome was minimized; I restored its window)." if restored else "."),
-                      browser=kind.name, tab=wanted, url=url, title=title[:120], verified=True, restored=restored)
-        shown = self._shown_instead(kind, wanted)
-        if shown is not None:
+                      + (" (Chrome was minimized; I restored its window)." if front.restored else "."),
+                      verified=True, **facts)
+        if front.shown_instead is not None:
             return refused(f"I asked for tab {args['tab']} ({where}), but the browser still shows "
-                           f"{shown!r} in front.", browser=kind.name, tab=wanted, verified=False)
+                           f"{front.shown_instead!r} in front.", verified=False, **facts)
         # No tab is showing at all: the switch went through, but the window is off the screen.
-        return ok(f"Switched Chrome to tab {args['tab']} ({where}), but no tab of Chrome is showing on the screen "
-                  "-- its window is covered by another window or the screen is locked -- so nobody can see it yet.",
-                  browser=kind.name, tab=wanted, url=url, title=title[:120], verified=False,
-                  cause="window_not_showing")
-
-    def _look(self, kind: BrowserKind, tab_id: str) -> tuple[str, str, bool]:
-        page = self._plane.attacher.attach(kind, tab_id or None)
-        try:
-            url, title = safe_url(page.current_url), page.title
-            self._plane.clock.sleep(0.3)
-            return url, title, page.is_foreground()
-        finally:
-            page.release()
-
-    def _shown_instead(self, kind: BrowserKind, wanted: str) -> str | None:
-        """The title of another tab that says it is the visible one, or None when none does."""
-        for tab in self._plane.endpoint.pages(kind):
-            if tab.id == wanted:
-                continue
-            try:
-                page = self._plane.attacher.attach(kind, tab.id)
-            except BrowserWorkflowError:
-                continue
-            try:
-                if page.is_foreground():
-                    return (page.title or tab.title or "(untitled)")[:80]
-            finally:
-                page.release()
-        return None
+        return ok(f"Switched Chrome to tab {args['tab']} ({where}), but {NOT_SHOWING}, so nobody can see it yet.",
+                  verified=False, cause="window_not_showing", **facts)
 
 
 class Click(BrowserOperation):
@@ -807,7 +818,7 @@ class DashboardTab(BrowserOperation):
         opened = tab is None
         if opened:
             tab = self._plane.endpoint.open_page(kind, DASHBOARD_URL)
-        self._plane.endpoint.activate(kind, tab.id)
+        front = self._bring_forward(kind, tab.id)
         deadline = self._plane.clock.monotonic() + self.wait_seconds
         while True:
             page = self._plane.attacher.attach(kind, tab.id)
@@ -822,8 +833,19 @@ class DashboardTab(BrowserOperation):
                                f"within {int(self.wait_seconds)}s -- the dashboard may be down or still loading.",
                                browser=kind.name, tab=tab.id, verified=False, cause="dashboard_not_loaded")
             self._plane.clock.sleep(1.0)
-        return ok(("Opened" if opened else "Found") + f" the dashboard tab at {safe_url(url)} and brought it to the front.",
-                  browser=kind.name, tab=tab.id, opened_tab=opened, url=safe_url(url))
+        # The Notes flow works on a tab nobody can see (it reads and clicks by tab id), so where the tab
+        # ended up is reported truthfully rather than failed on.
+        found = ("Opened" if opened else "Found") + f" the dashboard tab at {safe_url(url)}"
+        if front.in_front:
+            line = f"{found} and brought it to the front" + (" (Chrome was minimized; I restored its window)."
+                                                             if front.restored else ".")
+        elif front.shown_instead is not None:
+            line = f"{found}, but Chrome still shows {front.shown_instead!r} in front of it."
+        else:
+            line = f"{found} and made it Chrome's tab, but {NOT_SHOWING}."
+        return ok(line, browser=kind.name, tab=tab.id, opened_tab=opened, url=safe_url(url),
+                  in_front=front.in_front, restored=front.restored, shown_instead=front.shown_instead,
+                  **({} if front.in_front or front.shown_instead else {"cause": "window_not_showing"}))
 
 
 class NotesVerify(BrowserOperation):
@@ -850,10 +872,11 @@ class NotesVerify(BrowserOperation):
                 break
             self._plane.clock.sleep(0.5)
         where = f" on your desktop in Windows session {args['session']}" if args.get("visible") else ""
+        unseen = "" if front else f" -- but {NOT_SHOWING}, so you won't see it until Chrome is uncovered"
         if "active" not in classes:
             return refused(f"I pressed NOTES, but the page at {url} does not show the Notes tab as active "
                            f"(its classes: {' '.join(classes) or 'button not found'}).", browser=kind.name,
                            url=url, title=title[:120], verified=False, cause="notes_not_active")
-        return ok(f"Chrome is open{where} on the dashboard ({url}) with the NOTES tab showing.",
+        return ok(f"Chrome is open{where} on the dashboard ({url}) with the NOTES tab showing{unseen}.",
                   browser=kind.name, url=url, title=title[:120], notes_active=True, in_front=front,
                   excerpt=text[:600], verified=True)

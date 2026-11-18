@@ -434,6 +434,10 @@ class NotesButton(FakeElement):
         return super().get_attribute(name)
 
 
+def phase(ops, name):
+    return next(s for s in ops["browser_dashboard_notes"].steps if s.name == name)
+
+
 def notes_world(tmp_path, **kw):
     ops, world = make(tmp_path, **kw)
     world.elements = [NotesButton()]
@@ -457,6 +461,35 @@ def test_dashboard_notes_reuses_an_open_dashboard_tab(tmp_path):
     out = run(ops, "browser.dashboard_notes")
     assert out.ok and not world.started and len(world.running["chrome"]) == 2
     assert world.active == "chrome-dash" and out.data["tab"] == "chrome-dash" and out.data["opened_tab"] is False
+
+
+def test_dashboard_notes_restores_a_minimized_chrome_and_says_so(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    world.running["chrome"].append(CdpTarget(id="chrome-dash", url=DASHBOARD_URL, title="ROL"))
+    world.window = "minimized"
+    out = run(ops, "browser.dashboard_notes")
+    assert out.ok and world.restores == 1 and world.window == "normal" and out.data["in_front"] is True
+    assert "not showing" not in out.line
+
+
+def test_dashboard_notes_on_a_covered_window_still_works_but_does_not_claim_to_be_seen(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    world.running["chrome"].append(CdpTarget(id="chrome-dash", url=DASHBOARD_URL, title="ROL"))
+    world.window = "covered"
+    out = run(ops, "browser.dashboard_notes")
+    assert out.ok and out.data["notes_active"] and out.data["in_front"] is False
+    assert "no tab of Chrome is showing" in out.line and world.restores == 0
+    step = phase(ops, "browser_dashboard_tab").run({})
+    assert "brought it to the front" not in step.line and step.data["cause"] == "window_not_showing"
+
+
+def test_dashboard_tab_names_the_tab_that_stayed_in_front(tmp_path):
+    ops, world = notes_world(tmp_path, running=["chrome"])
+    world.running["chrome"].append(CdpTarget(id="chrome-dash", url=DASHBOARD_URL, title="ROL"))
+    world.activate = lambda kind, target_id: None
+    world.active = "chrome-1"
+    out = phase(ops, "browser_dashboard_tab").run({})
+    assert out.ok and "still shows 'A' in front of it" in out.line and out.data["in_front"] is False
 
 
 def test_dashboard_notes_opens_a_dashboard_tab_when_none_is_open(tmp_path):

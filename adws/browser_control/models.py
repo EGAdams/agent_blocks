@@ -45,6 +45,20 @@ class BrowserPlacement(BaseModel):
         return self.found and self.session != 0 and self.session in self.desktops
 
 
+class FrontView(BaseModel):
+    """What bringing one tab forward actually achieved, read back from the pages themselves."""
+    url:      str = ""
+    title:    str = ""
+    in_front: bool = False           # the tab says it is the visible one
+    restored: bool = False           # its window was minimized and has been restored
+    shown_instead: str | None = None  # the title of another tab that says it is visible instead
+
+    @property
+    def window_not_showing(self) -> bool:
+        """No tab is visible at all: the window is covered, or the screen is locked or asleep."""
+        return not self.in_front and self.shown_instead is None
+
+
 class OptionView(BaseModel):
     """One item of a dropdown, as data. A `<select>`'s choices are on the screen, so none of this is private."""
     position: int = 0
