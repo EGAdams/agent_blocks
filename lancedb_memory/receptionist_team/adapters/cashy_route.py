@@ -12,7 +12,8 @@ import re
 
 from .latest_user import latest_user_message
 
-_CASHY = re.compile(r"\bcashy\b", re.I)
+# No \b in front: "bridge_cashy" has no word boundary before "cashy" (2026-11-17).
+_CASHY = re.compile(r"(?<![a-z0-9])cashy\b", re.I)
 _R46 = re.compile(r"\b(?:r46|rosemary\s?46)\b|\bmom'?s\s+(?:computer|machine|pc)\b", re.I)
 _AGENT = re.compile(r"\bcashy-r46\b", re.I)
 

@@ -252,8 +252,16 @@ the same staging, verification, rendering and publishing as a pressed link (`Dow
 `redirected` exists because of the **Soda PDF Viewer** extension in the `adw-chrome-debug` profile
 (2026-11-17): intermittently it takes a PDF's tab to `tools.sodapdf.com`, which both sends the PDF's address to
 that site and leaves nothing for Chrome to save. The answer names the host and says it may have been given the
-address; it gives up after 15 s on the other site instead of spending the whole 60 s. Whether to remove the
-extension from that profile is EG's decision -- it has not been touched.
+address; it gives up after 15 s on the other site instead of spending the whole 60 s. The refusal stays for
+any other extension or site that redirects.
+
+2026-11-18, with EG's OK: Soda was **disabled** in that profile, and extension sync was switched off for that
+profile only (Settings > Sync > Extensions, a per-device setting), because the extension had arrived by Chrome
+Sync from EG's Google account -- uninstalling it there would have removed it from his other Chromes too. It
+isn't uninstalled: Chrome asks for a click in the browser for that (`chrome.management.uninstall` needs a user
+gesture and opens a native dialog; DevTools' `Extensions.uninstall` only works on unpacked extensions). Chrome's
+built-in viewer does what downloads need. After the change, a PDF download through Sydney saved and was read back
+(task `t_939377533455f88df201812b`).
 
 Only http/https with a host is accepted (worker `checked_url`, gateway and Toyota check it too); the query string
 is never reported back (`safe_url` keeps scheme://host/path). A consequential-looking path still needs `confirm`.

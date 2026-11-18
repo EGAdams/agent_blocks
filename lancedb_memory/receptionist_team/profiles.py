@@ -32,6 +32,8 @@ from .adapters.finance_report_route import FinanceReportRoute
 from .adapters.post_office_route import PostOfficeRoute
 from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
 from .adapters.bridge_device_route import BridgeDeviceRoute
+from .adapters.bridge_verb_route import BridgeVerbRoute
+from .adapters.named_route import NamedRoute
 from .adapters.inspection_route import ObjectInspectionRoute
 from .adapters.bridge_task_route import BridgeTaskRoute, BridgeReadOnlyAddressRoute
 from .adapters.route_panel import FirstRouteOpinion
@@ -171,11 +173,12 @@ def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
     }
 
 
-def _bridge_routes(desk_name: str) -> list[IRouteOverride]:
-    """The Bridge's forced routes, in the order Toyota's profile explains, with this desk's pending yes."""
+def _bridge_routes(desk_name: str, named: tuple[str, ...] = ()) -> list[IRouteOverride]:
+    """The Bridge's forced routes, in the order Toyota's profile explains, with this desk's pending yes.
+    `named`: this receptionist's own role names -- "use bridge_cashy to ..." goes there (adapters/named_route.py)."""
     from .bridge_client.desk import desk_for
     return [BridgeConfirmationRoute(desk_for(desk_name).pending), BridgeReadOnlyAddressRoute(),
-            ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BridgeDeviceRoute(),
+            *([NamedRoute(named)] if named else []), ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BridgeDeviceRoute(),
             CashyR46Route("bridge_cashy"), ScalaStorageRoute("bridge_scala_storage")]
 
 
@@ -406,10 +409,14 @@ SYDNEY = ReceptionistProfile(
     route_override=FirstRouteOpinion([
         # The Star Trek Bridge first, as on Toyota's desk, but with Sydney's own
         # pending yes (her runners use her own credential: bridge_client/desk.py).
-        *_bridge_routes("sydney"),
+        # A specialist she is told to use by name is used (adapters/named_route.py).
+        *_bridge_routes("sydney", named=tuple(SYDNEY_ROSTER.roles)),
         PostOfficeRoute("sydney_post_office"),
         FinanceReportRoute(),
         EmailDeskRoute("sydney_post_office"),
+        # Last: plainly worded browser, relay, deploy and storage work reaches its Bridge
+        # specialist without the route being named (adapters/bridge_verb_route.py).
+        BridgeVerbRoute(),
     ]),
     build_alerts=_sydney_alerts,
 )

@@ -196,6 +196,16 @@ built by code). implement, print, print_cancel and scan are read back and held
 in `desk.PENDING`; the next short "yes"/"no" is sent to that specialist by
 `adapters/bridge_confirmation_route.py`. Everything else is sent at once.
 
+Sydney's routes don't wait for her model to agree (2026-11-18; she answered from memory or picked the
+read-only desk unless the route was named). `adapters/named_route.py`: "use / ask / via / through `<role>`",
+or a message opening with `<role>:`, goes to that role when it is on her roster and is the only role named.
+`adapters/bridge_verb_route.py`, last in her panel: a URL or file download, tabs, read the page, click a link
+or button, fill a box, choose from a dropdown, navigate → `bridge_browser`; ask/tell ChatGPT or the relay →
+`bridge_chatgpt`; deploy, roll back, health, logs of a project in the fixed table → `bridge_deploy`; Scala
+storage or its targets → `bridge_scala_storage`. "Open <url>" stays with the model (her `browser_opener`), and
+so do "restart the dashboard" and "is the dashboard healthy". Toyota's panel has neither route. Both share one
+fix: `CashyR46Route` now matches `bridge_cashy`. Pinned by `tests/test_sydney_routes.py`.
+
 A message naming a task id (`t_...`) is normally a readback of that Bridge task
 (`adapters/bridge_task_route.py`), which sends nothing new. A print job's id *is*
 the id of the task that printed it, so a builder may claim such ids
