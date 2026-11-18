@@ -22,7 +22,10 @@ use PDO;
  *                        refresh, and the status-loop check
  *   GuardRequestDuplicatesPhase  a submit phase: a second print of a document the
  *                        request already printed, or is printing, is refused
- *   LinkRequestPhase     a submit phase: each new task joins its client's open request
+ *   ResolveRequestPhase  a submit phase: the request_id on the envelope, checked before
+ *                        the task is queued, so a wrong one costs nothing
+ *   LinkRequestPhase     a submit phase: each new task joins the request its submitter
+ *                        named, or failing that its client's newest open request
  *   RequestTools         request_open / request_update / request_status /
  *                        request_list / request_close (IToolFamily)
  *
@@ -36,7 +39,10 @@ use PDO;
  *    only when Windows' spooler reports the job completed, and even then the
  *    evidence says paper output was not verified;
  *  - nothing here prints, reprints, retries or cancels: a lapsed lease is retried
- *    by the queue's own bounded attempts, and that retry is recorded as a recovery.
+ *    by the queue's own bounded attempts, and that retry is recorded as a recovery;
+ *  - a task names the request it belongs to (request_id) or is adopted by the newest
+ *    open one, and which of the two is recorded: a deliverable prefers the work the
+ *    request was given over the work it merely collected.
  */
 
 interface IRequestStore
@@ -52,7 +58,7 @@ interface IRequestStore
     public function listFor(?string $clientId, bool $includeClosed): array;
     public function newestOpenFor(string $clientId, string $agent): ?array;
     public function set(string $id, array $fields): void;
-    public function link(string $requestId, string $taskId, int $now): bool;
+    public function link(string $requestId, string $taskId, int $now, string $origin = 'adopted'): bool;
     /** @return array[] linked tasks with result, latest print_status check, and latest event time */
     public function tasks(string $requestId): array;
     /** Records an event once per dedupe; returns true when it was new. */
@@ -239,10 +245,15 @@ final class RequestPolicy
         $match = strtolower(trim((string) ($d['match'] ?? '')));
         $row   = ['key' => (string) ($d['key'] ?? ''), 'label' => (string) ($d['label'] ?? ''), 'agent' => $agent,
                   'operation' => $op, 'status' => 'missing', 'task_id' => null, 'evidence' => null, 'why' => ''];
+        // Work the request was given beats work it merely collected: a task whose submitter
+        // named this request is preferred over one the gateway adopted, however new the
+        // adopted one is. Within each kind the newest wins, as before.
         $found = null;
         foreach ($tasks as $t) {
-            if ($t['agent'] === $agent && $t['operation'] === $op && self::matches($t, $match, $row['label'], $outbox)
-                && ($found === null || (int) $t['created_at'] >= (int) $found['created_at'])) {
+            if ($t['agent'] !== $agent || $t['operation'] !== $op || !self::matches($t, $match, $row['label'], $outbox)) {
+                continue;
+            }
+            if ($found === null || self::preferred($t, $found)) {
                 $found = $t;
             }
         }
@@ -292,6 +303,17 @@ final class RequestPolicy
                            . '); waiting for the spooler to report it completed -- check with printer_get_status refresh=true';
         }
         return $row;
+    }
+
+    /** Does $t beat $best as a deliverable's task? Declared before adopted, then newest. */
+    private static function preferred(array $t, array $best): bool
+    {
+        $mine  = ($t['link_origin'] ?? 'adopted') === 'declared';
+        $other = ($best['link_origin'] ?? 'adopted') === 'declared';
+        if ($mine !== $other) {
+            return $mine;
+        }
+        return (int) $t['created_at'] >= (int) $best['created_at'];
     }
 
     /**
@@ -512,16 +534,17 @@ final class SqliteRequestStore implements IRequestStore
                             . ' WHERE id = ?')->execute(array_merge(array_values($fields), [$id]));
     }
 
-    public function link(string $requestId, string $taskId, int $now): bool
+    public function link(string $requestId, string $taskId, int $now, string $origin = 'adopted'): bool
     {
-        $stmt = $this->pdo->prepare('INSERT OR IGNORE INTO request_tasks (task_id, request_id, linked_at) VALUES (?, ?, ?)');
-        $stmt->execute([$taskId, $requestId, $now]);
+        $stmt = $this->pdo->prepare('INSERT OR IGNORE INTO request_tasks (task_id, request_id, linked_at, origin) VALUES (?, ?, ?, ?)');
+        $stmt->execute([$taskId, $requestId, $now, $origin]);
         return $stmt->rowCount() === 1;
     }
 
     public function tasks(string $requestId): array
     {
         $rows = $this->all('SELECT t.id, t.agent, t.operation, t.state, t.attempts, t.max_attempts, t.prompt, t.last_error,
+                                   rt.origin AS link_origin,
                                    t.created_at, t.updated_at, r.summary AS result_summary, r.details AS result_details,
                                    r.completed_at AS completed_at,
                                    (SELECT MAX(e.created_at) FROM task_events e WHERE e.task_id = t.id) AS last_event_at
@@ -760,26 +783,58 @@ final class RequestWatch
         return ['now' => $this->clock->now(), 'requests' => array_map(function ($r) { return $this->view($r, false); }, $rows)];
     }
 
-    /** Links a newly queued task to its client's newest open request that covers its agent. */
-    public function linkTask(Principal $who, array $task): ?string
+    /**
+     * The request a submitter named, checked -- or a BridgeError saying why not.
+     *
+     * A named request that cannot be used is refused rather than quietly ignored: a caller
+     * who names the wrong one has the wrong picture of what is being worked on, and silently
+     * falling back to the newest-open guess would hide exactly that. A request belonging to
+     * another client reads as absent, so one client cannot probe another's ids.
+     */
+    public function resolveDeclared(Principal $who, string $requestId, string $agent): array
     {
-        $row = $this->store->newestOpenFor($who->id, (string) $task['agent']);
+        $row = $this->store->find($requestId);
+        if ($row === null || (string) $row['client_id'] !== $who->id) {
+            throw new BridgeError(404, 'no_such_request', 'no request ' . $requestId . ' of yours; open one with request_open, '
+                                                        . 'or list them with request_list');
+        }
+        if ($row['state'] !== 'open') {
+            throw new BridgeError(409, 'request_closed', 'request ' . $requestId . ' is ' . $row['state']
+                                                       . '; a closed request takes no new work. Open a new one.');
+        }
+        $agents = RequestPolicy::json($row['agents']);
+        if ($agents !== [] && !in_array($agent, $agents, true)) {
+            throw new BridgeError(409, 'request_agent_mismatch', 'request ' . $requestId . ' covers '
+                . implode(', ', $agents) . ', not ' . $agent . '. Name a request that covers this agent, or open one.');
+        }
+        return $row;
+    }
+
+    /**
+     * Links a newly queued task to its request: the one its submitter named, or failing that
+     * the client's newest open request covering its agent. Which of the two is recorded, so a
+     * reader can tell the work a request was given from the work it merely collected.
+     */
+    public function linkTask(Principal $who, array $task, ?array $declared = null): ?string
+    {
+        $origin = $declared === null ? 'adopted' : 'declared';
+        $row    = $declared ?: $this->store->newestOpenFor($who->id, (string) $task['agent']);
         if ($row === null) {
             return null;
         }
         $now = $this->clock->now();
-        if ($this->store->link($row['id'], (string) $task['id'], $now)) {
+        if ($this->store->link($row['id'], (string) $task['id'], $now, $origin)) {
             $this->store->event($row['id'], 'linked', 'linked@' . $task['id'], ['task_id' => $task['id'], 'agent' => $task['agent'],
-                                'operation' => $task['operation']], $now);
+                                'operation' => $task['operation'], 'origin' => $origin], $now);
             $this->store->set($row['id'], ['updated_at' => $now]);
         }
         return $row['id'];
     }
 
     /** The open request (if any) a new task of this client would join, and its linked tasks. */
-    public function openFor(Principal $who, string $agent): ?array
+    public function openFor(Principal $who, string $agent, ?array $declared = null): ?array
     {
-        $row = $this->store->newestOpenFor($who->id, $agent);
+        $row = $declared ?: $this->store->newestOpenFor($who->id, $agent);
         return $row === null ? null : ['request' => $row, 'tasks' => $this->store->tasks($row['id']), 'outbox' => $this->store->outbox()];
     }
 
@@ -895,7 +950,11 @@ final class RequestWatch
                  'pending' => $open ? $a['pending'] : [], 'deliverables' => $a['deliverables'],
                  'child_tasks' => array_map(function ($t) {
                      return ['task_id' => $t['id'], 'agent' => $t['agent'], 'operation' => $t['operation'], 'state' => $t['state'],
-                             'attempts' => (int) $t['attempts'], 'status_check' => $this->policy->isCheck((string) $t['operation'])];
+                             'attempts' => (int) $t['attempts'], 'status_check' => $this->policy->isCheck((string) $t['operation']),
+                             // declared: its submitter named this request. adopted: the gateway
+                             // attached it because this was the newest open request at the time,
+                             // which is not a claim that it is this request's work.
+                             'link' => ($t['link_origin'] ?? 'adopted') === 'declared' ? 'declared' : 'adopted'];
                  }, $tasks),
                  'escalations' => $esc, 'recovery_attempts' => $recoveries,
                  'closed_at' => $row['closed_at'] === null ? null : (int) $row['closed_at'], 'outcome' => $row['outcome'],
@@ -922,6 +981,35 @@ final class RequestWatch
  * of the same idempotency key is let through, and a failed or cancelled print does not block
  * another (resending one is still EG's decision, as the printer tools say).
  */
+/**
+ * Before QueueTask: the request_id on the envelope, checked and put on the context.
+ *
+ * It runs before the task is queued so that a bad request_id costs nothing -- the caller
+ * gets the refusal and no task exists. Without a request_id this phase does nothing and
+ * LinkRequestPhase falls back to the newest-open-request guess, as it always did.
+ */
+final class ResolveRequestPhase implements ISubmitPhase
+{
+    /** @var RequestWatch */ private $requests;
+
+    public function __construct(RequestWatch $requests)
+    {
+        $this->requests = $requests;
+    }
+
+    public function name(): string { return 'ResolveRequest'; }
+
+    public function run(SubmitContext $context): void
+    {
+        $body = (array) $context->body;
+        if ($context->principal === null || !isset($body['request_id']) || !is_string($body['request_id'])) {
+            return;
+        }
+        $context->declaredRequest = $this->requests->resolveDeclared($context->principal, $body['request_id'],
+                                                                     (string) ($body['agent'] ?? ''));
+    }
+}
+
 final class GuardRequestDuplicatesPhase implements ISubmitPhase
 {
     /** @var RequestWatch */ private $requests;
@@ -945,7 +1033,7 @@ final class GuardRequestDuplicatesPhase implements ISubmitPhase
         if ($key !== null && $this->tasks->findByIdempotency($context->principal->id, $key) !== null) {
             return;     // a replay: QueueTask returns the original job
         }
-        $open = $this->requests->openFor($context->principal, (string) $body['agent']);
+        $open = $this->requests->openFor($context->principal, (string) $body['agent'], $context->declaredRequest);
         if ($open === null) {
             return;
         }
@@ -983,7 +1071,9 @@ final class LinkRequestPhase implements ISubmitPhase
             return;
         }
         try {
-            $this->requests->linkTask($context->principal, $context->task);
+            $context->requestId   = $this->requests->linkTask($context->principal, $context->task, $context->declaredRequest);
+            $context->requestLink = $context->requestId === null ? null
+                                  : ($context->declaredRequest === null ? 'adopted' : 'declared');
         } catch (\Throwable $e) {
             error_log('agent-bridge request link: ' . get_class($e) . ': ' . $e->getMessage());    // never fails a queued task
         }

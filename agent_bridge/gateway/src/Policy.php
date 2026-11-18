@@ -45,7 +45,8 @@ final class EnvelopeValidator implements ITaskValidator
     const OPERATIONS = ['inspect', 'search_memory', 'explain', 'implement', 'propose_changes', 'modify_code', 'run_tests', 'scan',
                           'print', 'print_cancel', 'print_status', 'print_discover'];
     const MODES      = ['read_only', 'workspace_write', 'propose', 'approved_change', 'device_control'];
-    const FIELDS     = ['schema_version', 'task_type', 'agent', 'workspace', 'operation', 'approval_mode', 'prompt', 'idempotency_key'];
+    const FIELDS     = ['schema_version', 'task_type', 'agent', 'workspace', 'operation', 'approval_mode', 'prompt', 'idempotency_key',
+                          'request_id'];
     const REQUIRED   = ['schema_version', 'task_type', 'agent', 'workspace', 'operation', 'prompt'];
 
     public function validate(array $body): array
@@ -94,6 +95,13 @@ final class EnvelopeValidator implements ITaskValidator
         if (isset($body['idempotency_key'])
             && (!is_string($body['idempotency_key']) || !preg_match('/^[A-Za-z0-9._:-]{1,128}$/', $body['idempotency_key']))) {
             $problems[] = 'idempotency_key must be 1 to 128 of A-Z a-z 0-9 . _ : -';
+        }
+        // The request this task belongs to, named rather than guessed. Only its shape is
+        // checked here; whether it exists, is open, is the caller's own and covers this
+        // agent is ResolveRequestPhase's business.
+        if (isset($body['request_id'])
+            && (!is_string($body['request_id']) || !preg_match('/^rq_[0-9a-f]{24}$/', $body['request_id']))) {
+            $problems[] = 'request_id must be a request id, e.g. rq_ and 24 hex digits';
         }
         return $problems;
     }

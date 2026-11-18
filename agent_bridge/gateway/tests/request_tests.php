@@ -321,3 +321,79 @@ test('request: an unrelated task of the same client, agent and operation does no
     $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
     eq($mine, $st['deliverables'][0]['task_id']);
 });
+
+// EG, 2026-11-18: "add the explicit request_id". Until now every task a client submitted
+// joined that client's newest open request, so one request had thirteen tasks hanging off
+// it, most of them other work. A submitter can now name the request its task is for.
+test('request: a task names its request, and the named one beats the adopted one', function () {
+    $w    = alertWorld();
+    $old  = reqTool($w, 'request_open', ['title' => 'Fix the Notes print workflow', 'agents' => ['codex'],
+        'idempotency_key' => 'notes',
+        'deliverables' => [['label' => 'Diagnose the Notes print path', 'agent' => 'codex', 'operation' => 'explain']]]);
+    $new  = reqTool($w, 'request_open', ['title' => 'Explain the Scala receipt routes', 'agents' => ['codex'],
+        'idempotency_key' => 'scala']);
+
+    // with no request_id the newest open request adopts it -- the old behaviour, unchanged
+    $adopted = $w->submit(['operation' => 'explain', 'prompt' => 'Diagnose the Notes print path and say what is wrong.']);
+    eq($new['request_id'], $adopted->json['request_id']);
+    eq('adopted', $adopted->json['request_link']);
+
+    // naming the request puts it where it belongs, however old that request is
+    $declared = $w->submit(['operation' => 'explain', 'request_id' => $old['request_id'],
+        'prompt' => 'Diagnose the Notes print path and say what is wrong.']);
+    eq($old['request_id'], $declared->json['request_id']);
+    eq('declared', $declared->json['request_link']);
+
+    $st = reqTool($w, 'request_status', ['request_id' => $old['request_id']]);
+    eq($declared->json['task_id'], $st['deliverables'][0]['task_id']);
+    eq('declared', $st['child_tasks'][0]['link']);
+
+    // the same words, adopted by the other request, are still only adopted there
+    $other = reqTool($w, 'request_status', ['request_id' => $new['request_id']]);
+    eq('adopted', $other['child_tasks'][0]['link']);
+
+    // and when both are on one request, the named one is the deliverable's task
+    $also = $w->submit(['operation' => 'explain', 'request_id' => $new['request_id'],
+        'prompt' => 'Diagnose the Notes print path once more.'])->json['task_id'];
+    eq($new['request_id'], $w->submit(['operation' => 'explain',
+        'prompt' => 'Diagnose the Notes print path a third time.'])->json['request_id']);
+    $after = reqTool($w, 'request_status', ['request_id' => $new['request_id']]);
+    $links = [];
+    foreach ($after['child_tasks'] as $t) {
+        $links[$t['task_id']] = $t['link'];
+    }
+    eq('declared', $links[$also]);
+});
+
+test('request: a request_id that cannot be used is refused, and no task is queued for it', function () {
+    $w   = alertWorld();
+    $req = reqTool($w, 'request_open', ['title' => 'Explain the watch', 'agents' => ['codex']]);
+    $mine = reqTool($w, 'request_open', ['title' => 'Print something', 'agents' => ['printer'],
+        'idempotency_key' => 'printing']);
+    $before = (int) $w->pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn();
+
+    $bad = $w->submit(['request_id' => 'not-a-request-id']);
+    eq(422, $bad->status);
+    ok(strpos((string) json_encode($bad->json), 'request_id must be') !== false, (string) json_encode($bad->json));
+
+    $missing = $w->submit(['request_id' => 'rq_' . str_repeat('a', 24)]);
+    eq(404, $missing->status);
+    eq('no_such_request', $missing->json['error']['code']);
+
+    // another client's request reads as absent, so ids cannot be probed across clients
+    $theirs = $w->submit(['request_id' => $req['request_id']], $w->client2);
+    eq(404, $theirs->status);
+    eq('no_such_request', $theirs->json['error']['code']);
+
+    // a request that does not cover this agent
+    $mismatch = $w->submit(['request_id' => $mine['request_id']]);
+    eq(409, $mismatch->status);
+    eq('request_agent_mismatch', $mismatch->json['error']['code']);
+
+    reqTool($w, 'request_close', ['request_id' => $req['request_id'], 'outcome' => 'cancelled', 'reason' => 'EG dropped it']);
+    $closed = $w->submit(['request_id' => $req['request_id']]);
+    eq(409, $closed->status);
+    eq('request_closed', $closed->json['error']['code']);
+
+    eq($before, (int) $w->pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn());
+});

@@ -68,7 +68,8 @@ succeeded, and no print was ever submitted. No task was stuck, so no watch
 fired. The user's request lived only in ChatGPT's chat.
 
 Code: `gateway/src/RequestWatch.php`. Tables: `migrations/009_requests.sql`
-(additive: `requests`, `request_tasks`, `request_events`, `client_calls`).
+(additive: `requests`, `request_tasks`, `request_events`, `client_calls`) and
+`migrations/010_request_link_origin.sql` (additive: `request_tasks.origin`).
 Tests: `gateway/tests/request_tests.php`, which starts with a regression of that
 incident. No test prints.
 
@@ -84,8 +85,27 @@ stays supervised until it is closed:
   Submitting a task to another agent is never completion.
 - **failed** or **cancelled**: only with a reason.
 
-Tasks are linked at submit time (`LinkRequestPhase`, after `QueueTask`) to the
-client's newest open request naming that agent. **Progress** is a non-check
+Tasks are linked at submit time (`LinkRequestPhase`, after `QueueTask`) in one
+of two ways, and which one is recorded on the link:
+
+- **declared**: the submitted envelope carried `request_id`. `ResolveRequestPhase`
+  checks it *before* the task is queued, so a bad id costs nothing: `404
+  no_such_request` when it does not exist or belongs to another client (ids
+  cannot be probed across clients), `409 request_closed`, `409
+  request_agent_mismatch` when the request does not cover that agent.
+- **adopted**: no `request_id`, so the task joins the client's newest open
+  request naming that agent. This is a guess, and it was wrong on 2026-11-17:
+  an unrelated failing task was adopted by an open request and reported as its
+  blocker. A deliverable now prefers declared work over adopted work (then the
+  newer of the two), and only falls back to a guess when nothing was declared.
+
+The submit response carries `request_id` and `request_link` (`declared` or
+`adopted`), and `request_status`'s `child_tasks` carry the same `link` field.
+`printer_print` takes an optional `request_id`; the narrower single-purpose
+tool families (`AgentTaskTools` and its `notes_*` subclass, browser and relay
+tools) do not pass one through and keep being adopted.
+
+**Progress** is a non-check
 task created or reporting an event. Polls, status checks (`print_status`,
 `print_discover`, `search_memory`), MCP list/status tools and worker heartbeats
 never move it.

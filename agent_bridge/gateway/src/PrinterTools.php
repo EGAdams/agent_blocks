@@ -161,7 +161,11 @@ final class PrinterTools
             throw new BridgeError(422, 'invalid_print', $problem);
         }
         $key  = isset($args['idempotency_key']) ? (is_string($args['idempotency_key']) ? $args['idempotency_key'] : '') : null;
-        $view = $this->submit($r, 'print', 'device_control', $prompt, $key);
+        // A print is the deliverable the request record exists for, so it is the one place
+        // naming the request matters most: without it the job joins whichever request happened
+        // to be newest. An unusable request_id is refused before anything reaches the printer.
+        $rq   = isset($args['request_id']) ? (is_string($args['request_id']) ? $args['request_id'] : '') : null;
+        $view = $this->submit($r, 'print', 'device_control', $prompt, $key, $rq);
         $this->audit->record($who->id, 'printer_print', $view['task_id'], $view['state'],
                              ['kind' => $req['kind'], 'replayed' => $view['replayed']]);
         return ['job_id' => $view['task_id'], 'state' => 'accepted', 'task_state' => $view['state'],
@@ -253,12 +257,16 @@ final class PrinterTools
 
     // ---- shared plumbing ------------------------------------------------------------
 
-    private function submit(Request $r, string $operation, string $mode, string $prompt, ?string $key = null): array
+    private function submit(Request $r, string $operation, string $mode, string $prompt, ?string $key = null,
+                            ?string $requestId = null): array
     {
         $envelope = ['schema_version' => '1.0', 'task_type' => 'agent_task', 'agent' => 'printer', 'workspace' => 'printers',
                      'operation' => $operation, 'approval_mode' => $mode, 'prompt' => $prompt];
         if ($key !== null) {
             $envelope['idempotency_key'] = $key;
+        }
+        if ($requestId !== null) {
+            $envelope['request_id'] = $requestId;
         }
         $inner = new Request('POST', '/tasks', ['authorization' => $r->header('authorization')], (string) json_encode($envelope));
         list(, $view) = $this->client->submit($inner);
@@ -387,6 +395,9 @@ final class PrinterTools
             'orientation'     => ['type' => 'string', 'enum' => ['portrait', 'landscape']],
             'idempotency_key' => ['type' => 'string', 'maxLength' => 128,
                                   'description' => 'Optional; retrying with the same key returns the same job instead of printing again'],
+            'request_id'      => ['type' => 'string',
+                                  'description' => 'Optional but preferred: the request_open request this print is the deliverable of. '
+                                                 . 'Without it the job joins your newest open request, which may not be the right one.'],
         ];
         return [
             'printer_list' => ['title' => 'List EG\'s printers',

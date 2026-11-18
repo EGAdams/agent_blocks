@@ -112,6 +112,7 @@ final class Bootstrap
             new ValidateTaskPhase(new EnvelopeValidator()),
             new AuthorizeTaskPhase(new PolicyAuthorizer($registry, $config['allowed_operations'], $config['allowed_modes'],
                                                          $config['operation_modes'], $guard, $printGuard, $clientScopes)),
+            new ResolveRequestPhase($requests),
             new GuardRequestDuplicatesPhase($requests, $store),
             new QueueTaskPhase($store, $audit, (int) $config['max_attempts']),
             new LinkRequestPhase($requests),

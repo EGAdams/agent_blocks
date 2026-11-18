@@ -23,7 +23,12 @@ final class ClientTasks
     public function submit(Request $request): array
     {
         $context = $this->submit->run($request);
-        return [$context->replayed ? 200 : 201, self::view($context->task) + ['replayed' => $context->replayed]];
+        // request_id/request_link say which request now counts this task as its work, and
+        // whether that was the submitter's doing or the gateway's guess -- visible at submit
+        // rather than only on the next request_status.
+        return [$context->replayed ? 200 : 201, self::view($context->task)
+                + ['replayed' => $context->replayed, 'request_id' => $context->requestId,
+                   'request_link' => $context->requestLink]];
     }
 
     public function status(Principal $who, string $id): array

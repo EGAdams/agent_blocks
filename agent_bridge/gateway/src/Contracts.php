@@ -235,6 +235,12 @@ final class SubmitContext
     /** @var array|null */     public $task = null;
     /** @var bool */           public $replayed = false;
     /** @var string[] */       public $phasesRun = [];
+    /** @var array|null the request row the submitter named, once ResolveRequest has checked it */
+    public $declaredRequest = null;
+    /** @var string|null the request the task was linked to, set by LinkRequest */
+    public $requestId = null;
+    /** @var string|null how it got there: 'declared' (its submitter named it) or 'adopted' */
+    public $requestLink = null;
 
     public function __construct(Request $request)
     {

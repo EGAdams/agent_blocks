@@ -319,6 +319,11 @@ final class McpEndpoint
                                            'description' => 'Optional; the operation decides the mode, and a different one is refused'],
                      'prompt'          => ['type' => 'string', 'maxLength' => 8000],
                      'idempotency_key' => ['type' => 'string', 'description' => 'Optional; resubmitting with the same key returns the same task'],
+                     'request_id'      => ['type' => 'string',
+                                           'description' => 'Optional but preferred: the request_open request this task is for. Name it '
+                                                          . 'and the request counts this task as its own work; leave it out and the task '
+                                                          . 'is attached to your newest open request, which may not be the right one. A '
+                                                          . 'request_id that is closed, not yours, or for another agent is refused.'],
                  ]],
              'annotations' => ['readOnlyHint' => false, 'destructiveHint' => false, 'idempotentHint' => true, 'openWorldHint' => false]],
             ['name' => 'get_agent_task_status', 'title' => 'Get a task\'s status',
