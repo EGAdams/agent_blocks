@@ -85,9 +85,10 @@ class Notices:
         self.on_finish = on_finish
 
 
-def _runner(name, client, filler, pending=None, notices=None):
+def _runner(name, client, filler, pending=None, notices=None, confirm=True):
     clock = Clock()
-    return BridgeSpecialistRunner(name, filler=filler, pending=pending or PendingBridgeRequests(clock=clock),
+    return BridgeSpecialistRunner(name, filler=filler, confirm=confirm,
+                                  pending=pending or PendingBridgeRequests(clock=clock),
                                   notices=notices or Notices(), client_factory=lambda: client,
                                   wait_seconds=15, poll_seconds=5, sleep=clock.sleep, clock=clock,
                                   key_factory=lambda: "toyota-k1", log_factory=lambda: None)
@@ -181,6 +182,18 @@ async def test_a_change_is_read_back_and_sent_only_after_yes():
     said = await _say(runner, "yes")
     assert "Created hello.txt" in said and TID in said, said
     assert client.sent[0].idempotency_key == "toyota-k1" and pending.peek() is None
+
+
+async def test_without_confirmation_a_change_is_read_back_and_sent_at_once():
+    """Sydney's desk, 2026-11-22: EG doesn't want the yes step."""
+    client = FakeClient(submits=[_view("queued")], states=["succeeded"],
+                        result=BridgeResult(task_id=TID, state="succeeded", ready=True, ok=True, body="Created hello.txt"))
+    pending = PendingBridgeRequests()
+    runner = _runner("bridge_writer", client, Filler({"operation": "implement", "instructions": "make hello.txt"}),
+                     pending, confirm=False)
+    said = await _say(runner, "make a hello file in the sandbox")
+    assert "Shall I send it" not in said and len(client.sent) == 1, said
+    assert client.sent[0].operation == "implement" and "make hello.txt" in said, said
 
 
 async def test_no_drops_it_and_a_bare_yes_with_nothing_waiting_sends_nothing():

@@ -33,6 +33,7 @@ from .adapters.post_office_route import PostOfficeRoute
 from .adapters.bridge_confirmation_route import BridgeConfirmationRoute
 from .adapters.bridge_device_route import BridgeDeviceRoute
 from .adapters.bridge_verb_route import BridgeVerbRoute
+from .adapters.sydney_followup_route import ScannerChoiceRoute, SonnetQuestionRoute
 from .adapters.named_route import NamedRoute
 from .adapters.inspection_route import ObjectInspectionRoute
 from .adapters.bridge_task_route import BridgeTaskRoute, BridgeReadOnlyAddressRoute
@@ -149,7 +150,8 @@ def _sydney_runner() -> IDelegationRunner:
     return RunnerMap(
         {"sydney_post_office": PostOfficeRunner("sydney"),
          "finance_report": FinanceReportRunner(),
-         **_bridge_runners("sydney")},
+         # No "Shall I send it? Say yes or no." on her desk: EG asked for that step to go (2026-11-22).
+         **_bridge_runners("sydney", confirm=False)},
         default=ToolAgentRunner(),
     )
 
@@ -160,9 +162,10 @@ BRIDGE_SPECIALISTS = ("bridge_writer", "bridge_coder", "bridge_printer", "bridge
                       "bridge_cashy", "bridge_bati_desktop")
 
 
-def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
+def _bridge_runners(desk_name: str, confirm: bool = True) -> dict[str, IDelegationRunner]:
     """One receptionist's Star Trek Bridge routes, all on her own desk (bridge_client/desk.py): her own
-    credential and gateway sender, her own pending yes, note revisions and completion notices."""
+    credential and gateway sender, her own pending yes, note revisions and completion notices.
+    `confirm=False`: a change is sent at once, with no read-back waiting for a yes."""
     from .adapters.bridge_runner import BridgeDelegationRunner
     from .adapters.bridge_specialist_runner import BridgeSpecialistRunner
     from .adapters.inspection_runner import ObjectInspectionRunner
@@ -170,7 +173,7 @@ def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
     desk = desk_for(desk_name)
     return {
         "star_trek_bridge": BridgeDelegationRunner(desk=desk),
-        **{name: BridgeSpecialistRunner(name, desk=desk) for name in BRIDGE_SPECIALISTS},
+        **{name: BridgeSpecialistRunner(name, desk=desk, confirm=confirm) for name in BRIDGE_SPECIALISTS},
         "object_inspector": ObjectInspectionRunner(),
     }
 
@@ -412,6 +415,11 @@ SYDNEY = ReceptionistProfile(
     service_port=8769,
     # Report generation is a runnable ADW, not a window handoff.
     route_override=FirstRouteOpinion([
+        # "Sonnet knows" / "ask Sonnet" is a question for ask_sonnet, ahead of the device route's
+        # "Sonnet ... bridge" -> bridge_coder; and "freezer", answering her "which scanner?", is a scan
+        # (adapters/sydney_followup_route.py).
+        SonnetQuestionRoute("ask_sonnet"),
+        ScannerChoiceRoute("bridge_scanner"),
         # The Star Trek Bridge first, as on Toyota's desk, but with Sydney's own
         # pending yes (her runners use her own credential: bridge_client/desk.py).
         # A specialist she is told to use by name is used (adapters/named_route.py).

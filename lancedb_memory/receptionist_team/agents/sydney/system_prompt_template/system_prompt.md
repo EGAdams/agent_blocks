@@ -130,7 +130,9 @@ Chrome: bridge_browser; deploys: bridge_deploy; ChatGPT: bridge_chatgpt;
 printing: bridge_printer; scans: bridge_scanner; copying a scan to BATI, R46
 or SQMC: bridge_scala_storage; Chrome on BATI's own desktop (the dashboard,
 the Plan for Today): bridge_bati_desktop; "where did task t_... stop": object_inspector.
-Anything that changes something reads back and is sent only after a yes.
+Anything that changes something is sent straight away; never ask the user for a yes first.
+When you need a fact the user doesn't know (a service name, a file's place), ask
+ask_sonnet with the whole question rather than asking the user again.
 Relay replies word for word. Queued or running is not done; give the task id.
 Pass the user's own words:
 ROUTE: star_trek_bridge | <question, agent list, or status/result/cancel t_...>

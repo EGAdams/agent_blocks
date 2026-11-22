@@ -10,11 +10,14 @@ this covers the rest of what only a Bridge specialist can do, in words that mean
 * bridge_chatgpt -- ask / tell / send to ChatGPT, or anything naming the ChatGPT relay.
 * bridge_deploy  -- deploy, restart, roll back, health, logs or history of a project in the fixed table.
 * bridge_scala_storage -- Scala storage, or its storage targets / machines.
+* bridge_scanner -- run / use the scanner, scan it again, scan what's in the scanner (2026-11-22: "Have Scala run
+  the scanner again" matched nothing, and her model asked for a systemd service name instead). A request naming
+  the window or freezer scanner is BridgeDeviceRoute's, on both desks.
 
 A task id stays with BridgeTaskRoute (asked earlier), and a message about money is left alone, as in
 BridgeDeviceRoute. Sydney only (profiles.SYDNEY); Toyota's panel is unchanged. Goes after the post office route,
 so "ask Sonnet to write code that clicks the button" is a job for Sonnet, not a click. A match only reaches the
-specialist, which reads the request back and waits for a yes.
+specialist; on Sydney's desk it is sent at once, with no yes (profiles._bridge_runners, confirm=False).
 """
 import re
 
@@ -28,6 +31,10 @@ _ROUTES = (
     ("bridge_chatgpt", re.compile(
         r"\b(?:ask|tell|message|send\s+(?:a\s+message\s+|this\s+|that\s+|it\s+)?to)\s+chatgpt\b|"
         r"\bchatgpt(?:'s)?\s+(?:relay|thread|browser\s+session|sessions?)\b|\brelay\b.{0,40}\bchatgpt\b", re.I | re.S)),
+    ("bridge_scanner", re.compile(
+        r"\b(?:run|use|start|fire\s+up|try)\s+(?:the\s+)?scanner\b|\bscanner\s+again\b|"
+        r"\bscan\s+(?:it|this|that|again|the\s+(?:document|page|paper|title|form|letter))\b|"
+        r"\bscan\s+what(?:'s|\s+is)\s+in\b|\bwhat(?:'s|\s+is)\s+in\s+the\s+scanner\b", re.I)),
     ("bridge_scala_storage", re.compile(r"\bscala(?:'s)?\s+storage\b|\bstorage\s+(?:targets?|machines?)\b", re.I)),
     ("bridge_deploy", re.compile(
         rf"\b(?:re)?deploy\b.{{0,40}}\b{_PROJECTS}\b|\broll\s?back\b.{{0,40}}\b{_PROJECTS}\b|"

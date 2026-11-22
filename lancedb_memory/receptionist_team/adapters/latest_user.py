@@ -43,3 +43,20 @@ def latest_user_message(prompt: str) -> str:
     legacy = legacy[:-len('\nAGENT:')]
     _, marker, message = ('\n' + legacy).rpartition('\nUSER:')
     return message.strip() if marker else ''
+
+
+def previous_agent_message(prompt: str) -> str:
+    """The receptionist's own reply just before the message being answered, or "".
+
+    For a route that reads a short answer ("freezer", "Sonnet knows") against the question she just asked. Only the
+    legacy USER:/AGENT: transcript is read; a peer's turn ("[with Toyota] ...") is not hers, so it is "".
+    """
+    legacy = prompt.rstrip()
+    if not legacy.endswith('\nAGENT:'):
+        return ''
+    before, marker, _ = ('\n' + legacy[:-len('\nAGENT:')]).rpartition('\nUSER:')
+    if not marker:
+        return ''
+    _, said, message = before.rpartition('\nAGENT:')
+    message = message.strip()
+    return '' if not said or message.startswith('[') else message

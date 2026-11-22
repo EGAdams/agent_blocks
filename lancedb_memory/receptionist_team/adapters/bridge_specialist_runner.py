@@ -64,7 +64,8 @@ class BridgeSpecialistRunner:
                  sleep: Callable[[float], None] = time.sleep, clock: Callable[[], float] = time.monotonic,
                  key_factory: Callable[[], str] = _toyota_key,
                  log_factory: Callable[[], object] | None = None,
-                 files_factory: Callable[[], object] = _default_files, desk: object | None = None) -> None:
+                 files_factory: Callable[[], object] = _default_files, desk: object | None = None,
+                 confirm: bool = True) -> None:
         from ..bridge_client import desk as toyota
         from ..bridge_client.specialists import SPECIALISTS
         self._specialist = SPECIALISTS[specialist]
@@ -77,6 +78,9 @@ class BridgeSpecialistRunner:
         self._key_factory = desk.new_key if desk and key_factory is _toyota_key else key_factory
         self._log_factory = log_factory
         self._files_factory = desk.files_factory if desk and files_factory is _default_files else files_factory
+        # False: a change is sent as soon as it is understood, with no read-back and no "yes" (Sydney, 2026-11-22:
+        # EG doesn't want that step on her desk). The Bridge's own refusals and the ADWs' guards still apply.
+        self._confirm = confirm
         self.last_trace: list = []
 
     async def run(self, role: object, agent_name: str, model: str, extra: str = "") -> AgentReply:
@@ -146,9 +150,11 @@ class BridgeSpecialistRunner:
             raise
         except Exception as exc:  # a bug in a plan must not end the turn; nothing was sent
             return f"I couldn't put that request together ({type(exc).__name__}), so nothing was sent."
-        if request.needs_confirmation:
+        if request.needs_confirmation and self._confirm:
             self._pending.put(spec.name, request, readback)
             return f"{readback} Shall I send it? Say yes or no."
+        if request.needs_confirmation:
+            return f"{readback} {self._send(request)}"
         return self._send(request)
 
     #: Notes operations that must name the revision a read returned. Code supplies it, never the model.

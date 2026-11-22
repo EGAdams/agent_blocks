@@ -90,6 +90,51 @@ async def test_toyota_gets_none_of_the_verb_routes():
     assert _toyota("Use bridge_cashy to list the options on R46") == "bridge_cashy"   # the Cashy fix is shared
 
 
+
+# -- 2026-11-22: "which service?" and "ask Sonnet" ---------------------------------------------------------------
+def _after(agent_said, text):
+    return f"\n\nUSER: earlier\nAGENT: {agent_said}\nUSER: {text}\nAGENT:"
+
+
+async def test_a_plain_scan_request_reaches_the_scanner():
+    # Live: no route caught this, and she answered from Nov 4's "which systemd service?" turns.
+    assert _sydney("Have Scala run the scanner again so we can find out what's in it.") == "bridge_scanner"
+    assert _sydney("scan what's in the freezer scanner") == "bridge_scanner"
+    assert _sydney("What's in the scanner?") == "bridge_scanner"
+    assert _sydney("What did we spend on scanner paper?") is None
+
+
+async def test_sonnet_is_asked_rather_than_given_work():
+    for text in ("you'll have to ask somebody from the Star Trek bridge, like maybe Sonnet knows.",
+                 "Ask Sonnet what the scanner service is called.",
+                 "get that information from Sonnet", "Check with Claude Sonnet"):
+        assert _sydney(text) == "ask_sonnet", text
+    assert _sydney("Ask Sonnet to fix the scanner") != "ask_sonnet"
+    assert _sydney("Sonnet knows how to build it; have him implement the button") != "ask_sonnet"
+
+
+async def test_the_question_sonnet_gets_carries_what_she_had_asked():
+    prompt = _after("Which systemd service should I restart for the freezer scanner?", "Sonnet knows")
+    panel = SYDNEY.route_override
+    assert panel.forced_agent(prompt) == "ask_sonnet"
+    asked = panel.question(prompt)
+    assert "Which systemd service should I restart for the freezer scanner?" in asked, asked
+
+
+async def test_a_bare_scanner_choice_answers_her_question():
+    prompt = _after("Which scanner should I use, the window or the freezer?", "freezer")
+    panel = SYDNEY.route_override
+    assert panel.forced_agent(prompt) == "bridge_scanner"
+    assert panel.question(prompt) == "scan on the freezer scanner"
+    assert panel.forced_agent(_after("Which printer?", "freezer")) is None
+    assert panel.forced_agent(_after("Which scanner should I use?", "the window one")) == "bridge_scanner"
+
+
+async def test_toyota_keeps_her_routes_for_these():
+    assert _toyota("Have Scala run the scanner again so we can find out what's in it.") == "scala_questions"   # hers, as before
+    assert _toyota("Ask Sonnet what the scanner service is called.") != "ask_sonnet"
+
+
 if __name__ == "__main__":
     from tests.runner import main
 
