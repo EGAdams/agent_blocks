@@ -1,0 +1,9 @@
+{
+  "description": "Toyota's Bridge specialist for BATI's desktop Chrome: checks the debug Chrome, reads the dashboard tab and takes a screenshot, and after a yes opens the dashboard and shows the Plan for Today on BATI's own desktop",
+  "model": "openai/gpt-oss-20b",
+  "max_turns": 1,
+  "allowed_tools": [],
+  "permission_mode": "default",
+  "output_path": "/home/adamsl/agent_blocks/adws/adw_data/bridge_bati_desktop",
+  "notes": "Toyota's profile maps this name to adapters/bridge_specialist_runner.BridgeSpecialistRunner. The model only picks the operation and, rarely, a url or view; bridge_client/bati_plans.py builds the exact JSON prompt and always names machine BATI. Every step that changes the screen is read back and sent only after a yes. The same Bridge agent, worker adapter and ADW (adws/adw_bati_chrome.py) that ChatGPT drives, pinned to BATI's own worker."
+}

@@ -30,6 +30,7 @@
     "bridge_deploy",
     "bridge_scala_storage",
     "bridge_cashy",
+    "bridge_bati_desktop",
     "object_inspector"
   ],
   "disabled": {}

@@ -365,6 +365,22 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
 
 MACHINES_FILE  = _HERE.parent / "lancedb_memory" / "agent_bridge_worker" / "machines.json"
 MACHINE_WORKDIR = _HERE / "adw_data" / "cashy_bridge" / "workspace"         # the `cashy-r46` workspace: empty, nothing runs in it
+#: each machine agent's empty workspace directory; a machine with no entry here gets `adw_data/<agent>_bridge/workspace`
+MACHINE_WORKDIRS = { "cashy-r46": MACHINE_WORKDIR }
+
+
+def machine_agent( machine: Any, clock: Any ) -> Any:
+    """The one agent a machine lane runs, chosen by the machine's `machines.json` entry: Cashy on R46, the desktop
+    Chrome on BATI. A machine whose agent is neither runs no lane at all."""
+    if machine.agent.startswith( "cashy-" ):
+        from agent_bridge_worker.adapters.cashy_process import LoopbackTabTitles, UvCashyCommands
+        from agent_bridge_worker.cashy_agent import CashyMachineAgent
+        return CashyMachineAgent( UvCashyCommands( UV, _HERE, _HERE.parent ), clock, machine, LoopbackTabTitles())
+    if machine.agent == "bati-desktop":
+        from agent_bridge_worker.adapters.bati_desktop_process import UvBatiCommands
+        from agent_bridge_worker.bati_desktop_agent import BatiDesktopAgent
+        return BatiDesktopAgent( UvBatiCommands( UV, _HERE, _HERE.parent ), clock, machine )
+    raise RuntimeError( f"no machine-lane agent is built for { machine.agent!r}" )
 
 
 class NoEvents:
@@ -375,11 +391,10 @@ class NoEvents:
 
 
 def build_machine_application( base_url: str, worker_id: str, hooks: Any = None ) -> BridgeTaskRun:
-    """The machine lane's composition root: only this machine's own agent (Cashy on R46), only the workspace the
+    """The machine lane's composition root: only this machine's own agent (Cashy on R46, the desktop Chrome on BATI), only the workspace the
     gateway pins to this machine's worker token. No post office, no coding workspace, no write session."""
-    from agent_bridge_worker.adapters.cashy_process import LoopbackTabTitles, UvCashyCommands
     from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
-    from agent_bridge_worker.cashy_agent import CashyMachineAgent, Machine
+    from agent_bridge_worker.cashy_agent import Machine
     from agent_bridge_worker.policy import ScopedPolicy, StaticWorkspaces
 
     machine = Machine.load( MACHINES_FILE, socket.gethostname())
@@ -391,7 +406,8 @@ def build_machine_application( base_url: str, worker_id: str, hooks: Any = None 
         from object_trace.factory import default_tracer
         gateway = TracingGateway( gateway, default_tracer(), lambda: hooks.current )
         hooks.closing( gateway.close )
-    MACHINE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+    workdir = MACHINE_WORKDIRS.get( machine.agent, _HERE / "adw_data" / f"{ machine.agent.replace( '-', '_' )}_bridge" / "workspace" )
+    workdir.mkdir( mode=0o700, parents=True, exist_ok=True )
     # A systemd user service has no WSL_INTEROP and no Windows PATH, so the Cashy run it starts could not start
     # chrome.exe or ask cmd.exe for %LOCALAPPDATA%. Find a live interop socket (checked each run: it changes with
     # the Windows logon) and put System32 on PATH, for this process and every Cashy run it starts.
@@ -402,7 +418,7 @@ def build_machine_application( base_url: str, worker_id: str, hooks: Any = None 
     if "/mnt/c/Windows/System32" not in os.environ.get( "PATH", "" ).split( ":" ):
         os.environ[ "PATH" ] = os.environ.get( "PATH", "" ) + ":/mnt/c/Windows/System32"
     clock  = SystemClock()
-    agents = { machine.agent: CashyMachineAgent( UvCashyCommands( UV, _HERE, _HERE.parent ), clock, machine, LoopbackTabTitles())}
+    agents = { machine.agent: machine_agent( machine, clock )}
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent
         from object_trace.factory import default_tracer
@@ -410,7 +426,7 @@ def build_machine_application( base_url: str, worker_id: str, hooks: Any = None 
     # Agent and workspace share one name (see the chatgpt-relay note in build_application).
     policy = ScopedPolicy({ machine.agent: { "inspect": False, "implement": True }}, frozenset({ machine.agent }),
                           frozenset({ "read_only", "workspace_write" }))
-    return BridgeTaskRun( gateway, policy, StaticWorkspaces({ machine.agent: MACHINE_WORKDIR }), agents, NoEvents(), clock,
+    return BridgeTaskRun( gateway, policy, StaticWorkspaces({ machine.agent: workdir }), agents, NoEvents(), clock,
                           worker_id, writes=None, self_contained=frozenset({ machine.agent }))
 
 

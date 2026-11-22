@@ -211,6 +211,7 @@ ROLE_BLURBS: dict[str, str] = {
         "Fifth Third's or FNBO's sign-in page, carries on once EG has signed in, or pauses, resumes or stops her -- "
         "she never types a password or moves money"
     ),
+    "bridge_bati_desktop": "Chrome on BATI's desktop: checks, reads, screenshots; after a yes shows the Plan for Today",
     "object_inspector": "answers from the object trace",
 }
 
@@ -256,6 +257,7 @@ ROLE_SPOKEN_NAMES: dict[str, str] = {
     "bridge_deploy": "the Bridge's Deployment ADW",
     "bridge_scala_storage": "Scala's filing",
     "bridge_cashy": "Cashy on R46",
+    "bridge_bati_desktop": "BATI's desktop Chrome",
     "object_inspector": "our object inspector",
 }
 
@@ -304,6 +306,7 @@ ROLE_START_TASKS: dict[str, str] = {
     "bridge_deploy": "on that deployment",
     "bridge_scala_storage": "on filing that scan",
     "bridge_cashy": "on that banking step",
+    "bridge_bati_desktop": "on that step on BATI's desktop",
     "object_inspector": "looking that up in the object trace",
 }
 
@@ -328,7 +331,7 @@ TOYOTA_EXTRA_ROLE_NAMES = (
 # route never shares a "yes", a revision or an audit identity.
 BRIDGE_ROLE_NAMES = ("star_trek_bridge", "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                      "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy",
-                     "bridge_scala_storage", "bridge_cashy", "object_inspector")
+                     "bridge_scala_storage", "bridge_cashy", "bridge_bati_desktop", "object_inspector")
 TOYOTA_DESK_ROLE_NAMES = (*_FINANCE_ROLES, *TOYOTA_EXTRA_ROLE_NAMES, *BRIDGE_ROLE_NAMES)
 ROLE_ASSIGNMENT: IRoleAssignment = NamedRolesOrDefault(
     TOYOTA_DESK_ROLE_NAMES, named_desk="toyota", default_desk="sydney"

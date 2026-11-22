@@ -128,7 +128,8 @@ star_trek_bridge: read-only questions (Codex unless named: "hello-world: hi",
 Changes: bridge_writer (Codex) or bridge_coder (Sonnet); notes: bridge_notes;
 Chrome: bridge_browser; deploys: bridge_deploy; ChatGPT: bridge_chatgpt;
 printing: bridge_printer; scans: bridge_scanner; copying a scan to BATI, R46
-or SQMC: bridge_scala_storage; "where did task t_... stop": object_inspector.
+or SQMC: bridge_scala_storage; Chrome on BATI's own desktop (the dashboard,
+the Plan for Today): bridge_bati_desktop; "where did task t_... stop": object_inspector.
 Anything that changes something reads back and is sent only after a yes.
 Relay replies word for word. Queued or running is not done; give the task id.
 Pass the user's own words:
@@ -142,6 +143,7 @@ ROUTE: bridge_chatgpt | <message for ChatGPT>
 ROUTE: bridge_printer | <print request>
 ROUTE: bridge_scanner | <scan request>
 ROUTE: bridge_scala_storage | <scan id and where to file it>
+ROUTE: bridge_bati_desktop | <what to do in Chrome on BATI's desktop>
 ROUTE: object_inspector | <question about a task or object>
 
 LIMITS

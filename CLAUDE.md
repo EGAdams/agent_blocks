@@ -233,6 +233,13 @@ The top-level areas are:
   reaches it as protected Bridge agent `scala-storage`, and Toyota through her
   `bridge_scala_storage` route (`bridge_client/storage_plans.py`, verified live through her 2026-11-12). Verified live
   2026-11-12 on all three machines.
+  `adws/adw_bati_chrome.py` drives the debug Chrome on BATI's own desktop through a Windows-Python relay
+  (read `adws/bati_desktop/DESIGN.md`); since 2026-11-21 BATI has its own machine-lane Bridge worker, so it is
+  protected Bridge agent `bati-desktop`, pinned to BATI's token. ChatGPT reaches it as the seven `bati_*` MCP tools
+  (`agent_bridge/gateway/src/BatiTools.php`, the third `AgentTaskTools` subclass; the gateway writes `machine: "BATI"`
+  itself), verified live 2026-11-21 (`bati_status`, task `t_c302b822e44402a8fc77df23`); Toyota and Sydney through
+  their `bridge_bati_desktop` route (`bridge_client/bati_plans.py`), tested offline only. Every PC on the tailnet
+  (BATI, SQMC, R46) now runs a worker.
   `adws/machine_supervisor/` is the Machine Supervisor (read its `DESIGN.md`
   first): one sleeping supervisor per machine (BATI, SQMC, R46), woken by a
   cron ADW with no model in it (`adw_machine_watch.py`) when a check in

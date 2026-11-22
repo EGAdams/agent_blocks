@@ -1,5 +1,5 @@
 [Unit]
-Description=Agent bridge worker (MACHINE lane: only the workspaces the gateway pins to this machine -- Cashy on R46)
+Description=Agent bridge worker (MACHINE lane: only the workspaces the gateway pins to this machine -- Cashy on R46, the desktop Chrome on BATI)
 After=network-online.target
 
 [Service]

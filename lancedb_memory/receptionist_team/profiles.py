@@ -43,6 +43,7 @@ from .adapters.tax_progress_route import TaxProgressPageRoute
 from .adapters.scala_route import ScalaAnswerRoute
 from .adapters.scala_storage_route import ScalaStorageRoute
 from .adapters.cashy_route import CashyR46Route
+from .adapters.bati_desktop_route import BatiDesktopRoute
 from .adapters.todo_route import CompanyTodoRoute
 from .progress.mickey import AGENT_NAME as MICKEY_AGENT_NAME
 from .roles import (
@@ -128,7 +129,8 @@ def _toyota_runner() -> IDelegationRunner:
             **{name: BridgeSpecialistRunner(name)
                for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                             "bridge_notes", "bridge_browser", "bridge_chatgpt",
-                            "bridge_deploy", "bridge_scala_storage", "bridge_cashy")},
+                            "bridge_deploy", "bridge_scala_storage", "bridge_cashy",
+                            "bridge_bati_desktop")},
             # The four inspection questions, answered from object_trace.service
             # (127.0.0.1:8790) with evidence; no model (adapters/inspection_runner.py).
             "object_inspector": ObjectInspectionRunner(),
@@ -155,7 +157,7 @@ def _sydney_runner() -> IDelegationRunner:
 #: The Bridge specialists that read a request back and wait for a yes (adapters/bridge_specialist_runner.py).
 BRIDGE_SPECIALISTS = ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner", "bridge_notes",
                       "bridge_browser", "bridge_chatgpt", "bridge_deploy", "bridge_scala_storage",
-                      "bridge_cashy")
+                      "bridge_cashy", "bridge_bati_desktop")
 
 
 def _bridge_runners(desk_name: str) -> dict[str, IDelegationRunner]:
@@ -178,8 +180,8 @@ def _bridge_routes(desk_name: str, named: tuple[str, ...] = ()) -> list[IRouteOv
     `named`: this receptionist's own role names -- "use bridge_cashy to ..." goes there (adapters/named_route.py)."""
     from .bridge_client.desk import desk_for
     return [BridgeConfirmationRoute(desk_for(desk_name).pending), BridgeReadOnlyAddressRoute(),
-            *([NamedRoute(named)] if named else []), ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BridgeDeviceRoute(),
-            CashyR46Route("bridge_cashy"), ScalaStorageRoute("bridge_scala_storage")]
+            *([NamedRoute(named)] if named else []), ObjectInspectionRoute("object_inspector"), BridgeTaskRoute(), BatiDesktopRoute("bridge_bati_desktop"),
+            BridgeDeviceRoute(), CashyR46Route("bridge_cashy"), ScalaStorageRoute("bridge_scala_storage")]
 
 
 def _yolanda_runner() -> IDelegationRunner:
@@ -328,6 +330,9 @@ TOYOTA = ReceptionistProfile(
         # A status/result/cancel question about a Bridge task id is read back
         # from the Bridge, never from recalled turns (bridge_task_route.py).
         BridgeTaskRoute(),
+        # Chrome on BATI's own desktop goes to the BATI specialist, never to the
+        # Bridge browser on SQMC, and never rerouted (bati_desktop_route.py).
+        BatiDesktopRoute("bridge_bati_desktop"),
         # Scans, prints and Bridge code changes go to their specialist, never
         # the read-only desk, which can only refuse them (bridge_device_route.py).
         BridgeDeviceRoute(),

@@ -1,3 +1,4 @@
 {
-  "rosemary46": { "alias": "R46", "agent": "cashy-r46" }
+  "rosemary46": { "alias": "R46", "agent": "cashy-r46" },
+  "desktop-shdbati": { "alias": "BATI", "agent": "bati-desktop" }
 }

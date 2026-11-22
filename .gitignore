@@ -79,3 +79,5 @@ adws/adw_data/notes_review/
 adws/adw_data/deployment/
 adws/adw_data/scala_storage/
 adws/adw_data/notes_bridge/attach_tmp/
+# BATI desktop Chrome: audit log and screenshots of EG's dashboard
+adws/adw_data/bati_desktop/

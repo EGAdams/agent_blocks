@@ -31,6 +31,7 @@ EXTRA_ROLE_NAMES = (
     "system_mechanic", "finance_report", "company_todos", "scala_questions",
     "star_trek_bridge", "bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
     "bridge_notes", "bridge_browser", "bridge_chatgpt", "bridge_deploy", "bridge_scala_storage", "bridge_cashy",
+    "bridge_bati_desktop",
     "object_inspector",
 )
 # mechanic_coder is an agent folder too, and is deliberately NOT listed: it is

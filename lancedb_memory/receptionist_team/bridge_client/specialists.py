@@ -30,6 +30,7 @@ from .deploy_plans import DEPLOY_PLANS
 from .relay_plans import RELAY_PLANS
 from .storage_plans import NEVER, STORAGE_PLANS
 from .cashy_plans import CASHY_PLANS, NEVER as CASHY_NEVER
+from .bati_plans import BATI_PLANS, NEVER as BATI_NEVER
 
 _TASK_ID = re.compile(TASK_ID_PATTERN)
 WRITE_FRAME = ("Request relayed by EG's receptionist (the task's sender names which); "
@@ -113,6 +114,7 @@ class SpecialistForm(BaseModel):
     limit: int | None = None          # browser: how many controls to list (or downloaded files to name)
     file_id: str | None = None        # browser: a downloaded file, f_ + 24 hex, from the downloaded-files list
     page: int | None = None           # browser: which page of a downloaded file
+    view: str | None = None           # BATI desktop: a dashboard view (only plan-for-today)
     text_offset: int | None = None    # browser: where in a downloaded file's text to read from
     task_id: str | None = None        # browser: only the files one download task saved
     instance: str | None = None       # chatgpt relay: which session, from its session list
@@ -512,6 +514,36 @@ class CashyBuilder:
         return _request(agent, workspace, plan.operation, prompt), said
 
 
+class BatiDesktopBuilder:
+    """bati-desktop: the debug Chrome on BATI's own desktop -- status, read, screenshot; open, show_view, plan_for_today.
+
+    Each operation is a Plan in `bati_plans.BATI_PLANS` (Strategy + Registry); this class only finds it. The same
+    Bridge agent, worker adapter and ADW (`adws/adw_bati_chrome.py`) ChatGPT drives, pinned to BATI's own worker,
+    so Toyota gains no browser path of her own. There is no type, fill, close or quit on either side.
+    """
+
+    def context(self, agent: BridgeAgent) -> str:
+        return "Operations: " + ", ".join(BATI_PLANS)
+
+    def build(self, form: SpecialistForm, agent: BridgeAgent) -> tuple[BridgeActionRequest, str]:
+        what = (form.operation or "").strip().lower().removeprefix("bati.").replace("-", "_").replace(" ", "_")
+        if what in BATI_NEVER:
+            raise FormProblem("BATI's Chrome is only opened, switched to the Plan for Today, read and "
+                              "photographed. Nothing types, clicks a form or closes it.")
+        plan = BATI_PLANS.get(what)
+        if plan is None:
+            raise FormProblem("What should I do on BATI's desktop: check the debug Chrome, open the dashboard, "
+                              "show the Plan for Today, read what's showing, or take a screenshot?")
+
+        def problem(spoken: str) -> None:
+            raise FormProblem(spoken)
+
+        req, said = plan.build(form, problem)
+        workspace = agent.workspaces[0] if agent.workspaces else "bati-desktop"
+        prompt = json.dumps(req, separators=(",", ":"), ensure_ascii=False)
+        return _request(agent, workspace, plan.operation, prompt), said
+
+
 @dataclass(frozen=True)
 class BridgeSpecialist:
     """One Toyota route that drives exactly one Bridge agent."""
@@ -535,4 +567,5 @@ SPECIALISTS: dict[str, BridgeSpecialist] = {s.name: s for s in (
     BridgeSpecialist("bridge_deploy", "deploy", "the Bridge's Deployment ADW", DeployBuilder()),
     BridgeSpecialist("bridge_scala_storage", "scala-storage", "Scala's filing on the Bridge", ScalaStorageBuilder()),
     BridgeSpecialist("bridge_cashy", "cashy-r46", "Cashy on R46 through the Bridge", CashyBuilder()),
+    BridgeSpecialist("bridge_bati_desktop", "bati-desktop", "BATI's desktop Chrome on the Bridge", BatiDesktopBuilder()),
 )}
