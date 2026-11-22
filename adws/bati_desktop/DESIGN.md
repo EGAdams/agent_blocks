@@ -89,7 +89,9 @@ Worker tests: `cd lancedb_memory && uv run --quiet --with pydantic --with pytest
   `~/agent_bridge_backups/pre_bati_tools_20261122T013258Z`. The host suite passed 195/0. Verified live through MCP
   from SQMC: `bati_status`, task `t_c302b822e44402a8fc77df23`, adw `93fc1f2b`, actor `chatgpt-bridge`.
 - **Toyota and Sydney**: the `bridge_bati_desktop` route (`receptionist_team/bridge_client/bati_plans.py`,
-  `adapters/bati_desktop_route.py`). It has offline tests only and no live run through either of them yet.
+  `adapters/bati_desktop_route.py`). Deployed to SQMC 2026-11-21 (commit 4238308). Verified live through Toyota's
+  sidecar: "Is the debug Chrome up on BATI?" became task `t_6988bc9bda73eaa0f38a1f5d`, which BATI's worker completed
+  (adw `b1cfbfc6`). Sydney's half shares the same route and runner but has not carried a live request yet.
 
 ## Not yet
 

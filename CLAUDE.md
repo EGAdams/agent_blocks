@@ -238,7 +238,8 @@ The top-level areas are:
   protected Bridge agent `bati-desktop`, pinned to BATI's token. ChatGPT reaches it as the seven `bati_*` MCP tools
   (`agent_bridge/gateway/src/BatiTools.php`, the third `AgentTaskTools` subclass; the gateway writes `machine: "BATI"`
   itself), verified live 2026-11-21 (`bati_status`, task `t_c302b822e44402a8fc77df23`); Toyota and Sydney through
-  their `bridge_bati_desktop` route (`bridge_client/bati_plans.py`), tested offline only. Every PC on the tailnet
+  their `bridge_bati_desktop` route (`bridge_client/bati_plans.py`), verified live through Toyota 2026-11-21 (task
+  `t_6988bc9bda73eaa0f38a1f5d`); Sydney's half is tested offline only. Every PC on the tailnet
   (BATI, SQMC, R46) now runs a worker.
   `adws/machine_supervisor/` is the Machine Supervisor (read its `DESIGN.md`
   first): one sleeping supervisor per machine (BATI, SQMC, R46), woken by a
