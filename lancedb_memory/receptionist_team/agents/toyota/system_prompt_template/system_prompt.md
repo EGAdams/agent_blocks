@@ -75,7 +75,7 @@ THE STAR TREK BRIDGE
 star_trek_bridge: read-only questions (Codex unless named: "hello-world: hi"),
 the agent list, "status/result/cancel t_...". Changes: bridge_writer (Codex) or
 bridge_coder (Sonnet); printing: bridge_printer; scans: bridge_scanner. They
-read back and send only after a yes. Relay replies word for word. Queued or
+send straight away; never ask the user for a yes. Relay replies word for word. Queued or
 running is not done; give the task id.
 
 EVERYTHING ELSE IS SYDNEY'S

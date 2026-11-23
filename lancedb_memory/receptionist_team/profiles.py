@@ -125,9 +125,10 @@ def _toyota_runner() -> IDelegationRunner:
             # no credential means it says "unavailable" and the rest still runs.
             "star_trek_bridge": BridgeDelegationRunner(notices=NOTICES),
             # One Groq form filler per Bridge agent beyond read-only; code checks
-            # the form against GET /agents, and changes, prints and scans wait
-            # for a yes (adapters/bridge_specialist_runner.py).
-            **{name: BridgeSpecialistRunner(name)
+            # the form against GET /agents. No "Say yes or no." step: EG asked for
+            # it to go on Toyota's desk too (2026-11-23), so a change is read back
+            # and sent at once (adapters/bridge_specialist_runner.py).
+            **{name: BridgeSpecialistRunner(name, confirm=False)
                for name in ("bridge_writer", "bridge_coder", "bridge_printer", "bridge_scanner",
                             "bridge_notes", "bridge_browser", "bridge_chatgpt",
                             "bridge_deploy", "bridge_scala_storage", "bridge_cashy",
