@@ -120,17 +120,25 @@ class GoToRule:
 
 
 class OpenBankRule:
-    """"Open Chase", "open the Chase login page", "log in to Fifth Third"."""
-    _VERB = re.compile( r"\b(?:open|go to|log ?in(?: to)?|sign ?in(?: to)?|start|bring up|pull up)\b", re.IGNORECASE )
+    """"Open Chase", "open the Chase login page", "log in to Fifth Third" -- and, with no bank named,
+    "open the login page" / "open my bank": an `open_bank` with no bank, which opens the session's own
+    bank or asks which one. 2026-11-24: "open the login page" was "I didn't understand" while the
+    session already knew the bank was Fifth Third."""
+    _VERB = re.compile( r"\b(?:open|go to|log ?(?:me )?in(?: to)?|sign ?(?:me )?in(?: to)?|start|bring up|pull up)\b", re.IGNORECASE )
+    _UNNAMED = re.compile( r"\b(?:log[ -]?in|sign[ -]?in|sign[ -]?on)\s+(?:page|screen|site|form)\b"
+                           r"|\b(?:my|the|our) bank\b"
+                           r"|^(?:please\s+)?(?:log|sign) (?:me )?(?:in|on)\b", re.IGNORECASE )
 
     def __init__( self, banks: IBankDirectory ) -> None:
         self._banks = banks
 
     def match( self, sentence: str ) -> Intent | None:
         bank = self._banks.find( sentence )
-        if bank is None or not self._VERB.search( sentence ):
-            return None
-        return Intent( kind="open_bank", text=sentence, bank=bank.key )
+        if bank is not None:
+            return Intent( kind="open_bank", text=sentence, bank=bank.key ) if self._VERB.search( sentence ) else None
+        if self._UNNAMED.search( sentence ) and ( self._VERB.search( sentence ) or "page" in sentence.casefold()):
+            return Intent( kind="open_bank", text=sentence, bank="" )
+        return None
 
 
 class ClickRule:

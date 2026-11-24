@@ -42,6 +42,23 @@ def test_interpreter_reads_the_mission_phrases( tmp_path: Path, said: str, kinds
     assert [ i.kind for i in intents ] == kinds
 
 
+@pytest.mark.parametrize( "said", [ "open the login page", "go to the login page", "open my bank",
+                                    "login page", "can you open the sign-in page", "log me in", "please log in" ])
+def test_a_login_request_without_a_bank_is_still_an_open( tmp_path: Path, said: str ) -> None:
+    kit = _kit( tmp_path )
+    from cashy.conversation.interpreter import RuleChainInterpreter
+    from cashy.conversation.rules import default_rules
+    [ intent ] = RuleChainInterpreter( default_rules( kit.banks(), kit.workflows.period_parser())).interpret( said )
+    assert intent.kind == "open_bank" and intent.bank == ""
+
+
+def test_an_unnamed_login_request_asks_which_bank_when_there_is_none( tmp_path: Path ) -> None:
+    from cashy.models import CashySession
+    _kit( tmp_path ).sessions().save( CashySession( id="n", state="idle" ))
+    reply = _kit( tmp_path ).agent().turn( "open the login page", session_id="n" )
+    assert "which bank" in reply.text.lower()
+
+
 def test_statement_request_carries_bank_and_period( tmp_path: Path ) -> None:
     kit = _kit( tmp_path )
     from cashy.conversation.interpreter import RuleChainInterpreter
