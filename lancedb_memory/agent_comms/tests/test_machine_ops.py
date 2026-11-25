@@ -37,6 +37,17 @@ class MachineOpsTests(unittest.TestCase):
             spec = command(Request(operation="run_test", unit="agent-bridge-worker.service", suite=suite))
             self.assertEqual(spec.argv, TESTS[suite])
 
+    def test_a_test_needs_no_unit(self):
+        out = asyncio.run(MachineOpsExecutor(FakeRunner()).execute(envelope(
+            '{"operation":"run_test","suite":"post-office-operations"}')))
+        self.assertTrue(out.ok, out.text)
+
+    def test_other_operations_still_need_a_unit(self):
+        for raw in ['{"operation":"status"}', '{"operation":"check"}', '{"operation":"journal_tail"}',
+                    '{"operation":"run_test","unit":"nope.service","suite":"post-office-operations"}']:
+            with self.subTest(raw=raw):
+                self.assertFalse(asyncio.run(MachineOpsExecutor(FakeRunner()).execute(envelope(raw))).ok)
+
     def test_health_discards_body(self):
         argv = command(Request(operation="check", unit="dashboard-server.service")).argv
         self.assertIn("/dev/null", argv)

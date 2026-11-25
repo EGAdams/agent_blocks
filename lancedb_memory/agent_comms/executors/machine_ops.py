@@ -39,7 +39,7 @@ class MachineOpsExecutor:
             # Same wording as before, plus which rule failed (never the request itself) and no retry:
             # a refused request is refused every time, so repeating it only delays the real error.
             why = "not valid JSON" if isinstance(error, json.JSONDecodeError) else str(error).split("\n")[0][:80]
-            return TaskResult(ok=False, text="Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. "
+            return TaskResult(ok=False, text="Machine Ops refused the request: use strict JSON with an approved operation, a unit (not needed for run_test) and optional lines or suite. Restarts are disabled. "
                                               f"Reason: {why}.", performer=self.performer, details={"retryable": False})
         try:
             result = await asyncio.to_thread(self._runner.run, spec)

@@ -25,7 +25,7 @@ HEALTH = {
 class Request(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, frozen=True)
     operation: Literal["status", "journal_tail", "check", "run_test"]
-    unit: str
+    unit: str | None = None          # a service; not needed to run a test
     lines: int = Field(default=80, ge=1, le=200)
     suite: str | None = None
 
@@ -37,9 +37,15 @@ class CommandSpec(BaseModel):
 
 
 def command(request: Request) -> CommandSpec:
+    if request.operation == "run_test":
+        if request.unit is not None and request.unit not in UNITS:
+            raise ValueError("unit is not approved")
+        if request.suite not in TESTS:
+            raise ValueError("suite is not approved")
+        return CommandSpec(argv=TESTS[request.suite], timeout_seconds=120)
     if request.unit not in UNITS:
         raise ValueError("unit is not approved")
-    if request.operation != "run_test" and request.suite is not None:
+    if request.suite is not None:
         raise ValueError("suite is only valid for run_test")
     if request.operation == "status":
         return CommandSpec(argv=("/usr/bin/systemctl", "--user", "show", request.unit,
@@ -55,6 +61,4 @@ def command(request: Request) -> CommandSpec:
                                      "--max-time", "5", "--output", "/dev/null",
                                      "--write-out", "HTTP %{http_code}\\n", url))
         return CommandSpec(argv=("/usr/bin/systemctl", "--user", "is-active", request.unit))
-    if request.suite not in TESTS:
-        raise ValueError("suite is not approved")
-    return CommandSpec(argv=TESTS[request.suite], timeout_seconds=120)
+    raise ValueError("operation is not approved")
