@@ -1,0 +1,13 @@
+[Unit]
+Description=Scala mail replies (carries EG's emailed answers to Scala through the post office)
+After=yolanda-receptionist.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/adamsl/agent_blocks
+ExecStart=/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python adws/adw_interface_scala_mail_replies.py "check Scala's mail"
+Environment=PYTHONUNBUFFERED=1
+# ANTHROPIC_API_KEY is deliberately NOT set: Yolanda runs on the Claude Code
+# subscription. With no mailed question open this run makes no model call.
+StandardOutput=append:/tmp/scala_mail_replies.log
+StandardError=append:/tmp/scala_mail_replies.log

@@ -20,7 +20,7 @@ waiting on.
     cd /home/adamsl/agent_blocks && lancedb_memory/.venv/bin/python adws/adw_interface_scala_answer.py \\
         "why" --request "Scala, file #7 under documents_511/insurance" \\
         [--number 7 --folder documents_511/insurance] \\
-        [--message-out /tmp/line.txt] [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
+        [--message-out /tmp/line.txt] [--verdict] [--config adws/adw_sssf_config/sssf.config.yaml] [--adw-id a1b2c3d4]
 """
 
 from __future__ import annotations
@@ -61,6 +61,7 @@ class AnswerArgs:
     number:      int | None
     folder:      str
     message_out: str
+    verdict:     bool
     config:      str
     adw_id:      str | None
 
@@ -122,11 +123,19 @@ class ReportPhase( LifecycleLogged, IPhase ):
 
     def act( self, handle: IPhaseHandle ) -> str:
         out = self._state.args.message_out
+        if self._state.args.verdict:            # the post office's card reads the closing verdict line
+            print( f"{ verdict_of( self._state.line ) } { self._state.line }" )
+            return "verdict"
         if out:
             Path( out ).write_text( self._state.line + "\n" )
         else:
             print( self._state.line )
         return out or "stdout"
+
+
+def verdict_of( line: str ) -> str:
+    """DONE: when a scan was filed; NO_CHANGE: otherwise -- a missing folder is an answer, not a failure."""
+    return "DONE:" if line.startswith( "Scala filed" ) else "NO_CHANGE:"
 
 
 # -- Argument parsing --------------------------------------------------------
@@ -146,12 +155,16 @@ class ArgparseAnswerArgumentParser( LifecycleLogged, IArgumentParser ):
         parser.add_argument( "--number", type=int, default=None, help="the to-do / question number" )
         parser.add_argument( "--folder", default="", help="e.g. documents_511/insurance" )
         parser.add_argument( "--message-out", default="" )
+        parser.add_argument( "--verdict", action="store_true",
+                             help="end on a DONE:/NO_CHANGE: line (the post office's scala card); "
+                                  "the positional prompt is the sentence when --request is empty" )
         parser.add_argument( "--config", default="adws/adw_sssf_config/sssf.config.yaml" )
         parser.add_argument( "--adw-id", default=None )
         parsed = parser.parse_args( argv )
-        return AnswerArgs( prompt=utils.resolve_prompt( parsed.prompt ), request=parsed.request,
+        request = parsed.request or ( parsed.prompt if parsed.verdict else "" )
+        return AnswerArgs( prompt=utils.resolve_prompt( parsed.prompt ), request=request,
                            number=parsed.number, folder=parsed.folder.strip().strip( "/" ).lower(),
-                           message_out=parsed.message_out, config=parsed.config, adw_id=parsed.adw_id )
+                           message_out=parsed.message_out, verdict=parsed.verdict, config=parsed.config, adw_id=parsed.adw_id )
 
 
 # -- Composition root's one orchestrator -------------------------------------

@@ -15,6 +15,11 @@ through Toyota -- "Scala, file #7 under documents_511/insurance" -- and
 
 Questions and lessons are append-only JSONL beside the ledger in `~/scala/`
 (0700 / 0600): they hold OCR words from personal paperwork.
+
+Each question is also emailed to EG (`scala.mail`, subject `[Scala #N]`,
+through Yolanda on the post office). A reply to that email is carried back to
+Scala by `adw_interface_scala_mail_replies.py` -- see `scala/mail_replies.py`.
+`SCALA_EMAIL_QUESTIONS=0` turns the email off.
 """
 from __future__ import annotations
 

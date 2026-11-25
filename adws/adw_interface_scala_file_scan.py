@@ -57,6 +57,7 @@ from scala.ledger import JsonlScalaLedger, summary
 from scala.mazda_verdicts import RecentReportVerdicts
 from scala.models import Classification, Decision, FilingOutcome, Method
 from scala.ocr import TesseractOcr
+from scala.post_office_mail import emailing_asker
 from scala.questions import JsonlLessonBook, JsonlQuestionBook, QuestionDesk, lessons_for_prompt
 from scala.todo_asker import TodoListAsker
 from scala.rules import RuleClassifier
@@ -329,7 +330,8 @@ def build_application() -> IApplication:
     desk = ScalaDesk( ocr=TesseractOcr(), mazda=RecentReportVerdicts(), rules=RuleClassifier(),
                       haiku=_haiku( lessons ), cabinet=cabinet, ledger=ledger )
     questions = QuestionDesk( book=JsonlQuestionBook(), lessons=lessons,
-                              asker=TodoListAsker( JsonlTodoStore()), cabinet=cabinet, ledger=ledger )
+                              asker=emailing_asker( TodoListAsker( JsonlTodoStore()), cabinet ),
+                              cabinet=cabinet, ledger=ledger )
     return ScanApplication(
         argument_parser = ArgparseScanArgumentParser( __doc__, bootstrap_log ),
         config_loader   = SssfConfigLoader(              bootstrap_log          ),

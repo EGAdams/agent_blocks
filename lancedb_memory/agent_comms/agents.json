@@ -173,6 +173,19 @@
       ]
     },
     {
+      "name": "scala",
+      "display_name": "Scala",
+      "runtime": "adw",
+      "settings": { "script": "adws/adw_interface_scala_answer.py",
+                    "command": [ "lancedb_memory/.venv/bin/python" ], "extra_args": [ "--verdict" ],
+                    "timeout_seconds": 300, "aliases": [ "scanner clerk", "scan clerk", "filing clerk" ] },
+      "accepts_from": [ "yolanda", "toyota", "sydney" ],
+      "capabilities": [
+        { "task_type": "answer", "description": "file a scan Scala asked about, from EG's answer naming question #N and a folder such as bills_511/gas; one line back",
+          "idempotent": true, "default_wait_seconds": 120, "synonyms": [ "message", "file" ] }
+      ]
+    },
+    {
       "name": "post-office",
       "display_name": "the post office",
       "runtime": "none",
