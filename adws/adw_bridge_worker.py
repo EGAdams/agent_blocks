@@ -99,6 +99,10 @@ SUPERVISOR_ENABLED = Path.home() / ".config" / "machine_supervisor" / "bridge_en
 SUPERVISOR_WORKDIR = _HERE / "adw_data" / "machine_supervisor" / "workspace"            # the `machine-supervisor` workspace: empty, nothing runs in it
 SUPERVISOR_MAILBOX_ADW = _HERE / "adw_machine_mailbox.py"
 SUPERVISOR_TODO_ADW    = _HERE / "adw_machine_todo.py"
+TRIAGE_ENABLED    = Path.home() / ".config" / "failure_triage" / "bridge_enabled"   # failure triage's status is off until this exists
+TRIAGE_WORKDIR    = _HERE / "adw_data" / "failure_triage" / "workspace"            # the `failure-triage` workspace: empty, nothing runs in it
+TRIAGE_STATUS_ADW = _HERE / "adw_failure_triage_status.py"
+TRIAGE_FIX_ADW    = _HERE / "adw_failure_triage_fix.py"
 ANDROID_ENABLED = Path.home() / ".config" / "android_photos" / "enabled"    # the phone's photos are off until this exists
 ANDROID_WORKDIR = _HERE / "adw_data" / "android_photos" / "workspace"       # the `android-photos` workspace: empty, nothing runs in it
 ANDROID_ADW     = _HERE / "adw_android_photos.py"
@@ -203,6 +207,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     from agent_bridge_worker.adapters.android_photos_process import UvAndroidPhotoCommands
     from agent_bridge_worker.adapters.machine_supervisor_process import UvMachineSupervisorCommands
     from agent_bridge_worker.improvement_agent import ImprovementAgent
+    from agent_bridge_worker.triage_agent import TriageAgent
+    from agent_bridge_worker.adapters.triage_process import UvTriageCommands
     from agent_bridge_worker.adapters.improvement_process import ProcessImprovementCommands
     from agent_bridge_worker.adapters.notes_store import FilesystemNotesStore, HttpNotesEndpoint
     from agent_bridge_worker.adapters.notes_bridge_http import HttpNotesBridge
@@ -236,7 +242,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     agents     = {}
     for name in offered:
         card    = kit.registry.card( name )
-        timeout = float( card.settings.get( "timeout_seconds", 600 )) + 60
+        timeout = max( float( card.settings.get( "timeout_seconds", 600 )),
+                       float( card.settings.get( "write_timeout_seconds", 0 ))) + 60   # a writer's longer budget too
         agents[ name ] = PostOfficeAgent( SENDER, kit.dispatcher, kit.replies, kit.canceller, kit.board,
                                           kit.event_log, TaskRequest, clock, timeout_seconds=timeout, relay=relay )
     events     = next( iter( agents.values()), None )
@@ -333,6 +340,13 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         # Agent and workspace share one name (see the chatgpt-relay note above). Reading a mailbox is `inspect`;
         # a todo is `implement`, and what the supervisor may then do is fixed by her guard, not by this workspace.
         self_contained.add( "machine-supervisor" )
+    if TRIAGE_ENABLED.exists():                         # failure triage is off until EG creates the flag file
+        TRIAGE_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
+        agents[ "failure-triage" ]  = TriageAgent( UvTriageCommands( UV, TRIAGE_STATUS_ADW, TRIAGE_FIX_ADW, _HERE.parent ), clock )
+        offered[ "failure-triage" ] = { "inspect": False, "implement": True }
+        # Agent and workspace share one name (see the chatgpt-relay note above). Reading the ledger is `inspect`;
+        # recording a fix or a re-route is `implement`, and it changes only the triage ledger, never a git workspace.
+        self_contained.add( "failure-triage" )
     if ANDROID_ENABLED.exists():                        # the phone's photos are off until EG creates the flag file
         ANDROID_WORKDIR.mkdir( mode=0o700, parents=True, exist_ok=True )
         agents[ "android-photos" ]  = AndroidPhotosAgent( UvAndroidPhotoCommands( UV, ANDROID_ADW, _HERE.parent ), clock,
@@ -353,7 +367,8 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
     resolver = FixedFirstWorkspaces({ "scanners": SCAN_WORKDIR, "printers": PRINT_WORKDIR, "notes": NOTES_WORKDIR, "browser": BROWSER_WORKDIR,
                                       "chatgpt-relay": RELAY_WORKDIR, "deploy": DEPLOY_WORKDIR,
                                       "scala-storage": STORAGE_WORKDIR, "machine-supervisor": SUPERVISOR_WORKDIR,
-                                      "agent-improvement": IMPROVE_WORKDIR, "android-photos": ANDROID_WORKDIR },
+                                      "agent-improvement": IMPROVE_WORKDIR, "android-photos": ANDROID_WORKDIR,
+                                      "failure-triage": TRIAGE_WORKDIR },
                                     workspaces )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent

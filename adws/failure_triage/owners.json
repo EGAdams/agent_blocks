@@ -1,0 +1,23 @@
+{
+  "comment": "First match wins, top to bottom. agent and error are regexes; error is matched against the NORMALISED error (lowercase, ids/numbers/times/paths replaced). owner is a post-office agent, 'eg' (a mail, no agent) or 'sender' (the caller's own alert board already has it). The last rule must match everything.",
+  "rules": [
+    {"name": "account: session limit", "error": "session limit|usage limit|rate limit", "klass": "environment", "owner": "eg",
+     "advice": "The subscription ran out of usage; it resets by itself. If it keeps happening, the work needs to move to another account or be spread out."},
+    {"name": "account: login", "error": "login has expired|failed to authenticate|oauth|401|sign in again", "klass": "environment", "owner": "eg",
+     "advice": "Sign in again with `claude` on SQMC (ssh -p 2222 adamsl@100.102.209.100). No agent may renew a login."},
+    {"name": "cli: too old", "error": "does not support this model|claude update|or newer is required", "klass": "environment", "owner": "eg",
+     "advice": "Run `claude update` on SQMC; the CLI is older than the model needs."},
+    {"name": "provider: stream disconnected", "error": "stream disconnected|reconnecting|error sending request|connection reset|timed out connecting", "klass": "environment", "owner": "eg",
+     "advice": "The provider's connection dropped. If it repeats, check SQMC's internet/DNS and the provider's status page."},
+    {"name": "guard: credentials withheld", "error": "withheld.*credential", "klass": "caller", "owner": "sender",
+     "advice": "The credential guard did its job. Check the request didn't ask for a secret."},
+    {"name": "caller: workdir outside", "error": "workdir .* is outside", "klass": "caller", "owner": "sender",
+     "advice": "The request named a workdir this agent may not use."},
+    {"name": "needs a person: mechanic gave up", "agent": "^mechanic$", "error": "refused|not green", "klass": "person", "owner": "eg",
+     "advice": "The mechanic could not repair it within its rules; read its run under adws/adw_data/mechanic/."},
+    {"name": "config: unknown model", "error": "model metadata|model is not supported|unknown model|model not found", "klass": "config", "owner": "sonnet", "task_type": "plan"},
+    {"name": "config: turn or time budget", "error": "error_max_turns|did not finish within", "klass": "config", "owner": "sonnet", "task_type": "plan"},
+    {"name": "code: request refused by validation", "error": "refused the request|validation error|not valid json", "klass": "code", "owner": "sonnet", "task_type": "plan"},
+    {"name": "unmatched", "klass": "unmatched", "owner": "mechanic", "task_type": "diagnose"}
+  ]
+}

@@ -202,12 +202,17 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
                               required=[ login ], root_writable=writes,
                               file_binds=[( login, home / ".credentials.json" )])
 
+        # A build needs more room than a look: `write_*` budgets apply to writing capabilities only, and
+        # default to the card's own. Failure triage found 1 implement task in 4 stopping at 40 turns.
+        writer  = { **common, "timeout_seconds": float( s.get( "write_timeout_seconds", common[ "timeout_seconds" ])),
+                    "max_turns": int( s.get( "write_max_turns", common[ "max_turns" ]))}
+
         executors: dict[ str, ITaskExecutor ] = {}
         for capability in card.capabilities:
             if capability.writes:
                 executors[ capability.task_type ] = ClaudeCliExecutor(
                     Path( str( s[ "write_workdir" ])), writes=True, jail=jail( True ),
-                    write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])], **common )
+                    write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])], **writer )
             else:
                 executors[ capability.task_type ] = ClaudeCliExecutor(
                     Path( str( s.get( "workdir", WORKSPACE ))), writes=False, jail=jail( False ),

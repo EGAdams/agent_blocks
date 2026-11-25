@@ -1,0 +1,11 @@
+[Unit]
+Description=Failure triage (clusters failed post-office tasks, routes each to its owner for a plan, mails EG on repeats)
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/adamsl/agent_blocks/adws
+ExecStart=/home/adamsl/.local/bin/uv run --quiet adw_failure_triage.py
+Environment=PYTHONUNBUFFERED=1
+# No model runs in a pass. Routed plans run on the owner's card; ANTHROPIC_API_KEY stays unset.
+StandardOutput=append:/tmp/failure_triage.log
+StandardError=append:/tmp/failure_triage.log

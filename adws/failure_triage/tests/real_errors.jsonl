@@ -1,0 +1,85 @@
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: not valid JSON."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: not valid JSON."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: not valid JSON."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: not valid JSON."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 3 validation errors for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 3 validation errors for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: not valid JSON."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: unit is not approved."}
+{"agent": "machine-ops", "error": "Machine Ops refused the request: use strict JSON with an approved operation, unit and optional lines or suite. Restarts are disabled. Reason: 1 validation error for Request."}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex's answer was withheld: it contained login credentials"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex's answer was withheld: it contained login credentials"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex-writer", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "workdir /home/adamsl/bridge_workspaces/bridge_sandbox is outside /home/adamsl/agent_blocks"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: warning: Model metadata for `gpt-6-luna` not found. Defaulting to fallback metadata; this can degrade performance and cause issues. | ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}} | ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}}"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "codex", "error": "codex exited 1: warning: Model metadata for `gpt-6-luna` not found. Defaulting to fallback metadata; this can degrade performance and cause issues. | ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}} | ERROR: {\"type\":\"error\",\"status\":400,\"error\":{\"type\":\"invalid_request_error\",\"message\":\"The 'gpt-6-luna' model is not supported when using Codex with a ChatGPT account.\",\"code\":\"model_not_found\"}}"}
+{"agent": "codex", "error": "codex exited 1: ERROR: Reconnecting... 5/5 | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses) | ERROR: stream disconnected before completion: error sending request for url (https://chatgpt.com/backend-api/codex/responses)"}
+{"agent": "claude-sonnet", "error": "claude did not finish within 900s"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with success: You've hit your session limit \u00b7 resets 10:20pm (America/New_York)"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "Claude's subscription login has expired or is about to, and renewing it failed; sign in again with `claude` on this machine"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with success: You've hit your session limit \u00b7 resets 10:20pm (America/New_York)"}
+{"agent": "claude-sonnet", "error": "claude did not finish within 900s"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with success: Failed to authenticate. API Error: 401 OAuth access token has been revoked."}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with success: You've hit your session limit \u00b7 resets 10:20pm (America/New_York)"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "claude-sonnet", "error": "claude stopped with error_max_turns: no answer"}
+{"agent": "opus", "error": "ResultError: Claude Code returned an error result: API Error: 400 Claude Code 2.1.250 does not support this model; version 2.1.280 or newer is required. Run 'claude update', or update the Claude desktop app, then try again. (exit code: 1)"}
+{"agent": "opus", "error": "ResultError: Claude Code returned an error result: API Error: 400 Claude Code 2.1.250 does not support this model; version 2.1.280 or newer is required. Run 'claude update', or update the Claude desktop app, then try again. (exit code: 1)"}
+{"agent": "opus", "error": "ResultError: Claude Code returned an error result: API Error: 400 Claude Code 2.1.250 does not support this model; version 2.1.280 or newer is required. Run 'claude update', or update the Claude desktop app, then try again. (exit code: 1)"}
+{"agent": "opus", "error": "ResultError: Claude Code returned an error result: API Error: 400 Claude Code 2.1.250 does not support this model; version 2.1.280 or newer is required. Run 'claude update', or update the Claude desktop app, then try again. (exit code: 1)"}
+{"agent": "mechanic", "error": "REFUSED: the suites are not green after the fix attempts"}

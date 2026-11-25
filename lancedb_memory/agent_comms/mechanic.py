@@ -133,15 +133,18 @@ class JsonlCaseHistory:
         if not error or not self._path.exists():
             return []
         key = _error_key( error )
-        matches = []
+        fixed, matches = [], []
         for line in self._path.read_text( encoding="utf-8" ).splitlines():
             try:
                 case = json.loads( line )
             except ValueError:
                 continue
             if case.get( "error" ) and _error_key( case[ "error" ]) == key:
-                matches.append( case[ "case_id" ])
-        return matches
+                if case.get( "correction" ):   # written by failure triage when a fix is recorded
+                    fixed.append( f"{ case[ 'case_id' ]} (fixed by: { str( case[ 'correction' ])[ :120 ]})" )
+                else:
+                    matches.append( case[ "case_id" ])
+        return fixed[ -1: ] + matches
 
 
 def _phase_name( adw_id: str, event: dict ) -> str:

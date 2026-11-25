@@ -280,6 +280,14 @@ The top-level areas are:
   `android_*` tools and SQMC's worker answered `android_status` through the live Bridge (`no_device`, task
   `t_13d90a67b19be6c8f75f657c`). No real phone has been read yet, so no picture has reached ChatGPT -- don't call
   it verified. The phone must be on SQMC: BATI has no Bridge worker. Restart both worker units after a worker change.
+  `adws/failure_triage/` is Failure Triage (read its `DESIGN.md` first): a 15-minute pass (`adw_failure_triage.py`,
+  systemd user timer `failure-triage` on SQMC, no model in it) reads every failed post-office envelope, groups them
+  by agent and normalised error into a ledger (`adws/adw_data/failure_triage/clusters.json`, gitignored), sends each
+  code or config cluster to its owner as a `plan` (never a build, never a resend), and mails EG through Yolanda
+  when a cluster repeats or regresses. "Zero" means zero live (open, routed or fixed) clusters; `failed/` files are
+  history and are never moved. A recorded fix (`adw_failure_triage_fix.py`) also becomes a correction the
+  mechanic's `similar()` names first. ChatGPT reads it as protected Bridge agent `failure-triage` (worker flag
+  `~/.config/failure_triage/bridge_enabled`).
 - `mazda/` — planning-stage package for the Mazda document-verification agent;
   every subpackage is currently a stub naming the `typing.Protocol` it will
   eventually satisfy, mirroring `spa_documentation/mazda/`'s skeleton. See

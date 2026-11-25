@@ -1,0 +1,18 @@
+{
+  "comment": "Applied in order to a lowercased error before fingerprinting. Each turns something that differs between two occurrences of the same failure into a placeholder. A wrong rule only splits one cluster into two; nothing is lost.",
+  "cut_at": ["reason:", "\n"],
+  "max_length": 160,
+  "rules": [
+    {"name": "post-office id", "pattern": "\\b\\d{8}t\\d{6}z_[0-9a-f]{8}_from_[a-z0-9-]+", "replace": "<id>"},
+    {"name": "bridge task id", "pattern": "\\bt_[0-9a-f]{16,}\\b", "replace": "<id>"},
+    {"name": "case id", "pattern": "\\bcase-[0-9a-f]{6,}\\b", "replace": "<id>"},
+    {"name": "uuid", "pattern": "\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b", "replace": "<id>"},
+    {"name": "iso time", "pattern": "\\b\\d{4}-\\d{2}-\\d{2}[t ]\\d{2}:\\d{2}(:\\d{2}(\\.\\d+)?)?(z|[+-]\\d{2}:?\\d{2})?", "replace": "<t>"},
+    {"name": "clock time", "pattern": "\\b\\d{1,2}(:\\d{2}){1,2}\\s*(am|pm)?\\b|\\b\\d{1,2}\\s*(am|pm)\\b", "replace": "<t>"},
+    {"name": "absolute path", "pattern": "(?<![\\w<])/(?:[\\w.@-]+/)*[\\w.@-]+", "replace": "<path>"},
+    {"name": "hex run", "pattern": "\\b[0-9a-f]{8,}\\b", "replace": "<id>"},
+    {"name": "version", "pattern": "\\b\\d+(\\.\\d+){1,3}\\b", "replace": "<v>"},
+    {"name": "number", "pattern": "\\b\\d+(\\.\\d+)?s?\\b", "replace": "<n>"},
+    {"name": "whitespace", "pattern": "\\s+", "replace": " "}
+  ]
+}

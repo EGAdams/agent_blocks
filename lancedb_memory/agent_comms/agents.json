@@ -186,6 +186,13 @@
       ]
     },
     {
+      "name": "failure-triage",
+      "display_name": "failure triage",
+      "runtime": "none",
+      "accepts_from": [],
+      "capabilities": []
+    },
+    {
       "name": "post-office",
       "display_name": "the post office",
       "runtime": "none",
@@ -235,6 +242,8 @@
         "binary": "/usr/local/bin/claude",
         "timeout_seconds": 900,
         "max_turns": 40,
+        "write_timeout_seconds": 1800,
+        "write_max_turns": 100,
         "claude_home": "/home/adamsl/.claude-bridge",
         "login_file": "/home/adamsl/.claude/.credentials.json",
         "workdir": "/home/adamsl/agent_blocks",

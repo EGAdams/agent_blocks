@@ -57,6 +57,7 @@ lancedb_memory/receptionist_team/workspace/diagnostics/
 
 # agent_comms post office runtime: mailboxes, event log, mechanic cases, worker logs
 adws/adw_data/post_office/
+adws/adw_data/failure_triage/
 
 # browser_workflows: saved recordings (field values), failure screenshots, run logs
 adws/adw_data/browser_workflows/

@@ -270,6 +270,27 @@ def test_progress_message_shapes() -> None:
         == [( "tool_error", "a tool call failed; Claude continues" )]
 
 
+def test_a_writing_capability_gets_the_cards_write_budget_and_a_reader_keeps_its_own() -> None:
+    from agent_comms.factory import default_builders
+    from agent_comms.models import AgentCard, Capability
+    folder = Path( tempfile.mkdtemp())
+    login  = folder / "login.json"
+    login.write_text( "{}" )
+    card = AgentCard( name="claude-sonnet", display_name="Sonnet", runtime="claude_cli",
+                      settings={ "claude_home": str( folder / "home" ), "login_file": str( login ),
+                                 "workdir": str( folder ), "write_workdir": str( folder ),
+                                 "timeout_seconds": 900, "max_turns": 40,
+                                 "write_timeout_seconds": 1800, "write_max_turns": 100 },
+                      capabilities=[ Capability( task_type="plan", description="look" ),
+                                     Capability( task_type="implement", description="build", writes=True )])
+    chosen = default_builders( None, None, folder )[ "claude_cli" ]( card )._executors
+    assert ( chosen[ "implement" ]._turns, chosen[ "implement" ]._timeout ) == ( 100, 1800.0 )
+    assert ( chosen[ "plan" ]._turns, chosen[ "plan" ]._timeout ) == ( 40, 900.0 )
+    del card.settings[ "write_max_turns" ], card.settings[ "write_timeout_seconds" ]
+    chosen = default_builders( None, None, folder )[ "claude_cli" ]( card )._executors
+    assert ( chosen[ "implement" ]._turns, chosen[ "implement" ]._timeout ) == ( 40, 900.0 )
+
+
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]
 
 if __name__ == "__main__":
