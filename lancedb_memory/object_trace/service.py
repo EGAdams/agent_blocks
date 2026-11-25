@@ -12,6 +12,7 @@ no route can write and no connection is shared between threads. Routes:
     GET /api/objects/<id>               one object's view, its last events and dependents
     GET /api/ask/<question>?subject=    latest_notes_update | where_stopped | object_state | saved_and_rendered
     GET /api/inventory                  ADW coverage: every ADW sssf.db has seen, and whether it is traced
+    GET /api/adw-sequence?run=&after=   one ADW run's sequence-diagram feed, asked of the dashboard (http :8765)
     GET /fx/object/selectAll            the-factory's data-source contract, for <log-viewer>/<monitor-led>
     GET /fx/object/select?object_view_id=
     GET /<file>                         the-factory's public/ directory, read-only
@@ -35,10 +36,12 @@ from pathlib import Path
 from urllib.parse import parse_qs, unquote, urlparse
 
 from .coverage import adw_coverage
+from .adapters.dashboard_sequence_feed import DashboardSequenceFeed
 from .adapters.sqlite_store import SqliteTraceStore
 from .adapters.sssf_reader import SssfReader
 from .factory import CHECKOUT, SSSF_DB, trace_db_path
 from .inspector import Inspector
+from .interfaces import IAdwSequenceFeed
 from .models import ObjectView
 from .tracer import SystemClock
 
@@ -90,18 +93,28 @@ class InspectionApp:
     """Route table, kept apart from the HTTP handler so the tests can call it without a socket."""
 
     def __init__( self, db: Path, sssf: Path | None, ui: Path | None, build: str | None = None,
-                  adws: Path | None = None ) -> None:
+                  adws: Path | None = None, sequence: IAdwSequenceFeed | None = None ) -> None:
         self.adws  = Path( adws ) if adws else ADWS_DIR
         self.db    = Path( db )
         self.sssf  = SssfReader( sssf ) if sssf else None
         self.ui    = Path( ui ).resolve() if ui else None
         self.build = build or source_build()
         self.clock = SystemClock()
+        self.sequence = sequence or DashboardSequenceFeed()
         if not self.db.exists():              # make the empty, migrated file once, so read-only opens succeed
             SqliteTraceStore( self.db ).close()
 
     def handle( self, path: str, query: dict[ str, list[ str ]]) -> tuple[ int, str, bytes ]:
         q = lambda key, default=None: ( query.get( key ) or [ default ])[ 0 ]
+        if path == "/api/adw-sequence":       # the trace store is not involved; the dashboard owns this feed
+            run = ( q( "run" ) or "" ).strip()
+            if not run:
+                return self._json( 400, { "error": "run is required" })
+            try:
+                after = None if q( "after" ) in ( None, "" ) else _int( q( "after" ), 0 )
+            except ValueError as exc:
+                return self._json( 400, { "error": str( exc )[ :200 ]})
+            return self._json( 200, self.sequence.run( run, after ))
         if path.startswith( "/api/" ) or path.startswith( "/fx/" ):
             try:
                 return self._json( 200, self._api( path, q ))

@@ -48,3 +48,7 @@ class IRedactor( Protocol ):
 
 class ITraceClock( Protocol ):
     def now( self ) -> float: ...                                       # epoch seconds
+
+
+class IAdwSequenceFeed( Protocol ):
+    def run( self, run_id: str, after: int | None ) -> dict: ...         # one ADW run's FeedPage; ok=False when unreadable

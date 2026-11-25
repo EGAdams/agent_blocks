@@ -474,6 +474,46 @@ def test_constructed_worker_can_close_and_run_ids_are_populated() -> None:
     assert store.object( "adw.phase:lifecycle:finalize_task" ).run_id == app.run_id
 
 
+
+def test_adw_sequence_route_asks_the_feed_and_fails_closed() -> None:
+    from object_trace.adapters.dashboard_sequence_feed import DashboardSequenceFeed
+    _, path = _store()
+
+    class Feed:
+        asked: list = []
+
+        def run( self, run_id: str, after: int | None ) -> dict:
+            self.asked.append(( run_id, after ))
+            return { "ok": True, "runs": [{ "run_id": run_id }], "events": []}
+
+    feed = Feed()
+    app = InspectionApp( path, None, None, build="test", sequence=feed )
+    status, ctype, body = app.handle( "/api/adw-sequence", { "run": [ "r1" ], "after": [ "7" ]})
+    assert status == 200 and ctype == "application/json" and json.loads( body )[ "runs" ][ 0 ][ "run_id" ] == "r1"
+    assert app.handle( "/api/adw-sequence", { "run": [ "r1" ]})[ 0 ] == 200 and feed.asked == [( "r1", 7 ), ( "r1", None )]
+    assert app.handle( "/api/adw-sequence", {})[ 0 ] == 400
+    assert app.handle( "/api/adw-sequence", { "run": [ "r1" ], "after": [ "x" ]})[ 0 ] == 400
+
+    def refused( url: str, timeout: float ) -> object:
+        raise ConnectionRefusedError( "nobody home" )
+    page = DashboardSequenceFeed( "http://127.0.0.1:1", opener=refused ).run( "r1", None )
+    assert page[ "ok" ] is False and "ConnectionRefusedError" in page[ "error" ] and page[ "events" ] == []
+
+    class Reply( io.BytesIO ):
+        def __enter__( self ) -> "Reply":
+            return self
+
+        def __exit__( self, *exc: object ) -> None:
+            pass
+    seen: list = []
+
+    def answered( url: str, timeout: float ) -> object:
+        seen.append( url )
+        return Reply( b'{"ok": true, "runs": [], "events": [], "cursor": 3}' )
+    assert DashboardSequenceFeed( "http://dash", opener=answered ).run( "a b", 2 )[ "cursor" ] == 3
+    assert seen == [ "http://dash/api/adw-debugger/run?run_id=a+b&after=2" ]
+    assert DashboardSequenceFeed( "http://dash", opener=lambda u, timeout: Reply( b"[]" )).run( "r", None )[ "ok" ] is False
+
 if __name__ == "__main__":
     failed = 0
     tests = [( n, f ) for n, f in sorted( globals().items()) if n.startswith( "test_" ) and callable( f )]
