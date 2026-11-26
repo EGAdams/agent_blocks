@@ -271,6 +271,15 @@ def test_tracker_ignores_existing_user_changes_and_leaves_the_index_alone() -> N
         shutil.rmtree( base )
 
 
+def test_a_write_report_carries_which_model_really_ran() -> None:
+    from agent_bridge_worker.models import WriteReport
+    report = WriteReport( task_id="t_1", operation="implement", effective_mode="workspace_write", workspace="w", outcome="changed",
+                          runtime={ "model_requested": "claude-opus-5", "models_used": "claude-opus-5", "model_confirmed": True, "turns": 4 })
+    sent = json.loads( report.model_dump_json())
+    assert sent[ "runtime" ] == { "model_requested": "claude-opus-5", "models_used": "claude-opus-5", "model_confirmed": True, "turns": 4 }
+    assert WriteReport( task_id="t", operation="o", effective_mode="m", workspace="w", outcome="x" ).runtime == {}
+
+
 # -- whole runs -------------------------------------------------------------------------
 
 def test_markdown_write_returns_exact_contents_and_runs_checks() -> None:

@@ -113,7 +113,8 @@ class ScopedWriteSession:
             workspace=task.workspace, outcome=label, summary=( outcome.summary if outcome else "" ),
             resumed=start.resumed, changed_paths=found.changes.paths, diff=found.changes,
             checks_run=found.checks_run, checks_not_run=found.checks_not_run,
-            artifacts=self._artifacts( workdir, found.changes ), delivery=DELIVERY )
+            artifacts=self._artifacts( workdir, found.changes ), delivery=DELIVERY,
+            runtime=dict(( outcome.details or {}) if outcome else {}))
         record = self._journal.load( task.task_id ) or { "task_id": task.task_id, "baseline": start.baseline }
         record.update( state="finished", outcome=label, changed=[ p.path for p in found.changes.paths ], at=time.time())
         self._journal.save( task.task_id, record )

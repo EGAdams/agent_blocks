@@ -169,6 +169,7 @@ class WriteReport( BaseModel ):
     checks_not_run: list[ str ] = Field( default_factory=list )
     artifacts:      list[ Artifact ] = Field( default_factory=list )
     delivery:       str = ""
+    runtime:        dict[ str, str | int | float | bool ] = Field( default_factory=dict )   # which model really ran, turns, seconds
 
 
 class ScanPage( BaseModel ):
