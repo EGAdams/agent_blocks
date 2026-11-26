@@ -238,7 +238,9 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
             gateway.event( task, "progress", line )
         except GatewayError:
             pass
-    offered    = scoped_operations( kit.registry, SENDER )
+    from agent_bridge_worker.cashy_agent import Machine
+    machine_only = Machine.lane_agents( MACHINES_FILE )  # served only by their own machine's lane (Sheila on BATI)
+    offered    = { name: ops for name, ops in scoped_operations( kit.registry, SENDER ).items() if name not in machine_only }
     agents     = {}
     for name in offered:
         card    = kit.registry.card( name )
@@ -406,8 +408,9 @@ class NoEvents:
 
 
 def build_machine_application( base_url: str, worker_id: str, hooks: Any = None ) -> BridgeTaskRun:
-    """The machine lane's composition root: only this machine's own agent (Cashy on R46, the desktop Chrome on BATI), only the workspace the
-    gateway pins to this machine's worker token. No post office, no coding workspace, no write session."""
+    """The machine lane's composition root: only this machine's own agents (Cashy on R46; the desktop Chrome and
+    Sheila on BATI), only the workspaces the gateway pins to this machine's worker token. No coding workspace and no
+    git write session; a post office only when `machines.json` names post-office agents for this machine."""
     from agent_bridge_worker.adapters.http_gateway import HttpTaskGateway, load_worker_token
     from agent_bridge_worker.cashy_agent import Machine
     from agent_bridge_worker.policy import ScopedPolicy, StaticWorkspaces
@@ -432,17 +435,58 @@ def build_machine_application( base_url: str, worker_id: str, hooks: Any = None 
         print( f"machine lane: { why }", flush=True )
     if "/mnt/c/Windows/System32" not in os.environ.get( "PATH", "" ).split( ":" ):
         os.environ[ "PATH" ] = os.environ.get( "PATH", "" ) + ":/mnt/c/Windows/System32"
-    clock  = SystemClock()
-    agents = { machine.agent: machine_agent( machine, clock )}
+    clock    = SystemClock()
+    agents   = { machine.agent: machine_agent( machine, clock )}
+    caps     = { machine.agent: { "inspect": False, "implement": True }}
+    workdirs = { machine.agent: workdir }
+    events: Any = NoEvents()
+    if machine.post_office_agents:
+        events = machine_post_office_agents( machine, gateway, clock, agents, caps, workdirs )
     if hooks is not None:
         from agent_bridge_worker.adapters.traced import TracingAgent
         from object_trace.factory import default_tracer
         agents = { name: TracingAgent( agent, default_tracer(), name ) for name, agent in agents.items()}
     # Agent and workspace share one name (see the chatgpt-relay note in build_application).
-    policy = ScopedPolicy({ machine.agent: { "inspect": False, "implement": True }}, frozenset({ machine.agent }),
-                          frozenset({ "read_only", "workspace_write" }))
-    return BridgeTaskRun( gateway, policy, StaticWorkspaces({ machine.agent: workdir }), agents, NoEvents(), clock,
-                          worker_id, writes=None, self_contained=frozenset({ machine.agent }))
+    lane   = frozenset( agents )
+    policy = ScopedPolicy( caps, lane, frozenset({ "read_only", "workspace_write" }))
+    return BridgeTaskRun( gateway, policy, StaticWorkspaces( workdirs ), agents, events, clock,
+                          worker_id, writes=None, self_contained=lane )
+
+
+def machine_post_office_agents( machine: Any, gateway: Any, clock: Any, agents: dict, caps: dict, workdirs: dict,
+                                kit: Any = None ) -> Any:
+    """The post-office agents a machine lane also serves (Sheila on BATI), added to `agents`, `caps` and `workdirs`
+    in place. Each is a PostOfficeAgent over this machine's own post office; its Bridge workspace has the agent's
+    name and is the card's `write_workdir`, which her executor's jail is already bound to. Her writes are not put
+    through the git write session: the sandbox is not a repository, and the jail is what bounds them. Returns the
+    event source (the post office's audit trail) for the run's CollectEvents phase."""
+    from agent_bridge_worker.adapters.post_office_agent import PostOfficeAgent
+    from agent_bridge_worker.policy import scoped_operations
+    from agent_bridge_worker.ports import GatewayError
+    from agent_comms.factory import build_post_office
+    from agent_comms.models import TaskRequest
+
+    def relay( task, line: str ) -> None:
+        try:
+            gateway.event( task, "progress", line )
+        except GatewayError:
+            pass
+    kit     = kit or build_post_office( forward_failures_to_mechanic=False )
+    offered = scoped_operations( kit.registry, SENDER )
+    events  = None
+    for name in machine.post_office_agents:
+        card = kit.registry.card( name )
+        if card is None or name not in offered:
+            raise RuntimeError( f"machine lane: { name } is not a post-office agent that takes Bridge work" )
+        timeout = max( float( card.settings.get( "timeout_seconds", 600 )),
+                       float( card.settings.get( "write_timeout_seconds", 0 ))) + 60
+        agents[ name ]   = PostOfficeAgent( SENDER, kit.dispatcher, kit.replies, kit.canceller, kit.board, kit.event_log,
+                                            TaskRequest, clock, timeout_seconds=timeout, relay=relay )
+        caps[ name ]     = offered[ name ]
+        workdirs[ name ] = Path( str( card.settings.get( "write_workdir", "" ))).expanduser()
+        workdirs[ name ].mkdir( mode=0o700, parents=True, exist_ok=True )
+        events = events or agents[ name ]
+    return events
 
 
 def build_watcher( base_url: str, settings_path: Path, run_work: Callable[[], int ], lane: WorkerLane = WorkerLane()) -> Any:

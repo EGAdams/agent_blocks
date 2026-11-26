@@ -127,6 +127,6 @@ def test_argv_is_fixed_and_values_are_flag_values():
 
 
 def test_bati_is_in_machines_json_beside_r46():
-    assert Machine.load( MACHINES, "DESKTOP-SHDBATI" ) == BATI
+    assert Machine.load( MACHINES, "DESKTOP-SHDBATI" ) == BATI.model_copy( update={ "post_office_agents": ( "sheila", )})
     assert Machine.load( MACHINES, "rosemary46" ).agent == "cashy-r46"
     assert Machine.load( MACHINES, "desktop-2obsqmc" ) is None

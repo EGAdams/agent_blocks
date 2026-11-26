@@ -15,6 +15,7 @@ from __future__ import annotations
 import os
 import shlex
 import shutil
+import socket
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,6 +39,11 @@ from .executors.jail import BwrapJail, WorkspacePrivatePaths
 from .executors.mechanic import AdwSubprocessExecutor, DiagnosisExecutor
 from .executors.object_debugger import ObjectDebuggerExecutor
 from .executors.pi_coding_agent import PiCodingAgentExecutor, PiLoginLifetime, refresh_command as pi_refresh_command
+from .executors.sheila_ops import (
+    AcceptanceProbe, AdwEntry, BridgeOperation, HostProbe, HttpBridgeView, JailProbe, JsonlSheilaLedger, LoginProbe,
+    MessageOperation, PiRuntimeProbe, RunAdwOperation, SheilaOperations, StatusOperation, SubprocessRunner, UnitProbe,
+    WorkspaceProbe,
+)
 from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
 from .models import AgentCard, Envelope, TaskEvent
@@ -112,7 +118,8 @@ class PostOfficeKit:
 
 
 def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path,
-                      events: IEventPublisher | None = None ) -> dict[ str, ExecutorBuilder ]:
+                      events: IEventPublisher | None = None, dispatcher: ITaskDispatcher | None = None,
+                      replies: IRequestReply | None = None ) -> dict[ str, ExecutorBuilder ]:
     from .executors.machine_ops import MachineOpsExecutor
     def claude_sdk( card: AgentCard ) -> ITaskExecutor:
         s = card.settings
@@ -222,7 +229,11 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
                 executors[ capability.task_type ] = ClaudeCliExecutor(
                     Path( str( s.get( "workdir", WORKSPACE ))), writes=False, jail=jail( False ),
                     read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])], **common )
-        return ByTaskType( executors )
+        pi = ByTaskType( executors )
+        if not isinstance( s.get( "operations" ), dict ):
+            return pi
+        operations, ledger = sheila_operations( card, lifetime.seconds_left, dispatcher, replies )
+        return SheilaOperations( pi, operations, ledger )
 
     def claude_home( value: object ) -> Path:
         """The bridge's own CLAUDE_CONFIG_DIR: none of EG's Claude conversations or settings."""
@@ -276,7 +287,11 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
                 executors[ capability.task_type ] = PiCodingAgentExecutor(
                     Path( str( s.get( "workdir", WORKSPACE ))), writes=False, jail=jail( False ),
                     read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])], **common )
-        return ByTaskType( executors )
+        pi = ByTaskType( executors )
+        if not isinstance( s.get( "operations" ), dict ):
+            return pi
+        operations, ledger = sheila_operations( card, lifetime.seconds_left, dispatcher, replies )
+        return SheilaOperations( pi, operations, ledger )
 
     def pi_home( value: object, source: Path ) -> Path:
         """The bridge's own PI_CODING_AGENT_DIR: its own settings and model list, none of EG's Pi sessions."""
@@ -316,6 +331,54 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
     }
 
 
+def workspace_version( repo: Path = WORKSPACE ) -> str:
+    """The checked-out commit, read from `.git` (no subprocess): what code Sheila's status is reporting from."""
+    try:
+        head = ( repo / ".git" / "HEAD" ).read_text( encoding="utf-8" ).strip()
+        if head.startswith( "ref: " ):
+            ref = head[ 5: ]
+            loose = repo / ".git" / ref
+            if loose.is_file():
+                return loose.read_text( encoding="utf-8" ).strip()[ :12 ]
+            for line in ( repo / ".git" / "packed-refs" ).read_text( encoding="utf-8" ).splitlines():
+                if line.endswith( " " + ref ):
+                    return line.split()[ 0 ][ :12 ]
+            return "unknown"
+        return head[ :12 ]
+    except OSError:
+        return "unknown"
+
+
+def sheila_operations( card: AgentCard, seconds_left: Callable[[], float ] | None,
+                       dispatcher: ITaskDispatcher | None, replies: IRequestReply | None ) -> tuple[ list, JsonlSheilaLedger ]:
+    """Sheila's deterministic operations, from her card's `operations` block. `message` exists only when a
+    dispatcher is wired (a post office); the recipients and ADWs are the card's fixed lists."""
+    s      = card.settings
+    o      = dict( s.get( "operations" ) or {})
+    runner = SubprocessRunner()
+    ledger = JsonlSheilaLedger( Path( str( o.get( "ledger", Path.home() / ".local" / "share" / "sheila" / "ledger.jsonl" ))).expanduser())
+    host   = socket.gethostname()
+    alias  = str( o.get( "machine", "" ))
+    here   = alias if host.lower() == str( o.get( "hostname", "" )).lower() else f"{ host } (not { alias or 'her machine' })"
+    write  = Path( str( s.get( "write_workdir", WORKSPACE ))).expanduser()
+    probes = [ HostProbe(), PiRuntimeProbe( str( s[ "binary" ]), str( s[ "model" ]), runner ), JailProbe(),
+               WorkspaceProbe( "sandbox", write ),
+               AcceptanceProbe( WORKSPACE / str( o.get( "acceptance_file", "agent_bridge/docs/SHEILA_ACCEPTANCE.json" ))) ]
+    if seconds_left is not None:
+        probes.insert( 2, LoginProbe( seconds_left ))
+    if o.get( "worker_unit" ):
+        probes.append( UnitProbe( "worker", str( o[ "worker_unit" ]), runner ))
+    token  = o.get( "bridge_token_file" )
+    view   = HttpBridgeView( str( o.get( "bridge_url", "" )), Path( str( token )).expanduser() if token else None )
+    adws   = { name: AdwEntry.model_validate( entry ) for name, entry in dict( o.get( "adws" ) or {}).items()}
+    ops: list = [ StatusOperation( probes, ledger, here, workspace_version()), BridgeOperation( view ),
+                  RunAdwOperation( adws, WORKSPACE, runner )]
+    if dispatcher is not None and replies is not None:
+        ops.append( MessageOperation( dispatcher, replies, { k: list( v ) for k, v in dict( o.get( "message_recipients" ) or {}).items()},
+                                      wait_seconds=float( o.get( "message_wait_seconds", 120.0 )), sender=card.name ))
+    return ops, ledger
+
+
 def build_post_office( root: Path | None = None,
                        registry_path: Path | None = None,
                        launcher: IWorkerLauncher | None = None,
@@ -346,7 +409,7 @@ def build_post_office( root: Path | None = None,
     if forward_failures_to_mechanic:
         events.subscribe( FailureForwarder( dispatcher ))
     executors = RuntimeExecutorFactory(
-        builders or default_builders( diagnostic, cases, root / "reports", events ), events )
+        builders or default_builders( diagnostic, cases, root / "reports", events, dispatcher, replies ), events )
     return PostOfficeKit(
         root=root, registry=registry, transport=transport, events=events, event_log=event_log,
         router=KeywordRouter( registry, repositories=registry.repositories ), validator=validator, dispatcher=dispatcher, replies=replies,

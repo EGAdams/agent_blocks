@@ -28,7 +28,10 @@
         {"name": "sqmc-ssh", "kind": "tcp", "target": "100.102.209.100:2222", "threshold": 4,
          "about": "SSH into WSL on SQMC. Closed means WSL there is down or Tailscale is. Boot WSL from its Windows side: ssh NewUser@100.118.122.75 \"wsl -d Ubuntu-26.04 -- /bin/true\"."},
         {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service",
-         "about": "Tailscale. Without it no machine can reach this one. sudo -n systemctl restart tailscaled works here."}
+         "about": "Tailscale. Without it no machine can reach this one. sudo -n systemctl restart tailscaled works here."},
+        {"name": "sheila", "kind": "command", "timeout": 60, "threshold": 3,
+         "argv": ["/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python", "/home/adamsl/agent_blocks/adws/adw_sheila.py", "status", "--check", "--sender", "machine-supervisor"],
+         "about": "Sheila, the Pi Coding Agent, takes Bridge tasks through this machine's machine-lane worker. The check's own line names each blocker. 'worker: ... not active' means the user unit agent-bridge-worker-machine.service is stopped or crashed: journalctl --user -u agent-bridge-worker-machine -n 80, then systemctl --user restart agent-bridge-worker-machine (safe; it also carries bati-desktop, and a task it held is re-leased by the gateway). 'pi: does not start' means node/pi under ~/.nvm/versions/node/v22.18.0 is broken. 'login: stale' is EG's to fix (run pi on BATI and /login); do not copy or edit ~/.pi/agent/auth.json, and do not touch ~/.pi-bridge. 'jail: bubblewrap missing' needs sudo -n apt-get install -y bubblewrap. Never widen her card, her jail or the gateway's scopes to make this pass."}
       ],
       "notes": [
         "Windows 10 with WSL. EG works at this machine.",

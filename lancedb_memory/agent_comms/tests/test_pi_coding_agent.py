@@ -261,7 +261,7 @@ def test_the_sheila_card_builds_a_reader_and_a_writer_per_capability() -> None:
     home    = Path( tempfile.mkdtemp()) / "pi-home"
     builder = factory.default_builders( None, None, Path( tempfile.mkdtemp()))[ "pi_coding_agent" ]
     routed  = builder( _sheila_card( home ))
-    by_type = routed._executors
+    by_type = routed._inner._executors                 # SheilaOperations decorates her ByTaskType
     assert by_type[ "implement" ].performer == "pi:workspace-write+shell"
     for reader in ( "inspect", "explain", "ask" ):
         assert by_type[ reader ].performer == "pi:read-only"
@@ -279,10 +279,10 @@ def test_the_sheila_card_refuses_the_real_pi_home() -> None:
         raise AssertionError( "the card must not be allowed to share EG's Pi home" )
 
 
-def test_the_sheila_card_is_not_offered_to_any_bridge_identity() -> None:
+def test_the_sheila_card_takes_only_the_approved_bridge_identities() -> None:
+    # Widened by EG's 2026-11-26 mission: the three approved Bridge senders, and nobody else.
     card = _sheila_card( Path( tempfile.mkdtemp()))
-    assert set( card.accepts_from ) == { "toyota", "sydney", "claude-code" }
-    assert not [ s for s in card.accepts_from if s.endswith( "-bridge" )]
+    assert set( card.accepts_from ) == { "toyota", "sydney", "claude-code", "chatgpt-bridge", "toyota-bridge", "sydney-bridge" }
 
 
 if __name__ == "__main__":

@@ -182,7 +182,9 @@ def test_registry_offers_writes_only_where_the_card_declares_them() -> None:
     assert offered[ "codex-writer" ] == { "implement": True }
     for claude in ( "claude-sonnet", "claude-opus" ):
         assert offered[ claude ] == { "inspect": False, "explain": False, "search_memory": False, "implement": True }
-    writers = { "codex-writer", "claude-sonnet", "claude-opus" }
+    # Sheila (2026-11-26): offered by the registry, but served only by BATI's machine lane (see test_sheila_ops)
+    assert offered[ "sheila" ] == { "inspect": False, "explain": False, "implement": True }
+    writers = { "codex-writer", "claude-sonnet", "claude-opus", "sheila" }
     assert all( not writes for name, ops in offered.items() if name not in writers for writes in ops.values())
     assert all( not writes for name in writers for op, writes in offered[ name ].items() if op != "implement" )
 

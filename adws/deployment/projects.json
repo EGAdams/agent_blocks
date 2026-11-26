@@ -65,6 +65,25 @@
       "health": [{"name": "sandbox tests directory", "kind": "file_fresh", "path": "~/bridge_workspaces/bridge_sandbox/README.md", "max_age_seconds": 315360000}]
     },
     {
+      "name": "agent_blocks_bati",
+      "description": "This repository on BATI (DESKTOP-SHDBATI), run there: the machine-lane Bridge worker that carries bati-desktop and Sheila. A deploy fast-forwards to origin/main (never a merge, never over a local edit), runs Sheila's and the worker's offline suites, restarts the machine-lane worker, and goes back to the old commit if the checks or health fail. Run it on BATI; on any other machine its unit does not exist and health fails.",
+      "root": "~/agent_blocks",
+      "source": "git_pull",
+      "remote": "origin",
+      "branch": "main",
+      "checks": [
+        ["bash", "-c", "cd lancedb_memory && .venv/bin/python -B agent_comms/tests/test_sheila_ops.py && .venv/bin/python -B agent_comms/tests/test_pi_coding_agent.py && .venv/bin/python -B agent_bridge_worker/tests/test_sheila_lane.py && .venv/bin/python -B agent_bridge_worker/tests/test_bati_desktop_agent.py"]
+      ],
+      "check_timeout_seconds": 300,
+      "units": ["agent-bridge-worker-machine.service"],
+      "restart_when": ["*.py", "*.json"],
+      "health": [
+        {"name": "agent-bridge-worker-machine.service", "kind": "unit", "unit": "agent-bridge-worker-machine.service"},
+        {"name": "machine worker polling", "kind": "file_fresh", "path": "~/.cache/agent_bridge/poll_state_machine.json", "max_age_seconds": 180}
+      ],
+      "health_wait_seconds": 30
+    },
+    {
       "name": "gateway",
       "description": "The Star Trek Bridge gateway (bridge.americansjewelry.com). Deployed by hand on its host, never from here; health only.",
       "root": "~/agent_blocks",

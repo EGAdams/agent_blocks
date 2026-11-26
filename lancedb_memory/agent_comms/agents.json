@@ -365,10 +365,33 @@
           "/home/adamsl/bridge_workspaces"
         ],
         "write_workdir": "/home/adamsl/bridge_workspaces/sheila_sandbox",
+        "operations": {
+          "machine": "BATI",
+          "hostname": "desktop-shdbati",
+          "ledger": "/home/adamsl/.local/share/sheila/ledger.jsonl",
+          "bridge_url": "https://bridge.americansjewelry.com/api/agent-bridge/v1",
+          "bridge_token_file": "/home/adamsl/.config/sheila/bridge_read_token",
+          "worker_unit": "agent-bridge-worker-machine.service",
+          "acceptance_file": "agent_bridge/docs/SHEILA_ACCEPTANCE.json",
+          "message_recipients": { "hello-world": [ "hello" ] },
+          "message_wait_seconds": 120,
+          "adws": {
+            "machine_watch_dry_run": {
+              "argv": [ "lancedb_memory/.venv/bin/python", "adws/adw_machine_watch.py", "--dry-run" ],
+              "timeout_seconds": 180,
+              "about": "BATI's supervisor checks, once, observe only: no counter, no wake, no mail"
+            },
+            "sheila_selftest": {
+              "argv": [ "lancedb_memory/.venv/bin/python", "lancedb_memory/agent_comms/tests/test_sheila_ops.py" ],
+              "timeout_seconds": 180,
+              "about": "Sheila's own offline operations suite (no network, no Pi)"
+            }
+          }
+        },
         "aliases": [ "sheila", "the pi coding agent", "pi agent" ]
       },
       "accepts_from": [
-        "toyota", "sydney", "claude-code"
+        "toyota", "sydney", "claude-code", "chatgpt-bridge", "toyota-bridge", "sydney-bridge"
       ],
       "capabilities": [
         {

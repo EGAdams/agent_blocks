@@ -56,6 +56,8 @@ class Machine( BaseModel ):
     hostname: str
     alias:    str
     agent:    str
+    #: post-office agents this machine's lane also serves (Sheila on BATI); each one's Bridge workspace has its name
+    post_office_agents: tuple[ str, ... ] = ()
 
     def named( self, value: str ) -> bool:
         return value.strip().lower() in { self.hostname.lower(), self.alias.lower() }
@@ -66,6 +68,18 @@ class Machine( BaseModel ):
         table = json.loads( path.read_text( encoding="utf-8" ))
         entry = table.get( hostname.lower())
         return cls( hostname=hostname.lower(), **entry ) if isinstance( entry, dict ) else None
+
+    @staticmethod
+    def lane_agents( path: Path ) -> frozenset[ str ]:
+        """Every agent some machine lane serves. The general and express lanes never build these: a pinned
+        workspace is offered only to its machine's worker, and this keeps the other workers from holding one too."""
+        table = json.loads( path.read_text( encoding="utf-8" ))
+        names: set[ str ] = set()
+        for entry in table.values():
+            if isinstance( entry, dict ):
+                names.add( str( entry.get( "agent", "" )))
+                names.update( str( n ) for n in entry.get( "post_office_agents", []))
+        return frozenset( names - { "" })
 
 
 class IRunningCashyCommand( Protocol ):
