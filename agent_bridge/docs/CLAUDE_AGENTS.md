@@ -84,11 +84,13 @@ Gateway: restore `~/agent_bridge_data/bridge.php` and `bridge.sqlite` from
 
 # Sheila (Pi Coding Agent) on BATI
 
-Added 2026-11-26. Not a Bridge agent: she lives on **BATI**, whose worker is machine-lane only, so ChatGPT has no
-route to her. Her card (`agents.json` `sheila`, runtime `pi_coding_agent`, executor
-`agent_comms/executors/pi_coding_agent.py`) accepts only `toyota`, `sydney` and `claude-code` -- no `*-bridge`
-identity, deliberately (widening that is EG's call; the registry also feeds the Bridge's operation list, and a
-bridge identity would be offered a write operation on an agent that does not exist on SQMC).
+Added 2026-11-26. **Since the same day's mission she is a Bridge agent** -- protected agent `sheila`, pinned to BATI's
+machine-lane worker, with an operations layer (`status`, `bridge`, `message`, `run_adw`) in front of Pi. The current
+state, the twenty live acceptance tests and the runtime table are in **`SHEILA.md`**; this section keeps the Pi
+executor's details. Her card (`agents.json` `sheila`, runtime `pi_coding_agent`, executors
+`agent_comms/executors/pi_coding_agent.py` and `sheila_ops.py`) now accepts `toyota`, `sydney`, `claude-code` and
+the three approved Bridge identities (EG widened it in the mission brief); only BATI's lane builds her
+(`Machine.lane_agents`), so on SQMC she is never offered work.
 
 | | |
 |---|---|
