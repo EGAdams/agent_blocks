@@ -24,7 +24,7 @@ from agent_comms.adapters.launchers import RecordingLauncher
 from agent_comms.executors.basic import HelloWorldExecutor, ScriptedExecutor
 from agent_comms.executors.sheila_ops import (
     AdwEntry, BridgeOperation, CommandOutcome, JsonlSheilaLedger, LedgerEntry, MessageOperation, RunAdwOperation,
-    SheilaOperations, StatusOperation,
+    SheilaOperations, StatusOperation, body_of,
 )
 from agent_comms.models import Envelope, MessageKind, TaskResult
 from agent_comms.tests.fakes import FakeClock
@@ -98,13 +98,15 @@ def test_status_reports_facts_blockers_and_last_successes() -> None:
                                Probe( "jail", { "present": True }), Probe( "worker", { "active": False })], book, "BATI", "efef782" )
     ops, pi = wrap( status, book=book )
     result = asyncio.run( ops.execute( envelope( '{"sheila": "status"}' )))
-    snap = json.loads( result.text )
+    snap = body_of( result.text )
     assert result.ok and not pi.seen
     assert snap[ "machine" ] == "BATI" and snap[ "version" ] == "efef782" and snap[ "observed_at" ].endswith( "Z" )
     assert snap[ "runtime_state" ] == "degraded" and snap[ "blockers" ] == [ "worker: the machine-lane Bridge worker is not active" ]
     assert snap[ "last_adw_success" ][ "adw_id" ] == "abcd1234"
     assert snap[ "last_error" ][ "summary" ] == "model_mismatch"
     assert snap[ "current_task" ][ "bridge_task_id" ] == "t_" + "0" * 24
+    # the Bridge's summary is the first line: a sentence a person can read, never a bare "{"
+    assert result.text.splitlines()[ 0 ].startswith( "Sheila on BATI: degraded -- worker: the machine-lane Bridge worker is not active" )
 
 
 def test_status_says_ready_when_nothing_blocks() -> None:
@@ -127,10 +129,11 @@ def test_run_adw_runs_only_the_list_and_returns_the_adw_id() -> None:
     adws   = { "machine_watch_dry_run": AdwEntry( argv=[ "lancedb_memory/.venv/bin/python", "adws/adw_machine_watch.py", "--dry-run" ])}
     ops, _ = wrap( RunAdwOperation( adws, Path( "/ws" ), runner ))
     result = asyncio.run( ops.execute( envelope( '{"sheila": "run_adw", "adw": "machine_watch_dry_run"}' )))
-    body   = json.loads( result.text )
+    body   = body_of( result.text )
     assert result.ok and body[ "adw_id" ] == "26ac2990" and body[ "exit_code" ] == 0
     assert runner.calls == [[ "/ws/lancedb_memory/.venv/bin/python", "/ws/adws/adw_machine_watch.py", "--dry-run" ]]
     assert result.details[ "adw_id" ] == "26ac2990"
+    assert result.text.splitlines()[ 0 ] == "machine_watch_dry_run: succeeded, adw_id 26ac2990, exit 0 in " + str( body[ "seconds" ]) + "s"
     refused = asyncio.run( ops.execute( envelope( '{"sheila": "run_adw", "adw": "rm_everything"}' )))
     assert not refused.ok and "machine_watch_dry_run" in refused.text and len( runner.calls ) == 1
 
@@ -139,7 +142,7 @@ def test_a_failing_adw_is_a_failed_result_with_its_output() -> None:
     runner = FakeRunner( CommandOutcome( code=1, stdout="adw_id: 0badf00d\n", stderr="check failed" ))
     ops, _ = wrap( RunAdwOperation({ "x": AdwEntry( argv=[ "/bin/false" ])}, Path( "/ws" ), runner ))
     result = asyncio.run( ops.execute( envelope( '{"sheila": "run_adw", "adw": "x"}' )))
-    assert not result.ok and json.loads( result.text )[ "stderr_tail" ] == "check failed"
+    assert not result.ok and body_of( result.text )[ "stderr_tail" ] == "check failed"
 
 
 def test_a_write_adw_runs_only_as_implement() -> None:
@@ -167,14 +170,48 @@ def test_unknown_operation_and_unknown_fields_are_refused() -> None:
 
 def test_bridge_view_discovers_agents_or_says_it_cannot() -> None:
     ops, _ = wrap( BridgeOperation( FakeView([{ "name": "sheila", "operations": [ "inspect" ], "workspaces": [ "sheila" ]}])))
-    body = json.loads( asyncio.run( ops.execute( envelope( '{"sheila": "bridge"}' ))).text )
+    body = body_of( asyncio.run( ops.execute( envelope( '{"sheila": "bridge"}' ))).text )
     assert body[ "agents" ][ 0 ][ "name" ] == "sheila" and body[ "discovery" ] == "ok"
     assert body[ "this_task" ][ "bridge_task_id" ] == "t_" + "0" * 24
     ops, _ = wrap( BridgeOperation( FakeView( None )))
-    body = json.loads( asyncio.run( ops.execute( envelope( '{"sheila": "bridge"}' ))).text )
+    body = body_of( asyncio.run( ops.execute( envelope( '{"sheila": "bridge"}' ))).text )
     assert body[ "agents" ] is None and body[ "discovery" ].startswith( "unavailable" )
     down, _ = wrap( BridgeOperation( FakeView([], ok=False )))
     assert not asyncio.run( down.execute( envelope( '{"sheila": "bridge"}' ))).ok
+
+
+def test_the_http_view_names_its_client_because_the_gateway_refuses_python_urllib() -> None:
+    """Regression, 2026-11-26: the live front end answered 406 to "Python-urllib/3.14", so discovery failed on BATI."""
+    import http.server
+    import threading
+    from agent_comms.executors.sheila_ops import HttpBridgeView
+    seen: list[ tuple[ str, str ]] = []
+
+    class Gate( http.server.BaseHTTPRequestHandler ):
+        def do_GET( self ) -> None:
+            agent = self.headers.get( "User-Agent", "" )
+            seen.append(( self.path, agent ))
+            if agent.startswith( "Python-urllib" ):
+                self.send_response( 406 ); self.end_headers(); return
+            if self.path.endswith( "/agents" ) and self.headers.get( "Authorization" ) != "Bearer tok":
+                self.send_response( 401 ); self.end_headers(); return
+            payload = b'{"ok": true}' if self.path.endswith( "/health" ) else b'{"agents": [{"name": "sheila"}]}'
+            self.send_response( 200 ); self.send_header( "Content-Type", "application/json" ); self.end_headers()
+            self.wfile.write( payload )
+
+        def log_message( self, *args ) -> None:
+            pass
+
+    server = http.server.HTTPServer(( "127.0.0.1", 0 ), Gate )
+    threading.Thread( target=server.serve_forever, daemon=True ).start()
+    folder = Path( tempfile.mkdtemp( prefix="sheila_view_" ))
+    try:
+        ( folder / "token" ).write_text( "tok\n" )
+        view = HttpBridgeView( f"http://127.0.0.1:{ server.server_port }/v1", folder / "token" )
+        assert view.health()[ "ok" ] and view.agents() == [{ "name": "sheila" }]
+        assert all( agent.startswith( "sheila/" ) for _, agent in seen ) and len( seen ) == 2
+    finally:
+        server.shutdown(); shutil.rmtree( folder, ignore_errors=True )
 
 
 class PostOfficeHarness:
@@ -199,7 +236,7 @@ def test_message_is_a_real_correlated_post_office_round_trip() -> None:
         op   = MessageOperation( h.kit.dispatcher, h.kit.replies, { "hello-world": [ "hello" ]}, wait_seconds=30 )
         ops, _ = wrap( op, book=book )
         result = asyncio.run( ops.execute( envelope( '{"sheila": "message", "to": "hello-world", "task_type": "hello", "text": "ping"}' )))
-        body = json.loads( result.text )
+        body = body_of( result.text )
         assert result.ok, result.text
         assert body[ "reply_text" ] == "Hello World" and body[ "correlation_id" ] == body[ "sent_task_id" ]
         assert body[ "sent_task_id" ].endswith( "_from_sheila" ) and body[ "outcome" ] == "succeeded"

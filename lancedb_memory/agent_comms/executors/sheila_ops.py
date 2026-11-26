@@ -152,6 +152,11 @@ class SubprocessRunner:
         return CommandOutcome( code=done.returncode, stdout=done.stdout, stderr=done.stderr )
 
 
+# The gateway's front end answers 406 to urllib's default "Python-urllib/3.x" (measured 2026-11-26 from BATI), so
+# every request names its client, the way agent_bridge_worker/adapters/http_gateway.py does.
+USER_AGENT = "sheila/1.0 (+https://bridge.americansjewelry.com)"
+
+
 class HttpBridgeView:
     """IBridgeView over the gateway: `/health` needs no token; `/agents` needs a client token. Sheila's is bound in
     the gateway's `client_scopes` to no operation, agent or workspace, so it can read discovery and submit nothing."""
@@ -160,7 +165,8 @@ class HttpBridgeView:
         self._base, self._token_file, self._timeout = base_url.rstrip( "/" ), token_file, timeout
 
     def _get( self, path: str, token: str | None ) -> tuple[ int, Any ]:
-        request = urllib.request.Request( self._base + path, method="GET" )
+        request = urllib.request.Request( self._base + path, method="GET",
+                                          headers={ "User-Agent": USER_AGENT, "Accept": "application/json" })
         if token:
             request.add_header( "Authorization", f"Bearer { token }" )
         try:
@@ -289,6 +295,16 @@ class AcceptanceProbe:
 
 # -- operations ----------------------------------------------------------------------------------------------------
 
+def render( headline: str, body: dict[ str, Any ]) -> str:
+    """One readable line (what the Bridge shows as the summary), a blank line, then the JSON body."""
+    return f"{ ' '.join( headline.split())[ :250 ]}\n\n{ json.dumps( body, indent=1 )}"
+
+
+def body_of( text: str ) -> dict[ str, Any ]:
+    """The JSON body of a rendered result (indented JSON never holds a blank line, so the split is exact)."""
+    return json.loads( text.split( "\n\n", 1 )[ -1 ])
+
+
 def _fields( request: dict[ str, Any ], allowed: set[ str ]) -> str | None:
     unknown = set( request ) - allowed - { "sheila" }
     return "unknown field(s): " + ", ".join( sorted( str( k )[ :20 ] for k in unknown )) if unknown else None
@@ -340,7 +356,12 @@ class StatusOperation:
         snap = self.snapshot()
         snap[ "current_task" ] = { "local_task_id": envelope.id, "bridge_task_id": envelope.context.get( "bridge_task_id" ),
                                    "sender": envelope.sender }
-        return TaskResult( ok=True, text=json.dumps( snap, indent=1 ), performer=PERFORMER,
+        pi = snap[ "facts" ].get( "pi", {})
+        headline = ( f"Sheila on { snap[ 'machine' ]}: { snap[ 'runtime_state' ]}"
+                     + ( f" -- { '; '.join( snap[ 'blockers' ])}" if snap[ "blockers" ] else
+                         f" (pi { pi.get( 'version' )}, login { snap[ 'facts' ].get( 'login', {}).get( 'days_left' )} days)" )
+                     + f", version { snap[ 'version' ]}, observed { snap[ 'observed_at' ]}" )
+        return TaskResult( ok=True, text=render( headline, snap ), performer=PERFORMER,
                            details={ "operation": "status", "runtime_state": snap[ "runtime_state" ]})
 
 
@@ -369,7 +390,11 @@ class BridgeOperation:
                            "sender": envelope.sender, "task_type": envelope.task_type },
         }
         ok = bool( health.get( "ok" ))
-        return TaskResult( ok=ok, text=json.dumps( body, indent=1 ), performer=PERFORMER,
+        headline = ( f"gateway { 'ok' if ok else 'not ok' }; "
+                     + ( "agent discovery unavailable" if agents is None else
+                         f"{ len( agents )} agents: " + ", ".join( str( a.get( "name" )) for a in agents ))
+                     + f"; observed { body[ 'observed_at' ]}" )
+        return TaskResult( ok=ok, text=render( headline, body ), performer=PERFORMER,
                            details={ "operation": "bridge", "agents": None if agents is None else len( agents )})
 
 
@@ -408,10 +433,12 @@ class MessageOperation:
                  "reply_text": ( reply.result or reply.error or "" )[ :2000 ] if reply else None,
                  "performer": reply.performer if reply else None }
         if reply is None:
-            return TaskResult( ok=False, text=json.dumps( body, indent=1 ) + f"\nno reply within { int( self._wait )}s",
+            return TaskResult( ok=False, text=render( f"sent { receipt.task_id } to { to }; no reply within { int( self._wait )}s", body ),
                                performer=PERFORMER, details={ "operation": "message", "sent_task_id": receipt.task_id })
         ok = reply.correlation_id == receipt.task_id and ( reply.outcome is None or reply.outcome.value == "succeeded" )
-        return TaskResult( ok=ok, text=json.dumps( body, indent=1 ), performer=PERFORMER,
+        headline = ( f"{ to } { 'answered' if ok else 'failed' } { kind }: { ' '.join( str( body[ 'reply_text' ]).split())[ :80 ]!r} "
+                     f"(sent { receipt.task_id }, reply { reply.id }, correlated { reply.correlation_id == receipt.task_id })" )
+        return TaskResult( ok=ok, text=render( headline, body ), performer=PERFORMER,
                            details={ "operation": "message", "sent_task_id": receipt.task_id, "reply_id": reply.id })
 
 
@@ -443,7 +470,9 @@ class RunAdwOperation:
                  "exit_code": done.code, "timed_out": done.timed_out, "seconds": round( time.monotonic() - started, 1 ),
                  "stdout_tail": ( done.stdout or "" )[ -TAIL: ], "stderr_tail": ( done.stderr or "" )[ -600: ]}
         ok = done.code == 0 and not done.timed_out
-        return TaskResult( ok=ok, text=json.dumps( body, indent=1 ), performer=PERFORMER,
+        headline = ( f"{ name }: { 'succeeded' if ok else 'timed out' if done.timed_out else 'failed' }, adw_id { body[ 'adw_id' ]}, "
+                     f"exit { done.code } in { body[ 'seconds' ]}s" )
+        return TaskResult( ok=ok, text=render( headline, body ), performer=PERFORMER,
                            details={ "operation": "run_adw", "adw": name, "adw_id": body[ "adw_id" ], "exit_code": done.code })
 
 

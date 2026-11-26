@@ -25,6 +25,7 @@ from pathlib import Path
 _HERE = Path( __file__ ).resolve().parent
 sys.path.insert( 0, str( _HERE.parent / "lancedb_memory" ))
 
+from agent_comms.executors.sheila_ops import body_of  # noqa: E402
 from agent_comms.factory import build_post_office  # noqa: E402
 from agent_comms.models import Envelope, MessageKind  # noqa: E402
 
@@ -68,7 +69,7 @@ def main() -> int:
     if args.check:
         if args.operation != "status" or not result.ok:
             print( f"sheila: { result.text[ :300 ]}" ); return 1
-        snap = json.loads( result.text )
+        snap = body_of( result.text )
         if snap[ "runtime_state" ] != "ready":
             print( f"sheila on { snap[ 'machine' ]}: { snap[ 'runtime_state' ]}; " + "; ".join( snap[ "blockers" ])); return 1
         print( f"sheila on { snap[ 'machine' ]}: ready (pi { snap[ 'facts' ][ 'pi' ].get( 'version' )}, "
