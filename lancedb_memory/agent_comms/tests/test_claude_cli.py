@@ -351,7 +351,7 @@ def test_a_full_model_id_is_confirmed_from_the_cli_and_recorded() -> None:
         del os.environ[ "FAKE_CLAUDE_SERVED" ], os.environ[ "FAKE_CLAUDE_INIT_MODEL" ]
     assert result.ok, result
     assert result.details[ "model_confirmed" ] is True and result.details[ "model_requested" ] == "claude-opus-5"
-    assert result.details[ "models_used" ] == [ "claude-haiku-4-5-20251001", "claude-opus-5" ]
+    assert result.details[ "models_used" ] == "claude-haiku-4-5-20251001,claude-opus-5" and result.details[ "init_model" ] == "claude-opus-5"
 
 
 def test_a_task_never_quietly_runs_on_another_model() -> None:

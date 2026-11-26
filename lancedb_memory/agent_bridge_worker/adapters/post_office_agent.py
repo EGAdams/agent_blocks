@@ -158,7 +158,8 @@ class PostOfficeAgent:
     def _runtime_details( self, local: str ) -> dict:
         allowed = { "exit_code", "turns", "seconds", "subtype", "error_source", "model",
                     "configured_max_turns", "timeout_seconds", "child_pid", "process_group_id",
-                    "timed_out", "bridge_task_id", "local_task_id" }
+                    "timed_out", "bridge_task_id", "local_task_id",
+                    "model_requested", "models_used", "init_model", "model_confirmed" }
         try:
             records = self._events.events_for( local )
         except Exception:  # telemetry cannot stop delivery of a real result

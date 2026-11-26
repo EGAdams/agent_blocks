@@ -348,6 +348,26 @@ def test_runtime_diagnostics_reach_agent_outcome_without_private_fields() -> Non
         h.close()
 
 
+def test_the_confirmed_model_reaches_the_bridge_outcome() -> None:
+    gateway = FakeGateway()
+    h = Harness( gateway )
+    try:
+        class ServedExecutor:
+            performer = "claude:fake"
+            async def execute( self, envelope ):
+                return TaskResult( ok=False, text="model_mismatch: asked for claude-opus-5 but the CLI reports claude-opus-4-8",
+                                   performer=self.performer, details={ "subtype": "success", "model_requested": "claude-opus-5",
+                                   "models_used": "claude-opus-4-8", "init_model": "claude-opus-4-8", "model_confirmed": False,
+                                   "error_source": "model_mismatch" })
+        h.codex = ServedExecutor()
+        h.run.run_one()
+        details = h.run.outcome.details
+        assert ( details[ "model_requested" ], details[ "models_used" ], details[ "model_confirmed" ]) == ( "claude-opus-5", "claude-opus-4-8", False )
+        assert details[ "error_source" ] == "model_mismatch"
+    finally:
+        h.close()
+
+
 if __name__ == "__main__":
     for name, fn in list( globals().items()):
         if name.startswith( "test_" ):

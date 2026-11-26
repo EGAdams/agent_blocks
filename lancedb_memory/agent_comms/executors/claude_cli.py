@@ -372,7 +372,7 @@ class ClaudeCliExecutor:
         """Record which model really served the turn; a full id that did not is a failure, never a quiet swap."""
         used = sorted(( final or {}).get( "modelUsage" ) or {})
         seen = sorted({ *used, *( [ init_model ] if init_model else [] )})
-        facts = { "model_requested": self._model, "models_used": used, "init_model": init_model }
+        facts = { "model_requested": self._model, "models_used": ",".join( used ), "init_model": init_model or "" }
         full  = self._model.startswith( "claude-" )
         if full and seen and self._model not in seen:
             return TaskResult( ok=False, performer=result.performer, details={ **result.details, **facts, "model_confirmed": False,
