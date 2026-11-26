@@ -107,6 +107,8 @@ def test_status_reports_facts_blockers_and_last_successes() -> None:
     assert snap[ "current_task" ][ "bridge_task_id" ] == "t_" + "0" * 24
     # the Bridge's summary is the first line: a sentence a person can read, never a bare "{"
     assert result.text.splitlines()[ 0 ].startswith( "Sheila on BATI: degraded -- worker: the machine-lane Bridge worker is not active" )
+    # and the ledger keeps that headline, not the JSON body flattened behind it
+    assert book.entries()[ -1 ].summary == result.text.splitlines()[ 0 ][ :200 ] and "{" not in book.entries()[ -1 ].summary
 
 
 def test_status_says_ready_when_nothing_blocks() -> None:

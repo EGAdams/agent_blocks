@@ -531,7 +531,7 @@ class SheilaOperations:
         try:
             self._ledger.append( LedgerEntry(
                 at=utc_now(), kind=kind, task_type=envelope.task_type, ok=result.ok,
-                summary=" ".join(( result.text or "" ).split())[ :200 ],
+                summary=" ".join(( result.text or "" ).split( "\n\n", 1 )[ 0 ].split())[ :200 ],
                 local_task_id=envelope.id, bridge_task_id=envelope.context.get( "bridge_task_id" ),
                 adw_id=details.get( "adw_id" ), adw=details.get( "adw" )))
         except OSError:
