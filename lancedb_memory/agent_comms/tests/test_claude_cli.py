@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 2 ]))
 
-from agent_comms.executors.claude_cli import (ClaudeCliExecutor, ClaudeLoginLifetime, READ_TOOLS, WRITE_TOOLS,
+from agent_comms.executors.claude_cli import (ClaudeCliExecutor, ClaudeLoginLifetime, READ_TOOLS, SHELL_TOOLS, WRITE_TOOLS,
                                               progress_message)
 from agent_comms.models import Envelope, JailUnavailable, MessageKind
 
@@ -31,7 +31,7 @@ def emit( event ):
     print( json.dumps( event ), flush=True )
 if mode == "crash":
     print( "boom: not logged in", file=sys.stderr ); sys.exit( 3 )
-emit({ "type": "system", "subtype": "init", "model": "claude-sonnet-5", "apiKeySource": "none", "cwd": os.getcwd() })
+emit({ "type": "system", "subtype": "init", "model": os.environ.get( "FAKE_CLAUDE_INIT_MODEL", "claude-sonnet-5" ), "apiKeySource": "none", "cwd": os.getcwd() })
 if mode == "sleep":
     time.sleep( 30 )
 emit({ "type": "assistant", "message": { "content": [
@@ -45,7 +45,10 @@ if mode == "leak":
 if mode == "error":
     emit({ "type": "result", "subtype": "error_max_turns", "is_error": True, "num_turns": 9, "duration_ms": 1200 })
 else:
-    emit({ "type": "result", "subtype": "success", "is_error": False, "result": answer, "num_turns": 3, "duration_ms": 2500 })
+    served = os.environ.get( "FAKE_CLAUDE_SERVED" )
+    usage  = { m: { "outputTokens": 5 } for m in served.split( "," )} if served else {}
+    emit({ "type": "result", "subtype": "success", "is_error": False, "result": answer, "num_turns": 3, "duration_ms": 2500,
+           "modelUsage": usage })
 """
 
 
@@ -66,6 +69,9 @@ class FixedLifetime:
 
     def refresh( self ) -> None:
         self.refreshes += 1
+
+    def write_jail_copy( self, destination: Path ) -> None:
+        self.copies = getattr( self, "copies", [] ) + [ Path( destination )]
 
 
 class Rig:
@@ -289,6 +295,92 @@ def test_a_writing_capability_gets_the_cards_write_budget_and_a_reader_keeps_its
     del card.settings[ "write_max_turns" ], card.settings[ "write_timeout_seconds" ]
     chosen = default_builders( None, None, folder )[ "claude_cli" ]( card )._executors
     assert ( chosen[ "implement" ]._turns, chosen[ "implement" ]._timeout ) == ( 40, 900.0 )
+
+
+def test_a_shell_is_offered_to_a_writer_that_asks_for_one_and_never_to_a_reader() -> None:
+    rig    = Rig()
+    result = rig.run( envelope( "run the tests", "implement" ), writes=True, jail=RecordingJail(), shell=True )
+    assert result.ok and result.performer == "claude:workspace-write+shell"
+    args = rig.seen()[ "args" ]
+    assert args[ args.index( "--tools" ) + 1 ] == ",".join( SHELL_TOOLS ) and "Bash" in SHELL_TOOLS
+    assert "Bash" not in args[ args.index( "--disallowedTools" ) + 1 ].split( "," )
+    assert "WebFetch" in args[ args.index( "--disallowedTools" ) + 1 ]
+    assert rig.seen()[ "prompt" ].startswith( "You are working in a dedicated workspace" ) and "Bash tool" in rig.seen()[ "prompt" ]
+    try:
+        rig.executor( writes=False, shell=True )
+    except ValueError as error:
+        assert "write-enabled" in str( error )
+    else:
+        raise AssertionError( "a reader must never be given a shell" )
+
+
+def test_the_jail_sees_the_login_without_its_refresh_token_and_the_original_is_untouched() -> None:
+    folder = Path( tempfile.mkdtemp())
+    creds  = folder / ".credentials.json"
+    full   = { "claudeAiOauth": { "accessToken": "a" * 40, "refreshToken": "r" * 40, "refreshTokenExpiresAt": 5,
+                                  "expiresAt": ( time.time() + 3600 ) * 1000, "subscriptionType": "max" }}
+    creds.write_text( json.dumps( full ))
+    target = folder / "jail" / "x.credentials.json"
+    ClaudeLoginLifetime( creds, refresh_command=[ "true" ]).write_jail_copy( target )
+    copy = json.loads( target.read_text())[ "claudeAiOauth" ]
+    assert copy[ "accessToken" ] == "a" * 40 and copy[ "subscriptionType" ] == "max"
+    assert "refreshToken" not in copy and "refreshTokenExpiresAt" not in copy
+    assert ( target.stat().st_mode & 0o777 ) == 0o600 and not list( target.parent.glob( "*.tmp" ))
+    assert json.loads( creds.read_text()) == full, "the real login must not change"
+
+
+def test_the_copy_for_the_jail_is_made_after_the_login_is_checked_and_before_the_jail_is_built() -> None:
+    rig  = Rig()
+    jail = RecordingJail()
+    target = rig.dir / "jail_login.json"
+    rig.run( envelope( "x", "implement" ), writes=True, jail=jail, jail_login=target )
+    assert rig.login.copies == [ target ] and len( jail.calls ) == 1
+    rig.login.seconds = 1.0                               # a login too short to run: nothing is copied or started
+    before = len( rig.login.copies )
+    assert not rig.run( envelope( "x", "implement" ), writes=True, jail=RecordingJail(), jail_login=target ).ok
+    assert len( rig.login.copies ) == before
+
+
+def test_a_full_model_id_is_confirmed_from_the_cli_and_recorded() -> None:
+    rig = Rig()
+    os.environ[ "FAKE_CLAUDE_SERVED" ] = "claude-haiku-4-5-20251001,claude-opus-5"
+    os.environ[ "FAKE_CLAUDE_INIT_MODEL" ] = "claude-opus-5"
+    try:
+        result = rig.run( envelope( "hi" ), model="claude-opus-5" )
+    finally:
+        del os.environ[ "FAKE_CLAUDE_SERVED" ], os.environ[ "FAKE_CLAUDE_INIT_MODEL" ]
+    assert result.ok, result
+    assert result.details[ "model_confirmed" ] is True and result.details[ "model_requested" ] == "claude-opus-5"
+    assert result.details[ "models_used" ] == [ "claude-haiku-4-5-20251001", "claude-opus-5" ]
+
+
+def test_a_task_never_quietly_runs_on_another_model() -> None:
+    rig = Rig()
+    os.environ[ "FAKE_CLAUDE_SERVED" ] = "claude-opus-4-8"
+    os.environ[ "FAKE_CLAUDE_INIT_MODEL" ] = "claude-opus-4-8"
+    try:
+        result = rig.run( envelope( "hi" ), model="claude-opus-5" )
+    finally:
+        del os.environ[ "FAKE_CLAUDE_SERVED" ], os.environ[ "FAKE_CLAUDE_INIT_MODEL" ]
+    assert not result.ok and result.details[ "error_source" ] == "model_mismatch"
+    assert "claude-opus-4-8" in result.text and "ANSWER" not in result.text
+    assert result.details[ "model_confirmed" ] is False
+
+
+def test_an_alias_is_recorded_but_cannot_be_confirmed_by_name() -> None:
+    rig    = Rig()
+    result = rig.run( envelope( "hi" ), model="sonnet" )
+    assert result.ok and result.details[ "model_confirmed" ] is None and result.details[ "model_requested" ] == "sonnet"
+
+
+def test_the_shipped_claude_cards_pin_full_distinct_model_ids_and_separate_state() -> None:
+    cards = { c[ "name" ]: c for c in json.loads(( Path( __file__ ).resolve().parents[ 1 ] / "agents.json" ).read_text())[ "agents" ]}
+    sonnet, opus = cards[ "claude-sonnet" ][ "settings" ], cards[ "claude-opus" ][ "settings" ]
+    assert sonnet[ "model" ].startswith( "claude-sonnet-" ) and opus[ "model" ].startswith( "claude-opus-" )
+    assert sonnet[ "claude_home" ] != opus[ "claude_home" ] and ".claude-bridge" in opus[ "claude_home" ]
+    assert sonnet[ "shell" ] is True and opus[ "shell" ] is True
+    assert cards[ "claude-opus" ][ "accepts_from" ] == cards[ "claude-sonnet" ][ "accepts_from" ]
+    assert [ c[ "task_type" ] for c in cards[ "claude-opus" ][ "capabilities" ]] == [ c[ "task_type" ] for c in cards[ "claude-sonnet" ][ "capabilities" ]]
 
 
 TESTS = [ v for k, v in dict( globals()).items() if k.startswith( "test_" )]

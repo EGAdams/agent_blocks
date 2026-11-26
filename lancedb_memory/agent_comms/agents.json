@@ -244,6 +244,7 @@
         "max_turns": 40,
         "write_timeout_seconds": 1800,
         "write_max_turns": 100,
+        "shell": true,
         "claude_home": "/home/adamsl/.claude-bridge",
         "login_file": "/home/adamsl/.claude/.credentials.json",
         "workdir": "/home/adamsl/agent_blocks",
@@ -282,7 +283,63 @@
         },
         {
           "task_type": "implement",
-          "description": "scoped write: create or edit files in one registered bridge workspace (bridge_sandbox, letta_code or digi); Claude Sonnet jailed to that workspace with Read/Glob/Grep/Edit/Write and no shell",
+          "description": "scoped write: create or edit files in one registered bridge workspace (bridge_sandbox, letta_code or digi); Claude Sonnet jailed to that workspace with Read/Glob/Grep/Edit/Write and a Bash shell (cannot commit; login copy has no refresh token)",
+          "writes": true,
+          "idempotent": false
+        }
+      ]
+    },
+    {
+      "name": "claude-opus",
+      "display_name": "Claude Opus",
+      "runtime": "claude_cli",
+      "settings": {
+        "model": "claude-opus-5",
+        "binary": "/usr/local/bin/claude",
+        "timeout_seconds": 900,
+        "max_turns": 40,
+        "write_timeout_seconds": 1800,
+        "write_max_turns": 100,
+        "shell": true,
+        "claude_home": "/home/adamsl/.claude-bridge-opus",
+        "login_file": "/home/adamsl/.claude/.credentials.json",
+        "workdir": "/home/adamsl/agent_blocks",
+        "read_roots": [
+          "/home/adamsl/letta-code",
+          "/home/adamsl/digi",
+          "/home/adamsl/bridge_workspaces"
+        ],
+        "write_workdir": "/home/adamsl/bridge_workspaces",
+        "write_roots": [
+          "/home/adamsl/letta-code",
+          "/home/adamsl/digi"
+        ]
+      },
+      "accepts_from": [
+        "chatgpt-bridge", "toyota-bridge", "sydney-bridge"
+      ],
+      "capabilities": [
+        {
+          "task_type": "inspect",
+          "description": "read-only: look at files in a workspace and report what is there (Claude Opus, jailed, Read/Glob/Grep only)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "explain",
+          "description": "read-only: explain how part of a workspace works, from the code (Claude Opus, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "search_memory",
+          "description": "read-only: search repo docs, agent notes and ADW logs for a topic (Claude Opus, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "implement",
+          "description": "scoped write: create or edit files in one registered bridge workspace (bridge_sandbox, letta_code or digi); Claude Opus jailed to that workspace with Read/Glob/Grep/Edit/Write and a Bash shell (cannot commit; login copy has no refresh token)",
           "writes": true,
           "idempotent": false
         }

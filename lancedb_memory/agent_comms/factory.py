@@ -191,7 +191,10 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         home    = claude_home( s.get( "claude_home" ))
         login   = Path( str( s.get( "login_file", Path.home() / ".claude" / ".credentials.json" ))).expanduser()
         binary  = str( s.get( "binary", "claude" ))
-        common  = dict( binary=binary, model=str( s.get( "model", "sonnet" )),
+        # What the jail sees of the login: a copy without the refresh token, remade before every run.
+        jail_login = Path( str( s.get( "jail_login_file", Path.home() / ".cache" / "claude_bridge" / f"{ card.name }.credentials.json" ))).expanduser()
+        shell   = bool( s.get( "shell", False ))
+        common  = dict( binary=binary, model=str( s.get( "model", "sonnet" )), jail_login=jail_login,
                         timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
                         max_turns=int( s.get( "max_turns", 40 )), secret_files=[ login ],
                         login=ClaudeLoginLifetime( login, refresh_command( binary )),
@@ -200,7 +203,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         def jail( writes: bool ) -> BwrapJail:
             return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ], env={ "CLAUDE_CONFIG_DIR": str( home )},
                               required=[ login ], root_writable=writes,
-                              file_binds=[( login, home / ".credentials.json" )])
+                              file_binds=[( jail_login, home / ".credentials.json" )])
 
         # A build needs more room than a look: `write_*` budgets apply to writing capabilities only, and
         # default to the card's own. Failure triage found 1 implement task in 4 stopping at 40 turns.
@@ -211,7 +214,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         for capability in card.capabilities:
             if capability.writes:
                 executors[ capability.task_type ] = ClaudeCliExecutor(
-                    Path( str( s[ "write_workdir" ])), writes=True, jail=jail( True ),
+                    Path( str( s[ "write_workdir" ])), writes=True, jail=jail( True ), shell=shell,
                     write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])], **writer )
             else:
                 executors[ capability.task_type ] = ClaudeCliExecutor(
