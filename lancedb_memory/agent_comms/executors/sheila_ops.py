@@ -508,6 +508,10 @@ class SheilaOperations:
             return result
         # an operation blocks (a subprocess, a reply wait), so it runs off the event loop
         result = await asyncio.to_thread( self._operate, request, envelope )
+        if not result.ok:
+            # an operation is code: it fails the same way again, or it failed after its side effect (a message
+            # sent, an ADW run), so the post office must not repeat it (live 2026-11-26: one refusal ran 3 times)
+            result = result.model_copy( update={ "details": { **result.details, "retryable": False }})
         self._record( str( request[ "sheila" ])[ :40 ], envelope, result )
         return result
 

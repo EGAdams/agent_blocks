@@ -272,6 +272,34 @@ def test_no_reply_is_a_failure_that_names_the_sent_task() -> None:
         h.close()
 
 
+def test_a_failed_operation_is_never_retried_but_a_failed_pi_run_still_may() -> None:
+    # live 2026-11-26: the post office ran one refused message three times (one envelope, three ledger lines).
+    # An operation fails the same way again, or fails after its side effect (a message sent, an ADW run),
+    # so repeating it can only duplicate work.
+    from agent_comms.worker import IdempotentRetries
+    again = Envelope( **{ **envelope( "x" ).model_dump(), "idempotent": True, "attempts": 1, "max_attempts": 3 })
+    h = PostOfficeHarness()
+    try:
+        h.clock.on_sleep = lambda: None
+        failures = [
+            wrap( MessageOperation( h.kit.dispatcher, h.kit.replies, { "hello-world": [ "hello" ]}))[ 0 ].execute(
+                envelope( '{"sheila": "message", "to": "hello-world", "text": "no task_type"}' )),
+            wrap( MessageOperation( h.kit.dispatcher, h.kit.replies, { "hello-world": [ "hello" ]}, wait_seconds=3 ))[ 0 ].execute(
+                envelope( '{"sheila": "message", "to": "hello-world", "task_type": "hello"}' )),
+            wrap( RunAdwOperation({ "x": AdwEntry( argv=[ "/bin/false" ])}, Path( "/ws" ),
+                                  FakeRunner( CommandOutcome( code=1, stdout="adw_id: 0badf00d\n", stderr="boom" ))))[ 0 ].execute(
+                envelope( '{"sheila": "run_adw", "adw": "x"}' )),
+            wrap()[ 0 ].execute( envelope( '{"sheila": "nope"}' )),
+        ]
+        for result in [ asyncio.run( f ) for f in failures ]:
+            assert not result.ok and not IdempotentRetries().should_retry( again, result ), result.text
+    finally:
+        h.close()
+    pi_failed = ScriptedExecutor([ TaskResult( ok=False, text="pi timed out", performer="pi:read-only" )], performer="pi:read-only" )
+    result = asyncio.run( wrap( inner=pi_failed )[ 0 ].execute( envelope( "what is in README?" )))
+    assert not result.ok and IdempotentRetries().should_retry( again, result )   # a read-only Pi run is safe to repeat
+
+
 def test_the_card_builds_operations_in_front_of_pi() -> None:
     h = PostOfficeHarness()
     try:
