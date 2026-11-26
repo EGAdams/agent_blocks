@@ -79,3 +79,34 @@ kept there, so it was left alone.
 Gateway: restore `~/agent_bridge_data/bridge.php` and `bridge.sqlite` from
 `/home1/tinman72/agent_bridge_backups/pre_claude_opus_20261126_081655/`, then `php ~/agent_bridge/gateway/bin/migrate.php
 ~/agent_bridge_data/bridge.php`. Worker: `git revert` and redeploy with `adws/adw_deploy.py deploy.deploy --project agent_blocks`.
+
+---
+
+# Sheila (Pi Coding Agent) on BATI
+
+Added 2026-11-26. Not a Bridge agent: she lives on **BATI**, whose worker is machine-lane only, so ChatGPT has no
+route to her. Her card (`agents.json` `sheila`, runtime `pi_coding_agent`, executor
+`agent_comms/executors/pi_coding_agent.py`) accepts only `toyota`, `sydney` and `claude-code` -- no `*-bridge`
+identity, deliberately (widening that is EG's call; the registry also feeds the Bridge's operation list, and a
+bridge identity would be offered a write operation on an agent that does not exist on SQMC).
+
+| | |
+|---|---|
+| Model | `openai-codex/gpt-6-sol`, pinned and confirmed per task (`model_confirmed`; `model_mismatch` fails the task). It is the only model the ChatGPT-account login serves; `gpt-5.x` is refused by Pi |
+| Operations | `inspect`, `explain`, `ask` (read: read/grep/find/ls); `implement` (write: + edit/write/bash) in `~/bridge_workspaces/sheila_sandbox` only |
+| Reads | `agent_blocks` (cwd), `letta-code`, `digi`, `bridge_workspaces` |
+| Jail | bubblewrap (`BwrapJail`, installed on BATI 2026-11-26): ro `/usr` `/etc`, the one workspace, private paths masked, Pi's install bound read-only |
+| Pi state | `~/.pi-bridge/agent` (seeded from `~/.pi/agent`; the card refuses `~/.pi/agent` itself) |
+| Login | a copy of the `openai-codex` entry **without its refresh token**, 0600, rewritten before every run (`~/.cache/pi_bridge/sheila.auth.json`). Runs are capped to the access token's remaining life; renewal happens outside the jail (one tool-less Pi turn) |
+
+Residual risk is the Claude agents' (see above): the access token is visible inside the jail for its remaining life.
+The access token lasts about 10 days; `LoginStale` says to run `pi` and `/login` on BATI if renewal fails.
+
+**Acceptance, 2026-11-26** (sender `claude-code`, scratch root, real jail, no fakes): read-only `inspect` answered and
+reported `~/.pi/agent/auth.json` as non-existent from inside the jail (`model_confirmed: true`); `implement` created
+and ran `hello_sheila.py` through the shell and appended its output to `sheila_notes.txt` (verified on disk);
+`chatgpt-bridge` is refused ("Sheila only takes work from ..."). Offline: `agent_comms/tests/test_pi_coding_agent.py`.
+
+The card is also in the shared registry on SQMC, where Pi and bwrap are absent: a task there fails cleanly
+("not installed" / jail unavailable). Four earlier supervisor todos for Sheila (788e1793, d51492a0, 8d8d4aed, e31994dc)
+stay failed; requeue with `adw_machine_todo.py --work --id <ID>` only if EG wants them.

@@ -346,6 +346,58 @@
       ]
     },
     {
+      "name": "sheila",
+      "display_name": "Sheila",
+      "runtime": "pi_coding_agent",
+      "settings": {
+        "model": "openai-codex/gpt-6-sol",
+        "binary": "/home/adamsl/.nvm/versions/node/v22.18.0/bin/pi",
+        "install_dir": "/home/adamsl/.nvm/versions/node/v22.18.0",
+        "pi_home": "/home/adamsl/.pi-bridge/agent",
+        "login_file": "/home/adamsl/.pi/agent/auth.json",
+        "timeout_seconds": 900,
+        "write_timeout_seconds": 1800,
+        "shell": true,
+        "workdir": "/home/adamsl/agent_blocks",
+        "read_roots": [
+          "/home/adamsl/letta-code",
+          "/home/adamsl/digi",
+          "/home/adamsl/bridge_workspaces"
+        ],
+        "write_workdir": "/home/adamsl/bridge_workspaces/sheila_sandbox",
+        "aliases": [ "sheila", "the pi coding agent", "pi agent" ]
+      },
+      "accepts_from": [
+        "toyota", "sydney", "claude-code"
+      ],
+      "capabilities": [
+        {
+          "task_type": "inspect",
+          "description": "read-only: look at files in a workspace and report what is there (Sheila, Pi on BATI, jailed, read/grep/find/ls only)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "explain",
+          "description": "read-only: explain how part of a workspace works, from the code (Sheila, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "ask",
+          "description": "read-only: answer a question about the workspace (Sheila, jailed)",
+          "writes": false,
+          "idempotent": true
+        },
+        {
+          "task_type": "implement",
+          "description": "scoped write: create or edit files in her own sandbox workspace on BATI; Sheila jailed to it with read/grep/find/ls/edit/write and a bash shell (cannot commit; login copy has no refresh token)",
+          "writes": true,
+          "idempotent": false
+        }
+      ]
+    },
+    {
       "name": "claude-code",
       "display_name": "Claude Code orchestrator session",
       "runtime": "none",

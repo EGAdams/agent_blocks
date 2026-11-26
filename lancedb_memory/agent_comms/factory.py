@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +37,7 @@ from .executors.codex_cli import CodexCliExecutor
 from .executors.jail import BwrapJail, WorkspacePrivatePaths
 from .executors.mechanic import AdwSubprocessExecutor, DiagnosisExecutor
 from .executors.object_debugger import ObjectDebuggerExecutor
+from .executors.pi_coding_agent import PiCodingAgentExecutor, PiLoginLifetime, refresh_command as pi_refresh_command
 from .executors.sidecar import SidecarTurnExecutor
 from .mechanic import FailureForwarder, JsonlCaseHistory, MailboxDiagnostic
 from .models import AgentCard, Envelope, TaskEvent
@@ -233,6 +235,65 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
             placeholder.touch( mode=0o600 )
         return home
 
+    def pi_coding_agent( card: AgentCard ) -> ITaskExecutor:
+        """Pi Coding Agent (Sheila), jailed like Claude, on a pinned `provider/id` model.
+
+        One executor per operation: each capability marked `writes: true` gets a writer jailed to the one
+        workspace it is given; every other capability gets a reader. Both always run in the jail, which sees
+        Pi's own state directory, Pi's install read-only, and a copy of the one provider login without its
+        refresh token.
+        """
+        s        = card.settings
+        source   = Path( str( s.get( "pi_source_home", Path.home() / ".pi" / "agent" ))).expanduser()
+        home     = pi_home( s.get( "pi_home" ), source )
+        login    = Path( str( s.get( "login_file", source / "auth.json" ))).expanduser()
+        binary   = str( s[ "binary" ])
+        model    = str( s[ "model" ])
+        provider = model.split( "/", 1 )[ 0 ]
+        install  = Path( str( s[ "install_dir" ])).expanduser()          # node + pi, bound read-only into the jail
+        jail_login = Path( str( s.get( "jail_login_file", Path.home() / ".cache" / "pi_bridge" / f"{ card.name }.auth.json" ))).expanduser()
+        node_bin = str( Path( binary ).parent )
+        lifetime = PiLoginLifetime( login, provider, pi_refresh_command( binary, model ),
+                                    env={ **os.environ, "PATH": f"{ node_bin }:{ os.environ.get( 'PATH', '' ) }" })
+        common   = dict( binary=binary, model=model, jail_login=jail_login, login=lifetime, secret_files=[ login ],
+                         timeout_seconds=float( s.get( "timeout_seconds", 900.0 )), progress=claude_progress( card.name ))
+
+        def jail( writes: bool ) -> BwrapJail:
+            return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ],
+                              env={ "PI_CODING_AGENT_DIR": str( home ), "PI_OFFLINE": "1", "PI_SKIP_VERSION_CHECK": "1",
+                                    "PI_TELEMETRY": "0", "PATH": f"{ node_bin }:{ BwrapJail.PATH }" },
+                              required=[ login, Path( binary )], root_writable=writes,
+                              file_binds=[( jail_login, home / "auth.json" ), ( install, install )])
+
+        executors: dict[ str, ITaskExecutor ] = {}
+        for capability in card.capabilities:
+            if capability.writes:
+                executors[ capability.task_type ] = PiCodingAgentExecutor(
+                    Path( str( s[ "write_workdir" ])), writes=True, shell=bool( s.get( "shell", False )), jail=jail( True ),
+                    write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])],
+                    **{ **common, "timeout_seconds": float( s.get( "write_timeout_seconds", common[ "timeout_seconds" ])) })
+            else:
+                executors[ capability.task_type ] = PiCodingAgentExecutor(
+                    Path( str( s.get( "workdir", WORKSPACE ))), writes=False, jail=jail( False ),
+                    read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])], **common )
+        return ByTaskType( executors )
+
+    def pi_home( value: object, source: Path ) -> Path:
+        """The bridge's own PI_CODING_AGENT_DIR: its own settings and model list, none of EG's Pi sessions."""
+        home = Path( str( value or Path.home() / ".pi-bridge" / "agent" )).expanduser()
+        if home.resolve() == source.resolve():
+            raise ValueError( "the pi card must not use ~/.pi/agent; it holds EG's own Pi login and sessions" )
+        home.mkdir( mode=0o700, parents=True, exist_ok=True )
+        for name in ( "models.json", "settings.json" ):                 # seeded once, then the bridge's own
+            if not ( home / name ).exists() and ( source / name ).is_file():
+                shutil.copyfile( source / name, home / name )
+        if not ( home / "bin" ).exists() and ( source / "bin" ).is_dir():      # Pi's fd and rg: offline, it cannot fetch them
+            shutil.copytree( source / "bin", home / "bin" )
+        placeholder = home / "auth.json"                                # where the jail binds the login, read-only
+        if not placeholder.exists():
+            placeholder.touch( mode=0o600 )
+        return home
+
     def claude_progress( agent: str ):
         def publish( envelope: Envelope, phase: str, message: str ) -> None:
             if events is not None:
@@ -246,6 +307,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         "claude_sdk":  claude_sdk,
         "claude_cli":  claude_cli,
         "codex_cli":   codex_cli,
+        "pi_coding_agent": pi_coding_agent,
         "codex_cli_write": codex_cli_write,
         "adw":         adw,
         "sidecar":     sidecar,
