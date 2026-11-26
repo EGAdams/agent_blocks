@@ -6,6 +6,7 @@ from agent_comms.models import TaskStatus
 
 from machine_supervisor import envelopes
 from machine_supervisor.adapters.agent import PeerRepairAgent
+from machine_supervisor.adapters.usage_limit import ClaudeUsageLimit
 from machine_supervisor.adapters.mailer import ChainMailer, PeerMailer
 from machine_supervisor.errors import Refused, Undelivered
 from machine_supervisor.models import Alert, Incident, Mail
@@ -125,7 +126,7 @@ def test_a_todo_is_queued_then_worked_and_readable_from_another_machine(sites):
     ok, line, data = TodoPoster(bati.catalog, bati.courier).post("SQMC", "check the scanner", "chatgpt-bridge", "task-1")
     assert ok and data["machine"] == "SQMC" and sqmc.nudge.nudges == 1 and queued_todos(sqmc.stores.boxes) == 1
     assert sqmc.agent.seen == []                                           # nothing ran yet
-    lines = TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, FakeLock(), Log()).work()
+    lines = TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, FakeLock(), Log(), ClaudeUsageLimit(), FakeClock()).work()
     assert "done" in lines[0] and queued_todos(sqmc.stores.boxes) == 0
     box, done = sqmc.stores.boxes.find(data["id"])
     assert box == "completed" and "did: check the scanner" in done.result and done.sender == "chatgpt-bridge"
@@ -143,7 +144,7 @@ def test_a_busy_supervisor_leaves_todos_queued(sites):
     TodoPoster(bati.catalog, bati.courier).post("SQMC", "later", "operator")
     lock = FakeLock()
     lock.taken.add("supervisor")
-    assert TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, lock, Log()).work() == []
+    assert TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, lock, Log(), ClaudeUsageLimit(), FakeClock()).work() == []
     assert queued_todos(sqmc.stores.boxes) == 1
 
 

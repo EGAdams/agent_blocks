@@ -21,6 +21,7 @@ from .adapters.runtime import child_env
 from .adapters.stores import (DetachedNudge, DetachedWaker, FileIncidentStore, FileOutbox, FileRunLog, FileWatchState,
                               FlockLock, SystemClock)
 from .adapters.toast import PowerShellToast
+from .adapters.usage_limit import ClaudeUsageLimit
 from .operations.alerting import AllMachinesAlerter
 from .operations.courier import Courier
 from .operations.escalate import Escalation
@@ -78,7 +79,8 @@ class Kit:
             "ask": AskHandler(LocalAnswerer(cli, briefs, policy)), "mail": MailHandler(self.gmail),
         }, work_todos, self.clock, self.log)
         self.todo_poster = TodoPoster(self.catalog, self.courier)
-        self.todo_worker = TodoWorker(self.catalog, self.boxes, LocalTodoAgent(cli, briefs), self.lock, self.log)
+        self.todo_worker = TodoWorker(self.catalog, self.boxes, LocalTodoAgent(cli, briefs), self.lock, self.log,
+                                      ClaudeUsageLimit(), self.clock)
         self.watch = Watch(self.catalog, self.probe, self.state, self.incidents, self.lock, self.clock, waker,
                            self.outbox, flush_mail, work_todos, self.boxes, self.log)
         self.escalation = Escalation(self.catalog, self.probe, self.incidents, self.agents, self.alerter, self.mailer,

@@ -3,13 +3,15 @@
     handoffs/outbox/tmp   written here first, then renamed, so no reader ever sees half a file
     handoffs/outbox       waiting for the carrier        -> sent | failed
     handoffs/inbox/new    arrived, nobody working on it  -> in_process -> completed | failed
+                          in_process -> new again when the agent's usage limit was used up (release),
+                          and failed -> new for one todo an operator names (requeue)
 """
 from __future__ import annotations
 
 import os
 from pathlib import Path
 
-from agent_comms.models import Envelope, TaskStatus
+from agent_comms.models import Envelope, TaskStatus, utc_now
 from agent_comms.state import advance
 
 from ..envelopes import BOXES, ID_PATTERN, INBOX, filename
@@ -57,6 +59,25 @@ class FileHandoffBoxes:
         running = advance(Envelope.model_validate_json(taken.read_text(encoding="utf-8")), TaskStatus.RUNNING)
         write_atomic(taken, running.model_dump_json(indent=2))
         return running
+
+    def release(self, envelope: Envelope) -> Envelope:
+        waiting = advance(envelope, TaskStatus.QUEUED)
+        self._move(envelope, "in_process", "new", waiting)
+        return waiting
+
+    def requeue(self, envelope_id: str, why: str) -> Envelope | None:
+        """The one way out of inbox/failed, which agent_comms' lifecycle treats as final: same id, same file name,
+        back in inbox/new, with the failure it had kept in its context. Written before the failed file is removed."""
+        failed = self._where(envelope_id, "failed")
+        if failed is None:
+            return None
+        old = Envelope.model_validate_json(failed.read_text(encoding="utf-8"))
+        waiting = old.model_copy(update={
+            "status": TaskStatus.QUEUED, "enqueued_at": utc_now(), "completed_at": None, "result": None,
+            "error": None, "context": {**old.context, "requeued": why[:300], "previous_error": (old.error or "")[:500]}})
+        write_atomic(self._folders["new"] / failed.name, waiting.model_dump_json(indent=2))
+        failed.unlink(missing_ok=True)
+        return waiting
 
     def settle(self, envelope: Envelope, ok: bool) -> Envelope:
         done = advance(envelope, TaskStatus.SUCCEEDED if ok else TaskStatus.FAILED)

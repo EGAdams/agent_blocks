@@ -118,6 +118,6 @@ class Watch:
             self._flush.nudge()
             lines.append("held mail: trying to send it")
         # Not in a run that woke the supervisor: the todo worker could take the lock she needs first.
-        if not woke and queued_todos(self._boxes) and not self._lock.busy(SUPERVISOR):
+        if not woke and queued_todos(self._boxes, now) and not self._lock.busy(SUPERVISOR):
             self._todo_worker.nudge()
             lines.append("queued todos: worker started")

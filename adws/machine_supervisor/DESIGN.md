@@ -30,6 +30,12 @@ A check already passing when she wakes is closed as "recovered by itself" with n
 - **Wake limit**: `max_wakes_per_day`; after that a mail is held and the check left alone.
 - **One supervisor at a time** per machine (lock `supervisor`); the watch has its own lock.
 - Gmail has no priority field. "High priority" is a subject prefix.
+- **Usage limit is a wait, not a failure** (`adapters/usage_limit.py`, behind `IUsageLimit`): when the Claude CLI
+  says "You've hit your 5-hour limit · resets 3:50pm (...)", the todo goes back to `inbox/new` with `not_before`
+  set to the reset time (plus 5 minutes) and the watch does not start the worker for it before then; after 6 such
+  deferrals it is failed. A todo filed as failed for that reason earlier is tried again only when named:
+  `adw_machine_todo.py --work --id ID` (any other failure is refused). Added 2026-11-26 after four Sheila todos
+  on BATI were filed as failed for good on 2026-11-24/25.
 
 ## Communication (Swarm-Forge's handoffs)
 

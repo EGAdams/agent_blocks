@@ -71,6 +71,12 @@ class ITodoAgent(Protocol):
     def work(self, envelope: Envelope) -> AgentReport: ...
 
 
+class IUsageLimit(Protocol):
+    """Reads an agent's error: when it says the subscription's usage limit is used up, the time to try again.
+    None for any other error. Never raises."""
+    def until(self, said: str, now: datetime) -> datetime | None: ...
+
+
 class IRepairAgent(Protocol):
     """A supervisor agent on one machine. Never raises: an agent that cannot be woken reports reached=False."""
     def attempt(self, incident: Incident, role: str) -> AgentReport: ...
@@ -92,6 +98,8 @@ class IHandoffBoxes(Protocol):
     def undelivered(self, envelope: Envelope, why: str) -> None: ...   # outbox -> failed
     def receive(self, envelope: Envelope) -> Envelope: ...         # into inbox/new
     def claim(self, envelope_id: str) -> Envelope | None: ...      # inbox/new -> in_process
+    def release(self, envelope: Envelope) -> Envelope: ...         # in_process -> new (to be tried again)
+    def requeue(self, envelope_id: str, why: str) -> Envelope | None: ...  # inbox/failed -> new, by name only
     def settle(self, envelope: Envelope, ok: bool) -> Envelope: ...    # in_process -> completed | failed
     def box(self, name: str) -> list[Envelope]: ...
     def find(self, envelope_id: str) -> tuple[str, Envelope] | None: ...   # (box name, envelope)
