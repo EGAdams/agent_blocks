@@ -42,7 +42,10 @@ use PDO;
  *    by the queue's own bounded attempts, and that retry is recorded as a recovery;
  *  - a task names the request it belongs to (request_id) or is adopted by the newest
  *    open one, and which of the two is recorded: a deliverable prefers the work the
- *    request was given over the work it merely collected.
+ *    request was given over the work it merely collected;
+ *  - only a request opened within adopt_window_seconds (6 h) adopts: an older one
+ *    gets a task only by being named, so a days-old request stops collecting every
+ *    later task of its agents (one had 191 on 2026-11-26).
  */
 
 interface IRequestStore
@@ -87,7 +90,7 @@ final class RequestPolicy
     public static function defaults(): array
     {
         return ['accept_seconds' => 30, 'progress_seconds' => 120, 'warn_seconds' => 300, 'escalate_seconds' => 600,
-                'loop_window_seconds' => 1200, 'loop_checks' => 3,
+                'loop_window_seconds' => 1200, 'loop_checks' => 3, 'adopt_window_seconds' => 21600,
                 'check_operations' => ['print_status', 'print_discover', 'search_memory'],
                 'check_tools' => ['printer_list', 'printer_get_default', 'printer_list_documents', 'printer_get_status',
                                   'printer_list_recent', 'get_agent_task_status', 'get_agent_task_result',
@@ -818,11 +821,11 @@ final class RequestWatch
     public function linkTask(Principal $who, array $task, ?array $declared = null): ?string
     {
         $origin = $declared === null ? 'adopted' : 'declared';
-        $row    = $declared ?: $this->store->newestOpenFor($who->id, (string) $task['agent']);
+        $now    = $this->clock->now();
+        $row    = $declared ?: $this->adopter($who, (string) $task['agent'], $now);
         if ($row === null) {
             return null;
         }
-        $now = $this->clock->now();
         if ($this->store->link($row['id'], (string) $task['id'], $now, $origin)) {
             $this->store->event($row['id'], 'linked', 'linked@' . $task['id'], ['task_id' => $task['id'], 'agent' => $task['agent'],
                                 'operation' => $task['operation'], 'origin' => $origin], $now);
@@ -831,10 +834,21 @@ final class RequestWatch
         return $row['id'];
     }
 
+    /**
+     * The request an undeclared task would be adopted by: the client's newest open one covering
+     * the agent, if it was opened within the adoption window. Newest first, so when that one is
+     * too old every other candidate is older still.
+     */
+    private function adopter(Principal $who, string $agent, int $now): ?array
+    {
+        $row = $this->store->newestOpenFor($who->id, $agent);
+        return $row !== null && (int) $row['created_at'] >= $now - $this->policy->threshold('adopt_window_seconds') ? $row : null;
+    }
+
     /** The open request (if any) a new task of this client would join, and its linked tasks. */
     public function openFor(Principal $who, string $agent, ?array $declared = null): ?array
     {
-        $row = $declared ?: $this->store->newestOpenFor($who->id, $agent);
+        $row = $declared ?: $this->adopter($who, $agent, $this->clock->now());
         return $row === null ? null : ['request' => $row, 'tasks' => $this->store->tasks($row['id']), 'outbox' => $this->store->outbox()];
     }
 

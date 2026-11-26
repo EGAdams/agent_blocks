@@ -365,6 +365,39 @@ test('request: a task names its request, and the named one beats the adopted one
     eq('declared', $links[$also]);
 });
 
+// 2026-11-26: "fix tasks wrongly attached to older supervised requests". Adoption had no age
+// limit, so a four-day-old request naming claude-sonnet had collected 191 tasks, nearly all of
+// them later, unrelated work. Past the window a request is reached only by naming it.
+test('request: a request older than the adoption window adopts nothing, but can still be named', function () {
+    $w   = alertWorld();
+    $old = reqTool($w, 'request_open', ['title' => 'Add the supervisor as a second pilot', 'agents' => ['codex'],
+        'idempotency_key' => 'pilot']);
+    $young = $w->submit(['operation' => 'explain', 'prompt' => 'Explain the pilot plan.']);
+    eq($old['request_id'], $young->json['request_id']);
+    eq('adopted', $young->json['request_link']);
+
+    $w->clock->t += RequestPolicy::defaults()['adopt_window_seconds'] + 1;
+    $late = $w->submit(['operation' => 'explain', 'prompt' => 'Explain the Scala receipt routes.']);
+    eq(true, in_array($late->status, [200, 201, 202], true), 'the task is still queued: ' . $late->status);
+    eq(null, $late->json['request_id'] ?? null);
+    eq(null, $late->json['request_link'] ?? null);
+
+    $named = $w->submit(['operation' => 'explain', 'request_id' => $old['request_id'], 'prompt' => 'Explain the pilot plan again.']);
+    eq($old['request_id'], $named->json['request_id']);
+    eq('declared', $named->json['request_link']);
+
+    $st  = reqTool($w, 'request_status', ['request_id' => $old['request_id']]);
+    $ids = array_map(function ($t) { return $t['task_id']; }, $st['child_tasks']);
+    sort($ids);
+    $want = [$young->json['task_id'], $named->json['task_id']];
+    sort($want);
+    eq($want, $ids);
+
+    // a request opened now adopts again, as before
+    $fresh = reqTool($w, 'request_open', ['title' => 'Explain the watch', 'agents' => ['codex'], 'idempotency_key' => 'watch']);
+    eq($fresh['request_id'], $w->submit(['operation' => 'explain', 'prompt' => 'Explain the watch.'])->json['request_id']);
+});
+
 test('request: a request_id that cannot be used is refused, and no task is queued for it', function () {
     $w   = alertWorld();
     $req = reqTool($w, 'request_open', ['title' => 'Explain the watch', 'agents' => ['codex']]);
