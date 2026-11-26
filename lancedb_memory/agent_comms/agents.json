@@ -346,6 +346,13 @@
       ]
     },
     {
+      "name": "claude-code",
+      "display_name": "Claude Code orchestrator session",
+      "runtime": "none",
+      "accepts_from": [],
+      "capabilities": []
+    },
+    {
       "name": "toyota-bridge",
       "display_name": "Toyota's authenticated bridge client",
       "runtime": "none",
