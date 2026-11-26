@@ -2,17 +2,78 @@
 
 The `Run` object: config + `adw_id` + agent map + tracer + console, bound
 once per ADW invocation. `run.phase(PhaseParams(...))` is the one phase
-primitive — a context manager used for all three phase kinds (`engineer`,
-`agent`, `code`). Success must be earned: every phase defaults to `fail`;
-only a clean exit flips it to `success` (agent phases additionally require
-a parsed envelope + green gates, enforced inside `PhaseHandle.call`, which
-delegates to `agents.execute`).
+primitive, used for all three phase kinds (`engineer`, `agent`, `code`).
+Success must be earned: every phase defaults to `fail`; only a clean exit
+flips it to `success` (agent phases additionally require a parsed envelope
++ green gates, enforced inside `PhaseHandle.call`, which delegates to
+`agents.execute`).
+
+## How ADWs drive a phase now: objects and an executor, no `with`/`yield`
+
+`Run.phase()` is still a `@contextmanager` internally. That one `yield` in
+`runner.py` is the only one left. ADWs no longer write
+`with run.phase(...) as ph:` blocks with the phase body inline. In the
+interface style (`adw_interface_*.py`, after the SSSF template
+`adw_interface_prompt.py`), they use these pieces:
+
+- **`IPhase`**: each phase is an object. `params` is its identity
+  (`PhaseParams`: name/kind/owner/description), and `act(handle)` does its
+  one job. A phase is typed against **`IPhaseHandle`**, a Protocol holding
+  only `log()` and `call()`, never against `runner.PhaseHandle` itself.
+- **`IPhaseExecutor.execute(run, phase)`**: the only thing that knows how
+  to run an `IPhase` against a `Run`. The shipped implementation is
+  **`ManualContextPhaseExecutor`**. It drives `run.phase()`'s
+  context-manager protocol by hand: `__enter__()` gets the handle, then
+  `phase.act(handle)` runs, then `__exit__(None, None, None)` on success or
+  `__exit__(type, error, tb)` on failure. The runner never suppresses, so
+  the error is re-raised.
+- **`build_application()`**: the one composition root allowed to name
+  concrete classes. It wires the executor into the application, and the
+  application calls `executor.execute(run, SomePhase(...))` once per phase,
+  then `run.finish(...)`.
+
+ADWs import these roles from `adws/sssf_roles.py`. That module loads the
+template by file location and wraps the executor with
+`object_trace.sssf_hooks.traced_executor`, which records each run and phase
+in the object trace. `OBJECT_TRACE=off` turns the tracing off, and if the
+hook can't be imported the plain executor is used.
+
+Because the executor calls the same `__enter__`/`__exit__` a `with` would,
+everything below still holds unchanged: sequence numbering, `phase_start`
+and `phase_end` events, "success must be earned", and the session being
+finished as failed when a phase raises.
+
+```mermaid
+sequenceDiagram
+    participant App as Application (build_application wiring)
+    participant Exec as ManualContextPhaseExecutor
+    participant Run
+    participant Phase as IPhase
+    participant PH as PhaseHandle
+
+    App->>Exec: execute(run, phase)
+    Exec->>Run: cm = run.phase(phase.params)
+    Exec->>Run: handle = cm.__enter__()
+    Run-->>Exec: PhaseHandle
+    Exec->>Phase: act(handle)
+    Phase->>PH: log(...) / call(AgentCall)
+    alt act raises
+        Exec->>Run: cm.__exit__(type, error, tb)
+        Run-->>Exec: re-raises (never suppresses)
+        Exec-->>App: exception propagates
+    else act returns
+        Exec->>Run: cm.__exit__(None, None, None)
+        Exec-->>App: return
+    end
+    App->>Run: finish(accepted, reason)
+```
 
 ## Classes
 
-- **`PhaseHandle`** — the object yielded by `Run.phase()`. Scopes `log()`
-  and `call()` to the phase that is currently open.
-- **`Run`** — one per `adw_id`. Owns the tracer, console, session
+- **`PhaseHandle`**: the object `Run.phase()` hands out on entry,
+  `__enter__()`'s return value. Scopes `log()` and `call()` to the phase
+  that is currently open. Phases see it only as `IPhaseHandle`.
+- **`Run`**: one per `adw_id`. Owns the tracer, console, session
   directories, agent map, and running token/cost totals.
 
 ---
@@ -24,7 +85,7 @@ scoped to. No side effects beyond attribute assignment.
 
 ```mermaid
 sequenceDiagram
-    participant Caller as Run.phase (contextmanager)
+    participant Caller as Run.phase (on __enter__)
     participant PH as PhaseHandle
 
     Caller->>PH: __init__(run, phase)
@@ -158,7 +219,9 @@ sequenceDiagram
 
 The one phase primitive. Allocates the next sequence number and a `Phase`
 record defaulted to `status="running"`, registers it with the tracer and
-console, then yields a `PhaseHandle` to the caller's `with` block.
+console, then hands a `PhaseHandle` back from `__enter__()`. In practice the
+caller is `ManualContextPhaseExecutor`, which passes the handle to
+`IPhase.act()`. Older ADWs still use a `with` block, which works the same way.
 
 - On a clean exit: marks the phase `success`, records `phase_end`, and
   upserts the final phase state.
@@ -175,15 +238,16 @@ sequenceDiagram
     participant Console
     participant PH as PhaseHandle
 
-    Caller->>Run: with run.phase(params) as ph
+    Caller->>Run: cm = run.phase(params); ph = cm.__enter__()
     Run->>Run: seq += 1
     Run->>Run: build Phase with status running
     Run->>Run: phases.append(phase)
     Run->>Tracer: phase_upsert(phase)
     Run->>Tracer: event("phase_start")
     Run->>Console: phase_started(phase)
-    Run->>PH: yield PhaseHandle(run, phase)
-    Caller->>PH: (uses ph.log / ph.call inside the with-block)
+    Run-->>Caller: PhaseHandle(run, phase)
+    Caller->>PH: phase.act(ph) uses ph.log / ph.call
+    Caller->>Run: cm.__exit__(...)
 
     alt body raises
         Caller-->>Run: BaseException propagates

@@ -1,3 +1,31 @@
+# Git checkpoint for R46 - 2026-11-26
+
+- BATI prepared the three repositories on main for the next R46 session.
+  This checkpoint includes the failure-triage service path fix and runner docs.
+- The letta-code debugger feed suite passed all 13 tests on BATI.
+- rol_finances commit `68f3665` renames the 2025 workbook with identical contents.
+- Local runtime traces, the temporary WebSocket script, the memory ignore file,
+  and incoming scans stayed in the BATI working trees.
+- Next on R46: check each checkout for local edits and fast-forward from origin
+  where possible before starting the R46 work.
+
+---
+
+# Failure triage debugger - 2026-11-25
+
+- The failure-triage unit started one directory below the repository root,
+  putting SSSF events in `adws/adws/adw_data/sssf.db`. The installed unit on
+  SQMC now starts from the repository root.
+- SQMC's live object-debugger proxy returned all five phases for both
+  `7bb22989` and `83dfd120` after the dashboard gained a read-only fallback
+  for historical runs. The dashboard feed suite passed all 13 tests.
+- Verified the installed command resolves the primary database path.
+  The next routine timer execution can confirm the first new primary trace.
+- Source changes are in the BATI and SQMC working trees. Unrelated changes
+  were preserved. Rosemary46 was outside this fix.
+
+---
+
 # Mazda finance under OMAPS - first increment - 2026-11-15
 
 EG's task: rewrite all Mazda finance processes as interface-based ADWs,
