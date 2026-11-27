@@ -132,6 +132,25 @@ def test_a_todo_is_queued_then_worked_and_readable_from_another_machine(sites):
     assert box == "completed" and "did: check the scanner" in done.result and done.sender == "chatgpt-bridge"
 
 
+def test_the_same_bridge_task_is_filed_once_and_the_resend_names_the_first(sites):
+    # 2026-11-27: a Bridge task handed out again (lease lost, or resent) must not give the supervisor the work twice.
+    bati, sqmc = sites["BATI"], sites["SQMC"]
+    poster = TodoPoster(bati.catalog, bati.courier)
+    ok, _, first = poster.post("SQMC", "check the scanner", "chatgpt-bridge", "t_1")
+    ok2, line, again = poster.post("SQMC", "check the scanner", "chatgpt-bridge", "t_1")
+    assert ok and ok2 and again["id"] == first["id"] and again["already_filed"] and "not filed again" in line
+    assert queued_todos(sqmc.stores.boxes) == 1 and sqmc.nudge.nudges == 1
+    _worker(sqmc).work()
+    ok3, _, late = poster.post("SQMC", "check the scanner", "chatgpt-bridge", "t_1")    # even after it finished
+    assert ok3 and late["id"] == first["id"] and sqmc.agent.seen == [(first["id"], "todo")]
+    assert queued_todos(sqmc.stores.boxes) == 0
+    # another Bridge task, another sender, or no Bridge task at all is new work
+    assert poster.post("SQMC", "check the scanner", "chatgpt-bridge", "t_2")[2]["id"] != first["id"]
+    assert poster.post("SQMC", "check the scanner", "toyota-bridge", "t_1")[2]["id"] != first["id"]
+    assert poster.post("SQMC", "x", "operator")[2]["id"] != poster.post("SQMC", "x", "operator")[2]["id"]
+    assert queued_todos(sqmc.stores.boxes) == 4
+
+
 def test_a_todo_from_a_stranger_is_refused_and_never_worked(sites):
     bati, sqmc = sites["BATI"], sites["SQMC"]
     ok, line, _ = TodoPoster(bati.catalog, bati.courier).post("SQMC", "do a thing", "mallory")

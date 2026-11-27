@@ -48,10 +48,14 @@ class TodoPoster:
                                          timeout=60, priority=50, sender=client)
         except Undelivered as error:
             return False, f"{to.name} could not be reached: {error}", {"machine": to.name}
-        data = {"machine": to.name, "id": reply.correlation_id, "outcome": reply.outcome.value if reply.outcome else ""}
+        filed = str(reply.context.get("filed_as") or reply.correlation_id)   # the first one, if it was already filed
+        data = {"machine": to.name, "id": filed, "outcome": reply.outcome.value if reply.outcome else ""}
         if reply.outcome is not TaskStatus.QUEUED:
             return False, f"{to.name} refused the todo: {reply.error or reply.result or 'no reason given'}", data
-        return True, f"todo queued for {to.agent} as {reply.correlation_id}", data
+        if filed != reply.correlation_id:
+            data["already_filed"] = True
+            return True, f"todo already filed for {to.agent} as {filed} (same Bridge task); not filed again", data
+        return True, f"todo queued for {to.agent} as {filed}", data
 
 
 class TodoWorker:

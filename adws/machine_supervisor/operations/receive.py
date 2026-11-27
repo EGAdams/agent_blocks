@@ -1,7 +1,8 @@
 """One handoff arriving at this machine: checked, filed in the inbox, worked, settled, and answered.
 
 A `todo` is the exception: it is filed and left in inbox/new for the todo worker, and answered at once as
-queued. Who may send what is a consistency check, not authentication -- the SSH key that reached this
+queued. A todo for a Bridge task this machine already filed (same sender, same `bridge_task`) is not filed again:
+the reply names the first one as `filed_as`, so a reassigned or resent Bridge task can never run the work twice. Who may send what is a consistency check, not authentication -- the SSH key that reached this
 machine is the authentication.
 """
 from __future__ import annotations
@@ -32,6 +33,12 @@ class Receiver:
         if asked.recipient != me or asked.kind is not MessageKind.REQUEST or not envelopes.ID_PATTERN.match(asked.id) \
                 or not envelopes.NAME_PATTERN.match(asked.sender):
             raise Refused(f"not a request for {me}")
+        again = self._already_filed(asked)
+        if again is not None:
+            box, first = again
+            self._log.line(f"handoff {asked.id}: same Bridge task as {first.id} ({box}); not filed again")
+            return self._reply(asked, TaskStatus.QUEUED, f"already filed for {me} as {first.id}, now in {box}; "
+                                                         "not filed again", None, filed_as=first.id)
         asked = self._boxes.receive(asked.model_copy(update={"trace": [*asked.trace, me], "status": TaskStatus.QUEUED,
                                                              "attempts": 0}))
         self._log.line(f"handoff {asked.id}: {asked.task_type} from {asked.sender}")
@@ -63,8 +70,22 @@ class Receiver:
             return None if allowed else f"{asked.sender} may not give this supervisor a todo"
         return f"unknown task type '{asked.task_type[:40]}'"
 
-    def _reply(self, asked: Envelope, outcome: TaskStatus, result: str | None, error: str | None) -> Envelope:
+    def _already_filed(self, asked: Envelope) -> tuple[str, Envelope] | None:
+        task = str(asked.context.get("bridge_task") or "")
+        if asked.task_type != DEFERRED or not task:
+            return None
+        for box in ("new", "in_process", "completed", "failed"):
+            for held in self._boxes.box(box):
+                if held.task_type == DEFERRED and held.sender == asked.sender \
+                        and str(held.context.get("bridge_task") or "") == task:
+                    return box, held
+        return None
+
+    def _reply(self, asked: Envelope, outcome: TaskStatus, result: str | None, error: str | None,
+               filed_as: str | None = None) -> Envelope:
         reply = envelopes.reply_to(asked, self._catalog.me().agent, outcome, result, error, self._clock.now())
+        if filed_as is not None:
+            reply = reply.model_copy(update={"context": {**reply.context, "filed_as": filed_as}})
         self._boxes.post(reply)
         self._boxes.sent(reply)              # the carrier's caller is reading it off this ADW's output right now
         return reply

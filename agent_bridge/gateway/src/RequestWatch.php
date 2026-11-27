@@ -234,13 +234,26 @@ final class RequestPolicy
                   . '(blocked_on), or close it with request_close if EG no longer wants it.'
                 : ($active !== null ? 'Its task ' . $active['id'] . ' is ' . $active['state'] . ': see the task alerts for '
                                       . 'that worker. Do not resubmit it.'
-                                    : 'Its last step finished and nothing followed. Do the next step, or record the blocker '
-                                      . 'with request_update, or close it with the reason.');
+                                    : (self::awaitingRead($out['deliverables'])
+                                       ?? 'Its last step finished and nothing followed. Do the next step, or record the blocker '
+                                          . 'with request_update, or close it with the reason.'));
             $out['candidates']['request_stalled:' . $req['id']] = self::candidate('request_stalled', $escalated ? 2 : 1,
                 "Request {$req['id']} $title has made no progress for " . QueueWatchPolicy::span($age)
                 . ' (stage: ' . $out['phase'] . '; responsible: ' . $out['responsible'] . ').' . $pending
                 . ' Status checks and polls do not count as progress.', $next, $epoch, $details);
         }
+    }
+
+    /** The next step for a request whose work was handed over and is not yet read back as done; null if none. */
+    private static function awaitingRead(array $deliverables): ?string
+    {
+        foreach ($deliverables as $d) {
+            if ($d['status'] === 'submitted' && isset($d['check'])) {
+                return $d['why'] . '. Read it once now; if it is still in new or in_process, it is still working -- '
+                     . 'record that with request_update and read again later. Never resend the todo.';
+            }
+        }
+        return null;
     }
 
     /**
@@ -305,6 +318,10 @@ final class RequestPolicy
             }
             return $row;
         }
+        $handoff = self::json($found['result_details'] ?? null)['handoff'] ?? null;
+        if (is_array($handoff) && is_array($handoff['prompt'] ?? null)) {
+            return self::handedOver($row, $found, $handoff);
+        }
         if ($op !== 'print') {
             $row['status']   = 'met';
             $row['evidence'] = 'task ' . $found['id'] . ' succeeded: ' . self::clip(trim((string) ($found['result_summary'] ?? '')), 160);
@@ -329,6 +346,41 @@ final class RequestPolicy
             $row['status'] = 'submitted';
             $row['why']    = 'print job ' . $found['id'] . ' was handed to EG\'s machine (' . ($state ?: 'no job state yet')
                            . '); waiting for the spooler to report it completed -- check with printer_get_status refresh=true';
+        }
+        return $row;
+    }
+
+    /**
+     * A task that only handed work over -- a todo queued in a Machine Supervisor's inbox -- is accepted, not done.
+     *
+     * On 2026-11-27 request rq_0fc36ccf500810416e5ac792 closed as completed at the moment its todo was queued,
+     * minutes before the todo ran: acceptance was counted as completion. A handed-over deliverable is met only when
+     * a later read (the task's own `details.handoff.prompt`) finds the work in completed, and failed when it is found
+     * in failed -- the same contract a print job has with its spooler check.
+     */
+    private static function handedOver(array $row, array $found, array $handoff): array
+    {
+        $what  = (string) ($handoff['what'] ?? 'the handed-over work');
+        $read  = json_encode($handoff['prompt'], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $state = self::json($found['handoff_details'] ?? null)['handoff_state'] ?? null;
+        $box   = is_array($state) ? (string) ($state['box'] ?? '') : '';
+        $row['check'] = ['agent' => (string) ($handoff['agent'] ?? $row['agent']),
+                         'operation' => (string) ($handoff['operation'] ?? 'inspect'), 'prompt' => $read];
+        if ($box === 'completed') {
+            $row['status']   = 'met';
+            $row['evidence'] = $what . ' done (queued by task ' . $found['id'] . ', found in completed by task '
+                             . $found['handoff_task'] . '): ' . self::clip(trim((string) ($state['result'] ?? '')), 160);
+        } elseif ($box === 'failed') {
+            $row['status'] = 'failed';
+            $row['why']    = $what . ' failed (found in failed by task ' . $found['handoff_task'] . '): '
+                           . self::clip(trim((string) ($state['error'] ?? '')) ?: 'no reason recorded', 160)
+                           . '; read it before doing anything else, and never resend the todo unchanged';
+        } else {
+            $row['status'] = 'submitted';
+            $row['why']    = $what . ' was queued by task ' . $found['id']
+                           . ($box !== '' ? ' and was last seen in ' . $box . ' (task ' . $found['handoff_task'] . ')' : '')
+                           . '; not done until a read finds it in completed: submit ' . $row['check']['agent'] . ' '
+                           . $row['check']['operation'] . ' ' . $read . ' -- a read, never the todo again';
         }
         return $row;
     }
@@ -582,8 +634,25 @@ final class SqliteRequestStore implements IRequestStore
         $check = $this->pdo->prepare("SELECT r.details FROM tasks t JOIN task_results r ON r.task_id = t.id
                                       WHERE t.agent = 'printer' AND t.operation = 'print_status' AND t.prompt = ?
                                       AND t.state = ? ORDER BY r.completed_at DESC LIMIT 1");
+        $read  = $this->pdo->prepare("SELECT t.id, r.details FROM tasks t JOIN task_results r ON r.task_id = t.id
+                                      WHERE t.agent = ? AND t.operation = ? AND t.state = ? AND r.details LIKE ? ESCAPE '!'
+                                      ORDER BY r.completed_at DESC, t.id DESC LIMIT 1");
         foreach ($rows as &$row) {
             $row['check_details'] = null;
+            $row['handoff_details'] = null;
+            $row['handoff_task'] = null;
+            $handoff = $row['state'] === TaskState::SUCCEEDED ? (RequestPolicy::json($row['result_details'])['handoff'] ?? null) : null;
+            $id = is_array($handoff) && is_array($handoff['prompt'] ?? null) ? (string) ($handoff['prompt']['id'] ?? '') : '';
+            if (preg_match('/^[0-9]{8}T[0-9]{6}Z_[0-9a-f]{8}_from_[a-z][a-z0-9-]{0,60}$/', $id)) {
+                $read->execute([(string) ($handoff['agent'] ?? $row['agent']), (string) ($handoff['operation'] ?? 'inspect'),
+                                TaskState::SUCCEEDED, '%' . str_replace('_', '!_', $id) . '%']);
+                $hit = $read->fetch(PDO::FETCH_ASSOC);
+                $seen = $hit === false ? null : (RequestPolicy::json($hit['details'])['handoff_state'] ?? null);
+                if (is_array($seen) && ($seen['id'] ?? '') === $id) {
+                    $row['handoff_details'] = $hit['details'];
+                    $row['handoff_task'] = $hit['id'];
+                }
+            }
             if ($row['operation'] === 'print' && $row['state'] === TaskState::SUCCEEDED) {
                 $check->execute(['job=' . $row['id'], TaskState::SUCCEEDED]);
                 $found = $check->fetchColumn();

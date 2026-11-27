@@ -431,6 +431,85 @@ test('request: a request_id that cannot be used is refused, and no task is queue
     eq($before, (int) $w->pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn());
 });
 
+// 2026-11-27, rq_0fc36ccf500810416e5ac792: the request closed as completed when its todo was QUEUED in a
+// supervisor's inbox, minutes before the todo ran. A handed-over deliverable is met only by a read that finds
+// the work in completed, failed by one that finds it in failed, and otherwise waits with the read to submit.
+test('request: a todo that was only queued is not completion; a read that finds it completed is', function () {
+    $id   = '20261127T151142Z_7f3a9c01_from_supervisor-sqmc';
+    $read = ['supervisor' => 'read', 'machine' => 'SQMC', 'id' => $id];
+    $handoff = ['agent' => 'codex', 'operation' => 'explain', 'prompt' => $read, 'what' => "todo $id on SQMC"];
+    $finish = function (World $w, string $task, bool $ok, array $details) {
+        list(, $lease) = claimTask($w, $task);
+        eq(200, $w->call('POST', "/worker/tasks/$task/complete", $w->worker,
+                         ['lease_token' => $lease, 'ok' => $ok, 'summary' => 'done', 'body' => '', 'details' => $details])->status);
+    };
+    $seen = function (string $box) use ($id) {
+        return ['supervisor' => 'read', 'ok' => true, 'verified' => true,
+                'handoff_state' => ['id' => $id, 'box' => $box, 'machine' => 'SQMC',
+                                    'result' => $box === 'completed' ? 'report written' : '',
+                                    'error' => $box === 'failed' ? 'the guard refused the edit' : '']];
+    };
+    foreach (['completed', 'failed'] as $end) {
+        $w   = alertWorld();
+        $req = reqTool($w, 'request_open', ['title' => 'Write the supervisor report', 'agents' => ['codex'],
+            'deliverables' => [['label' => 'Report written', 'agent' => 'codex', 'operation' => 'explain',
+                                'match' => 'report']]]);
+        $todo = $w->submit(['operation' => 'explain', 'request_id' => $req['request_id'],
+            'prompt' => '{"supervisor":"todo","machine":"SQMC","text":"write the report"}'])->json['task_id'];
+        $finish($w, $todo, true, ['supervisor' => 'todo', 'handoff' => $handoff]);
+        $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+        ok($st['phase'] !== 'completed', 'queued is not done: ' . $st['phase']);
+        $d = $st['deliverables'][0];
+        eq('submitted', $d['status']);
+        ok(strpos($d['why'], json_encode($read, JSON_UNESCAPED_SLASHES)) !== false && strpos($d['why'], 'never the todo again') !== false,
+           $d['why']);
+
+        // a read that still finds it working changes nothing
+        $r1 = $w->submit(['operation' => 'explain', 'prompt' => json_encode($read)])->json['task_id'];
+        $finish($w, $r1, true, $seen('in_process'));
+        $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+        eq('submitted', $st['deliverables'][0]['status']);
+        ok(strpos($st['deliverables'][0]['why'], 'last seen in in_process') !== false, $st['deliverables'][0]['why']);
+
+        $w->clock->t += 5;
+        $r2 = $w->submit(['operation' => 'explain', 'prompt' => json_encode($read), 'idempotency_key' => 'second-read'])
+            ->json['task_id'];
+        $finish($w, $r2, true, $seen($end));
+        $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+        if ($end === 'completed') {
+            eq('completed', $st['phase']);
+            ok(strpos($st['deliverables'][0]['evidence'], "found in completed by task $r2") !== false
+               && strpos($st['deliverables'][0]['evidence'], 'report written') !== false, $st['deliverables'][0]['evidence']);
+        } else {
+            eq('blocked', $st['phase']);
+            eq('failed', $st['deliverables'][0]['status']);
+            ok(strpos($st['deliverables'][0]['why'], 'the guard refused the edit') !== false, $st['deliverables'][0]['why']);
+        }
+    }
+
+    // a task whose details name no handoff is met on success, as before
+    $w   = alertWorld();
+    $req = reqTool($w, 'request_open', ['title' => 'Explain the scanner', 'agents' => ['codex'],
+        'deliverables' => [['label' => 'Explanation', 'agent' => 'codex', 'operation' => 'explain']]]);
+    $t = $w->submit(['operation' => 'explain', 'request_id' => $req['request_id'], 'prompt' => 'Explain the scanner.'])
+        ->json['task_id'];
+    $finish($w, $t, true, ['supervisor' => 'status']);
+    eq('completed', reqTool($w, 'request_status', ['request_id' => $req['request_id']])['phase']);
+
+    // and while it waits, the stalled alert says to read it, not to resend it
+    $w   = alertWorld();
+    $req = reqTool($w, 'request_open', ['title' => 'Write the supervisor report', 'agents' => ['codex'],
+        'deliverables' => [['label' => 'Report written', 'agent' => 'codex', 'operation' => 'explain', 'match' => 'report']]]);
+    $todo = $w->submit(['operation' => 'explain', 'request_id' => $req['request_id'],
+        'prompt' => '{"supervisor":"todo","machine":"SQMC","text":"write the report"}'])->json['task_id'];
+    $finish($w, $todo, true, ['supervisor' => 'todo', 'handoff' => $handoff]);
+    $w->clock->t += 301;
+    $a = requestAlert($w, 'request_stalled', $req['request_id']);
+    ok($a !== null, 'a queued todo that is never read back is a stalled request');
+    ok(strpos($a['recommended_action'], 'Read it once now') !== false
+       && strpos($a['recommended_action'], 'Never resend the todo') !== false, $a['recommended_action'] ?? '');
+});
+
 // 2026-11-27, rq_9687210f337e8999aa7de22d: ChatGPT sent the machine supervisor
 // {"supervisor":"todo","machine":"SQMC","todo":"..."} -- the text under "todo", not "text". The
 // worker refused it in 9 s and the watch blocked the request in 2 s, but the alert said only

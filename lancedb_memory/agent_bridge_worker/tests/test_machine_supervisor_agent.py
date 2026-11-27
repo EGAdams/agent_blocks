@@ -49,6 +49,31 @@ def test_a_todo_is_implement_and_its_text_is_one_value():
     assert op == "todo" and flags == { "machine": "R46", "text": text, "task-id": TASK_ID, "client": "eg-chatgpt" }
 
 
+def test_a_queued_todo_names_the_read_that_proves_it_done():
+    # rq_0fc36ccf500810416e5ac792 (2026-11-27) closed as completed when its todo was only queued. The todo's result
+    # now says it is not done yet and carries the read the gateway waits for (RequestWatch::handedOver).
+    c = Commands( ans( line=f"todo queued for supervisor-sqmc as { MESSAGE }", id=MESSAGE, machine="SQMC", outcome="queued" ))
+    out = run( MachineSupervisorAgent( c, FakeClock()), task({ "supervisor": "todo", "machine": "SQMC", "text": "x" }))
+    assert out.kind == OutcomeKind.SUCCEEDED and "(queued, not done yet)" in out.summary
+    handoff = out.details[ "handoff" ]
+    assert handoff[ "prompt" ] == { "supervisor": "read", "machine": "SQMC", "id": MESSAGE }
+    assert handoff[ "agent" ] == "machine-supervisor" and handoff[ "operation" ] == "inspect"
+    c = Commands( ans( line="todo queued", id="../../etc/passwd" ))     # an id that is not one names no read
+    out = run( MachineSupervisorAgent( c, FakeClock()), task({ "supervisor": "todo", "machine": "SQMC", "text": "x" }))
+    assert out.kind == OutcomeKind.SUCCEEDED and "handoff" not in out.details
+
+
+def test_a_read_says_which_box_the_message_is_in():
+    message = { "id": MESSAGE, "result": "report written", "error": None }
+    c = Commands( ans( line=f"{ MESSAGE } is in completed", machine="SQMC", box="completed", message=message ))
+    out = run( MachineSupervisorAgent( c, FakeClock()), task({ "supervisor": "read", "machine": "SQMC", "id": MESSAGE }, "inspect" ))
+    assert out.details[ "handoff_state" ] == { "id": MESSAGE, "box": "completed", "machine": "SQMC",
+                                               "result": "report written", "error": "" }
+    c = Commands( ans( ok=False, verified=False, line="supervisor-sqmc holds no message" ))
+    out = run( MachineSupervisorAgent( c, FakeClock()), task({ "supervisor": "read", "machine": "SQMC", "id": MESSAGE }, "inspect" ))
+    assert out.kind == OutcomeKind.FAILED and "handoff_state" not in out.details
+
+
 def test_reads_are_inspect_and_a_todo_is_not():
     c = Commands( ans())
     agent = MachineSupervisorAgent( c, FakeClock())

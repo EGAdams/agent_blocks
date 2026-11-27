@@ -36,6 +36,12 @@ A check already passing when she wakes is closed as "recovered by itself" with n
   deferrals it is failed. A todo filed as failed for that reason earlier is tried again only when named:
   `adw_machine_todo.py --work --id ID` (any other failure is refused). Added 2026-11-26 after four Sheila todos
   on BATI were filed as failed for good on 2026-11-24/25.
+- **An interrupted todo is resumed once** (`interrupted_resumes`, `MAX_RESUMES = 1`): a todo left in
+  `in_process` with nobody holding the lock goes back to `new`, and the watch starts the worker for it; a second
+  interruption fails it. Its brief says to check what the first attempt already did. Added 2026-11-27.
+- **One Bridge task, one todo**: a todo whose `context.bridge_task` matches one this machine already holds from
+  the same sender (in any of new, in_process, completed, failed) is not filed again; the reply names the first as
+  `filed_as`, and `TodoPoster` reports that id. Added 2026-11-27, so a Bridge task handed out twice cannot run twice.
 
 ## Communication (Swarm-Forge's handoffs)
 
@@ -69,7 +75,11 @@ watch every `mail_retry_minutes`.
 Bridge agent and workspace `machine-supervisor` (`lancedb_memory/agent_bridge_worker/
 machine_supervisor_agent.py`), off until `~/.config/machine_supervisor/bridge_enabled` exists on the
 worker's machine. Prompt JSON: `{"supervisor": "machines"|"status"|"mailbox"|"read"}` as `inspect`,
-`{"supervisor": "todo", "machine": ..., "text": ...}` as `implement`. Gateway registry entry, to add
+`{"supervisor": "todo", "machine": ..., "text": ...}` as `implement`. A todo task succeeds when the todo is
+*queued*, so its result carries `details.handoff` (the `read` that proves it done) and the gateway's
+`RequestWatch` keeps a request's deliverable `submitted` until a later `read` finds the todo in `completed`
+(met) or `failed` (failed). Before 2026-11-27 a request closed the moment its todo was queued
+(rq_0fc36ccf500810416e5ac792). Gateway registry entry, to add
 to `bridge.php` and seed with `bin/migrate.php`:
 
     ['name' => 'machine-supervisor', 'display_name' => 'Machine Supervisors',

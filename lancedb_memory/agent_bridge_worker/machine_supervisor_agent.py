@@ -12,6 +12,12 @@ The prompt is JSON written by code (`submit_agent_task` to agent and workspace `
     inspect    read_only        machines | status | mailbox | read
     implement  workspace_write  todo                       (queued in that supervisor's inbox; she works it later)
 
+A todo's task succeeds when the todo is *queued*, not done, so its result carries `details.handoff`: the read
+that proves completion. The gateway keeps a request's deliverable "submitted" -- not met -- until a later
+`{"supervisor": "read", ...}` task finds the todo in completed (met) or failed (failed), the same contract a
+print job has with its spooler check. Following it here instead would hold a worker lane for the todo's whole
+run (up to an hour), and the express lane exists so that diagnostics never wait behind long work.
+
 Each task is one run of `adws/adw_machine_mailbox.py` or `adws/adw_machine_todo.py`. A request names a machine,
 a box and a message id -- never a path, never a command -- and each value is checked here before it becomes a
 `--flag=value`. A todo's text is free text for the supervisor on that machine to read; it is one argv item, it
@@ -101,7 +107,10 @@ class MachineSupervisorAgent:
             return AgentOutcome( kind=OutcomeKind.LEASE_LOST, performer=PERFORMER, summary="the gateway took the lease back" )
         if signal == "cancel" and what in READS:
             return AgentOutcome( kind=OutcomeKind.CANCELLED, performer=PERFORMER, summary="cancelled before it finished" )
-        return self._outcome( answer, what )
+        outcome = self._outcome( answer, what )
+        if what in WRITES and outcome.kind == OutcomeKind.SUCCEEDED:
+            outcome = self._handed_over( outcome, answer, flags[ "machine" ])
+        return outcome
 
     def _wait( self, running: IRunningDeployCommand, what: str, keep_alive: Callable[[], Signal ]) -> tuple[ dict, Signal ]:
         """Heartbeat until the ADW answers. A read may be stopped; a todo being handed over runs to its end, so it
@@ -130,11 +139,32 @@ class MachineSupervisorAgent:
         verified = ok and answer.get( "verified" ) is True
         details  = { "supervisor": what, "ok": ok, "verified": verified, "retryable": bool( answer.get( "retryable" )),
                      "adw_id": answer.get( "adw_id" )}
+        if what == "read" and verified:     # where a handed-over todo now is: the gateway's proof it finished
+            message = data.get( "message" ) if isinstance( data.get( "message" ), dict ) else {}
+            details[ "handoff_state" ] = { "id": str( message.get( "id" ) or "" ), "box": str( data.get( "box" ) or "" ),
+                                           "machine": str( data.get( "machine" ) or "" ),
+                                           "result": str( message.get( "result" ) or "" )[ :500 ],
+                                           "error": str( message.get( "error" ) or "" )[ :500 ]}
         body     = line + ( "\n\n" + json.dumps( data, indent=1, default=str )[ :12000 ] if data else "" )
         if verified:
             return AgentOutcome( kind=OutcomeKind.SUCCEEDED, performer=PERFORMER, summary=line[ :300 ], body=body, details=details )
         return AgentOutcome( kind=OutcomeKind.FAILED, performer=PERFORMER, summary=( line or "the supervisor operation did not complete" )[ :300 ],
                              body=body, retryable=bool( answer.get( "retryable" )), details=details )
+
+    @staticmethod
+    def _handed_over( outcome: AgentOutcome, answer: dict, machine: str ) -> AgentOutcome:
+        """A queued todo is accepted, not done: name the read that will show it finished."""
+        data = answer.get( "data" ) if isinstance( answer.get( "data" ), dict ) else {}
+        todo = str( data.get( "id" ) or "" )
+        if not re.fullmatch( FLAGS[ "id" ][ 1 ], todo ):
+            return outcome
+        where = str( data.get( "machine" ) or machine )
+        check = { "supervisor": "read", "machine": where, "id": todo }
+        handoff = { "agent": "machine-supervisor", "operation": "inspect", "prompt": check,
+                    "done": f"{ todo } is in completed", "failed": f"{ todo } is in failed",
+                    "what": f"todo { todo } on { where }" }
+        return outcome.model_copy( update={ "details": { **( outcome.details or {}), "handoff": handoff },
+                                            "summary": f"{ outcome.summary } (queued, not done yet)"[ :300 ]})
 
     @staticmethod
     def _takes( what: str ) -> str:
