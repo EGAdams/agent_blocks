@@ -430,3 +430,45 @@ test('request: a request_id that cannot be used is refused, and no task is queue
 
     eq($before, (int) $w->pdo->query('SELECT COUNT(*) FROM tasks')->fetchColumn());
 });
+
+// 2026-11-27, rq_9687210f337e8999aa7de22d: ChatGPT sent the machine supervisor
+// {"supervisor":"todo","machine":"SQMC","todo":"..."} -- the text under "todo", not "text". The
+// worker refused it in 9 s and the watch blocked the request in 2 s, but the alert said only
+// "Tell EG exactly what is needed", so a request any requester could correct waited on a person.
+test('request: a refused deliverable says what to correct and to resend it once, not to fetch EG', function () {
+    $w   = alertWorld();
+    $req = reqTool($w, 'request_open', ['title' => 'Supervised enrollment of Dad\'s computer', 'agents' => ['codex'],
+        'idempotency_key' => 'dad-enroll',
+        'deliverables' => [['label' => 'Supervisor acknowledges and starts', 'agent' => 'codex', 'operation' => 'explain',
+                            'match' => 'enroll']]]);
+    $task = $w->submit(['operation' => 'explain', 'request_id' => $req['request_id'],
+        'prompt' => '{"supervisor":"todo","machine":"SQMC","todo":"enroll Dad"}'])->json['task_id'];
+    list(, $lease) = claimTask($w, $task);
+    $why = 'refused by the worker: todo does not take: todo; it takes machine, text, e.g. '
+         . '{"supervisor": "todo", "machine": "SQMC", "text": "<what to do>"}';
+    // the worker reports a refusal as a non-retryable fail (agent_bridge_worker/service.py), not a complete
+    eq(200, $w->call('POST', "/worker/tasks/$task/fail", $w->worker,
+                     ['lease_token' => $lease, 'reason' => $why, 'retryable' => false])->status);
+    $a = requestAlert($w, 'request_blocked', $req['request_id']);
+    ok($a !== null, 'the refusal blocks the request');
+    $act = $a['recommended_action'];
+    ok(strpos($act, 'refused by the codex worker before anything ran') !== false, $act);
+    ok(strpos($act, '"text": "<what to do>"') !== false, 'the worker\'s own correction is carried: ' . $act);
+    ok(strpos($act, 'submit it once') !== false && strpos($act, 'new idempotency_key') !== false
+       && strpos($act, $req['request_id']) !== false, $act);
+    ok(strpos($act, 'Never resend it unchanged') !== false && strpos($act, 'Tell EG exactly') === false, $act);
+    $st = reqTool($w, 'request_status', ['request_id' => $req['request_id']]);
+    eq('blocked', $st['phase']);
+
+    // an ordinary failure (something ran and went wrong) still goes to EG, unchanged
+    $w2   = alertWorld();
+    $req2 = reqTool($w2, 'request_open', ['title' => 'Diagnose the scanner', 'agents' => ['codex'],
+        'deliverables' => [['label' => 'Diagnosis', 'agent' => 'codex', 'operation' => 'explain']]]);
+    $t2 = $w2->submit(['operation' => 'explain', 'request_id' => $req2['request_id'], 'prompt' => 'Diagnose the scanner.'])
+        ->json['task_id'];
+    list(, $l2) = claimTask($w2, $t2);
+    eq(200, $w2->call('POST', "/worker/tasks/$t2/complete", $w2->worker,
+                      ['lease_token' => $l2, 'ok' => false, 'error' => 'claude stopped with error_max_turns'])->status);
+    $a2 = requestAlert($w2, 'request_blocked', $req2['request_id']);
+    ok($a2 !== null && strpos($a2['recommended_action'], 'Tell EG exactly') !== false, $a2['recommended_action'] ?? '');
+});

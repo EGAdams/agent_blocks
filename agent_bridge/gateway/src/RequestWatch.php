@@ -79,6 +79,8 @@ interface IRequestStore
 final class RequestPolicy
 {
     const STALL_KINDS = ['request_stalled', 'request_blocked'];
+    /** How a worker's summary begins when it turned a task down before running anything (agent_bridge_worker). */
+    const REFUSED = 'refused by the worker:';
 
     /** @var array */ private $t;
 
@@ -222,9 +224,10 @@ final class RequestPolicy
                 "Request {$req['id']} $title is blocked: " . self::clip($out['blocked_on'], 300)
                 . (trim((string) $req['blocked_owner']) !== '' ? ' (waiting on ' . $req['blocked_owner'] . ')' : '')
                 . '; no progress for ' . QueueWatchPolicy::span($age) . '.' . $pending,
-                'Tell EG exactly what is needed to clear it. When it is cleared, record that with request_update and do '
+                self::refusal($out['deliverables'], $req['id']) ??
+                ('Tell EG exactly what is needed to clear it. When it is cleared, record that with request_update and do '
                 . 'the next step once; close it with request_close (failed or cancelled, with the reason) if EG no longer wants it. '
-                . 'Never print or resend anything to clear this alert.', $epoch, $details);
+                . 'Never print or resend anything to clear this alert.'), $epoch, $details);
         } elseif ($age >= $this->threshold('warn_seconds')) {
             $next = $out['phase'] === 'queued'
                 ? 'Nothing has been submitted for it. Do the next step, or record what it waits for with request_update '
@@ -240,6 +243,24 @@ final class RequestPolicy
         }
     }
 
+    /**
+     * A deliverable whose task the worker refused needs no person: nothing ran, so the requester can correct
+     * the prompt as the refusal says and submit it once. Null when no blocking deliverable was refused.
+     */
+    private static function refusal(array $deliverables, string $requestId): ?string
+    {
+        foreach ($deliverables as $d) {
+            if ($d['status'] === 'failed' && ($d['refused'] ?? null) !== null) {
+                return 'Task ' . $d['task_id'] . ' was refused by the ' . $d['agent'] . ' worker before anything ran: '
+                     . $d['refused'] . ' Nothing ran, so this is a malformed request, not a fault to report: correct the '
+                     . 'prompt exactly as that says and submit it once to ' . $d['agent'] . ' as ' . $d['operation']
+                     . ' with request_id ' . $requestId . ' and a new idempotency_key. Never resend it unchanged; if the '
+                     . 'corrected task is refused too, record the blocker with request_update and tell EG.';
+            }
+        }
+        return null;
+    }
+
     /** One deliverable's status: missing, queued, running, submitted, unconfirmed, failed or met. */
     private function deliverable(array $d, array $tasks, ?array $outbox): array
     {
@@ -247,7 +268,8 @@ final class RequestPolicy
         $op    = (string) ($d['operation'] ?? '');
         $match = strtolower(trim((string) ($d['match'] ?? '')));
         $row   = ['key' => (string) ($d['key'] ?? ''), 'label' => (string) ($d['label'] ?? ''), 'agent' => $agent,
-                  'operation' => $op, 'status' => 'missing', 'task_id' => null, 'evidence' => null, 'why' => ''];
+                  'operation' => $op, 'status' => 'missing', 'task_id' => null, 'evidence' => null, 'why' => '',
+                  'refused' => null];
         // Work the request was given beats work it merely collected: a task whose submitter
         // named this request is preferred over one the gateway adopted, however new the
         // adopted one is. Within each kind the newest wins, as before.
@@ -278,6 +300,9 @@ final class RequestPolicy
             $why = trim((string) ($found['result_summary'] ?? '')) ?: trim((string) $found['last_error']) ?: $found['state'];
             $row['why'] = 'task ' . $found['id'] . ' ' . $found['state'] . ': ' . self::clip($why, 160)
                         . ($op === 'print' ? ' (nothing printed by it; never resend without asking EG)' : '');
+            if (stripos($why, self::REFUSED) === 0) {
+                $row['refused'] = self::clip(trim(substr($why, strlen(self::REFUSED))), 400);
+            }
             return $row;
         }
         if ($op !== 'print') {
