@@ -100,6 +100,25 @@
         "sudo needs a password here. Anything that needs root goes in needs.",
         "Somebody else uses this desktop. Do nothing that shows on her screen except an alert."
       ]
+    },
+    {
+      "name": "DAD",
+      "hostname": "dadscomputer",
+      "ssh": {"host": "100.100.229.107", "port": 22, "user": "adamsl"},
+      "always_on": false,
+      "python": "/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python",
+      "repo": "/home/adamsl/agent_blocks",
+      "claude": "/home/adamsl/.local/bin/claude",
+      "peers": [],
+      "checks": [
+        {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service", "about": "Tailscale. Without it no machine can reach this one. sudo needs a password here, so a system unit cannot be restarted: say so in needs."},
+        {"name": "ssh", "kind": "unit", "scope": "system", "target": "ssh.service", "about": "sshd. Without it no machine can reach this one. sudo needs a password here."}
+      ],
+      "notes": [
+        "Dad's Ubuntu 26.04 computer, enrolled 2026-11-27 (rq_007918d59d9e8f64b838b2ee). It may be switched off; that is normal and nobody is woken for it.",
+        "No Claude CLI is installed here yet and no cron watch is installed: this machine has an identity and a mailbox, nothing else. Not named as a peer by BATI, SQMC or R46 on purpose.",
+        "sudo needs a password here. Anything that needs root goes in needs."
+      ]
     }
   ]
 }
