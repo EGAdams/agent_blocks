@@ -169,9 +169,19 @@ def test_uv_argv_passes_values_as_values_and_bool_as_a_flag():
         pass
 
 
+def test_open_bank_through_the_relay_never_launches_chrome():
+    cmds = FakeCommands()
+    relay = R46.model_copy( update={ "chrome_port": 9223, "launch_chrome": False })
+    out = run( CashyMachineAgent( cmds, FakeClock(), relay, Titles(), poll_seconds=0 ),
+               task({ "cashy": "open_bank", "machine": "R46", "session": "r46-bridge", "bank": "fifth_third" }))
+    assert out.kind == OutcomeKind.SUCCEEDED, out.summary
+    assert cmds.calls == [( "open_bank", { "session": "r46-bridge", "actor": "chatgpt-bridge", "bank": "fifth_third" })]
+
+
 def test_machines_file_names_r46(tmp_path=None):
     path = Path( __file__ ).resolve().parents[ 1 ] / "machines.json"
-    assert Machine.load( path, "Rosemary46" ) == R46
+    # R46's Cashy drives the everyday-Chrome relay (adws/chrome_relay/) and never starts the untrusted debug profile
+    assert Machine.load( path, "Rosemary46" ) == R46.model_copy( update={ "chrome_port": 9223, "launch_chrome": False })
     assert Machine.load( path, "desktop-2obsqmc" ) is None
 
 

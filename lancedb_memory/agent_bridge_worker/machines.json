@@ -1,4 +1,4 @@
 {
-  "rosemary46": { "alias": "R46", "agent": "cashy-r46" },
+  "rosemary46": { "alias": "R46", "agent": "cashy-r46", "chrome_port": 9223, "launch_chrome": false },
   "desktop-shdbati": { "alias": "BATI", "agent": "bati-desktop", "post_office_agents": [ "sheila" ] }
 }

@@ -2,7 +2,8 @@
 
 ChatGPT (or Toyota) drives **Cashy on R46** — Mom's Windows computer, hostname `Rosemary46`, WSL user
 `adamsl` — through the Star Trek Bridge. Cashy runs on R46 and controls R46's own visible Chrome over
-loopback DevTools (`127.0.0.1:9222`). Nothing on R46 listens to the network. The worker reaches the gateway
+loopback DevTools. Since 2026-11-27 that is the **everyday Chrome** through the relay on `127.0.0.1:9223`
+(see *The everyday Chrome* below), not the debug Chrome on 9222. Nothing on R46 listens to the network. The worker reaches the gateway
 outbound, the same way the home worker does, and SQMC never connects to R46.
 
 Verified live on 2026-11-11: Bridge → R46 worker → Cashy → Chrome. The Fifth Third login tab
@@ -17,10 +18,27 @@ ChatGPT ──MCP──> gateway (HostGator) ── task for agent/workspace cas
 R46 WSL: agent-bridge-worker-machine.service  (adw_bridge_worker.py --lane machine, worker wsl-rosemary46-machine)
                      │  CashyMachineAgent (lancedb_memory/agent_bridge_worker/cashy_agent.py)
                      ▼
-uv run adws/adw_cashy_<op>.py --session=… --actor=<Bridge sender> --port=9222
+uv run adws/adw_cashy_<op>.py --session=… --actor=<Bridge sender> --port=9223
                      ▼
-R46 Windows Chrome (debug Chrome, its own profile, Console session, visible)
+everyday-chrome-relay.service  (adws/adw_everyday_chrome_relay.py, 127.0.0.1:9223, one upstream connection)
+                     ▼
+R46 Windows Chrome (the everyday Chrome, EG's own trusted profile, visible)
 ```
+
+## The everyday Chrome (2026-11-27)
+
+Fifth Third asked the debug Chrome's separate profile for phone verification nobody can receive; R46's
+everyday Chrome is a device the bank already trusts, and signing in there needed no phone. So `machines.json`
+gives R46 `"chrome_port": 9223, "launch_chrome": false`: Cashy drives the relay (`adws/chrome_relay/`, read
+its `DESIGN.md`), and she never starts the debug Chrome as a fallback.
+
+- The everyday Chrome must have **chrome://inspect/#remote-debugging** turned on (EG did, once).
+- Chrome shows an **Allow** box for each new DevTools connection. The relay holds one connection, so EG
+  clicks Allow once per Chrome start, the first time somebody asks Cashy for something. Until he does, Cashy's
+  call fails quickly with "click Allow in Chrome on this computer, then ask again". Nothing clicks Allow for
+  him: it is Chrome's own consent prompt, outside any page, and pressing it by script would defeat it.
+- While connected, Chrome shows "controlled by automated test software"; Fifth Third did not object.
+- If Chrome isn't open, the relay answers 503 and Cashy says so.
 
 There are two checks on the target machine:
 
@@ -76,7 +94,8 @@ spell can take up to a minute to be claimed.
   `user` approve a consequential step. So a Bridge caller can open and read a bank page, but it can never
   approve a transfer or a payment. The prompt cannot carry an `actor` field: any field outside
   `cashy, machine, session, bank` is refused.
-- **No credentials.** Nothing types, reads or asks for a password or code. EG signs in by hand.
+- **No credentials.** Nothing types, reads or asks for a password or code. EG signs in by hand, or lets
+  Chrome's own password manager fill the password (EG approved that, 2026-11-27); Cashy never sees it.
 - **The bank's own domain.** `open_bank` reports "the login page is ready" only once the tab is on one of the
   profile's hosts or a subdomain of one. `evil53.com` does not count. If the tab doesn't get there within
   20 s, the call fails. Fifth Third goes `www.53.com` → `secure.53.com/olb/login-redirect.html` →
@@ -84,9 +103,9 @@ spell can take up to a minute to be claimed.
   FNBO sends `www.banking.fnbo.com` to the `www.fnbo.com` homepage, where the sign-in panel opens from
   its **Log In** button. EG presses that himself; Cashy doesn't.
 - **One session, one tab.** Repeating `open_bank` on the same bank navigates the session's existing tab;
-  it doesn't open another. Cashy never closes the browser.
+  it doesn't open another. Cashy never closes the browser, and the relay has no way to.
 - **Nothing is copied off R46.** That covers browser profiles, cookies and bank sessions. The debug Chrome
-  uses its own profile on R46.
+  uses its own profile on R46, and the everyday Chrome is driven where it is.
 
 ## After EG says "I'm logged in"
 
@@ -102,6 +121,10 @@ spell can take up to a minute to be claimed.
   worker re-registers WSL interop and adds `/mnt/c/Windows/System32` to `PATH` so it can start Windows
   Chrome.
 - `lancedb_memory/.venv` (pydantic) runs the worker. `uv` (`~/.local/bin`) runs the Cashy ADWs.
+- Unit `~/.config/systemd/user/everyday-chrome-relay.service` (source: `agent_bridge/systemd/`), enabled:
+  `uv run adws/adw_everyday_chrome_relay.py --port 9223`. It reads Chrome's port from
+  `C:\Users\rbarn\AppData\Local\Google\Chrome\User Data\DevToolsActivePort` on every connect and logs
+  connections, tab ids and method names only. `curl -s 127.0.0.1:9223/json/version` shows `Relay-Connected`.
 - Health: `systemctl --user status agent-bridge-worker-machine` and
   `journalctl --user -u agent-bridge-worker-machine -f`.
 - Gateway: `WorkerPins.php`, plus `worker_pins` in `bridge.php`, plus the `cashy-r46` agent seeded by
@@ -112,7 +135,11 @@ spell can take up to a minute to be claimed.
 
 - `cd lancedb_memory && .venv/bin/python -m pytest -q agent_bridge_worker/tests`. `test_cashy_agent.py`
   covers routing, wrong or unknown machine, required fields, session continuity, actor never `user`, no
-  field injection, Cashy unavailable, title masking, argv, and the pinned lane.
+  field injection, Cashy unavailable, title masking, argv, the pinned lane, and that the relay machine never
+  asks for `launch_chrome`.
+- `cd adws && uv run --quiet --with aiohttp --with pytest pytest -q chrome_relay/tests`: the relay against a
+  fake Chrome (one upstream connection, sessions kept apart, ids restored, Origin/Host refused, 503, a slow
+  Allow answered quickly).
 - `cd adws && uv run --quiet --with pydantic --with pytest --with aiohttp --with lancedb --with pyarrow
   pytest -q cdp_browser/tests/test_cdp_unit.py cashy/tests`. These cover the domain check and the
   "no execution context yet" retry.

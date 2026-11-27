@@ -58,6 +58,11 @@ class Machine( BaseModel ):
     agent:    str
     #: post-office agents this machine's lane also serves (Sheila on BATI); each one's Bridge workspace has its name
     post_office_agents: tuple[ str, ... ] = ()
+    #: the loopback DevTools port Cashy drives: 9222 is her own debug Chrome, 9223 the everyday-Chrome relay (R46)
+    chrome_port: int = 9222
+    #: start the debug Chrome when nothing answers; off where the port is the relay, so she never falls back to
+    #: the profile the bank doesn't trust
+    launch_chrome: bool = True
 
     def named( self, value: str ) -> bool:
         return value.strip().lower() in { self.hostname.lower(), self.alias.lower() }
@@ -136,7 +141,9 @@ class CashyMachineAgent:
             bank = request.get( "bank" )
             if not isinstance( bank, str ) or not BANK.fullmatch( bank ):
                 return self._refused( 'open_bank needs a bank, e.g. "bank": "fifth_third"' )
-            flags.update({ "bank": bank, "launch_chrome": "true" })
+            flags[ "bank" ] = bank
+            if self._machine.launch_chrome:
+                flags[ "launch_chrome" ] = "true"
         elif "bank" in request:
             return self._refused( f"{ what } takes no bank; the session already knows it" )
         if keep_alive() != "continue":

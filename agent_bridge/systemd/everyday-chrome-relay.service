@@ -1,0 +1,16 @@
+[Unit]
+Description=Everyday Chrome relay (R46): one approved DevTools connection to EG's own Chrome, offered to Cashy on 127.0.0.1:9223
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/adamsl/agent_blocks
+ExecStart=/home/adamsl/.local/bin/uv run --quiet adws/adw_everyday_chrome_relay.py --port 9223
+Environment=PYTHONUNBUFFERED=1
+Restart=on-failure
+RestartSec=10
+# Stopping the relay drops its connection only; Chrome itself is EG's window and is never touched.
+TimeoutStopSec=10
+
+[Install]
+WantedBy=default.target

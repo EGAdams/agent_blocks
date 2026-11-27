@@ -405,7 +405,8 @@ def machine_agent( machine: Any, clock: Any ) -> Any:
     if machine.agent.startswith( "cashy-" ):
         from agent_bridge_worker.adapters.cashy_process import LoopbackTabTitles, UvCashyCommands
         from agent_bridge_worker.cashy_agent import CashyMachineAgent
-        return CashyMachineAgent( UvCashyCommands( UV, _HERE, _HERE.parent ), clock, machine, LoopbackTabTitles())
+        return CashyMachineAgent( UvCashyCommands( UV, _HERE, _HERE.parent, port=machine.chrome_port ), clock, machine,
+                                  LoopbackTabTitles( port=machine.chrome_port ))
     if machine.agent == "bati-desktop":
         from agent_bridge_worker.adapters.bati_desktop_process import UvBatiCommands
         from agent_bridge_worker.bati_desktop_agent import BatiDesktopAgent

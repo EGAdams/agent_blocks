@@ -222,7 +222,14 @@ The top-level areas are:
   that workspace to no other worker, and every task names `machine` and
   `session`. The Bridge sender is the actor, never `user`. Read
   `agent_bridge/docs/CASHY_R46.md` first. Verified live 2026-11-11 up to the
-  Fifth Third login page.
+  Fifth Third login page. Since 2026-11-27 R46's Cashy drives EG's **everyday**
+  Chrome (the bank trusts it; the debug profile got a phone check) through
+  `adws/chrome_relay/` (read its `DESIGN.md`): `adw_everyday_chrome_relay.py`,
+  unit `everyday-chrome-relay`, holds the one DevTools connection Chrome's
+  chrome://inspect/#remote-debugging switch allows per Allow click and serves
+  Cashy's usual `/json` endpoints on 127.0.0.1:9223 (`machines.json`:
+  `chrome_port`, `launch_chrome: false`). Nothing ever clicks Chrome's Allow box.
+  Chrome's password manager may fill the password (EG, 2026-11-27).
   `adws/adw_scala_storage.py` is Scala's multi-machine filing (read
   `agent_bridge/docs/SCALA_STORAGE.md` first): it COPIES a scan, by scan id,
   from SQMC's scanner API into an allowlisted folder on BATI, R46 or SQMC
