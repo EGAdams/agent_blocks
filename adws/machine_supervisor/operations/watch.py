@@ -10,7 +10,7 @@ from ..interfaces import (IClock, IHandoffBoxes, IIncidentStore, ILock, IMachine
                           IRunLog, IWaker, IWatchState)
 from ..models import Check, CheckCounter, CheckResult, Incident, Unresolved, WatchOutcome, WatchState
 from . import letters
-from .todo import queued_todos
+from .todo import interrupted_todos, queued_todos
 
 LOCK = "watch"
 SUPERVISOR = "supervisor"
@@ -118,6 +118,10 @@ class Watch:
             self._flush.nudge()
             lines.append("held mail: trying to send it")
         # Not in a run that woke the supervisor: the todo worker could take the lock she needs first.
-        if not woke and queued_todos(self._boxes, now) and not self._lock.busy(SUPERVISOR):
-            self._todo_worker.nudge()
-            lines.append("queued todos: worker started")
+        if not woke and not self._lock.busy(SUPERVISOR):
+            if queued_todos(self._boxes, now):
+                self._todo_worker.nudge()
+                lines.append("queued todos: worker started")
+            elif interrupted_todos(self._boxes):          # its worker died holding it: resume it now, not next todo
+                self._todo_worker.nudge()
+                lines.append("interrupted todo: worker started to resume it")

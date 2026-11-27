@@ -58,5 +58,11 @@ class FileBriefWriter:
         return self._fill("answer.md", sender=sender, machine=self._catalog.me().name, question=question, about=about)
 
     def todo(self, envelope: Envelope) -> str:
+        resumed = ""
+        if envelope.context.get("interrupted_resumes"):
+            resumed = ("\nA previous attempt at this todo was interrupted before it reported (its worker stopped at "
+                       f"{envelope.context.get('interrupted_at', 'an unknown time')}). Check what that attempt already "
+                       "did before doing anything, do not repeat a change that is already made, and say in the report "
+                       "what you found it had done.\n")
         return self._fill("todo.md", sender=envelope.sender, text=envelope.text, id=envelope.id,
-                          notes=_notes(self._catalog.me()))
+                          notes=_notes(self._catalog.me()), resumed=resumed)

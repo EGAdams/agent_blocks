@@ -7,6 +7,7 @@ def build(tmp_path, failing=()):
     s, probe, lock, waker, flush, todo = Stores(tmp_path), FakeProbe(set(failing)), FakeLock(), Counter(), Counter(), Counter()
     watch = Watch(catalog(tmp_path), probe, s.state, s.incidents, lock, FakeClock(), waker, s.outbox, flush, todo,
                   s.boxes, Log())
+    watch.todo = todo
     return watch, s, probe, lock, waker, flush
 
 
@@ -66,3 +67,17 @@ def test_a_failed_cron_job_reports_through_the_same_rules(tmp_path):
     check = Check(name="cron-backup", kind="command", argv=["false"], threshold=1)
     outcome = watch.report(check, CheckResult(check="cron-backup", ok=False, detail="exit 1"))
     assert waker.woken == [outcome.incident] and s.incidents.get(outcome.incident).checks[0].argv == ["false"]
+
+
+def test_a_todo_left_in_process_by_a_dead_worker_starts_the_worker_to_resume_it(tmp_path):
+    from machine_supervisor import envelopes
+    watch, s, _, lock, _, _ = build(tmp_path)
+    todo = envelopes.request("chatgpt-bridge", "supervisor-bati", "todo", "x", {}, 50, FakeClock().now())
+    s.boxes.receive(todo)
+    s.boxes.claim(todo.id)                                   # in_process, and nobody holds the lock
+    lock.taken.add("supervisor")
+    watch.run()
+    assert watch.todo.nudges == 0                            # a live worker holds it: leave it alone
+    lock.taken.discard("supervisor")
+    outcome = watch.run()
+    assert watch.todo.nudges == 1 and "interrupted todo: worker started to resume it" in outcome.lines

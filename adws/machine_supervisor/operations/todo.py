@@ -8,6 +8,11 @@ A todo the agent could not start because its usage limit was used up is not a fa
 inbox/new with `not_before` set to the reset time, and nothing takes it before then. After MAX_DEFERRALS of
 those it is failed after all. A todo already filed as failed for that reason (before this rule) is tried again
 only when somebody names it: `adw_machine_todo.py --work --id ID`.
+
+A todo found in inbox/in_process when the worker takes the lock was interrupted: the lock is held for the whole
+of a todo, so nobody is working it. It goes back in the queue once, marked `interrupted_resumes`, and its brief
+tells the agent to check what the first attempt already did before doing anything again. A second interruption
+fails it -- a todo that keeps killing its worker is not tried forever.
 """
 from __future__ import annotations
 
@@ -24,6 +29,8 @@ LOCK = "supervisor"
 NOT_BEFORE = "not_before"
 DEFERRALS = "limit_deferrals"
 MAX_DEFERRALS = 6
+RESUMES = "interrupted_resumes"
+MAX_RESUMES = 1
 
 
 class TodoPoster:
@@ -88,9 +95,15 @@ class TodoWorker:
         return [f"todo {envelope_id}: back in the queue (it failed only on the usage limit)"]
 
     def _orphan(self, left: Envelope) -> str:
-        self._boxes.settle(left.model_copy(update={"error": "the worker stopped before finishing this todo",
-                                                   "performer": self._catalog.me().agent}), ok=False)
-        return f"todo {left.id}: failed (the worker stopped before finishing it)"
+        resumes = int(left.context.get(RESUMES) or 0)
+        if resumes < MAX_RESUMES:
+            self._boxes.release(left.model_copy(update={"context": {
+                **left.context, RESUMES: resumes + 1, "interrupted_at": self._clock.now().isoformat()}}))
+            return f"todo {left.id}: interrupted; back in the queue to resume ({resumes + 1} of {MAX_RESUMES})"
+        self._boxes.settle(left.model_copy(update={
+            "error": f"the worker stopped before finishing this todo, again after {resumes} resume(s)",
+            "performer": self._catalog.me().agent}), ok=False)
+        return f"todo {left.id}: failed (the worker stopped before finishing it, again after resuming)"
 
     def _do(self, claimed: Envelope) -> tuple[str, bool]:
         """(one line, whether the agent's usage limit stopped it)."""
@@ -117,6 +130,11 @@ def ready(envelope: Envelope, now: datetime) -> bool:
         return datetime.fromisoformat(str(envelope.context[NOT_BEFORE])) <= now
     except (KeyError, ValueError, TypeError):
         return True
+
+
+def interrupted_todos(boxes: IHandoffBoxes) -> int:
+    """Todos in inbox/in_process. Read while the supervisor lock is free, each is one the worker left behind."""
+    return sum(1 for envelope in boxes.box("in_process") if envelope.task_type == TASK)
 
 
 def queued_todos(boxes: IHandoffBoxes, now: datetime | None = None) -> int:

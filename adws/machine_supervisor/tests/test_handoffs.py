@@ -15,7 +15,7 @@ from machine_supervisor.operations.courier import Courier
 from machine_supervisor.operations.handlers import AlertHandler, AskHandler, HelpHandler, MailHandler
 from machine_supervisor.operations.mailbox import Mailboxes
 from machine_supervisor.operations.receive import Receiver
-from machine_supervisor.operations.todo import TodoPoster, TodoWorker, queued_todos
+from machine_supervisor.operations.todo import RESUMES, TodoPoster, TodoWorker, interrupted_todos, queued_todos
 
 from .fakes import (Counter, FakeAgent, FakeClock, FakeLock, FakeMailer, FakeProbe, FakeToast, Log, LoopCarrier,
                     Stores, catalog)
@@ -146,6 +146,55 @@ def test_a_busy_supervisor_leaves_todos_queued(sites):
     lock.taken.add("supervisor")
     assert TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, lock, Log(), ClaudeUsageLimit(), FakeClock()).work() == []
     assert queued_todos(sqmc.stores.boxes) == 1
+
+
+def _interrupted(sqmc, data):
+    """What a todo worker killed mid-run leaves behind: the envelope in in_process, nobody holding the lock."""
+    assert sqmc.stores.boxes.claim(data["id"]) is not None
+    assert interrupted_todos(sqmc.stores.boxes) == 1 and queued_todos(sqmc.stores.boxes) == 0
+
+
+def _worker(sqmc):
+    return TodoWorker(sqmc.catalog, sqmc.stores.boxes, sqmc.agent, FakeLock(), Log(), ClaudeUsageLimit(), FakeClock())
+
+
+def test_an_interrupted_todo_is_resumed_once_and_finished_not_failed(sites):
+    # 2026-11-27: an orphan in in_process used to be failed outright ("the worker stopped before finishing").
+    bati, sqmc = sites["BATI"], sites["SQMC"]
+    ok, _, data = TodoPoster(bati.catalog, bati.courier).post("SQMC", "check the scanner", "chatgpt-bridge", "task-1")
+    _interrupted(sqmc, data)
+    lines = _worker(sqmc).work()
+    assert "interrupted; back in the queue to resume (1 of 1)" in lines[0] and "done" in lines[1]
+    assert sqmc.agent.seen == [(data["id"], "todo")]                       # worked exactly once after the resume
+    box, done = sqmc.stores.boxes.find(data["id"])
+    assert box == "completed" and done.context[RESUMES] == 1 and "interrupted_at" in done.context
+    assert interrupted_todos(sqmc.stores.boxes) == 0 and queued_todos(sqmc.stores.boxes) == 0
+
+
+def test_a_todo_interrupted_again_after_its_resume_fails_and_is_not_tried_forever(sites):
+    bati, sqmc = sites["BATI"], sites["SQMC"]
+    _, _, data = TodoPoster(bati.catalog, bati.courier).post("SQMC", "risky", "chatgpt-bridge")
+    _interrupted(sqmc, data)
+    sqmc.agent.work = lambda envelope: (_ for _ in ()).throw(SystemExit("killed"))   # the worker dies again
+    with pytest.raises(SystemExit):
+        _worker(sqmc).work()
+    assert interrupted_todos(sqmc.stores.boxes) == 1
+    lines = _worker(sqmc).work()
+    assert "failed (the worker stopped before finishing it, again after resuming)" in lines[0] and len(lines) == 1
+    box, failed = sqmc.stores.boxes.find(data["id"])
+    assert box == "failed" and "again after 1 resume" in failed.error
+
+
+def test_a_resumed_todos_brief_says_check_what_the_first_attempt_did(tmp_path):
+    from machine_supervisor.adapters.briefs import FileBriefWriter
+    from .fakes import catalog
+    from pathlib import Path
+    briefs = FileBriefWriter(catalog(tmp_path, "SQMC"), Path(envelopes.__file__).parent / "prompts")
+    todo = envelopes.request("chatgpt-bridge", "supervisor-sqmc", "todo", "look at X", {}, 50, FakeClock().now())
+    assert "interrupted" not in briefs.todo(todo) and "$" not in briefs.todo(todo)
+    resumed = briefs.todo(todo.model_copy(update={"context": {RESUMES: 1, "interrupted_at": "2026-11-27T15:00:00Z"}}))
+    assert "previous attempt at this todo was interrupted" in resumed and "do not repeat a change" in resumed
+    assert "2026-11-27T15:00:00Z" in resumed and "$" not in resumed
 
 
 class Remote:
