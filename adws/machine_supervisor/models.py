@@ -18,12 +18,15 @@ class Check(BaseModel):
     """One thing the cron watch looks at. `kind` picks the probe; nothing here runs a model."""
     model_config = ConfigDict(extra="forbid")
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
-    kind: Literal["http", "unit", "tcp", "command"]
-    target: str = ""                    # http: url | unit: unit name | tcp: host:port
+    kind: Literal["http", "unit", "tcp", "command", "todos", "held-mail", "adw-log", "disk", "heartbeat"]
+    target: str = ""                    # http: url | unit: unit name | tcp: host:port | disk: path | heartbeat: machine
+                                        # | adw-log: log file in the supervisor's folder (default background.log)
     argv: list[str] = Field(default_factory=list)   # command: exit 0 is healthy
     scope: Literal["user", "system"] = "user"       # unit only
     expect: int = 200                   # http only
     timeout: int = 10
+    minutes: int = Field(default=30, ge=1)          # todos, held-mail, heartbeat: how old is too old
+    free_gb: float = Field(default=10.0, ge=0)      # disk only
     threshold: int = Field(default=2, ge=1)         # consecutive failures before the agent is woken
     about: str = ""                     # what it is and what usually fixes it, for the agent
 

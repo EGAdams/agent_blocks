@@ -1,6 +1,8 @@
 """IProbe: one class per kind of check, and a registry that picks by `Check.kind`.
 
 A new kind of check is one class and one `register()` call in kit.py, not an edit here. No probe raises.
+The probes that watch the supervisor's own machinery (todos, held mail, ADW crashes, disk, heartbeats) are in
+self_probes.py.
 """
 from __future__ import annotations
 

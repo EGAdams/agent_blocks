@@ -18,6 +18,27 @@ machine every two minutes and wakes her only when a check has failed enough time
 A check already passing when she wakes is closed as "recovered by itself" with no agent run.
 `adw_machine_supervise.py --drill` climbs every rung in look-only mode, tagged `[DRILL]`.
 
+## What the watch looks at, with no model
+
+Two families of check, both plain code, both counted the same way. A model is started only when one of them
+keeps failing.
+
+- **The machine's services** (`adapters/probes.py`): `http`, `unit`, `tcp` and `command` checks.
+- **The supervisor's own machinery** (`adapters/self_probes.py`, added 2026-11-27). These catch the failures
+  that would otherwise leave a machine unwatched:
+  - `todos`: a todo that may be worked has waited more than `minutes` in `inbox/new`, counted from its
+    `not_before` when it is waiting out a usage limit. Or a todo has sat in `in_process` longer than
+    `agent_timeout` plus `minutes`.
+  - `held-mail`: the oldest held mail is older than `minutes`. DAD has no such check, because DAD has no route
+    out and its mail is always held.
+  - `adw-log`: the latest run of any ADW in `background.log` (`todo --work`, `mail --flush`, `supervise`, ...)
+    ended in a traceback. The check passes once that ADW's next run ends cleanly.
+  - `disk`: less than `free_gb` free under `target`.
+  - `heartbeat`: another machine's `watch_state.json` has not been written in `minutes`, which means its cron
+    or its Python is broken and nobody is watching it. SQMC watches BATI, R46 and DAD. BATI watches SQMC.
+    A machine that is not `always_on` and does not answer over SSH counts as switched off, so the check
+    passes.
+
 ## Rules enforced in code
 
 - **Bash guard** (`guards/bash_guard.py`, a PreToolUse hook): denies lasting damage whatever the prompt

@@ -19,6 +19,7 @@ from .adapters.codex_agent import CodexCli
 from .adapters.mailer import ChainMailer, GmailConnectorMailer, NoConnectorMailer, peer_mailers
 from .adapters.probes import CommandProbe, HttpProbe, ProbeRegistry, TcpProbe, UnitProbe
 from .adapters.runtime import child_env
+from .adapters.self_probes import AdwLogProbe, DiskProbe, HeartbeatProbe, HeldMailProbe, TodoAgeProbe
 from .adapters.stores import (DetachedNudge, DetachedWaker, FileIncidentStore, FileOutbox, FileRunLog, FileWatchState,
                               FlockLock, SystemClock)
 from .adapters.toast import PowerShellToast
@@ -54,7 +55,12 @@ class Kit:
         self.outbox = FileOutbox(root / "mail_outbox")
         self.boxes = FileHandoffBoxes(root / "handoffs")
         self.probe = (ProbeRegistry().register("http", HttpProbe()).register("tcp", TcpProbe())
-                      .register("unit", UnitProbe()).register("command", CommandProbe()))
+                      .register("unit", UnitProbe()).register("command", CommandProbe())
+                      # the supervisor's own machinery: no model until one of these keeps failing
+                      .register("todos", TodoAgeProbe(self.boxes, self.clock, policy.agent_timeout))
+                      .register("held-mail", HeldMailProbe(self.outbox, self.clock))
+                      .register("adw-log", AdwLogProbe(root)).register("disk", DiskProbe())
+                      .register("heartbeat", HeartbeatProbe(self.catalog)))
 
         self.remote = SshRemoteAdw(machine)
         self.courier = Courier(self.catalog, self.boxes, SshCarrier(self.remote), self.clock)
