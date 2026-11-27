@@ -30,6 +30,9 @@ class OpenBankAction:
         s.bank = bank.key
         waiting = s.task if s.task.status == "waiting" else None
         s.trail, s.trail_start = [], ""
+        if self._adopt( turn, bank ):
+            self._signed_in( turn, bank, waiting )
+            return
         login = turn.services.workflows.resolve( bank.key, "login" )
         if login:
             turn.say( f"Running the saved login route '{ login.playback }'." )
@@ -45,17 +48,33 @@ class OpenBankAction:
             raise_window()                              # best effort: a window left behind is no reason to fail
         page = turn.read_page()
         if page.signed_in:
-            turn.say( f"You're already signed in to { bank.title }." )
-            turn.move( "ready" )
-            if waiting:
-                s.task = waiting
-                turn.handle( continuation( waiting ))
+            self._signed_in( turn, bank, waiting )
             return
         s.task = waiting or CashyTask( goal="login", status="waiting" )
         turn.move( "awaiting_user_login" )
         turn.say( f"The { bank.title } login page is ready. Please sign in yourself -- I don't see or keep "
                   "anything you type. Tell me when you're logged in." )
         turn.halted = True
+
+    @staticmethod
+    def _adopt( turn: "Turn", bank ) -> bool:
+        """A tab already on the bank's own site and signed in is used as it is: loading the login page over it
+        could sign the person out (R46's everyday Chrome, 2026-11-27, signed in by hand before Cashy was asked)."""
+        browser = turn.browser()
+        if not on_hosts( browser.current_url, bank.hosts ):
+            return False
+        if not turn.read_page().signed_in:
+            return False
+        turn.session.target_id = browser.target_id
+        return True
+
+    @staticmethod
+    def _signed_in( turn: "Turn", bank, waiting: CashyTask | None ) -> None:
+        turn.say( f"You're already signed in to { bank.title }." )
+        turn.move( "ready" )
+        if waiting:
+            turn.session.task = waiting
+            turn.handle( continuation( waiting ))
 
     def _open( self, turn: "Turn", url: str, hosts: list[ str ]) -> None:
         browser = turn.browser()

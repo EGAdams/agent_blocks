@@ -268,3 +268,46 @@ def test_a_closing_date_list_ranks_only_the_statement_for_the_month() -> None:
                    if r.score >= WHOLE_PHRASE ]
         assert [ r.option.text for r in ranked ] == [ f"Statement Closing { closing }" ]
     assert TokenOptionRanker().rank([ _option( "Statement 02/2026" )], [ "02/2026" ])[ 0 ].score >= WHOLE_PHRASE
+
+
+def test_open_bank_adopts_a_tab_already_signed_in_and_never_loads_the_login_page_over_it() -> None:
+    """2026-11-27, R46: EG signed in to Fifth Third by hand in the everyday Chrome; reloading the login page
+    over that tab could have signed him out."""
+    from types import SimpleNamespace
+    from cashy.actions.bank_actions import OpenBankAction
+    from cashy.banks.profiles import ALL_BANKS
+    from cashy.models import CashySession, Intent
+
+    fifth = next( b for b in ALL_BANKS if "53.com" in b.hosts )
+
+    class Browser:
+        target_id = "T1"
+        def __init__( self, url: str ) -> None:
+            self.current_url, self.visited = url, []
+        def navigate( self, url: str ) -> None:
+            self.visited.append( url )
+        def open_tab( self, url: str ) -> None:
+            self.visited.append( url )
+
+    def run( url: str, signed_in: bool ):
+        browser = Browser( url )
+        said: list[ str ] = []
+        turn = SimpleNamespace(
+            session=CashySession(), said=said, state=[], halted=False,
+            services=SimpleNamespace( banks=SimpleNamespace( by_key=lambda k: fifth if k == fifth.key else None ),
+                                      workflows=SimpleNamespace( resolve=lambda *a: None )),
+            browser=lambda: browser, read_page=lambda: SimpleNamespace( signed_in=signed_in ),
+            say=said.append, event=lambda *a: None, handle=lambda *a: None )
+        turn.move = turn.state.append
+        try:
+            OpenBankAction().run( Intent( kind="open_bank", bank=fifth.key, text="open fifth third" ), turn )
+        except Exception:
+            pass                                    # the login-page path waits for a landing we don't fake here
+        return browser, turn
+
+    browser, turn = run( "https://secure.53.com/olb/accounts", True )
+    assert browser.visited == [] and turn.state == [ "ready" ] and turn.session.target_id == "T1"
+    browser, _ = run( "https://secure.53.com/olb/login", False )
+    assert browser.visited == [ fifth.login_url ]
+    browser, _ = run( "https://evil53.com/olb/accounts", True )
+    assert browser.visited == [ fifth.login_url ]
