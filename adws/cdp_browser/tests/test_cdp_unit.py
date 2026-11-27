@@ -280,3 +280,41 @@ def test_any_other_command_error_is_not_retried() -> None:
     except CdpCommandError:
         pass
     assert Broken.tries == 1
+
+
+class WindowChannel:
+    """Records the calls `bring_to_front` makes; the window starts in `state`."""
+
+    def __init__( self, state: str = "normal", fail: bool = False ) -> None:
+        self.state, self.fail, self.calls = state, fail, []
+
+    def call( self, method: str, params: dict | None = None, **_: object ) -> dict:
+        if self.fail:
+            raise BrowserWorkflowError( "Chrome went away" )
+        self.calls.append(( method, ( params or {}).get( "bounds", {}).get( "windowState" )))
+        if method == "Browser.getWindowForTarget":
+            return { "windowId": 7, "bounds": { "windowState": self.state }}
+        return {}
+
+
+def _window_browser( channel: WindowChannel ) -> CdpWorkflowBrowser:
+    page = CdpWorkflowBrowser.__new__( CdpWorkflowBrowser )
+    page._page, page._browser = channel, channel                               # noqa: SLF001
+    page._target = CdpTarget( id="t", url="https://secure.53.com/olb/login" )  # noqa: SLF001
+    return page
+
+
+def test_bringing_a_window_to_the_front_minimizes_it_and_puts_it_back_as_it_was() -> None:
+    """2026-11-27, R46: the Fifth Third window opened behind PowerShell; Windows refuses a background
+    program the foreground, but Chrome restoring its own minimized window is raised on top."""
+    normal = WindowChannel( "normal" )
+    assert _window_browser( normal ).bring_to_front( pause_seconds=0 )
+    assert [ c for c in normal.calls if c[ 0 ] == "Browser.setWindowBounds" ] == [
+        ( "Browser.setWindowBounds", "minimized" ), ( "Browser.setWindowBounds", "normal" )]
+    maximized = WindowChannel( "maximized" )
+    _window_browser( maximized ).bring_to_front( pause_seconds=0 )
+    assert maximized.calls[ -1 ] == ( "Browser.setWindowBounds", "maximized" )
+
+
+def test_a_window_that_cannot_be_raised_says_false_and_never_raises() -> None:
+    assert _window_browser( WindowChannel( fail=True )).bring_to_front( pause_seconds=0 ) is False

@@ -39,6 +39,10 @@ class OpenBankAction:
                 self._open( turn, bank.login_url, bank.hosts )
         else:
             self._open( turn, bank.login_url, bank.hosts )
+        # The person signs in next, so the bank's window must not be left behind another one (R46, 2026-11-27).
+        raise_window = getattr( turn.browser(), "bring_to_front", None )
+        if raise_window:
+            raise_window()                              # best effort: a window left behind is no reason to fail
         page = turn.read_page()
         if page.signed_in:
             turn.say( f"You're already signed in to { bank.title }." )

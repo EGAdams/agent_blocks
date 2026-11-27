@@ -284,13 +284,40 @@ class CdpWorkflowBrowser:
         self._switch( match[ 0 ])
         self._directory.activate( self._endpoint, handle )
 
+    # -- window -------------------------------------------------------------------
+
+    def bring_to_front( self, pause_seconds: float = 0.4 ) -> bool:
+        """Put this tab's window on top of every other window on the desktop, so a person can act in it.
+
+        Windows won't let a background program take the foreground (SetForegroundWindow from PowerShell is
+        refused, and Defender blocks the usual workaround), but Chrome restoring its own minimized window is
+        allowed to raise it -- so: activate the tab, minimize its window, put it back the way it was
+        (maximized stays maximized). Verified on R46, 2026-11-27. Best effort: False, never an exception."""
+        try:
+            self._page.call( "Page.bringToFront" )
+            browser = self._browser_channel()
+            window = browser.call( "Browser.getWindowForTarget", { "targetId": self._target.id })
+            window_id, state = window[ "windowId" ], window.get( "bounds", {}).get( "windowState", "normal" )
+            if state == "fullscreen":
+                return True                             # already covering the screen; leave it
+            back = state if state == "maximized" else "normal"
+            browser.call( "Browser.setWindowBounds", { "windowId": window_id, "bounds": { "windowState": "minimized" }})
+            time.sleep( pause_seconds )
+            browser.call( "Browser.setWindowBounds", { "windowId": window_id, "bounds": { "windowState": back }})
+            return True
+        except ( BrowserWorkflowError, CdpCommandError, KeyError, TypeError ):
+            return False
+
     # -- IDownloadSettings --------------------------------------------------------
 
-    def configure_downloads( self, directory: str ) -> None:
+    def _browser_channel( self ) -> ICdpChannel:
         if self._browser is None:
             self._browser = self._connector.connect( self._directory.browser_socket( self._endpoint ))
+        return self._browser
+
+    def configure_downloads( self, directory: str ) -> None:
         try:
-            self._browser.call( "Browser.setDownloadBehavior",
+            self._browser_channel().call( "Browser.setDownloadBehavior",
                                 { "behavior": "allow", "downloadPath": directory, "eventsEnabled": True })
         except CdpCommandError as exc:
             raise BrowserWorkflowError( f"cannot configure downloads to { directory }: { exc }" ) from exc

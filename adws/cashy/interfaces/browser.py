@@ -15,6 +15,10 @@ class ICashyBrowser( IBrowserAdapter, Protocol ):
 
     def open_tab( self, url: str ) -> None: ...
 
+    def bring_to_front( self ) -> bool:
+        """Raise the tab's window above every other window on the desktop. Best effort; never raises."""
+        ...
+
 
 class IBrowserConnection( Protocol ):
     """Attaches to the debug Chrome for one turn, preferring the session's tab
