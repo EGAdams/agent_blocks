@@ -157,3 +157,34 @@ supposed to do." Dad has no Claude CLI, so the DAD supervisor now runs `codex ex
   - Codex reports no cost, and a ChatGPT usage limit defers the todo (`CodexUsageLimit`).
   - No watch cron is installed on Dad yet (plan item 25), so nothing wakes Dad's supervisor on a failing check; only
     todos do.
+
+## Addendum, 19:05Z: a model-free watch everywhere, including Dad
+
+EG asked that no model run until something is wrong, with the watch reading logs, mailboxes and timeouts itself, on
+all four machines. Commit 564c72b adds five plain-code checks of the supervisor's own machinery
+(`adws/machine_supervisor/adapters/self_probes.py`). They are counted like the service checks, so a supervisor is
+woken only after one of them fails `threshold` runs in a row:
+
+  - `todos`: a ready todo has waited more than 30 minutes, or one has sat in `in_process` past the agent timeout
+    plus 30 minutes.
+  - `held-mail`: mail has been held more than 2 hours. Not on Dad, whose mail is always held.
+  - `adw-log`: the latest run of a background ADW ended in a traceback.
+  - `disk`: under 10 GB free.
+  - `heartbeat`: another machine's watch has not saved its state in 10 minutes. SQMC watches BATI, R46 and DAD;
+    BATI watches SQMC. A machine that is not always on and does not answer counts as switched off.
+
+Deployment:
+  - BATI and SQMC through the deploy ADW (releases 20261127T135946-fbfdc0c5 and 20261127T135954-11937b87, health
+    checks passing).
+  - R46 was already on 564c72b.
+  - Dad was fast-forwarded with `--autostash`; its HANDOFF.md edit and terminal-saver.sh are kept.
+  - Dad got a user crontab entry, `*/2`, the same line as SQMC's (EG approved).
+
+Verified live, all from real cron runs at 14:00 EST:
+  - SQMC 23/23, BATI 11/11, R46 7/7, DAD 5/5.
+  - No supervisor was woken.
+  - SQMC's `heartbeat-dad` failed in a dry run before Dad's cron existed ("never saved its state"), and passed after
+    Dad's first cron run.
+
+Not verified live: a real failure of one of the new checks waking a supervisor. That path is covered by the offline
+suite only (106 passed).
