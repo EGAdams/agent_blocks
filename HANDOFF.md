@@ -1,3 +1,27 @@
+# Live output re-verified on BATI - 2026-11-27 (Claude Sonnet, BATI)
+
+- Pulled letta-code `4adef97f` (fast-forward, nothing local touched). Tests green on BATI: dashboard
+  `test_live_activity` + route inventory (179), `dom-live-activity` (bun, 2), `live_activity/tests` (5),
+  `agent_comms` live_output/step_tail/post_office/operations/claude_cli.
+- Real probes (`adw_agent_task.py`, Claude haiku): events reached `adw_live_activity.py --after` across
+  several polls before the final result (adw `810895d0`); a deliberately blocked `implement` probe ended
+  `failed`, state `blocked`, exit 1 (adw `3abb5b87`). All three probe ADWs show in the Object Debugger feed.
+- Supervisor events are now in the Object Debugger (letta-code `a1dfe4b7`, committed on BATI, **not pushed,
+  not deployed**). Same `/api/live-activity` as the Terminal pane, no second reader: a Supervisors pane under
+  the run's events with machine (this/SQMC/BATI/R46) and agent filters, an awake/asleep chip, gaps in plain
+  words, and a switch keeping only records carrying the selected run's own id (ADW, task, Bridge task or request
+  id). Read-only; clearing a run's terminal does not touch it. vue-tsc clean, vitest 67, dashboard Python 367.
+  Rendered the built panel (happy-dom) with real BATI output: 302 records, state `asleep`. Not looked at in a
+  real browser; SQMC/R46 reads over SSH were not exercised from the UI.
+- Same commit lands SQMC's staged `execution_host` + "Dad's Computer Only" filter. No machine is enrolled
+  (`REGISTERED_DADS_HOSTS` empty in `host-filter.ts`), so the filter says so. SQMC's own staged copy of that work
+  is now a duplicate: back it up, then `git checkout` its debugger files before pulling. Its other uncommitted
+  work (alerts, remediation, plan-for-today) is not ours; leave it.
+- `adw_live_activity.py` ignores `AGENT_POST_OFFICE_ROOT`; probes must use the default root to be seen.
+- Not done: push of letta-code, SQMC deployment, a browser look at the BATI dashboard (BATI :8765 proxies to SQMC).
+
+---
+
 # Live agent output and supervisor log - 2026-11-27 (R46)
 
 - Root cause of the empty Execute Task view: `adw_op_execute_task` and the bridge
