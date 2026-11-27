@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert( 0, str( Path( __file__ ).resolve().parents[ 2 ]))
 
+from agent_comms.live_output import OUTPUT, PROGRESS, event_name
 from agent_comms.executors.claude_cli import (ClaudeCliExecutor, ClaudeLoginLifetime, READ_TOOLS, SHELL_TOOLS, WRITE_TOOLS,
                                               progress_message)
 from agent_comms.models import Envelope, JailUnavailable, MessageKind
@@ -190,8 +191,11 @@ def test_unavailable_jail_fails_and_never_runs_unjailed() -> None:
 def test_progress_events_are_real_steps_without_prompt_or_reply_text() -> None:
     rig = Rig()
     rig.run( envelope( "find main" ))
-    phases   = [ p for _, p, _ in rig.progress ]
-    messages = " | ".join( m for _, _, m in rig.progress )
+    relayed  = [( p, m ) for _, p, m in rig.progress if event_name( p ) == PROGRESS ]
+    phases   = [ p for p, _ in relayed ]
+    messages = " | ".join( m for _, m in relayed )
+    local    = " | ".join( m for _, p, m in rig.progress if event_name( p ) == OUTPUT )
+    assert "secret plan" in local and "find main" not in local     # visible text stays on this machine; never the prompt
     assert phases[ 0 ] == "started" and phases[ -1 ] == "finished", rig.progress
     assert "Read notes.md" in messages and "Grep" in messages
     assert "subscription login" in messages

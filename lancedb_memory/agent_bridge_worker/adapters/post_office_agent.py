@@ -18,6 +18,7 @@ imported, so this package never depends on `agent_comms`' concretes.
 """
 from __future__ import annotations
 
+import os
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
@@ -48,6 +49,7 @@ class IEventLog( Protocol ):
 
 
 PROGRESS    = "task.progress"
+OUTPUT      = "task.output"
 RELAY_EVERY = 3.0          # seconds between reads of the event log while a task runs
 
 
@@ -64,7 +66,9 @@ class PostOfficeAgent:
     def __init__( self, sender_name: str, sender: ISender, replies: IReplyInbox, canceller: ICanceller,
                   board: ITaskLookup, events: IEventLog, make_request: Callable[..., Any ], clock: IClock,
                   timeout_seconds: float, poll_seconds: float = 1.0,
-                  relay: Callable[[ ClaimedTask, str ], None ] | None = None, max_relayed: int = 80 ) -> None:
+                  relay: Callable[[ ClaimedTask, str ], None ] | None = None, max_relayed: int = 80,
+                  run_id: Callable[[], str ] = lambda: os.environ.get( "BRIDGE_ADW_ID", "" ),
+                  mirror: Callable[[ str ], None ] | None = None ) -> None:
         self._me       = sender_name
         self._sender   = sender
         self._replies  = replies
@@ -77,6 +81,9 @@ class PostOfficeAgent:
         self._poll     = poll_seconds
         self._relay    = relay
         self._max      = max_relayed
+        self._run_id   = run_id
+        self._mirror   = mirror            # every step, into the waiting ADW's own log (stays on this machine)
+        self._mirrored = 0
         self._relayed: dict[ str, int ] = {}
 
     def run( self, task: ClaimedTask, workdir: Path, keep_alive: Callable[[], Signal ]) -> AgentOutcome:
@@ -85,14 +92,17 @@ class PostOfficeAgent:
             return AgentOutcome( kind=OutcomeKind.REFUSED, summary="gateway sender is not approved" )
         receipt = self._sender.send( self._request(
             sender=sender, recipient=task.agent, task_type=task.operation, text=task.prompt,
-            context={ "workdir": str( workdir ), "bridge_task_id": task.task_id }, wait_seconds=0 ))
+            context={ "workdir": str( workdir ), "bridge_task_id": task.task_id,
+                      **({ "adw_id": self._run_id()} if self._run_id() else {})}, wait_seconds=0 ))
         if not receipt.accepted:
             return AgentOutcome( kind=OutcomeKind.REFUSED, summary=f"the post office refused it: { receipt.reason }" )
         local = receipt.task_id
+        self._mirrored = 0
         start = self._clock.monotonic()
         next_relay = start + RELAY_EVERY
         while True:
             reply = self._replies.take( sender, local )
+            self._copy_steps( local )
             if reply is not None or self._clock.monotonic() >= next_relay:
                 self._relay_progress( task, local )
                 next_relay = self._clock.monotonic() + RELAY_EVERY
@@ -125,12 +135,28 @@ class PostOfficeAgent:
         """
         out = []
         for e in self._events.events_for( local_task_id ):
+            if e.name == OUTPUT:                      # command output stays on this machine
+                continue
             if e.name == PROGRESS:
                 if self._relay is None:
                     out.append( progress_line( e ))
                 continue
             out.append( f"{ e.name } ({ e.agent }) at { e.at.isoformat( timespec='seconds' ) }" )
         return out
+
+    def _copy_steps( self, local: str ) -> None:
+        if self._mirror is None:
+            return
+        try:
+            events = self._events.events_for( local )
+            for event in events[ self._mirrored: ]:
+                details = getattr( event, "details", {}) or {}
+                said = ( f"{ details.get( 'phase', 'step' )}: { details.get( 'message', '' )}"
+                         if getattr( event, "name", "" ) in ( PROGRESS, OUTPUT ) else getattr( event, "name", "" ))
+                self._mirror( f"{ event.agent } { said }"[ :700 ])
+            self._mirrored = len( events )
+        except Exception:                               # noqa: BLE001 -- showing a step never stops the task
+            pass
 
     def _relay_progress( self, task: ClaimedTask, local: str ) -> None:
         if self._relay is None:

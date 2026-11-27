@@ -32,6 +32,9 @@ from .adapters.liveness import FileLockLiveness
 from .alerts import CallerAlertForwarder, StalledTaskSweeper, UnrecoverableErrors
 from .board import MailboxTaskBoard, TaskCanceller
 from .executors.basic import ByTaskType, HelloWorldExecutor, ObservedExecutor
+from .live_output import clean, event_name
+from .outcome import JudgedExecutor
+from agent_bridge_worker.redaction import SecretScanner
 from .executors.claude_cli import ClaudeCliExecutor, ClaudeLoginLifetime, refresh_command
 from .executors.claude_sdk import ClaudeSdkExecutor
 from .executors.codex_cli import CodexCliExecutor
@@ -108,13 +111,23 @@ class PostOfficeKit:
         if card is None:
             raise LookupError( f"no agent called { agent }" )
         executor = self.overrides.get( agent ) or self.executors.executor_for( card )
-        return AgentWorker( agent, self.transport, executor, self.events,
+        return AgentWorker( agent, self.transport, JudgedExecutor( executor ), self.events,
                             UnrecoverableErrors( IdempotentRetries()), self.liveness )
 
     def sweeper( self, grace_seconds: float = 60.0 ) -> StalledTaskSweeper:
         """Settles tasks whose worker died mid-run, for every agent."""
         return StalledTaskSweeper( self.registry, self.transport, self.liveness, self.worker_for,
                                    self.launcher, grace_seconds )
+
+
+def progress_sink( events: IEventPublisher | None, agent: str ):
+    """The one place an agent's live steps are filtered and recorded."""
+    def publish( envelope: Envelope, phase: str, message: str ) -> None:
+        if events is not None:
+            events.publish( TaskEvent( name=event_name( phase ), task_id=envelope.id, agent=agent,
+                                       details={ "phase": phase,
+                                                 "message": clean( message, SecretScanner().found )}))
+    return publish
 
 
 def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_dir: Path,
@@ -154,7 +167,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         return CodexCliExecutor( Path( str( s.get( "workdir", WORKSPACE ))), binary=str( s.get( "binary", "codex" )),
                                  timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
                                  model=s.get( "model" ), jail=codex_jail( s.get( "jail" ), home ),
-                                 secret_files=[ home / "auth.json" ],
+                                 secret_files=[ home / "auth.json" ], progress=progress_sink( events, card.name ),
                                  read_roots=[ Path( str( r )) for r in s.get( "read_roots", [])])
 
     def codex_cli_write( card: AgentCard ) -> ITaskExecutor:
@@ -171,7 +184,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         return CodexCliExecutor( Path( str( s[ "workdir" ])), binary=str( s.get( "binary", "codex" )),
                                  timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
                                  model=s.get( "model" ), jail=jail, secret_files=[ home / "auth.json" ],
-                                 sandbox="workspace-write",
+                                 sandbox="workspace-write", progress=progress_sink( events, card.name ),
                                  write_roots=[ Path( str( r )) for r in s.get( "write_roots", [])])
 
     def codex_home( value: object ) -> Path:
@@ -207,7 +220,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
                         timeout_seconds=float( s.get( "timeout_seconds", 900.0 )),
                         max_turns=int( s.get( "max_turns", 40 )), secret_files=[ login ],
                         login=ClaudeLoginLifetime( login, refresh_command( binary )),
-                        progress=claude_progress( card.name ))
+                        progress=progress_sink( events, card.name ))
 
         def jail( writes: bool ) -> BwrapJail:
             return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ], env={ "CLAUDE_CONFIG_DIR": str( home )},
@@ -267,7 +280,7 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         lifetime = PiLoginLifetime( login, provider, pi_refresh_command( binary, model ),
                                     env={ **os.environ, "PATH": f"{ node_bin }:{ os.environ.get( 'PATH', '' ) }" })
         common   = dict( binary=binary, model=model, jail_login=jail_login, login=lifetime, secret_files=[ login ],
-                         timeout_seconds=float( s.get( "timeout_seconds", 900.0 )), progress=claude_progress( card.name ))
+                         timeout_seconds=float( s.get( "timeout_seconds", 900.0 )), progress=progress_sink( events, card.name ))
 
         def jail( writes: bool ) -> BwrapJail:
             return BwrapJail( WorkspacePrivatePaths(), state_dirs=[ home ],
@@ -308,13 +321,6 @@ def default_builders( diagnostic: IAgentDiagnostic, cases: ICaseHistory, output_
         if not placeholder.exists():
             placeholder.touch( mode=0o600 )
         return home
-
-    def claude_progress( agent: str ):
-        def publish( envelope: Envelope, phase: str, message: str ) -> None:
-            if events is not None:
-                events.publish( TaskEvent( name="task.progress", task_id=envelope.id, agent=agent,
-                                           details={ "phase": phase, "message": message }))
-        return publish
 
     return {
         "machine_ops": lambda card: MachineOpsExecutor(),

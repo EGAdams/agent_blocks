@@ -109,7 +109,8 @@ class AgentWorker:
         worked = envelope.model_copy( update={ "performer": result.performer })
         if result.ok:
             done = self._transport.complete( self._agent, worked.model_copy( update={ "result": result.text }))
-            self._publish( "task.succeeded", done, performer=result.performer, cost_usd=result.cost_usd )
+            self._publish( "task.succeeded", done, performer=result.performer, cost_usd=result.cost_usd,
+                           verdict=result.details.get( "verdict" ))
             self._reply( done, TaskStatus.SUCCEEDED, result )
             return done
         if self._retries.should_retry( worked, result ):

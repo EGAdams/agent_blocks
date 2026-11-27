@@ -1,3 +1,25 @@
+# Live agent output and supervisor log - 2026-11-27 (R46)
+
+- Root cause of the empty Execute Task view: `adw_op_execute_task` and the bridge
+  ADW logged nothing while waiting, and the Codex executor buffered everything
+  with `communicate()`.
+- False success: exit 0 meant succeeded. Codex also exits 0 on `turn.failed`.
+  Now `agent_comms/outcome.py` judges write tasks, and a bridge write with no
+  changed file or a failed check is FAILED.
+- Live data: `task.progress` (may reach the gateway) and `task.output` (local
+  only) in the post office log; `adws/adw_live_activity.py` reads it and the
+  supervisor folder on any machine. `adws/adw_agent_task.py` runs a probe
+  without the Bridge queue.
+- Dashboard (letta-code): `/api/live-activity`, terminal lines, Supervisor log
+  pane on the Terminal tab.
+- Verified on R46 with a real Claude probe and headless Chrome. Codex streaming
+  is tested with a fake binary only: R46's Codex login has expired.
+- SQMC's letta-code has uncommitted debugger work (host filter and more) that
+  blocks a pull. Left untouched; the dashboard half is not deployed there until
+  its owner commits or clears it.
+
+---
+
 # Git checkpoint for R46 - 2026-11-26
 
 - BATI prepared the three repositories on main for the next R46 session.

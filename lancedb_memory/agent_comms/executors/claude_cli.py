@@ -41,9 +41,10 @@ a different model. Every result carries `model_requested` and `models_used`.
 
 The request goes on stdin, never the command line. Claude's `stream-json`
 output is read as it arrives: every tool call it really makes is reported
-through `progress` as it happens (tool name and the file or pattern only --
-never the prompt, the reply, or Claude's own text), and the final `result`
-event is the answer. Nothing is reported that Claude did not do. Any answer
+through `progress` as it happens (tool name and the file or pattern as a
+relayable step; Bash commands, tool results and Claude's visible messages as
+local-only output, see live_output.py -- never the prompt or thinking), and the
+final `result` event is the answer. Nothing is reported that Claude did not do. Any answer
 or error text carrying a login value, or shaped like a JWT, is withheld.
 A timeout ends Claude's whole process group, TERM then KILL.
 """
@@ -62,7 +63,9 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, Protocol
 
+from ..live_output import MAX_OUTPUT
 from ..models import Envelope, JailUnavailable, TaskResult
+from ..outcome import OUTCOME_RULE
 from ..ports import ICommandJail
 
 READ_TOOLS   = ( "Read", "Glob", "Grep" )
@@ -90,7 +93,7 @@ WRITE_RULES = """You are working in a dedicated workspace on EG's machine, throu
 You may create and edit files in the current directory only, with the Edit and Write tools. You cannot
 run commands; the bridge runs the workspace's checks after you finish. Do not delete files you did not
 create in this task. Finish with a short summary of the files you created or changed.
-
+""" + OUTCOME_RULE + """
 Task:
 """
 
@@ -100,7 +103,7 @@ with the Bash tool (tests, scripts, builds, git log/diff/status). Git cannot com
 this directory is hidden: do not try to get around that. Never read, print or send any login or credential
 file, and do not delete files you did not create in this task. Finish with a short summary of the files you
 created or changed and the commands you ran with their results.
-
+""" + OUTCOME_RULE + """
 Task:
 """
 
@@ -183,6 +186,31 @@ def _target( tool_input: dict[ str, Any ], root: Path ) -> str:
                 return path.name
     pattern = tool_input.get( "pattern" )
     return f'"{ _clip( pattern )[ :60 ]}"' if isinstance( pattern, str ) and pattern else ""
+
+
+def output_message( event: dict[ str, Any ]) -> list[ tuple[ str, str ]]:
+    """Local-only detail of one stream-json event: commands, tool results, visible text. Never thinking."""
+    kind    = event.get( "type" )
+    content = ( event.get( "message" ) or {}).get( "content" ) or []
+    steps: list[ tuple[ str, str ]] = []
+    for part in content if isinstance( content, list ) else []:
+        if not isinstance( part, dict ):
+            continue
+        if kind == "assistant" and part.get( "type" ) == "tool_use":
+            command = ( part.get( "input" ) or {}).get( "command" )
+            if isinstance( command, str ):
+                steps.append(( "command", f"$ { command }" ))
+        elif kind == "assistant" and part.get( "type" ) == "text" and str( part.get( "text", "" )).strip():
+            steps.append(( "message", str( part[ "text" ])))
+        elif kind == "user" and part.get( "type" ) == "tool_result":
+            body = part.get( "content" )
+            if isinstance( body, list ):
+                body = "\n".join( str( p.get( "text", "" )) for p in body if isinstance( p, dict ))
+            lines = [ line for line in str( body or "" ).splitlines() if line.strip()]
+            if lines:
+                more = f" (+{ len( lines ) - 6 } lines)" if len( lines ) > 6 else ""
+                steps.append(( "result", "\n".join( lines[ :6 ]) + more ))
+    return steps
 
 
 def progress_message( event: dict[ str, Any ], root: Path ) -> list[ tuple[ str, str ]]:
@@ -335,7 +363,7 @@ class ClaudeCliExecutor:
         timer.daemon = True
         timer.start()
         final: dict | None = None
-        sent = hidden = 0
+        sent = hidden = local = 0
         init_model: str | None = None
         try:
             try:
@@ -355,6 +383,10 @@ class ClaudeCliExecutor:
                     continue
                 if event.get( "type" ) == "system" and event.get( "subtype" ) == "init" and event.get( "model" ):
                     init_model = str( event[ "model" ])
+                for phase, message in output_message( event ):
+                    local += 1
+                    if local <= MAX_OUTPUT:
+                        self._emit( envelope, phase, message )
                 for phase, message in progress_message( event, workdir ):
                     if sent < MAX_PROGRESS:
                         self._emit( envelope, phase, message )

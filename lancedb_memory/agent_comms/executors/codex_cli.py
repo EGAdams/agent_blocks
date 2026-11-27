@@ -10,6 +10,11 @@ it was asked to work in (not the card's whole workdir), so the writable area
 is exactly that directory. The answer is the file codex writes with `-o` (its last
 message), not its progress chatter on stdout.
 
+`--json` events are read as they arrive and reported through `progress`:
+commands, their output and exit codes, file changes, tool calls, Codex's own
+visible messages, and stderr. Reasoning items are never read out. A
+`turn.failed` event fails the task even when codex then exits 0.
+
 Codex's sandbox stops writes, not reads, so a card may also name a jail
 (`ICommandJail`, see jail.py) that limits what codex can see to the card's
 workdir minus its private data. A jail that cannot be built fails the task;
@@ -40,9 +45,14 @@ import re
 import signal
 import subprocess
 import tempfile
+import threading
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
+from ..live_output import MAX_OUTPUT
 from ..models import Envelope, JailUnavailable, TaskResult
+from ..outcome import OUTCOME_RULE
 from ..ports import ICommandJail
 
 JWT     = re.compile( r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\." )
@@ -55,9 +65,45 @@ WRITE_RULES = """You are working in a dedicated workspace on EG's machine, throu
 You may create and edit files in the current directory only. Do not run git commit, push, reset,
 checkout, clean or stash; do not delete files you did not create in this task; do not try to reach
 the network. Finish with a short summary of the files you created or changed and any checks you ran.
-
+""" + OUTCOME_RULE + """
 Task:
 """
+
+
+Progress = Callable[[ Envelope, str, str ], None ]       # (task, phase, message)
+OUTPUT_TAIL = 8                                          # lines of one command's output shown
+
+
+def codex_steps( event: dict[ str, Any ]) -> list[ tuple[ str, str ]]:
+    """The (phase, message) steps one `--json` event shows. Reasoning is private and never listed."""
+    kind = str( event.get( "type", "" ))
+    if kind == "turn.failed":
+        return [( "error", f"turn failed: { ( event.get( 'error' ) or {}).get( 'message', 'no reason given' )}" )]
+    if kind == "error":
+        return [( "error", str( event.get( "message", "codex reported an error" )))]
+    if kind == "turn.completed":
+        return [( "tool", "turn completed" )]
+    item = event.get( "item" ) or {}
+    what, done = item.get( "type" ), kind == "item.completed"
+    if what == "command_execution":
+        if not done:
+            return [( "command", f"$ { item.get( 'command', '' )}" )] if kind == "item.started" else []
+        tail = [ line for line in str( item.get( "aggregated_output", "" )).splitlines() if line.strip()]
+        return [*[( "output", line ) for line in tail[ -OUTPUT_TAIL: ]],
+                ( "tool", f"command finished, exit { item.get( 'exit_code' )}" )]
+    if not done:
+        return []
+    if what == "file_change":
+        return [( "tool", f"file { c.get( 'kind', 'changed' )}: { c.get( 'path', '?' )}" ) for c in item.get( "changes" ) or []]
+    if what == "mcp_tool_call":
+        return [( "tool", f"tool { item.get( 'server', '' )}.{ item.get( 'tool', '' )}: { item.get( 'status', '' )}" )]
+    if what == "web_search":
+        return [( "tool", "web search" )]
+    if what == "agent_message":
+        return [( "message", str( item.get( "text", "" )))]
+    if what == "error":
+        return [( "error", str( item.get( "message", "codex reported an error" )))]
+    return []
 
 
 class CodexCliExecutor:
@@ -66,7 +112,7 @@ class CodexCliExecutor:
                   grace_seconds: float = 10.0, model: str | None = None,
                   jail: ICommandJail | None = None, secret_files: list[ Path ] | None = None,
                   sandbox: str = "read-only", read_roots: list[ Path ] | None = None,
-                  write_roots: list[ Path ] | None = None ) -> None:
+                  write_roots: list[ Path ] | None = None, progress: Progress | None = None ) -> None:
         if sandbox not in SANDBOXES:
             raise ValueError( f"unknown codex sandbox { sandbox!r}" )
         if read_roots and sandbox != "read-only":
@@ -86,6 +132,7 @@ class CodexCliExecutor:
         self._grace   = grace_seconds
         self._jail    = jail
         self._secrets = [ Path( f ) for f in secret_files or []]
+        self._progress = progress
 
     @property
     def performer( self ) -> str:
@@ -94,7 +141,7 @@ class CodexCliExecutor:
     def argv( self, workdir: Path, outfile: Path ) -> list[ str ]:
         model = [ "-m", self._model ] if self._model else []
         return [ self._binary, "exec", "--sandbox", self._sandbox, *model, "--cd", str( workdir ),
-                 "--ephemeral", "--skip-git-repo-check", "--color", "never", "-o", str( outfile ), "-" ]
+                 "--ephemeral", "--skip-git-repo-check", "--color", "never", "--json", "-o", str( outfile ), "-" ]
 
     async def execute( self, envelope: Envelope ) -> TaskResult:
         return await asyncio.to_thread( self._run, envelope )
@@ -128,12 +175,13 @@ class CodexCliExecutor:
                                             cwd=str( workdir ), start_new_session=True )
             except OSError as error:
                 return TaskResult( ok=False, text=f"could not start codex: { error }", performer=self.performer )
-            try:
-                _, stderr = process.communicate( self._prompt( envelope ), timeout=self._timeout )
-            except subprocess.TimeoutExpired:
-                self._end_group( process )
+            self._emit( envelope, "started", f"codex started ({ self._sandbox }) in { workdir.name }, pid={ process.pid }" )
+            stderr, failure, timed_out = self._stream( envelope, process )
+            if timed_out:
+                self._emit( envelope, "finished", f"stopped after { round( self._timeout )}s without finishing" )
                 return TaskResult( ok=False, text=f"codex did not finish within { round( self._timeout ) }s",
                                    performer=self.performer, details={ "exit_code": None, "timed_out": True })
+            self._emit( envelope, "finished", f"codex exited { process.returncode }" )
             answer = outfile.read_text( encoding="utf-8" ).strip() if outfile.exists() else ""
         if self._leaks( answer ) or self._leaks( stderr or "" ):
             return TaskResult( ok=False, text=WITHHELD, performer=self.performer,
@@ -142,10 +190,87 @@ class CodexCliExecutor:
             tail = ( stderr or "" ).strip().splitlines()[ -3: ]
             return TaskResult( ok=False, text=f"codex exited { process.returncode }: { ' | '.join( tail ) or 'no error text' }",
                                performer=self.performer, details={ "exit_code": process.returncode })
+        if failure:
+            return TaskResult( ok=False, text=f"codex's turn failed: { failure }", performer=self.performer,
+                               details={ "exit_code": 0 })
         if not answer:
             return TaskResult( ok=False, text="codex finished but wrote no answer", performer=self.performer,
                                details={ "exit_code": 0 })
         return TaskResult( ok=True, text=answer, performer=self.performer, details={ "exit_code": 0 })
+
+    def _emit( self, envelope: Envelope, phase: str, message: str ) -> None:
+        if self._progress is None:
+            return
+        if self._leaks( message ):
+            message = "[withheld: it carried a login value]"
+        try:
+            self._progress( envelope, phase, message )
+        except Exception:                                    # noqa: BLE001 -- showing a step never stops the task
+            pass
+
+    def _stream( self, envelope: Envelope, process: subprocess.Popen ) -> tuple[ str, str, bool ]:
+        """( stderr, turn failure, timed out ). Both pipes are read as they fill, so each line shows at once."""
+        expired = threading.Event()
+        errors: list[ str ] = []
+        shown = [ 0 ]
+
+        def show( phase: str, message: str ) -> None:
+            shown[ 0 ] += 1
+            if shown[ 0 ] <= MAX_OUTPUT:
+                self._emit( envelope, phase, message )
+
+        def read_errors() -> None:
+            for line in process.stderr:
+                errors.append( line )
+                if line.strip():
+                    show( "stderr", line.rstrip())
+
+        def stop() -> None:
+            expired.set()
+            for sig in ( signal.SIGTERM, signal.SIGKILL ):
+                try:
+                    os.killpg( process.pid, sig )
+                except ProcessLookupError:
+                    return
+                try:
+                    process.wait( timeout=self._grace )
+                except subprocess.TimeoutExpired:
+                    continue
+
+        reader = threading.Thread( target=read_errors, daemon=True )
+        timer  = threading.Timer( self._timeout, stop )
+        timer.daemon = True
+        reader.start()
+        timer.start()
+        failure = ""
+        try:
+            try:
+                process.stdin.write( self._prompt( envelope ))
+                process.stdin.close()
+            except ( BrokenPipeError, OSError ):
+                pass
+            for line in process.stdout:
+                try:
+                    event = json.loads( line )
+                except ValueError:
+                    if line.strip():
+                        show( "output", line.rstrip())
+                    continue
+                if not isinstance( event, dict ):
+                    continue
+                if event.get( "type" ) == "turn.failed":
+                    failure = str(( event.get( "error" ) or {}).get( "message" ) or "no reason given" )
+                elif event.get( "type" ) == "turn.completed":
+                    failure = ""
+                for phase, message in codex_steps( event ):
+                    show( phase, message )
+            process.wait()
+            reader.join( timeout=self._grace )
+        finally:
+            timer.cancel()
+        if shown[ 0 ] > MAX_OUTPUT:
+            self._emit( envelope, "tool", f"{ shown[ 0 ] - MAX_OUTPUT } further line(s) not listed" )
+        return "".join( errors ), failure, expired.is_set()
 
     def _prompt( self, envelope: Envelope ) -> str:
         return envelope.text if self._sandbox == "read-only" else WRITE_RULES + envelope.text
@@ -181,15 +306,3 @@ class CodexCliExecutor:
             return argv
         root = root if self._sandbox == "read-only" else workdir
         return self._jail.wrap( argv, root, workdir, [ scratch ])
-
-    def _end_group( self, process: subprocess.Popen ) -> None:
-        for sig, wait in (( signal.SIGTERM, self._grace ), ( signal.SIGKILL, None )):
-            try:
-                os.killpg( process.pid, sig )
-            except ProcessLookupError:
-                break
-            try:
-                process.communicate( timeout=wait )
-                break
-            except subprocess.TimeoutExpired:
-                continue

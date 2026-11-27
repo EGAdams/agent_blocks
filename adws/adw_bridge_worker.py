@@ -151,6 +151,15 @@ class SignalWaiter:
         return self._stop.wait( seconds )
 
 
+_PHASE_LOG: list[ Callable[ ..., Any ]] = []      # the running phase's log; one run, one thread
+
+
+def mirror( line: str ) -> None:
+    """An agent's step, into whichever phase is waiting for it, so the Object Debugger shows it live."""
+    if _PHASE_LOG:
+        _PHASE_LOG[ 0 ]( message=line )
+
+
 class ServicePhase( LifecycleLogged, IPhase ):
     """One SSSF phase that calls one BridgeTaskRun method."""
 
@@ -163,7 +172,11 @@ class ServicePhase( LifecycleLogged, IPhase ):
         return PhaseParams( name=self._name, kind="code", owner="chatgpt-bridge", description=self._description )
 
     def act( self, handle: IPhaseHandle ) -> Any:
-        return self._act()
+        _PHASE_LOG[ : ] = [ handle.log ]
+        try:
+            return self._act()
+        finally:
+            _PHASE_LOG.clear()
 
 
 def configured_workspaces() -> Any:
@@ -247,7 +260,7 @@ def build_application( base_url: str, worker_id: str, hooks: Any = None, lane: W
         timeout = max( float( card.settings.get( "timeout_seconds", 600 )),
                        float( card.settings.get( "write_timeout_seconds", 0 ))) + 60   # a writer's longer budget too
         agents[ name ] = PostOfficeAgent( SENDER, kit.dispatcher, kit.replies, kit.canceller, kit.board,
-                                          kit.event_log, TaskRequest, clock, timeout_seconds=timeout, relay=relay )
+                                          kit.event_log, TaskRequest, clock, timeout_seconds=timeout, relay=relay, mirror=mirror )
     events     = next( iter( agents.values()), None )
     if events is None:
         raise RuntimeError( f"no agent in the post office accepts work from { SENDER }" )
@@ -481,7 +494,7 @@ def machine_post_office_agents( machine: Any, gateway: Any, clock: Any, agents: 
         timeout = max( float( card.settings.get( "timeout_seconds", 600 )),
                        float( card.settings.get( "write_timeout_seconds", 0 ))) + 60
         agents[ name ]   = PostOfficeAgent( SENDER, kit.dispatcher, kit.replies, kit.canceller, kit.board, kit.event_log,
-                                            TaskRequest, clock, timeout_seconds=timeout, relay=relay )
+                                            TaskRequest, clock, timeout_seconds=timeout, relay=relay, mirror=mirror )
         caps[ name ]     = offered[ name ]
         workdirs[ name ] = Path( str( card.settings.get( "write_workdir", "" ))).expanduser()
         workdirs[ name ].mkdir( mode=0o700, parents=True, exist_ok=True )
@@ -535,6 +548,7 @@ def one_run( args: argparse.Namespace, cfg: Any, boot: ILifecycleLog ) -> RunRep
     from object_trace.factory import default_tracer
 
     run      = SessionRunFactory( boot ).create( cfg, args.adw_id )
+    os.environ[ "BRIDGE_ADW_ID" ] = run.adw_id            # post-office envelopes carry it, for the live terminal
     log      = ConsoleLifecycleLog( run )
     executor = ManualContextPhaseExecutor( boot )
     svc: BridgeTaskRun | None = None

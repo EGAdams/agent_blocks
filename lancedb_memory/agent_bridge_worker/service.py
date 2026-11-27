@@ -27,6 +27,20 @@ from .ports import (GatewayError, IAgentAdapter, IClock, IExecutionPolicy, ITask
 MAX_EVENTS = 25
 
 
+def judged_write( outcome: AgentOutcome, details: dict ) -> AgentOutcome:
+    """A write task the agent called successful, held against what the workspace shows."""
+    if outcome.kind is not OutcomeKind.SUCCEEDED:
+        return outcome
+    failed = [ c for c in details.get( "checks_run" ) or [] if not c.get( "passed" )]
+    if details.get( "outcome" ) == "no_changes":
+        head = "COMPLETED WITHOUT CHANGES: no file in the workspace changed, so nothing was implemented"
+    elif failed:
+        head = f"FAILED CHECKS: files changed but { len( failed )} check(s) did not pass"
+    else:
+        return outcome
+    return outcome.model_copy( update={ "kind": OutcomeKind.FAILED, "summary": f"{ head }. { outcome.summary }"[ :300 ]})
+
+
 class BridgeTaskRun:
     """One claim-to-finish pass for at most one task."""
 
@@ -156,7 +170,7 @@ class BridgeTaskRun:
         else:
             details = self._writes.collect( self.task, self.workdir, self.write_start, self.outcome,
                                             self._found ).model_dump( mode="json" )
-        self.outcome = self.outcome.model_copy( update={ "details": details })
+        self.outcome = judged_write( self.outcome.model_copy( update={ "details": details }), details )
         changed = details.get( "changed_paths" )
         self._note( "phase", f"write outcome { details[ 'outcome' ]}, "
                              f"{ 'unknown' if changed is None else len( changed )} path(s) changed" )

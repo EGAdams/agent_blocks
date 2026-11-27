@@ -161,7 +161,7 @@ def row_for( envelope: Envelope, names: dict[ str, str ], now: datetime, scanner
     ended   = envelope.completed_at
     workdir = str( envelope.context.get( "workdir" ) or "" )
     latest  = max( t for t in ( envelope.created_at, envelope.enqueued_at, started, ended ) if t is not None )
-    shown   = event_rows( events or [], scanner )
+    shown   = event_rows([ e for e in events or [] if e.name != "task.output" ], scanner )
     return WorkerTaskRow(
         id=str( envelope.context[ "bridge_task_id" ]),
         agent=envelope.recipient,

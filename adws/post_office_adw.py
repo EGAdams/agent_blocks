@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -33,6 +34,7 @@ from sssf_roles import ( IPhase, IPhaseHandle, ILifecycleLog, LifecycleLogged, M
                          PrintLifecycleLog, SessionRunFactory, SssfConfigLoader )
 
 from adw_modules.data_types import PhaseParams
+from agent_comms.adapters.event_log import JsonlTail, step_line
 from agent_comms.factory import build_post_office
 from agent_comms.operations.base import IOperation, OperationOutcome
 from agent_comms.operations.catalog import operations
@@ -51,7 +53,9 @@ class Flag:
 class OperationPhase( LifecycleLogged, IPhase ):
     """One operation as one lifecycle phase. Its owner is the operation's performer."""
 
-    def __init__( self, operation: IOperation, args: dict[ str, Any ], logger: ILifecycleLog ):
+    def __init__( self, operation: IOperation, args: dict[ str, Any ], logger: ILifecycleLog,
+                  tail: JsonlTail | None = None ):
+        self._tail      = tail
         LifecycleLogged.__init__( self, logger )
         self._operation = operation
         self._args      = args
@@ -63,9 +67,24 @@ class OperationPhase( LifecycleLogged, IPhase ):
 
     def act( self, handle: IPhaseHandle ) -> OperationOutcome:
         handle.log( args=_loggable( self._args ))
-        outcome = self._operation.run( self._args )
+        outcome = self._run( handle )
         handle.log( ok=outcome.ok, line=outcome.line, data=_loggable( outcome.data ))
         return outcome
+
+    def _run( self, handle: IPhaseHandle ) -> OperationOutcome:
+        """The operation on a thread, while this thread (which owns the trace db) copies the agent's steps as they happen."""
+        if self._tail is None:
+            return self._operation.run( self._args )
+        agent = str( self._args.get( "agent", "" ))
+        with ThreadPoolExecutor( max_workers=1 ) as pool:
+            running = pool.submit( self._operation.run, self._args )
+            while True:
+                finished = bool( wait([ running ], timeout=0.5 ).done )
+                for event in self._tail.new():
+                    if event.agent == agent:
+                        handle.log( message=step_line( event ))
+                if finished:
+                    return running.result()
 
 
 def run_operation( name: str, description: str, argv: list[ str ], flags: list[ Flag ]) -> int:
@@ -81,7 +100,8 @@ def run_operation( name: str, description: str, argv: list[ str ], flags: list[ 
     op       = operations( kit )[ name ]
 
     def as_phase( step: IOperation, step_args: dict[ str, Any ]) -> OperationOutcome:
-        return executor.execute( run, OperationPhase( step, step_args, log ))
+        tail = JsonlTail( kit.root / "events.jsonl" ) if step.name == "execute_task" else None
+        return executor.execute( run, OperationPhase( step, step_args, log, tail ))
 
     steps = getattr( op, "steps", None )
     outcome = op.run( args, step_runner=as_phase ) if steps else as_phase( op, args )

@@ -75,3 +75,38 @@ class RecordingSubscriber:
 
     def names( self ) -> list[ str ]:
         return [ e.name for e in self.events ]
+
+
+class JsonlTail:
+    """The events appended after this was made, read from where it left off. Whole lines only."""
+
+    def __init__( self, path: Path ) -> None:
+        self._path = Path( path )
+        self._at   = self._path.stat().st_size if self._path.exists() else 0
+
+    def new( self ) -> list[ TaskEvent ]:
+        try:
+            with open( self._path, "rb" ) as handle:
+                handle.seek( self._at )
+                chunk = handle.read()
+        except OSError:
+            return []
+        end = chunk.rfind( b"\n" ) + 1
+        self._at += end
+        events = []
+        for line in chunk[ :end ].splitlines():
+            try:
+                events.append( TaskEvent.model_validate_json( line ))
+            except ValueError:
+                continue
+        return events
+
+
+def step_line( event: TaskEvent ) -> str:
+    """One event as an ADW log line."""
+    if event.name in ( "task.progress", "task.output" ):
+        said = f"{ event.details.get( 'phase', 'step' )}: { event.details.get( 'message', '' )}"
+    else:
+        said = " ".join([ event.name, *( f"{ k }={ v }" for k, v in event.details.items())])
+    return f"{ event.agent } { said }"[ :700 ]
+
