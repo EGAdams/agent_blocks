@@ -6,19 +6,23 @@
 - Real probes (`adw_agent_task.py`, Claude haiku): events reached `adw_live_activity.py --after` across
   several polls before the final result (adw `810895d0`); a deliberately blocked `implement` probe ended
   `failed`, state `blocked`, exit 1 (adw `3abb5b87`). All three probe ADWs show in the Object Debugger feed.
-- Supervisor events are now in the Object Debugger (letta-code `a1dfe4b7`, committed on BATI, **not pushed,
-  not deployed**). Same `/api/live-activity` as the Terminal pane, no second reader: a Supervisors pane under
+- Supervisor events are now in the Object Debugger (letta-code `a1dfe4b7`, **pushed** to origin main, not
+  deployed). Same `/api/live-activity` as the Terminal pane, no second reader: a Supervisors pane under
   the run's events with machine (this/SQMC/BATI/R46) and agent filters, an awake/asleep chip, gaps in plain
   words, and a switch keeping only records carrying the selected run's own id (ADW, task, Bridge task or request
   id). Read-only; clearing a run's terminal does not touch it. vue-tsc clean, vitest 67, dashboard Python 367.
   Rendered the built panel (happy-dom) with real BATI output: 302 records, state `asleep`. Not looked at in a
   real browser; SQMC/R46 reads over SSH were not exercised from the UI.
 - Same commit lands SQMC's staged `execution_host` + "Dad's Computer Only" filter. No machine is enrolled
-  (`REGISTERED_DADS_HOSTS` empty in `host-filter.ts`), so the filter says so. SQMC's own staged copy of that work
-  is now a duplicate: back it up, then `git checkout` its debugger files before pulling. Its other uncommitted
-  work (alerts, remediation, plan-for-today) is not ours; leave it.
+  (`REGISTERED_DADS_HOSTS` empty in `host-filter.ts`), so the filter says so.
+- SQMC reconciled 2026-11-27: its staged copy was checked blob-by-blob (10 files byte-identical to `a1dfe4b7`,
+  the rest a strict subset plus the supervisor work), backed up to `~/backups/letta-code-20261127/` on SQMC
+  (`staged.patch`, `unstaged.patch`, `dashboard_html_unstaged.patch`), restored to HEAD, and fast-forwarded to
+  `a1dfe4b7`. `dashboard.html` kept its own unrelated edits (startup guard, Plan for Today). Its other
+  uncommitted work (alerts, remediation, plan-for-today) is not ours and was left as it was. Stashes untouched.
+  SQMC's running dashboard has NOT been restarted: the new bundles are on disk, not served until it is.
 - `adw_live_activity.py` ignores `AGENT_POST_OFFICE_ROOT`; probes must use the default root to be seen.
-- Not done: push of letta-code, SQMC deployment, a browser look at the BATI dashboard (BATI :8765 proxies to SQMC).
+- Not done: SQMC dashboard restart/deploy (needs EG's yes), a browser look at the dashboard (BATI :8765 proxies to SQMC), the live end-to-end watch of an agent through the debugger on SQMC.
 
 ---
 
