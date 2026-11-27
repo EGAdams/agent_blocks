@@ -128,3 +128,32 @@ After EG adds the key, send one supervisor todo to SQMC under a new request, for
 
 The todo should verify the hostname and user, check that Tailscale and sshd are enabled at boot, and look at the
 `~/agent_blocks` clone and branch, read-only. Close it with a read, never by resending the todo.
+
+## Addendum, 18:45Z: DAD's supervisor runs on Codex
+
+EG's decision: "let's just use Dad's codex subscription only for now. We'll just have codex do everything claude was
+supposed to do." Dad has no Claude CLI, so the DAD supervisor now runs `codex exec` on Dad's ChatGPT login.
+`machines.json` sets `"cli": "codex"` for DAD, and the other three stay on Claude. The design is in
+`adws/machine_supervisor/DESIGN.md`, "A supervisor on Codex (DAD)".
+
+- **Commit 1b5d859.** It was deployed through the deploy ADW to SQMC (adw `d4d16ff1`, release 20261127T134122-d4d16ff1)
+  and to BATI (adw `275af590`, release 20261127T134128-275af590); both health checks passed. R46 was already on 1b5d859.
+  Dad was fast-forwarded with `--autostash`; first, a three-way merge check showed no conflict. Dad's `HANDOFF.md` edit
+  was kept (with a backup in `~/.cache/ms_codex_probe/`), as was the untracked `terminal-saver.sh`.
+- **Guard.** One PreToolUse hook with matcher `*` runs `bash_guard.py`, and it denies every tool that is not the shell.
+  Every Codex feature that adds a tool is switched off, and so are `unified_exec` and `unified_exec_tty`, because
+  `write_stdin` would otherwise get around the hook. If the guard cannot run, the call is blocked, with the reason
+  written to stderr.
+- **Live proof.** Request `rq_c15e577498fe72a8ae2e2d2c`.
+  - Bridge todo task `t_24e26542f8d3bd283c12a9fc` queued `20261127T184336Z_88d823bd_from_chatgpt-bridge` on DAD.
+  - Dad's receive step started the todo worker. `codex exec` (with the hook) worked the todo read-only from 18:43:37
+    to 18:43:50Z and reported the hostname, uptime, disk, ssh/tailscaled active, codex-cli 0.172.0 and HEAD 1b5d859.
+  - ONE read, `t_d076bacfbd7dbafa1396c322`, found it in completed, and the request closed as completed. Nothing was
+    resent.
+- **Limits.**
+  - Dad has no Gmail connector, so its mail goes to its own outbox (`NoConnectorMailer`). It has no peers either, so no
+    peer can send that mail on.
+  - There is no OS sandbox until EG installs bubblewrap (sudo); until then the guard's deny table is the only protection.
+  - Codex reports no cost, and a ChatGPT usage limit defers the todo (`CodexUsageLimit`).
+  - No watch cron is installed on Dad yet (plan item 25), so nothing wakes Dad's supervisor on a failing check; only
+    todos do.
