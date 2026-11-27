@@ -58,6 +58,19 @@ def test_reads_are_inspect_and_a_todo_is_not():
     assert len( c.calls ) == 1
 
 
+def test_a_todo_sent_under_the_wrong_key_is_refused_with_the_prompt_that_works():
+    # t_376042e69e3ba95cfdb8720a (2026-11-27): the text arrived as "todo", not "text". The refusal was right; it
+    # did not say what to send instead, so nothing could correct it without a person reading the source.
+    c = Commands( ans())
+    out = run( MachineSupervisorAgent( c, FakeClock()),
+               task({ "supervisor": "todo", "machine": "SQMC", "todo": "enroll Dad's computer" }, "implement" ))
+    assert out.kind == OutcomeKind.REFUSED and c.calls == []
+    assert "todo does not take: todo; it takes machine, text" in out.summary
+    assert '{"supervisor": "todo", "machine": "SQMC", "text": "<what to do>"}' in out.summary
+    status = run( MachineSupervisorAgent( c, FakeClock()), task({ "supervisor": "status", "box": "new" }, "inspect" ))
+    assert "it takes machine, e.g." in status.summary and c.calls == []
+
+
 def test_bad_values_never_reach_the_adw():
     c = Commands( ans())
     agent = MachineSupervisorAgent( c, FakeClock())

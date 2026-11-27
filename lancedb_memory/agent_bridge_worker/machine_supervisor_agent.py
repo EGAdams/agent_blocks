@@ -69,7 +69,8 @@ class MachineSupervisorAgent:
             return self._refused( f"{ what } runs as { expected }, not { task.operation }" )
         unknown = set( request ) - set( ALLOWS[ what ]) - { "supervisor" }
         if unknown:
-            return self._refused( f"{ what } does not take: " + ", ".join( sorted( str( k )[ :20 ] for k in unknown )))
+            return self._refused( f"{ what } does not take: " + ", ".join( sorted( str( k )[ :20 ] for k in unknown ))
+                                  + f"; it takes { self._takes( what ) }, e.g. { self._example( what ) }" )
         flags: dict[ str, str ] = {}
         for key, ( flag, pattern ) in FLAGS.items():
             value = request.get( key )
@@ -134,6 +135,16 @@ class MachineSupervisorAgent:
             return AgentOutcome( kind=OutcomeKind.SUCCEEDED, performer=PERFORMER, summary=line[ :300 ], body=body, details=details )
         return AgentOutcome( kind=OutcomeKind.FAILED, performer=PERFORMER, summary=( line or "the supervisor operation did not complete" )[ :300 ],
                              body=body, retryable=bool( answer.get( "retryable" )), details=details )
+
+    @staticmethod
+    def _takes( what: str ) -> str:
+        return ", ".join( ALLOWS[ what ]) or "nothing else"
+
+    @staticmethod
+    def _example( what: str ) -> str:
+        """The one correct prompt for `what`, so a refused requester can resend it once without guessing."""
+        sample = { "machine": "SQMC", "box": "new", "id": "<message id>", "text": "<what to do>" }
+        return json.dumps({ "supervisor": what, **{ key: sample[ key ] for key in ALLOWS[ what ]}})
 
     @staticmethod
     def _refused( summary: str ) -> AgentOutcome:
