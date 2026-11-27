@@ -1,5 +1,6 @@
 #!/usr/bin/env -S uv run
 # /// script
+# requires-python = ">=3.12"
 # dependencies = ["pydantic", "python-dotenv", "pyyaml", "rich"]
 # ///
 """ADW Interface Browser Open -- open a URL, or a search phrase, in the

@@ -82,3 +82,7 @@ adws/adw_data/scala_storage/
 adws/adw_data/notes_bridge/attach_tmp/
 # BATI desktop Chrome: audit log and screenshots of EG's dashboard
 adws/adw_data/bati_desktop/
+
+# Doubled-prefix copies of the SSSF run record (a path resolved from adws/ twice).
+adws/adws/adw_data/sessions/
+adws/adws/adw_data/sssf.db*
