@@ -1,6 +1,6 @@
 # Machine Supervisor
 
-One supervisor per machine (BATI, SQMC, R46). She sleeps. A cron ADW with no model in it looks at the
+One supervisor per machine (BATI, SQMC, R46, and DAD on Codex: see below). She sleeps. A cron ADW with no model in it looks at the
 machine every two minutes and wakes her only when a check has failed enough times in a row.
 
 ## The ladder
@@ -42,6 +42,31 @@ A check already passing when she wakes is closed as "recovered by itself" with n
 - **One Bridge task, one todo**: a todo whose `context.bridge_task` matches one this machine already holds from
   the same sender (in any of new, in_process, completed, failed) is not filed again; the reply names the first as
   `filed_as`, and `TodoPoster` reports that id. Added 2026-11-27, so a Bridge task handed out twice cannot run twice.
+
+## A supervisor on Codex (DAD)
+
+A machine's `cli` in `machines.json` is `claude` (the default) or `codex`. DAD (Dad's Ubuntu computer) is `codex`:
+the supervisor runs `codex exec` on Dad's ChatGPT login (`adapters/codex_agent.py`, `CodexCli`), not the Claude CLI.
+Both satisfy `IAgentCli`; `kit.py` picks one, and the usage-limit reader (`CodexUsageLimit`: "try again at 3:50 PM")
+with it. What differs, all enforced in code:
+
+- Every Codex feature that adds a tool beyond the shell is switched off with `--disable` (apps, plugins, browser and
+  computer use, images, goals, sub-agents) and web search is off. `code_mode_host` must stay on: Codex calls its
+  tools through it, and with it off nothing runs at all.
+- The guard is a PreToolUse hook with matcher `*`, and `bash_guard.py` now denies any tool that is not `Bash`
+  (apply_patch, `collaboration*`, anything a later Codex adds). The Claude supervisors' matcher is `Bash`, so
+  nothing changes for them.
+- TTY execution is off (`unified_exec`, `unified_exec_tty`). With it on, `write_stdin` typed into an open `bash`
+  and that typing never reached the hook (seen on DAD, 2026-11-27); with it off, stdin is closed.
+- Codex blocks on a hook's exit 2 only when stderr carries a reason; with none it logs "Failed" and runs the
+  command. The hook command therefore writes a reason when the guard cannot run.
+- `--ignore-user-config`, `--ephemeral`, and `--dangerously-bypass-hook-trust` for this one run, so Codex's own
+  config never gets a persisted hook trust.
+- No OS sandbox: Codex's bubblewrap sandbox fails on DAD (restricted unprivileged user namespaces, bubblewrap not
+  installed; both need sudo). That is the Claude supervisors' footing too: a deny table, not a sandbox.
+- No Gmail connector: `NoConnectorMailer` (a Null Object) never sends, so DAD's mail is held in its outbox. DAD has
+  no peers.
+- Codex reports no cost, and has no system-prompt flag, so the rules go first in the prompt.
 
 ## Communication (Swarm-Forge's handoffs)
 

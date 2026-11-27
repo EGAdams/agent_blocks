@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class SshTarget(BaseModel):
@@ -36,10 +36,18 @@ class Machine(BaseModel):
     always_on: bool = True              # False: being switched off is normal, not a failure
     python: str                         # interpreter with pydantic, by absolute path (cron and ssh have no PATH)
     repo: str
-    claude: str
+    cli: Literal["claude", "codex"] = "claude"     # which agent CLI the supervisor runs on, on this machine's login
+    claude: str = ""                    # its absolute path, when cli is claude
+    codex: str = ""                     # its absolute path, when cli is codex
     peers: list[str] = Field(default_factory=list)  # who is woken next, in order
     checks: list[Check] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _names_its_cli(self) -> "Machine":
+        if not getattr(self, self.cli):
+            raise ValueError(f"{self.name}: cli is {self.cli}, so `{self.cli}` must give its absolute path")
+        return self
 
     @property
     def agent(self) -> str:

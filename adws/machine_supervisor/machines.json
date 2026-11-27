@@ -108,7 +108,8 @@
       "always_on": false,
       "python": "/home/adamsl/agent_blocks/lancedb_memory/.venv/bin/python",
       "repo": "/home/adamsl/agent_blocks",
-      "claude": "/home/adamsl/.local/bin/claude",
+      "cli": "codex",
+      "codex": "/home/adamsl/.local/bin/codex",
       "peers": [],
       "checks": [
         {"name": "tailscaled", "kind": "unit", "scope": "system", "target": "tailscaled.service", "about": "Tailscale. Without it no machine can reach this one. sudo needs a password here, so a system unit cannot be restarted: say so in needs."},
@@ -116,7 +117,7 @@
       ],
       "notes": [
         "Dad's Ubuntu 26.04 computer, enrolled 2026-11-27 (rq_007918d59d9e8f64b838b2ee). It may be switched off; that is normal and nobody is woken for it.",
-        "No Claude CLI is installed here yet and no cron watch is installed: this machine has an identity and a mailbox, nothing else. Not named as a peer by BATI, SQMC or R46 on purpose.",
+        "The supervisor here runs on the Codex CLI with Dad's ChatGPT login, not the Claude CLI (none is installed). Codex has no Gmail connector, so mail from here goes to the outbox. There is no OS sandbox (bubblewrap needs sudo); the same fail-closed guard as everywhere else stands in front of every tool. Not named as a peer by BATI, SQMC or R46 on purpose.",
         "sudo needs a password here. Anything that needs root goes in needs."
       ]
     }

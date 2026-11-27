@@ -97,6 +97,17 @@ class PeerMailer:
         return MailReceipt(sent=sent, via=via, detail="" if sent else (reply.error or "not sent"))
 
 
+class NoConnectorMailer:
+    """A Null Object for a machine whose agent CLI has no Gmail connector (Codex on DAD): it never sends, so the
+    chain moves on to the peers, then holds the mail in the outbox. Never raises."""
+    def __init__(self, machine: Machine) -> None:
+        self._machine = machine
+
+    def send(self, mail: Mail) -> MailReceipt:
+        return MailReceipt(sent=False, via=f"{self._machine.name} (no mail connector)",
+                           detail=f"{self._machine.name}'s agent CLI is {self._machine.cli}, which has no Gmail connector")
+
+
 class ChainMailer:
     """The first mailer that sends wins. If none does, the mail is held for the next flush, never dropped."""
     def __init__(self, mailers: list[IMailer], outbox: IOutbox) -> None:

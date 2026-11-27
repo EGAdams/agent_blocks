@@ -31,7 +31,9 @@ class FileBriefWriter:
             f"  - {m.name} ({m.hostname}): " + ("this machine" if m.name == me.name else _ssh(m)) +
             ("" if m.always_on else "  -- may be switched off; that is normal")
             for m in [me, *self._catalog.peers()])
-        talk = f'{me.python} {me.repo}/adws/adw_machine_talk.py --to <BATI|SQMC|R46> --message "your question"'
+        names = "|".join(m.name for m in self._catalog.peers())
+        talk = (f'{me.python} {me.repo}/adws/adw_machine_talk.py --to <{names}> --message "your question"' if names
+                else "(no other supervisor is a peer of this machine, so there is nobody to ask)")
         return self._fill("rules.md", machine=me.name, hostname=me.hostname, machines=machines, talk=talk)
 
     def repair(self, incident: Incident, role: str) -> str:

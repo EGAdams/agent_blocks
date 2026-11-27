@@ -1,4 +1,5 @@
 """The supervisor agent: the Claude CLI on this machine's subscription login, asleep until one of these wakes it.
+(A machine whose `cli` is codex runs adapters/codex_agent.py's CodexCli instead; both are IAgentCli.)
 
 It gets Bash, Read, Grep and Glob, and every Bash command passes guards/bash_guard.py first (a PreToolUse hook
 given with --settings; `|| exit 2` makes a guard that cannot run block the command rather than pass it).
@@ -12,7 +13,7 @@ from pathlib import Path
 from agent_comms.models import Envelope, TaskStatus
 
 from ..errors import Undelivered
-from ..interfaces import IBriefWriter, IMessenger, IRepairAgent
+from ..interfaces import IAgentCli, IBriefWriter, IMessenger, IRepairAgent
 from ..models import AgentReport, Incident, Machine, Policy
 from .runtime import child_env, run
 
@@ -30,6 +31,18 @@ def find_report(text: str) -> dict | None:
         if isinstance(found, dict) and "diagnosis" in found:
             return found
     return None
+
+
+def to_report(machine: str, role: str, text: str, cost: float | None, error: str) -> AgentReport:
+    """What one run said, as a report. Shared by every IAgentCli."""
+    if error and not text:
+        return AgentReport(machine=machine, role=role, reached=False, error=error)
+    found = find_report(text) or {}
+    actions = found.get("actions")
+    return AgentReport(machine=machine, role=role, cost_usd=cost, error=error,
+                       diagnosis=str(found.get("diagnosis") or text)[:4000],
+                       actions=[str(a)[:500] for a in actions] if isinstance(actions, list) else [],
+                       believes_fixed=found.get("believes_fixed") is True, needs=str(found.get("needs") or "")[:2000])
 
 
 class ClaudeCli:
@@ -55,19 +68,12 @@ class ClaudeCli:
             return "", None, f"the agent did not answer: {ran.said}"
 
     def report(self, role: str, prompt: str, rules: str, incident: str = "", look_only: bool = False) -> AgentReport:
-        text, cost, error = self.ask(prompt, rules, self._policy.agent_timeout, incident, look_only)
-        if error and not text:
-            return AgentReport(machine=self._machine.name, role=role, reached=False, error=error)
-        found = find_report(text) or {}
-        actions = found.get("actions")
-        return AgentReport(machine=self._machine.name, role=role, cost_usd=cost, error=error,
-                           diagnosis=str(found.get("diagnosis") or text)[:4000],
-                           actions=[str(a)[:500] for a in actions] if isinstance(actions, list) else [],
-                           believes_fixed=found.get("believes_fixed") is True, needs=str(found.get("needs") or "")[:2000])
+        return to_report(self._machine.name, role, *self.ask(prompt, rules, self._policy.agent_timeout, incident,
+                                                             look_only))
 
 
 class LocalRepairAgent:
-    def __init__(self, cli: ClaudeCli, briefs: IBriefWriter) -> None:
+    def __init__(self, cli: IAgentCli, briefs: IBriefWriter) -> None:
         self._cli, self._briefs = cli, briefs
 
     def attempt(self, incident: Incident, role: str) -> AgentReport:
@@ -77,7 +83,7 @@ class LocalRepairAgent:
 
 class LocalAnswerer:
     """Looks, answers, changes nothing, and may not ask anybody else: a question stops here."""
-    def __init__(self, cli: ClaudeCli, briefs: IBriefWriter, policy: Policy) -> None:
+    def __init__(self, cli: IAgentCli, briefs: IBriefWriter, policy: Policy) -> None:
         self._cli, self._briefs, self._policy = cli, briefs, policy
 
     def answer(self, sender: str, question: str, incident: Incident | None) -> str:
@@ -90,7 +96,7 @@ class LocalAnswerer:
 
 
 class LocalTodoAgent:
-    def __init__(self, cli: ClaudeCli, briefs: IBriefWriter) -> None:
+    def __init__(self, cli: IAgentCli, briefs: IBriefWriter) -> None:
         self._cli, self._briefs = cli, briefs
 
     def work(self, envelope: Envelope) -> AgentReport:

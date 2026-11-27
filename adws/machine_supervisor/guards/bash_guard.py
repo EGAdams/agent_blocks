@@ -3,7 +3,11 @@
 
 It reads the hook's JSON on stdin and denies a command that matches the table below. With
 MACHINE_SUPERVISOR_LOOK_ONLY=1 (a drill, or answering a peer's question) it also denies anything that changes
-a service. Any failure of the guard itself exits 2, which blocks the command.
+a service. Any failure of the guard itself exits 2 with the reason on stderr, which blocks the command.
+
+The Claude supervisors call it only for Bash (their matcher). The Codex supervisor calls it for every tool
+(matcher "*"), so any tool that is not the shell is denied here: apply_patch, sub-agents, apps, and whatever
+a later Codex adds.
 
 This is a deny table, not a sandbox: it stops the known ways to do lasting damage, and the rules in the
 agent's brief cover the rest.
@@ -49,6 +53,11 @@ def main() -> int:
     try:
         data = json.load(sys.stdin)
         if data.get("tool_name") != "Bash":
+            print(json.dumps({"hookSpecificOutput": {
+                "hookEventName": "PreToolUse", "permissionDecision": "deny",
+                "permissionDecisionReason": f"Machine Supervisor guard: only the shell tool is allowed, not "
+                                            f"{str(data.get('tool_name'))[:80]}. Do the work with shell commands, "
+                                            "or put it in `needs`."}}))
             return 0
         command = str(data.get("tool_input", {}).get("command", ""))
         look_only = os.environ.get("MACHINE_SUPERVISOR_LOOK_ONLY") == "1"

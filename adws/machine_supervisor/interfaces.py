@@ -66,6 +66,16 @@ class IRemoteAdw(Protocol):
     def run(self, machine: Machine, script: str, args: list[str], stdin: str | None, timeout: int) -> Ran: ...
 
 
+class IAgentCli(Protocol):
+    """One headless run of this machine's agent CLI (Claude or Codex), every shell command through the guard.
+    Never raises."""
+    def ask(self, prompt: str, rules: str, timeout: int, incident: str = "", look_only: bool = False,
+            no_talk: bool = False) -> tuple[str, float | None, str]: ...     # (what it said, cost or None, error)
+
+    def report(self, role: str, prompt: str, rules: str, incident: str = "",
+               look_only: bool = False) -> AgentReport: ...
+
+
 class ITodoAgent(Protocol):
     """The local supervisor agent doing one todo from its mailbox. Never raises."""
     def work(self, envelope: Envelope) -> AgentReport: ...

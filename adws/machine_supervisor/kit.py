@@ -15,13 +15,14 @@ from .adapters.briefs import FileBriefWriter
 from .adapters.carrier import SshCarrier, SshRemoteAdw
 from .adapters.catalog import JsonMachineCatalog
 from .adapters.handoffs import FileHandoffBoxes
-from .adapters.mailer import ChainMailer, GmailConnectorMailer, peer_mailers
+from .adapters.codex_agent import CodexCli
+from .adapters.mailer import ChainMailer, GmailConnectorMailer, NoConnectorMailer, peer_mailers
 from .adapters.probes import CommandProbe, HttpProbe, ProbeRegistry, TcpProbe, UnitProbe
 from .adapters.runtime import child_env
 from .adapters.stores import (DetachedNudge, DetachedWaker, FileIncidentStore, FileOutbox, FileRunLog, FileWatchState,
                               FlockLock, SystemClock)
 from .adapters.toast import PowerShellToast
-from .adapters.usage_limit import ClaudeUsageLimit
+from .adapters.usage_limit import ClaudeUsageLimit, CodexUsageLimit
 from .operations.alerting import AllMachinesAlerter
 from .operations.courier import Courier
 from .operations.escalate import Escalation
@@ -59,13 +60,16 @@ class Kit:
         self.courier = Courier(self.catalog, self.boxes, SshCarrier(self.remote), self.clock)
 
         briefs = FileBriefWriter(self.catalog, _PACKAGE / "prompts")
-        cli = ClaudeCli(machine, policy, _PACKAGE / "guards" / "bash_guard.py")
+        guard = _PACKAGE / "guards" / "bash_guard.py"
+        codex = machine.cli == "codex"                  # DAD: Codex on Dad's ChatGPT login, no Gmail connector
+        cli = CodexCli(machine, policy, guard) if codex else ClaudeCli(machine, policy, guard)
         local = LocalRepairAgent(cli, briefs)
         self.agents = AgentDirectory(machine, local, self.courier, policy)
 
         self.toast = PowerShellToast()
         self.alerter = AllMachinesAlerter(self.catalog, self.toast, self.courier)
-        self.gmail = GmailConnectorMailer(machine, policy, settings, _PACKAGE / "guards" / "mail_guard.py")
+        self.gmail = (NoConnectorMailer(machine) if codex
+                      else GmailConnectorMailer(machine, policy, settings, _PACKAGE / "guards" / "mail_guard.py"))
         self.mailer = ChainMailer([self.gmail, *peer_mailers(self.catalog, self.courier)], self.outbox)
 
         env, background = child_env(), root / "background.log"
@@ -80,7 +84,7 @@ class Kit:
         }, work_todos, self.clock, self.log)
         self.todo_poster = TodoPoster(self.catalog, self.courier)
         self.todo_worker = TodoWorker(self.catalog, self.boxes, LocalTodoAgent(cli, briefs), self.lock, self.log,
-                                      ClaudeUsageLimit(), self.clock)
+                                      CodexUsageLimit() if codex else ClaudeUsageLimit(), self.clock)
         self.watch = Watch(self.catalog, self.probe, self.state, self.incidents, self.lock, self.clock, waker,
                            self.outbox, flush_mail, work_todos, self.boxes, self.log)
         self.escalation = Escalation(self.catalog, self.probe, self.incidents, self.agents, self.alerter, self.mailer,
