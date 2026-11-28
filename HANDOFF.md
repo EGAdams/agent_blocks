@@ -40,11 +40,16 @@
   without the Bridge queue.
 - Dashboard (letta-code): `/api/live-activity`, terminal lines, Supervisor log
   pane on the Terminal tab.
-- Verified on R46 with a real Claude probe and headless Chrome. Codex streaming
-  is tested with a fake binary only: R46's Codex login has expired.
-- SQMC's letta-code has uncommitted debugger work (host filter and more) that
-  blocks a pull. Left untouched; the dashboard half is not deployed there until
-  its owner commits or clears it.
+- Deployed: agent_blocks to SQMC and BATI; letta-code (4adef97f) is live on SQMC
+  now that the other debugger work is committed (a1dfe4b7).
+- Verified on SQMC production (:8765): real Codex task in the debugger, and a real
+  Claude probe streaming into the Terminal tab before it finished, with the
+  Supervisor log showing BATI, SQMC, R46 and DAD.
+- Categorizer LLM card (rol_finances 139bd02, 0ffcdcb): retired gpt-5.4, no
+  Anthropic key (now the Claude CLI), and CLI tiers dropped their final answer.
+  All three tiers categorized for real on SQMC; card reads up.
+- Waiting on EG: `codex login` on R46 (also mom's fallback account), Gmail
+  re-sign-in on R46.
 
 ---
 
